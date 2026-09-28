@@ -19,6 +19,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 START_DB = "docker compose up -d --wait"
 BACKEND = "dotnet run --project backend/src/Portfolio.Api --launch-profile http"
 FRONTEND = "cd frontend && npm run dev"
+# The browser opens as soon as Vite is up, so wait for the API first; otherwise the page's
+# first /api calls hit a closed port (Vite logs "http proxy error ... ECONNREFUSED").
+WAIT_FOR_API = (
+    "echo 'Waiting for the API to be healthy...' && "
+    "until curl -sf http://localhost:5105/api/health > /dev/null; do sleep 1; done"
+)
 BACKEND_TESTS = "cd backend && dotnet test"
 # E2E boots the API itself, but it needs the database to be up.
 FRONTEND_TESTS = f"{START_DB} && cd frontend && npm run test:run && npm run test:e2e"
@@ -39,7 +45,7 @@ def open_terminal(title: str, command: str) -> None:
 ACTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     ("Start backend", [("Backend", f"{START_DB} && {BACKEND}")]),
     ("Start frontend", [("Frontend", FRONTEND)]),
-    ("Start website", [("Backend", f"{START_DB} && {BACKEND}"), ("Frontend", f"{FRONTEND} -- --open")]),
+    ("Start website", [("Backend", f"{START_DB} && {BACKEND}"), ("Frontend", f"{WAIT_FOR_API} && {FRONTEND} -- --open")]),
     ("Run backend tests", [("Backend tests", BACKEND_TESTS)]),
     ("Run frontend tests", [("Frontend tests", FRONTEND_TESTS)]),
     ("Run all tests", [("All tests", ALL_TESTS)]),

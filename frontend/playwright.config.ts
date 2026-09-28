@@ -26,7 +26,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'dotnet run --project ../backend/src/Portfolio.Api --launch-profile http',
-      url: `${API_URL}/api/firstname`,
+      url: `${API_URL}/api/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

@@ -7,6 +7,7 @@ export const TEST_USER = {
   email: 'admin@example.com',
   name: 'Claudiu Jechel',
   pictureUrl: null,
+  sessionExpiresInSeconds: 600,
 }
 
 // Default handlers: anonymous visitor, happy path. Override per test with server.use(...)

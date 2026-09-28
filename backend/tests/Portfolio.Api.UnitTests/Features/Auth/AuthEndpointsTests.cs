@@ -1,5 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Time.Testing;
+using Portfolio.Api.Data;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -52,17 +55,29 @@ public class AuthEndpointsTests
         Assert.Equal(expected, AuthEndpoints.ToSafeReturnUrl(input));
 
     [Fact]
-    public void GetCurrentUser_maps_claims()
+    public async Task GetCurrentUser_maps_claims_and_session_expiry()
     {
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var db = new PortfolioDbContext(new DbContextOptionsBuilder<PortfolioDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options);
+        db.Profiles.Add(new Data.Profile { Id = 1, FirstName = "Claudiu" });
+        await db.SaveChangesAsync();
+        var sessions = new AdminSessionService(db, time, Mock.Monitor(new AdminOptions()));
+
         var user = new ClaimsPrincipal(new ClaimsIdentity(
         [
             new Claim(ClaimTypes.Email, "admin@example.com"),
             new Claim(ClaimTypes.Name, "Claudiu Jechel"),
             new Claim("picture", "https://example.com/me.png"),
         ], "Test"));
+        await sessions.StartAsync(user);
+        time.Advance(TimeSpan.FromMinutes(2));
 
-        var result = AuthEndpoints.GetCurrentUser(user);
+        var result = AuthEndpoints.GetCurrentUser(user, sessions, time);
 
-        Assert.Equal(new CurrentUserResponse("admin@example.com", "Claudiu Jechel", "https://example.com/me.png"), result.Value);
+        Assert.Equal(
+            new CurrentUserResponse("admin@example.com", "Claudiu Jechel", "https://example.com/me.png", 8 * 60),
+            result.Value);
     }
 }

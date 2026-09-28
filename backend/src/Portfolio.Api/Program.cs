@@ -11,6 +11,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<PortfolioDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
+builder.Services.AddHealthChecks().AddDbContextCheck<PortfolioDbContext>();
+
 builder.AddPortfolioAuth();
 
 // Honour X-Forwarded-* from a reverse proxy (the Vite dev proxy locally), so URLs the API
@@ -38,6 +40,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 var api = app.MapGroup("/api");
+api.MapHealthChecks("/health");
 api.MapProfileEndpoints();
 api.MapAuthEndpoints();
 

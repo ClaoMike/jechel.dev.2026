@@ -24,7 +24,7 @@ test('the API reports anonymous visitors as signed out', async ({ request }) => 
 // session the API would return after a successful Google sign-in.
 test('a signed-in admin is sent from /admin to the home page', async ({ page }) => {
   await page.route('**/api/auth/me', (route) =>
-    route.fulfill({ json: { email: 'admin@example.com', name: 'Admin', pictureUrl: null } }),
+    route.fulfill({ json: { email: 'admin@example.com', name: 'Admin', pictureUrl: null, sessionExpiresInSeconds: 600 } }),
   )
 
   await page.goto('/admin')

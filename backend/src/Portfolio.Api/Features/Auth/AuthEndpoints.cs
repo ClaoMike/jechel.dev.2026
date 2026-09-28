@@ -6,7 +6,10 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Portfolio.Api.Features.Auth;
 
-public record CurrentUserResponse(string Email, string? Name, string? PictureUrl);
+/// <param name="SessionExpiresInSeconds">
+/// Relative (not a timestamp) so the browser's clock doesn't matter.
+/// </param>
+public record CurrentUserResponse(string Email, string? Name, string? PictureUrl, int SessionExpiresInSeconds);
 
 public static class AuthEndpoints
 {
@@ -37,14 +40,34 @@ public static class AuthEndpoints
         return TypedResults.Challenge(properties, [GoogleDefaults.AuthenticationScheme]);
     }
 
-    public static Ok<CurrentUserResponse> GetCurrentUser(ClaimsPrincipal user) =>
-        TypedResults.Ok(new CurrentUserResponse(
+    /// <summary>Like any authenticated request, this also counts as activity and extends the session.</summary>
+    public static Ok<CurrentUserResponse> GetCurrentUser(ClaimsPrincipal user, AdminSessionService sessions, TimeProvider time)
+    {
+        var expiresIn = sessions.CurrentExpiresAt is { } expiresAt ? expiresAt - time.GetUtcNow() : TimeSpan.Zero;
+
+        return TypedResults.Ok(new CurrentUserResponse(
             user.FindFirstValue(ClaimTypes.Email)!,
             user.FindFirstValue(ClaimTypes.Name),
-            user.FindFirstValue("picture")));
+            user.FindFirstValue("picture"),
+            (int)Math.Max(0, expiresIn.TotalSeconds)));
+    }
 
-    public static SignOutHttpResult Logout() =>
-        TypedResults.SignOut(authenticationSchemes: [CookieAuthenticationDefaults.AuthenticationScheme]);
+    /// <summary>
+    /// Clears this browser's cookie. If the caller has a valid session, it's also ended in the
+    /// database, which signs the admin out everywhere. Anonymous callers can't end the admin's session.
+    /// </summary>
+    public static async Task<SignOutHttpResult> Logout(
+        ClaimsPrincipal user,
+        AdminSessionService sessions,
+        CancellationToken cancellationToken)
+    {
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            await sessions.EndAsync(cancellationToken);
+        }
+
+        return TypedResults.SignOut(authenticationSchemes: [CookieAuthenticationDefaults.AuthenticationScheme]);
+    }
 
     /// <summary>Only allow same-site relative paths, to prevent open redirects.</summary>
     public static string ToSafeReturnUrl(string? returnUrl) =>

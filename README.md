@@ -81,7 +81,7 @@ A small window with buttons. Each opens a new Terminal window running the matchi
 | ------------------ | ----------------------------------------------------------------- |
 | Start backend      | `docker compose up -d --wait`, then the API                       |
 | Start frontend     | `npm run dev`                                                     |
-| Start website      | Both of the above in two windows, and opens the site in the browser |
+| Start website      | Both of the above in two windows. The frontend waits until `/api/health` responds, then opens the site in the browser |
 | Run backend tests  | `dotnet test`                                                     |
 | Run frontend tests | Starts the DB, then Vitest, then Playwright E2E                    |
 | Run all tests      | Backend tests, then frontend tests, in one window                 |
@@ -96,11 +96,12 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 
 | Method | Route                       | Auth    | Description                                        |
 | ------ | --------------------------- | ------- | -------------------------------------------------- |
+| GET    | `/api/health`               | public  | `Healthy` when the API can reach the database (used by the launcher and Playwright) |
 | GET    | `/api/firstname`            | public  | `{ "firstName": "Claudiu" }` from the database      |
 | GET    | `/api/auth/login?returnUrl=`| public  | Browser navigation: redirects to Google sign-in    |
 | GET    | `/api/auth/signin-google`   | public  | OAuth callback, handled by ASP.NET Core; don't call directly |
-| GET    | `/api/auth/me`              | cookie  | Current user `{ email, name, pictureUrl }`, or **401** |
-| POST   | `/api/auth/logout`          | public  | Clears the session cookie                          |
+| GET    | `/api/auth/me`              | cookie  | Current user `{ email, name, pictureUrl, sessionExpiresInSeconds }`, or **401** |
+| POST   | `/api/auth/logout`          | public  | Clears the cookie; when signed in, also ends the session everywhere |
 
 ## Authentication (Google, admin only)
 
@@ -112,10 +113,20 @@ Only the site owner signs in, to reach the future admin area. There are no publi
 2. The API challenges the Google handler, which redirects to Google (authorization code flow with PKCE, a `state` parameter and a correlation cookie).
 3. Google redirects back to `/api/auth/signin-google`. ASP.NET Core exchanges the code and reads the email, name and picture.
 4. `OnTicketReceived` checks the email against `Auth:AdminEmails`:
-   - allowed: the API issues the `portfolio.auth` cookie (HttpOnly, SameSite=Lax, Secure outside Development, 7-day sliding expiry) and redirects to `returnUrl` (the home page)
+   - allowed: the API starts a new database session (see below), issues the `portfolio.auth` cookie (HttpOnly, SameSite=Lax, Secure outside Development) and redirects to `returnUrl` (the home page)
    - not allowed: no cookie; redirects to `/admin?error=not_authorized`
    - cancelled or failed on Google: redirects to `/admin?error=login_failed`
 5. The frontend `AuthProvider` calls `/api/auth/me` on load. Signed in, the home page shows "Signed in as ... · Sign out", and `/admin` redirects to `/`.
+
+### Sessions (stored in the database)
+
+There is exactly one admin, so there is exactly one session, stored on the profile row (`profiles.session_token_hash`, `profiles.session_expires_at`). The logic is in `AdminSessionService`.
+
+- **Sign-in** creates a random 256-bit token. The encrypted cookie carries the token; the database stores only its SHA-256 hash and the expiry. Signing in again replaces it, so **signing in somewhere new signs you out everywhere else**.
+- **Every request that carries the cookie** is validated against the database (`OnValidatePrincipal`): the token hash must match and the session must not have expired. Otherwise the request is anonymous and the cookie is cleared.
+- **10-minute idle timeout** (`Auth:SessionIdleTimeout`, default `00:10:00`). Any request is activity: at most once a minute, the expiry is pushed to now + 10 minutes and the cookie is re-issued with the same expiry. So the session ends 10 minutes (±1 minute) after the last request.
+- **Sign out** clears the database session, which **signs out every browser**. Anonymous calls to `/api/auth/logout` only clear their own cookie; they can't end the admin's session.
+- **Frontend** (`src/auth/AuthProvider.tsx`): while signed in, clicks, key presses, scrolling and mouse movement call `/api/auth/me` (at most once a minute) to keep the session alive. A timer re-checks just after `sessionExpiresInSeconds`, so the UI shows you as signed out once the session ends. The expiry is sent as *seconds remaining*, not a timestamp, so the browser's clock doesn't matter.
 
 Details:
 - Removing an email from `Auth:AdminEmails` also kills existing sessions for it on the next request (`OnValidatePrincipal`).
@@ -157,6 +168,7 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Database:MigrateOnStartup`   | Apply pending EF migrations on startup (`true` in Development) |
 | `Authentication:Google:ClientId` / `ClientSecret` | Google OAuth client (secret; user-secrets or env vars). Google sign-in is disabled when empty |
 | `Auth:AdminEmails`            | Array of Google emails allowed to sign in                    |
+| `Auth:SessionIdleTimeout`     | Admin session idle timeout (default `00:10:00`)              |
 
 Secrets are never committed. Locally, use [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets):
 `dotnet user-secrets set "<Key>" "<value>" --project backend/src/Portfolio.Api`.
@@ -190,7 +202,7 @@ docker exec -it portfolio-db psql -U portfolio -d portfolio
 | `Portfolio.Api.UnitTests`        | Unit        | xUnit; calls endpoint handlers directly with the EF InMemory provider |
 | `Portfolio.Api.IntegrationTests` | Integration | xUnit + `WebApplicationFactory<Program>`; spins up a throwaway `postgres:16-alpine` container via Testcontainers (one shared by all test classes via `ApiCollection`), runs migrations, sends real HTTP requests. **Needs Docker running.** |
 
-Auth in integration tests: `PortfolioApiFactory` configures dummy Google credentials and `Auth:AdminEmails = admin@example.com`. It also registers `TestAuthHandler` as the default *authenticate* scheme: send the `X-Test-Email` header to act as a signed-in user. Challenges still go through the real cookie scheme, so anonymous requests get the real 401.
+Auth in integration tests: `PortfolioApiFactory` configures dummy Google credentials and `Auth:AdminEmails = admin@example.com`. A test-only `GET /test/sign-in?email=...` hook (registered via `IStartupFilter`) does what the Google callback does after a successful login: it starts the database session and issues the real cookie. So tests exercise the real cookie and session validation. The API's clock is a `FakeTimeProvider` (`factory.Time`); advance it to simulate idle time.
 
 ```bash
 cd backend
@@ -235,6 +247,7 @@ dotnet test tests/Portfolio.Api.IntegrationTests       # integration only
 - **Integration tests fail with a Docker socket error**: start Docker Desktop.
 - **`Port 5173 is already in use`**: another Vite instance is running; stop it (the port is strict so E2E and the backend config stay predictable).
 - **Frontend shows the error message**: check the API is running on 5105 and the DB container is healthy (`docker compose ps`).
+- **`[vite] http proxy error ... ECONNREFUSED`**: the page called `/api` while the API wasn't listening (not started yet, still building, or crashed). Check `curl localhost:5105/api/health`. The launcher's *Start website* waits for the API to avoid this.
 - **`/api/auth/login` returns 503**: Google credentials aren't set; see [Setting up Google sign-in](#setting-up-google-sign-in).
 - **Google says `redirect_uri_mismatch`**: the redirect URI registered in Google must exactly match `http://localhost:5173/api/auth/signin-google`. Open the site via 5173, not the API port.
 - **Google says access blocked / app not verified**: while the consent screen is in *Testing*, only listed test users can sign in.
