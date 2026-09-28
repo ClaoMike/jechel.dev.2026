@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { getCurrentUser, logout, type CurrentUser } from '../api/auth'
-import { AuthContext, type AuthState } from './authContext'
+import { api, type CurrentUser } from '../services/api'
+import { AuthContext, type AuthContextValue } from './authContext'
+
+type AuthState =
+  | { status: 'loading' }
+  | { status: 'anonymous' }
+  | { status: 'authenticated'; user: CurrentUser }
 
 /** The API extends a session at most once a minute, so pinging more often is pointless. */
 export const ACTIVITY_REFRESH_MS = 60_000
@@ -16,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const controller = new AbortController()
     lastRefreshAt.current = Date.now()
 
-    getCurrentUser(controller.signal)
+    api.auth.me(controller.signal)
       .then((user) => setState(toAuthState(user)))
       .catch(() => {
         if (!controller.signal.aborted) setState({ status: 'anonymous' })
@@ -28,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     lastRefreshAt.current = Date.now()
     try {
-      setState(toAuthState(await getCurrentUser()))
+      setState(toAuthState(await api.auth.me()))
     } catch {
       // Network hiccup: keep the current state and try again on the next activity/timer.
     }
@@ -57,11 +62,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, refresh])
 
   const signOut = useCallback(async () => {
-    await logout()
+    await api.auth.logout()
     setState({ status: 'anonymous' })
   }, [])
 
-  const value = useMemo(() => ({ state, signOut }), [state, signOut])
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      status: state.status,
+      isLoading: state.status === 'loading',
+      isAuthenticated: state.status === 'authenticated',
+      user,
+      signOut,
+    }),
+    [state.status, user, signOut],
+  )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

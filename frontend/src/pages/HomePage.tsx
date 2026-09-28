@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getFirstName } from '../api/profile'
-import { useAuth } from '../auth/useAuth'
+import { SignedIn, useAuth } from '../auth'
+import { api } from '../services/api'
 
 type State =
   | { status: 'loading' }
@@ -8,13 +8,14 @@ type State =
   | { status: 'error' }
 
 export function HomePage() {
-  const { state: auth, signOut } = useAuth()
+  const { signOut } = useAuth()
   const [state, setState] = useState<State>({ status: 'loading' })
 
   useEffect(() => {
     const controller = new AbortController()
 
-    getFirstName(controller.signal)
+    api.profile
+      .getFirstName(controller.signal)
       .then((firstName) => setState({ status: 'success', firstName }))
       .catch(() => {
         if (!controller.signal.aborted) setState({ status: 'error' })
@@ -25,14 +26,16 @@ export function HomePage() {
 
   return (
     <>
-      {auth.status === 'authenticated' && (
-        <div className="session-bar">
-          <span>Signed in as {auth.user.email}</span>
-          <button type="button" onClick={() => void signOut()}>
-            Sign out
-          </button>
-        </div>
-      )}
+      <SignedIn>
+        {(user) => (
+          <div className="session-bar">
+            <span>Signed in as {user.email}</span>
+            <button type="button" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </div>
+        )}
+      </SignedIn>
       <main>
         {state.status === 'loading' && <p>Loading…</p>}
         {state.status === 'error' && <p role="alert">Something went wrong. Please try again later.</p>}

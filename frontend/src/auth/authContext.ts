@@ -1,13 +1,16 @@
 import { createContext } from 'react'
-import type { CurrentUser } from '../api/auth'
+import type { CurrentUser } from '../services/api'
 
-export type AuthState =
-  | { status: 'loading' }
-  | { status: 'anonymous' }
-  | { status: 'authenticated'; user: CurrentUser }
+export type AuthStatus = 'loading' | 'anonymous' | 'authenticated'
 
 export interface AuthContextValue {
-  state: AuthState
+  status: AuthStatus
+  /** True until the first session check finishes. Avoid flashing signed-out UI meanwhile. */
+  isLoading: boolean
+  isAuthenticated: boolean
+  /** The signed-in user, or null. */
+  user: CurrentUser | null
+  /** Ends the session everywhere. */
   signOut: () => Promise<void>
 }
 

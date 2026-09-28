@@ -1,6 +1,6 @@
 import { Navigate, useSearchParams } from 'react-router'
-import { googleLoginUrl } from '../api/auth'
-import { useAuth } from '../auth/useAuth'
+import { useAuth } from '../auth'
+import { api } from '../services/api'
 
 const ERROR_MESSAGES: Record<string, string> = {
   not_authorized: 'This Google account is not allowed to access the admin area.',
@@ -8,12 +8,12 @@ const ERROR_MESSAGES: Record<string, string> = {
 }
 
 export function AdminPage() {
-  const { state } = useAuth()
+  const { isLoading, isAuthenticated } = useAuth()
   const [searchParams] = useSearchParams()
   const error = searchParams.get('error')
 
-  if (state.status === 'loading') return <p>Loading…</p>
-  if (state.status === 'authenticated') return <Navigate to="/" replace />
+  if (isLoading) return <p>Loading…</p>
+  if (isAuthenticated) return <Navigate to="/" replace />
 
   return (
     <main className="login-card">
@@ -23,7 +23,7 @@ export function AdminPage() {
           {ERROR_MESSAGES[error] ?? 'Something went wrong. Please try again.'}
         </p>
       )}
-      <a className="google-button" href={googleLoginUrl('/')}>
+      <a className="google-button" href={api.auth.googleLoginUrl('/')}>
         <GoogleLogo />
         Sign in with Google
       </a>

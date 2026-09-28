@@ -26,8 +26,8 @@ Personal portfolio website of Claudiu Jechel.
 │       └── Portfolio.Api.IntegrationTests/# real HTTP pipeline + real PostgreSQL (Testcontainers)
 ├── frontend/
 │   ├── src/
-│   │   ├── api/                           # typed fetch helpers, one file per backend feature
-│   │   ├── auth/                          # AuthProvider + useAuth (current session state)
+│   │   ├── services/api.ts                # the single API service: every backend call goes through `api`
+│   │   ├── auth/                          # AuthProvider, useAuth, <SignedIn>/<SignedOut>
 │   │   ├── pages/                         # one component per route
 │   │   └── test/                          # Vitest setup, MSW mock server, render helpers
 │   ├── e2e/                               # Playwright specs
@@ -91,7 +91,7 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 ## API conventions
 
 - **Every endpoint lives under `/api`** (`app.MapGroup("/api")` in `Program.cs`). Feature endpoint files map *relative* routes onto that group.
-- The frontend always calls relative `/api/...` URLs. In dev the Vite proxy forwards them to the API, so browser, cookies and API share one origin (no CORS). Production should do the same: serve the SPA and route `/api` to the API on one domain.
+- The frontend always calls relative `/api/...` URLs, through `src/services/api.ts` (see [Frontend conventions](#frontend-api-service-and-auth-state)). In dev the Vite proxy forwards them to the API, so browser, cookies and API share one origin (no CORS). Production should do the same: serve the SPA and route `/api` to the API on one domain.
 - The Vite proxy sends `X-Forwarded-Host/Proto` (`xfwd: true`) and the API runs `UseForwardedHeaders()`, so URLs the API generates use `localhost:5173`, the origin the browser sees. By default only loopback proxies are trusted; configure `KnownProxies`/`KnownNetworks` when deploying behind a real proxy.
 
 | Method | Route                       | Auth    | Description                                        |
@@ -157,6 +157,43 @@ Details:
 5. Restart the API, open http://localhost:5173/admin and sign in.
 
 Production: set the same keys as environment variables (`Authentication__Google__ClientId`, `Authentication__Google__ClientSecret`, `Auth__AdminEmails__0`).
+
+## Frontend: API service and auth state
+
+### `api`: the single API service
+
+Every backend call goes through the `api` object in `src/services/api.ts`. Components and hooks never call `fetch` directly.
+
+```ts
+import { api } from '../services/api'
+
+const firstName = await api.profile.getFirstName(signal)
+const user = await api.auth.me()          // CurrentUser | null
+await api.auth.logout()
+<a href={api.auth.googleLoginUrl('/')}>  // navigation, not fetch
+```
+
+- Endpoints are grouped by backend feature (`api.auth`, `api.profile`, ...). A new endpoint goes into its group, or a new group mirroring `backend/.../Features/<Feature>`.
+- Response types live in the same file, mirroring the backend records.
+- Non-2xx responses throw `ApiError` (with `.status`). Every call accepts an optional `AbortSignal`.
+
+### Auth state: `useAuth()`, `<SignedIn>`, `<SignedOut>`
+
+Import from `src/auth`. Works anywhere inside `<AuthProvider>` (wired up in `main.tsx`).
+
+```tsx
+import { SignedIn, SignedOut, useAuth } from '../auth'
+
+const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
+
+<SignedIn>Only the admin sees this</SignedIn>
+<SignedIn>{(user) => <span>Signed in as {user.email}</span>}</SignedIn>
+<SignedOut>Only visitors see this</SignedOut>
+```
+
+- `status` is `'loading' | 'anonymous' | 'authenticated'`. While `loading` (the first `/api/auth/me` check), **neither** `<SignedIn>` nor `<SignedOut>` renders, so the UI never flashes the wrong state.
+- It stays up to date on its own: it signs out in the UI when the session expires, and after `signOut()`.
+- This is for **display only**. The API enforces access (`.RequireAuthorization()`); hiding a button is never the security boundary.
 
 ## Configuration
 
@@ -240,7 +277,7 @@ dotnet test tests/Portfolio.Api.IntegrationTests       # integration only
 
 - Git: `develop` is the main branch. Work happens on `feature/*` / `chore/*` branches, merged into `develop`.
 - Backend: all routes under `/api`; minimal APIs grouped per feature (`Features/<Feature>/<Feature>Endpoints.cs` with a `Map<Feature>Endpoints` extension). Handlers are public static methods with typed results (`Results<Ok<T>, NotFound>`), so unit tests can call them directly.
-- Frontend: all HTTP goes through `src/api/client.ts`; one module per backend feature in `src/api/`. Routes are declared in `src/App.tsx` (React Router), with one page component per route in `src/pages/`.
+- Frontend: all HTTP goes through the `api` object in `src/services/api.ts`; auth-dependent UI uses `useAuth()` / `<SignedIn>` / `<SignedOut>` from `src/auth`. Routes are declared in `src/App.tsx` (React Router), with one page component per route in `src/pages/`.
 
 ## Troubleshooting
 
