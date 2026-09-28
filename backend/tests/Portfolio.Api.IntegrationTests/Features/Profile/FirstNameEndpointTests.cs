@@ -4,14 +4,15 @@ using Portfolio.Api.Features.Profile;
 
 namespace Portfolio.Api.IntegrationTests.Features.Profile;
 
-public class FirstNameEndpointTests(PortfolioApiFactory factory) : IClassFixture<PortfolioApiFactory>
+[Collection(ApiCollection.Name)]
+public class FirstNameEndpointTests(PortfolioApiFactory factory)
 {
     [Fact]
     public async Task Get_firstname_returns_seeded_value_from_database()
     {
         var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/firstname");
+        var response = await client.GetAsync("/api/firstname");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<FirstNameResponse>();

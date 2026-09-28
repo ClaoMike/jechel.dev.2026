@@ -1,8 +1,8 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api.Data;
+using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.Profile;
-
-const string FrontendCorsPolicy = "Frontend";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,10 +11,13 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<PortfolioDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-builder.Services.AddCors(options =>
-    options.AddPolicy(FrontendCorsPolicy, policy =>
-        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
+builder.AddPortfolioAuth();
+
+// Honour X-Forwarded-* from a reverse proxy (the Vite dev proxy locally), so URLs the API
+// generates, like Google's OAuth callback, use the host and scheme the browser sees.
+// Only loopback proxies are trusted by default; add KnownProxies/KnownNetworks when deploying.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost);
 
 var app = builder.Build();
 
@@ -24,13 +27,18 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
     scope.ServiceProvider.GetRequiredService<PortfolioDbContext>().Database.Migrate();
 }
 
+app.UseForwardedHeaders();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-app.UseCors(FrontendCorsPolicy);
+app.UseAuthentication();
+app.UseAuthorization();
 
-app.MapProfileEndpoints();
+var api = app.MapGroup("/api");
+api.MapProfileEndpoints();
+api.MapAuthEndpoints();
 
 app.Run();

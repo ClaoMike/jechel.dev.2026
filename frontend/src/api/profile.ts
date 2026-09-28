@@ -5,6 +5,6 @@ export interface FirstNameResponse {
 }
 
 export async function getFirstName(signal?: AbortSignal): Promise<string> {
-  const { firstName } = await getJson<FirstNameResponse>('/firstname', signal)
+  const { firstName } = await getJson<FirstNameResponse>('/api/firstname', signal)
   return firstName
 }

@@ -9,7 +9,7 @@ describe('getFirstName', () => {
   })
 
   it('throws when the API responds with an error', async () => {
-    server.use(http.get(`${API}/firstname`, () => new HttpResponse(null, { status: 404 })))
+    server.use(http.get(`${API}/api/firstname`, () => new HttpResponse(null, { status: 404 })))
 
     await expect(getFirstName()).rejects.toThrow('status 404')
   })

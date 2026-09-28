@@ -27,7 +27,9 @@ Personal portfolio website of Claudiu Jechel.
 ├── frontend/
 │   ├── src/
 │   │   ├── api/                           # typed fetch helpers, one file per backend feature
-│   │   └── test/                          # Vitest setup + MSW mock server
+│   │   ├── auth/                          # AuthProvider + useAuth (current session state)
+│   │   ├── pages/                         # one component per route
+│   │   └── test/                          # Vitest setup, MSW mock server, render helpers
 │   ├── e2e/                               # Playwright specs
 │   └── playwright.config.ts
 ├── scripts/dev_launcher.py                # GUI launcher for common dev tasks (macOS)
@@ -47,8 +49,8 @@ Personal portfolio website of Claudiu Jechel.
 
 | What        | URL                        | Notes                                                |
 | ----------- | -------------------------- | ---------------------------------------------------- |
-| Frontend    | http://localhost:5173      | Vite dev server (`strictPort`, fails if taken)        |
-| API         | http://localhost:5105      | `http` launch profile                                |
+| Frontend    | http://localhost:5173      | Vite dev server (`strictPort`, fails if taken). Proxies `/api/*` to the API |
+| API         | http://localhost:5105      | `http` launch profile. Browse the site via 5173, not 5105 |
 | PostgreSQL  | localhost:**5433**         | 5433, not 5432, so it doesn't clash with a Homebrew Postgres |
 | OpenAPI doc | http://localhost:5105/openapi/v1.json | Development only                        |
 
@@ -86,6 +88,65 @@ A small window with buttons. Each opens a new Terminal window running the matchi
 
 The first click may trigger a macOS prompt to allow Terminal automation; allow it.
 
+## API conventions
+
+- **Every endpoint lives under `/api`** (`app.MapGroup("/api")` in `Program.cs`). Feature endpoint files map *relative* routes onto that group.
+- The frontend always calls relative `/api/...` URLs. In dev the Vite proxy forwards them to the API, so browser, cookies and API share one origin (no CORS). Production should do the same: serve the SPA and route `/api` to the API on one domain.
+- The Vite proxy sends `X-Forwarded-Host/Proto` (`xfwd: true`) and the API runs `UseForwardedHeaders()`, so URLs the API generates use `localhost:5173`, the origin the browser sees. By default only loopback proxies are trusted; configure `KnownProxies`/`KnownNetworks` when deploying behind a real proxy.
+
+| Method | Route                       | Auth    | Description                                        |
+| ------ | --------------------------- | ------- | -------------------------------------------------- |
+| GET    | `/api/firstname`            | public  | `{ "firstName": "Claudiu" }` from the database      |
+| GET    | `/api/auth/login?returnUrl=`| public  | Browser navigation: redirects to Google sign-in    |
+| GET    | `/api/auth/signin-google`   | public  | OAuth callback, handled by ASP.NET Core; don't call directly |
+| GET    | `/api/auth/me`              | cookie  | Current user `{ email, name, pictureUrl }`, or **401** |
+| POST   | `/api/auth/logout`          | public  | Clears the session cookie                          |
+
+## Authentication (Google, admin only)
+
+Only the site owner signs in, to reach the future admin area. There are no public accounts.
+
+**Flow** (server-side OAuth: tokens never reach the browser):
+
+1. The visitor opens `/admin` and clicks **Sign in with Google**, a plain link to `/api/auth/login?returnUrl=/`.
+2. The API challenges the Google handler, which redirects to Google (authorization code flow with PKCE, a `state` parameter and a correlation cookie).
+3. Google redirects back to `/api/auth/signin-google`. ASP.NET Core exchanges the code and reads the email, name and picture.
+4. `OnTicketReceived` checks the email against `Auth:AdminEmails`:
+   - allowed: the API issues the `portfolio.auth` cookie (HttpOnly, SameSite=Lax, Secure outside Development, 7-day sliding expiry) and redirects to `returnUrl` (the home page)
+   - not allowed: no cookie; redirects to `/admin?error=not_authorized`
+   - cancelled or failed on Google: redirects to `/admin?error=login_failed`
+5. The frontend `AuthProvider` calls `/api/auth/me` on load. Signed in, the home page shows "Signed in as ... · Sign out", and `/admin` redirects to `/`.
+
+Details:
+- Removing an email from `Auth:AdminEmails` also kills existing sessions for it on the next request (`OnValidatePrincipal`).
+- `returnUrl` must be a local path (`/...`); anything else falls back to `/` (no open redirects).
+- API calls without a valid cookie get a plain **401** (or **403**), never a redirect to a login page.
+- To protect a new endpoint, add `.RequireAuthorization()`.
+- If Google credentials aren't configured, the API still runs and `/api/auth/login` returns **503**. This is how tests and CI run.
+- Cookie encryption uses ASP.NET Core Data Protection. Locally keys live in your user profile. In production, persist the keys (e.g. to the database or a volume), or every deploy logs you out.
+
+### Setting up Google sign-in
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create (or pick) a project.
+2. **Google Auth Platform → Branding** (or "OAuth consent screen"): app name, support email, developer contact. Audience **External**. While in *Testing*, add your Google account under **Audience → Test users**.
+3. **Google Auth Platform → Clients → Create client**, type **Web application**:
+   - Authorized JavaScript origins: `http://localhost:5173`
+   - Authorized redirect URIs: `http://localhost:5173/api/auth/signin-google`
+   - Later, for production, add `https://<your-domain>` and `https://<your-domain>/api/auth/signin-google`.
+4. Store the credentials and your admin email as user secrets (never in appsettings):
+
+   ```bash
+   cd backend/src/Portfolio.Api
+   dotnet user-secrets set "Authentication:Google:ClientId" "<client-id>.apps.googleusercontent.com"
+   dotnet user-secrets set "Authentication:Google:ClientSecret" "<client-secret>"
+   dotnet user-secrets set "Auth:AdminEmails:0" "<your-google-email>"
+   dotnet user-secrets list
+   ```
+
+5. Restart the API, open http://localhost:5173/admin and sign in.
+
+Production: set the same keys as environment variables (`Authentication__Google__ClientId`, `Authentication__Google__ClientSecret`, `Auth__AdminEmails__0`).
+
 ## Configuration
 
 Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can be overridden with environment variables (`__` as separator, e.g. `ConnectionStrings__Default`).
@@ -94,6 +155,8 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | ----------------------------- | ------------------------------------------------------------ |
 | `ConnectionStrings:Default`   | Npgsql connection string                                     |
 | `Database:MigrateOnStartup`   | Apply pending EF migrations on startup (`true` in Development) |
+| `Authentication:Google:ClientId` / `ClientSecret` | Google OAuth client (secret; user-secrets or env vars). Google sign-in is disabled when empty |
+| `Auth:AdminEmails`            | Array of Google emails allowed to sign in                    |
 
 Secrets are never committed. Locally, use [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets):
 `dotnet user-secrets set "<Key>" "<value>" --project backend/src/Portfolio.Api`.
@@ -125,7 +188,9 @@ docker exec -it portfolio-db psql -U portfolio -d portfolio
 | Project                          | Type        | How                                                         |
 | -------------------------------- | ----------- | ----------------------------------------------------------- |
 | `Portfolio.Api.UnitTests`        | Unit        | xUnit; calls endpoint handlers directly with the EF InMemory provider |
-| `Portfolio.Api.IntegrationTests` | Integration | xUnit + `WebApplicationFactory<Program>`; spins up a throwaway `postgres:16-alpine` container via Testcontainers, runs migrations, sends real HTTP requests. **Needs Docker running.** |
+| `Portfolio.Api.IntegrationTests` | Integration | xUnit + `WebApplicationFactory<Program>`; spins up a throwaway `postgres:16-alpine` container via Testcontainers (one shared by all test classes via `ApiCollection`), runs migrations, sends real HTTP requests. **Needs Docker running.** |
+
+Auth in integration tests: `PortfolioApiFactory` configures dummy Google credentials and `Auth:AdminEmails = admin@example.com`. It also registers `TestAuthHandler` as the default *authenticate* scheme: send the `X-Test-Email` header to act as a signed-in user. Challenges still go through the real cookie scheme, so anonymous requests get the real 401.
 
 ```bash
 cd backend
@@ -146,7 +211,8 @@ dotnet test tests/Portfolio.Api.IntegrationTests       # integration only
 | `npm run lint`          | oxlint                                                              |
 | `npm run typecheck`     | `tsc -b`                                                            |
 
-- **Unit/component tests** live next to the code as `*.test.ts(x)`, run in jsdom, and mock HTTP with MSW. The default handlers in `src/test/server.ts` cover the happy path; override them per test with `server.use(...)`. Unhandled requests fail the test.
+- **Unit/component tests** live next to the code as `*.test.ts(x)`, run in jsdom, and mock HTTP with MSW. The default handlers in `src/test/server.ts` cover the happy path for an **anonymous** visitor; use `server.use(signedIn())` for a signed-in admin, or `server.use(...)` for other overrides. Unhandled requests fail the test. `renderApp(url)` in `src/test/render.tsx` renders the full app (router + auth) at a URL.
+- The real Google round-trip isn't automated. E2E tests cover the `/admin` page and fake a signed-in session with `page.route('**/api/auth/me', ...)`.
 - **E2E tests** live in `e2e/`. Playwright starts the real API and the Vite dev server itself (or reuses ones already running locally). The database must be running (`docker compose up -d --wait`). First run: `npx playwright install`.
 - Browsers: Chromium and WebKit locally. **Firefox runs only in CI** because Playwright's Firefox build currently fails to launch on macOS 27 ("Could not find profile folder"). Try removing the `process.env.CI` guard in `playwright.config.ts` after a Playwright upgrade.
 
@@ -161,12 +227,16 @@ dotnet test tests/Portfolio.Api.IntegrationTests       # integration only
 ## Conventions
 
 - Git: `develop` is the main branch. Work happens on `feature/*` / `chore/*` branches, merged into `develop`.
-- Backend: minimal APIs grouped per feature (`Features/<Feature>/<Feature>Endpoints.cs` with a `Map<Feature>Endpoints` extension). Handlers are public static methods with typed results (`Results<Ok<T>, NotFound>`), so unit tests can call them directly.
-- Frontend: all HTTP goes through `src/api/client.ts`; one module per backend feature in `src/api/`.
+- Backend: all routes under `/api`; minimal APIs grouped per feature (`Features/<Feature>/<Feature>Endpoints.cs` with a `Map<Feature>Endpoints` extension). Handlers are public static methods with typed results (`Results<Ok<T>, NotFound>`), so unit tests can call them directly.
+- Frontend: all HTTP goes through `src/api/client.ts`; one module per backend feature in `src/api/`. Routes are declared in `src/App.tsx` (React Router), with one page component per route in `src/pages/`.
 
 ## Troubleshooting
 
 - **Integration tests fail with a Docker socket error**: start Docker Desktop.
 - **`Port 5173 is already in use`**: another Vite instance is running; stop it (the port is strict so E2E and the backend config stay predictable).
 - **Frontend shows the error message**: check the API is running on 5105 and the DB container is healthy (`docker compose ps`).
+- **`/api/auth/login` returns 503**: Google credentials aren't set; see [Setting up Google sign-in](#setting-up-google-sign-in).
+- **Google says `redirect_uri_mismatch`**: the redirect URI registered in Google must exactly match `http://localhost:5173/api/auth/signin-google`. Open the site via 5173, not the API port.
+- **Google says access blocked / app not verified**: while the consent screen is in *Testing*, only listed test users can sign in.
+- **Redirected to `/admin?error=not_authorized`**: your email isn't in `Auth:AdminEmails` (`dotnet user-secrets list`).
 - **Launcher: `No module named '_tkinter'`**: `brew install python-tk@3.14` (match your Python version).
