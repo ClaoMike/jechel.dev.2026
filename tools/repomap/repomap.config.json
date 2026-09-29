@@ -1,0 +1,7 @@
+{
+  "extends": "./presets/react-aspnet-efcore-postgres.json",
+  "name": "jechel.dev.2026",
+  "repoRoot": "../..",
+  "output": ".out/graph.json",
+  "exclude": ["tools/repomap/**"]
+}

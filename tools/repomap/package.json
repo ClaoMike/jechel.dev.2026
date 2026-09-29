@@ -1,0 +1,47 @@
+{
+  "name": "repomap",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive 3D architecture map of a repository: extract → link → layout → view in the browser",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/cli.ts serve --build --watch",
+    "map": "node src/cli.ts build",
+    "view": "node src/cli.ts serve",
+    "dev": "vite --config viewer/vite.config.ts",
+    "build:viewer": "vite build --config viewer/vite.config.ts",
+    "demo": "node samples/synthetic.ts --features 6 --out viewer/public/samples/demo.graph.json",
+    "validate": "node src/cli.ts validate",
+    "diff": "node src/cli.ts diff",
+    "typecheck": "tsc -p tsconfig.json && tsc -p viewer/tsconfig.json",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.1",
+    "ajv": "^8.20.0",
+    "d3-force": "^3.0.0",
+    "picomatch": "^4.0.7",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "three": "^0.186.1",
+    "ts-morph": "^28.0.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/d3-force": "^3.0.10",
+    "@types/node": "^24.10.0",
+    "@types/picomatch": "^4.0.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.1"
+  }
+}

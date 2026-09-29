@@ -1,0 +1,9 @@
+node_modules/
+# Generated graph, per-plugin cache and history (see README "Output")
+.out/
+viewer/dist/
+plugins/extract-dotnet/bin/
+plugins/extract-dotnet/obj/
+test-results/
+playwright-report/
+*.tsbuildinfo
