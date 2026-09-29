@@ -82,6 +82,7 @@ A small window with buttons. Each opens a new Terminal window running the matchi
 | Start backend      | `docker compose up -d --wait`, then the API                       |
 | Start frontend     | `npm run dev`                                                     |
 | Start website      | Both of the above in two windows. The frontend waits until `/api/health` responds, then opens the site in the browser |
+| Open repo map      | `npm start` in `tools/repomap` (runs `npm install` the first time): builds the 3D architecture map, opens it in the browser and rebuilds it on every change. See [tools/repomap/README.md](tools/repomap/README.md) |
 | Run backend tests  | `dotnet test`                                                     |
 | Run frontend tests | Starts the DB, then Vitest, then Playwright E2E                    |
 | Run all tests      | Backend tests, then frontend tests, in one window                 |

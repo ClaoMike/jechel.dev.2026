@@ -25,6 +25,9 @@ WAIT_FOR_API = (
     "echo 'Waiting for the API to be healthy...' && "
     "until curl -sf http://localhost:5105/api/health > /dev/null; do sleep 1; done"
 )
+# 3D architecture map (tools/repomap): builds the graph (cached after the first run), opens the
+# viewer in the browser and rebuilds it whenever the code changes. npm install only runs once.
+REPO_MAP = "cd tools/repomap && ([ -d node_modules ] || npm install) && npm start"
 BACKEND_TESTS = "cd backend && dotnet test"
 # E2E boots the API itself, but it needs the database to be up.
 FRONTEND_TESTS = f"{START_DB} && cd frontend && npm run test:run && npm run test:e2e"
@@ -46,6 +49,7 @@ ACTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     ("Start backend", [("Backend", f"{START_DB} && {BACKEND}")]),
     ("Start frontend", [("Frontend", FRONTEND)]),
     ("Start website", [("Backend", f"{START_DB} && {BACKEND}"), ("Frontend", f"{WAIT_FOR_API} && {FRONTEND} -- --open")]),
+    ("Open repo map", [("Repo map", REPO_MAP)]),
     ("Run backend tests", [("Backend tests", BACKEND_TESTS)]),
     ("Run frontend tests", [("Frontend tests", FRONTEND_TESTS)]),
     ("Run all tests", [("All tests", ALL_TESTS)]),
