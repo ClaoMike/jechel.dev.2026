@@ -52,7 +52,7 @@ export function EdgeIcon({ color }: { color: string }) {
 
 type IconName =
   | 'menu' | 'search' | 'close' | 'fit' | 'side' | 'top' | 'sun' | 'moon' | 'help' | 'open' | 'chevron' | 'dim' | 'copy'
-  | 'external' | 'up' | 'down' | 'link' | 'warn' | 'reset' | 'layers'
+  | 'external' | 'up' | 'down' | 'link' | 'warn' | 'reset' | 'layers' | 'code' | 'wrap' | 'lock' | 'git' | 'branch' | 'tag' | 'commit' | 'pr' | 'user' | 'clock' | 'file'
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -76,6 +76,17 @@ export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
     warn: <><path d="M10 3.5 17 16H3z" /><path d="M10 8.5v3.2M10 13.8v.1" /></>,
     reset: <path d="M4.5 9A5.5 5.5 0 1 1 6 13.6M4.5 4.5V9H9" />,
     layers: <path d="M10 3 17 6.8 10 10.6 3 6.8zM3 10.2l7 3.8 7-3.8M3 13.6l7 3.8 7-3.8" />,
+    code: <path d="M7 6 3 10l4 4M13 6l4 4-4 4M11.5 4.5l-3 11" />,
+    wrap: <path d="M3 5h14M3 10h11a3 3 0 0 1 0 6h-3M12.5 14l-2 2 2 2M3 15h4" />,
+    lock: <><rect x="4.5" y="9" width="11" height="8" rx="1.5" /><path d="M7 9V6.5a3 3 0 0 1 6 0V9" /></>,
+    git: <><circle cx="6" cy="5" r="2" /><circle cx="6" cy="15" r="2" /><circle cx="14" cy="8" r="2" /><path d="M6 7v6M14 10c0 3-4 3-7.2 4" /></>,
+    branch: <><circle cx="6" cy="4.5" r="1.8" /><circle cx="6" cy="15.5" r="1.8" /><circle cx="14" cy="6.5" r="1.8" /><path d="M6 6.3v7.4M14 8.3c0 3.5-8 2.5-8 5.4" /></>,
+    tag: <><path d="M3.5 10.2V4.5a1 1 0 0 1 1-1h5.7l6.3 6.3a1 1 0 0 1 0 1.4l-5.3 5.3a1 1 0 0 1-1.4 0z" /><circle cx="7.3" cy="7.3" r="1.2" /></>,
+    commit: <><circle cx="10" cy="10" r="3" /><path d="M2.5 10h4.5M13 10h4.5" /></>,
+    pr: <><circle cx="5.5" cy="4.5" r="1.8" /><circle cx="5.5" cy="15.5" r="1.8" /><circle cx="14.5" cy="15.5" r="1.8" /><path d="M5.5 6.3v7.4M14.5 13.7V8a2.5 2.5 0 0 0-2.5-2.5H9M10.5 3.8 8.8 5.5l1.7 1.7" /></>,
+    user: <><circle cx="10" cy="7" r="3.2" /><path d="M3.8 17a6.2 6.2 0 0 1 12.4 0" /></>,
+    clock: <><circle cx="10" cy="10" r="7" /><path d="M10 6v4.3l2.8 1.7" /></>,
+    file: <><path d="M5 2.8h6.5L15.5 7v10a.8.8 0 0 1-.8.8H5a.8.8 0 0 1-.8-.8V3.6a.8.8 0 0 1 .8-.8z" /><path d="M11.3 2.8V7h4.2" /></>,
   }
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

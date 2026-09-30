@@ -590,6 +590,7 @@ class Extractor {
         parent: owner.id,
         file: owner.file.path,
         line: at.getStartLineNumber(),
+        endLine: at.getEndLineNumber(),
         attrs: { path, component: component?.name },
       })
     }
@@ -937,6 +938,7 @@ class Extractor {
         kind: decl.kind,
         file: decl.file.path,
         line: decl.decl.getStartLineNumber(),
+        endLine: decl.decl.getEndLineNumber(),
         parent: decl.parent,
         role: decl.file.role,
         roleReason: decl.file.roleReason,

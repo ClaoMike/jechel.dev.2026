@@ -1,13 +1,17 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import type { ColorBy } from './model/colors.ts'
 import { loadInitialGraph } from './model/load.ts'
 import { useViewer, type LabelMode } from './model/store.ts'
 import { writeViewToHash } from './model/url.ts'
 import { Scene } from './scene/Scene.tsx'
+import { ContextMenu } from './ui/ContextMenu.tsx'
 import { DetailsPanel } from './ui/DetailsPanel.tsx'
 import { Banner, DropZone, HelpOverlay, Status, Toast } from './ui/Overlays.tsx'
 import { Sidebar } from './ui/Sidebar.tsx'
 import { TopBar } from './ui/TopBar.tsx'
+
+// The editor (CodeMirror + grammars) loads only when code is first opened.
+const CodeViewer = lazy(() => import('./ui/code/CodeViewer.tsx'))
 
 const COLOR_CYCLE: ColorBy[] = ['kind', 'layer', 'role', 'feature']
 const LABEL_CYCLE: LabelMode[] = ['auto', 'all', 'none']
@@ -16,6 +20,7 @@ export function App() {
   const theme = useViewer((s) => s.theme)
   const sidebarOpen = useViewer((s) => s.sidebarOpen)
   const selected = useViewer((s) => s.selected)
+  const codeView = useViewer((s) => s.codeView)
 
   useEffect(() => {
     void loadInitialGraph()
@@ -52,6 +57,8 @@ export function App() {
         document.querySelector<HTMLInputElement>('[data-testid="search"]')?.focus()
         return
       }
+      // The code panel and the node menu handle their own keys.
+      if (store.codeView || store.contextMenu) return
       if (typing || event.metaKey || event.ctrlKey || event.altKey) return
       switch (event.key) {
         case '/':
@@ -106,12 +113,26 @@ export function App() {
         <Sidebar />
         <div className="stage">
           <Scene />
+          <ContextMenu />
           <Banner />
           <Status />
           <Hint />
         </div>
         <DetailsPanel />
       </main>
+      {codeView && (
+        <Suspense
+          fallback={
+            <div className="code-backdrop">
+              <div className="code-dialog code-loading">
+                <div className="spinner" aria-hidden="true" /> Loading the editor…
+              </div>
+            </div>
+          }
+        >
+          <CodeViewer />
+        </Suspense>
+      )}
       <HelpOverlay />
       <DropZone />
       <Toast />

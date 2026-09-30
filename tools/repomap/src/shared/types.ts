@@ -153,6 +153,8 @@ export interface GraphNode {
   /** Repo-relative path, forward slashes. */
   file?: string
   line?: number
+  /** Last line of the declaration (the code viewer highlights line..endLine). */
+  endLine?: number
   tags?: string[]
   attrs?: Record<string, unknown>
   description?: string

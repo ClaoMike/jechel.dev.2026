@@ -71,6 +71,11 @@ The CLI is `node src/cli.ts <command>` (`node src/cli.ts help` lists the options
 - **Keys**: `/` or `⌘K` search · `F` fit · `S` side view · `1`–`9` top view of a layer · `R` reset ·
   `C` colour by kind/layer/role/feature · `L` labels · `[` filters · `?` help · `Esc` clear.
 - **Changes**: nodes added since the previous build glow green (*Display → Highlight changes*).
+- **Read the code**: right-click a node (Ctrl+click on a Mac trackpad, long-press on a touch screen) →
+  *View code*, or *Code* in the details panel. The file opens in a read-only editor coloured like VS Code
+  (Dark+/Light+), scrolled to the node, with its declaration highlighted; ⌘F searches the file. Source is
+  served by `repomap serve` from your checkout — only files that belong to a node of the graph, never
+  anything outside the repository — so a static deployment of the viewer shows "not available" instead.
 
 ## How it works
 

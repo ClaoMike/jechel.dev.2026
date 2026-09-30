@@ -187,6 +187,8 @@ internal static partial class Syntax
 
     public static int Line(SyntaxNode node) => node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
 
+    public static int EndLine(SyntaxNode node) => node.GetLocation().GetLineSpan().EndLinePosition.Line + 1;
+
     public static string MethodName(InvocationExpressionSyntax invocation) => invocation.Expression switch
     {
         MemberAccessExpressionSyntax member => member.Name.Identifier.Text,

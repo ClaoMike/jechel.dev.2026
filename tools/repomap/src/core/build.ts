@@ -45,6 +45,8 @@ export interface BuildResult {
   outputPath: string
   durationMs: number
   changed: boolean
+  /** git.json (Git history tab) differs from the previous build. */
+  gitChanged?: boolean
 }
 
 const HISTORY_LIMIT = 30

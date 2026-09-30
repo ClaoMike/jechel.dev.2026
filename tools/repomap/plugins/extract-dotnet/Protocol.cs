@@ -53,6 +53,7 @@ public sealed class OutNode
     public string? Parent { get; set; }
     public string? File { get; set; }
     public int? Line { get; set; }
+    public int? EndLine { get; set; }
     public List<string>? Tags { get; set; }
     public Dictionary<string, object?>? Attrs { get; set; }
     public string? Description { get; set; }

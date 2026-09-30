@@ -56,6 +56,9 @@ export function DetailsPanel() {
               {node.line ? `:${node.line}` : ''}
             </code>
             <div className="location-actions">
+              <button type="button" className="link-button" onClick={() => useViewer.getState().openCode(selected)} title="Read the code here" data-testid="view-code">
+                <Icon name="code" size={13} /> Code
+              </button>
               {editorHref && (
                 <a className="link-button" href={editorHref} title="Open in VS Code">
                   <Icon name="external" size={13} /> Open

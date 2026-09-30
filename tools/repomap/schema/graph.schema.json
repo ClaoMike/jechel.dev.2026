@@ -146,6 +146,7 @@
         "parent": { "type": "string" },
         "file": { "type": "string" },
         "line": { "type": "integer", "minimum": 1 },
+        "endLine": { "type": "integer", "minimum": 1 },
         "tags": { "type": "array", "items": { "type": "string" } },
         "attrs": { "type": "object" },
         "description": { "type": "string" },

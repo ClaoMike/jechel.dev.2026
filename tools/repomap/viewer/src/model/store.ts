@@ -67,6 +67,10 @@ interface State {
   searchOpen: boolean
   camera: CameraCommand | null
   toast: { text: string; nonce: number } | null
+  /** Right-click / long-press menu on a node, at scene coordinates. */
+  contextMenu: { node: number; x: number; y: number } | null
+  /** The node whose source file is open in the code panel. */
+  codeView: { node: number } | null
   /** Bumped whenever something the 3D scene draws changes. */
   version: number
 }
@@ -92,6 +96,10 @@ interface Actions {
   setSearchOpen(open: boolean): void
   command(command: CameraRequest): void
   notify(text: string): void
+  openContextMenu(node: number, x: number, y: number): void
+  closeContextMenu(): void
+  openCode(node: number): void
+  closeCode(): void
   viewState(): ViewState
 }
 
@@ -148,6 +156,8 @@ export const useViewer = create<State & Actions>((set, get) => {
     searchOpen: false,
     camera: null,
     toast: null,
+    contextMenu: null,
+    codeView: null,
     version: 0,
 
     setGraph(graph, source, view, keepView) {
@@ -172,6 +182,12 @@ export const useViewer = create<State & Actions>((set, get) => {
       const selectedId = keepView && previous.selected !== null && previous.index ? previous.index.nodes[previous.selected]?.id : view?.selected
       const selected = selectedId !== undefined ? (index.byId.get(selectedId) ?? null) : null
       derive(filters, {
+        contextMenu: null,
+        codeView: keepView && previous.codeView && previous.index ? (() => {
+          const id = previous.index.nodes[previous.codeView.node]?.id
+          const i = id !== undefined ? index.byId.get(id) : undefined
+          return i !== undefined ? { node: i } : null
+        })() : null,
         graph,
         index,
         source,
@@ -289,6 +305,22 @@ export const useViewer = create<State & Actions>((set, get) => {
 
     notify(text) {
       set({ toast: { text, nonce: Date.now() } })
+    },
+
+    openContextMenu(node, x, y) {
+      set({ contextMenu: { node, x, y } })
+    },
+
+    closeContextMenu() {
+      if (get().contextMenu) set({ contextMenu: null })
+    },
+
+    openCode(node) {
+      set({ codeView: { node }, contextMenu: null })
+    },
+
+    closeCode() {
+      if (get().codeView) set({ codeView: null })
     },
 
     viewState() {

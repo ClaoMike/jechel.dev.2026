@@ -940,6 +940,7 @@ public sealed class CodeExtractor
                 RoleReason = node.RoleReason,
                 File = file,
                 Line = Syntax.Line(node.Declaration),
+                EndLine = node.Kind == "entrypoint" ? null : Syntax.EndLine(node.Declaration),
                 Tags = feature is null ? null : [$"feature:{feature}"],
                 Attrs = attrs.Count > 0 ? attrs : null,
                 Description = description,
@@ -961,6 +962,7 @@ public sealed class CodeExtractor
                     Parent = node.Id,
                     File = file,
                     Line = declaration is null ? null : Syntax.Line(declaration),
+                    EndLine = declaration is null ? null : Syntax.EndLine(declaration),
                     Tags = feature is null ? null : [$"feature:{feature}"],
                     Attrs = new() { ["type"] = property.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) },
                     Description = summary,
@@ -980,6 +982,7 @@ public sealed class CodeExtractor
             var handlerDoc = handlerDeclaration is null ? null : _docByTree.GetValueOrDefault(handlerDeclaration.SyntaxTree);
             var file = handlerDoc?.File.Path ?? endpoint.Doc.File.Path;
             var line = handlerDeclaration is not null && handlerDoc is not null ? Syntax.Line(handlerDeclaration) : Syntax.Line(endpoint.MappedAt);
+            var endLine = handlerDeclaration is not null && handlerDoc is not null ? Syntax.EndLine(handlerDeclaration) : Syntax.EndLine(endpoint.MappedAt);
             var feature = Syntax.FeatureOf(file) ?? Syntax.FeatureOf(endpoint.Doc.File.Path);
             var attrs = new Dictionary<string, object?>
             {
@@ -1003,6 +1006,7 @@ public sealed class CodeExtractor
                 RoleReason = ownerNode?.Role is null ? null : "declared in test code",
                 File = file,
                 Line = line,
+                EndLine = endLine,
                 Tags = feature is null ? null : [$"feature:{feature}"],
                 Attrs = attrs,
                 Description = description,
