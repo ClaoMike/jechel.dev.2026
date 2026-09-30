@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { ensureGitHistory } from './git/load.ts'
 import { useGit } from './git/store.ts'
 import type { ColorBy } from './model/colors.ts'
+import { useFiles } from './model/files.ts'
 import { loadInitialGraph } from './model/load.ts'
 import { COARSE, matches, NARROW, useMediaQuery } from './model/media.ts'
 import { useViewer, type LabelMode } from './model/store.ts'
@@ -9,6 +10,7 @@ import { writeViewToHash } from './model/url.ts'
 import { Scene } from './scene/Scene.tsx'
 import { ContextMenu } from './ui/ContextMenu.tsx'
 import { DetailsPanel } from './ui/DetailsPanel.tsx'
+import { FileDialogs } from './ui/FileDialogs.tsx'
 import { Banner, DropZone, HelpOverlay, Status, Toast } from './ui/Overlays.tsx'
 import { Sidebar } from './ui/Sidebar.tsx'
 import { TopBar } from './ui/TopBar.tsx'
@@ -31,7 +33,10 @@ export function App() {
   const [gitShown, setGitShown] = useState(tab === 'git')
 
   useEffect(() => {
-    void loadInitialGraph()
+    void loadInitialGraph().then(() => {
+      // Your own repository, served by repomap: the explorer lists git's files and can change them.
+      if (useViewer.getState().source?.kind === 'server') void useFiles.getState().refresh()
+    })
   }, [])
 
   useEffect(() => {
@@ -75,8 +80,8 @@ export function App() {
         document.querySelector<HTMLInputElement>('[data-testid="search"]')?.focus()
         return
       }
-      // The code panel and the node menu handle their own keys.
-      if (store.codeView || store.contextMenu) return
+      // The code panel, the node menu and dialogs handle their own keys.
+      if (store.codeView || store.contextMenu || target?.closest('[role="dialog"], [role="menu"]')) return
       if (typing || event.metaKey || event.ctrlKey || event.altKey) return
       switch (event.key) {
         case '/':
@@ -169,6 +174,7 @@ export function App() {
           <CodeViewer />
         </Suspense>
       )}
+      <FileDialogs />
       <HelpOverlay />
       <DropZone />
       <Toast />

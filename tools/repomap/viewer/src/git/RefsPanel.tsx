@@ -3,10 +3,12 @@
  * it reaches (⌥-click or the target button: only this one); clicking a name jumps to its commit.
  */
 import { useState, type MouseEvent } from 'react'
-import { pullRequestUrl, type GitPullRequest, type GitRef } from '../../../src/shared/git-types.ts'
+import { newPullRequestUrl, pullRequestUrl, type GitPullRequest, type GitRef } from '../../../src/shared/git-types.ts'
 import { useViewer } from '../model/store.ts'
 import { Icon } from '../ui/icons.tsx'
 import { Section, Toggle } from '../ui/Sidebar.tsx'
+import { ActionMenu, type MenuItem } from '../ui/ActionMenu.tsx'
+import { confirmThen, useGitActions } from './actions.ts'
 import { jumpToRef } from './CommitDetails.tsx'
 import { isRefVisible, refKey, relativeTime, type GitModel } from './model.ts'
 import { CloudIcon, laneColor, PR_STATE_LABEL, prState } from './parts.tsx'
@@ -19,6 +21,7 @@ export function RefsPanel({ model }: { model: GitModel | null }) {
   const filters = useGit((s) => s.filters)
   const [prFilter, setPrFilter] = useState<PrFilter>('all')
   const { setFilters, resetFilters, setPanel } = useGit.getState()
+  const canRun = useGitActions((s) => !!s.available && !!s.live?.head)
 
   if (!model) return <aside className={`sidebar git-panel${open ? ' open' : ''}`} aria-label="Branches and pull requests" />
   const history = model.history
@@ -44,7 +47,23 @@ export function RefsPanel({ model }: { model: GitModel | null }) {
         </button>
       </div>
       <div className="sidebar-scroll">
-        <Section title={`Branches (${locals.length})`}>
+        <Section
+          title={`Branches (${locals.length})`}
+          aside={
+            canRun ? (
+              <button
+                type="button"
+                className="icon-button small"
+                onClick={() => useGitActions.getState().openDialog({ kind: 'create-branch' })}
+                aria-label="New branch"
+                title="New branch from HEAD"
+                data-testid="new-branch"
+              >
+                <Icon name="plus" size={14} />
+              </button>
+            ) : undefined
+          }
+        >
           {locals.length === 0 && <p className="panel-empty">No local branches.</p>}
           {locals.map((ref) => (
             <RefRow key={refKey(ref)} gitRef={ref} model={model} head={ref.name === head?.branch} main={ref.name === main} />
@@ -182,7 +201,76 @@ function RefRow({ gitRef, model, head = false, main = false, disabled = false }:
       <button type="button" className="dim-toggle" onClick={() => soloRef(key)} title="Only this one (⌥-click the box)" aria-label={`Only ${gitRef.name}`} disabled={disabled}>
         <Icon name="focus" size={13} />
       </button>
+      <RefMenu gitRef={gitRef} model={model} />
     </div>
+  )
+}
+
+/** Git commands on a branch, remote branch or tag (when `repomap serve` runs them). */
+function RefMenu({ gitRef, model }: { gitRef: GitRef; model: GitModel }) {
+  const available = useGitActions((s) => s.available)
+  const live = useGitActions((s) => s.live)
+  const busy = useGitActions((s) => s.busy)
+  if (!available || !live) return null
+  const { run, openDialog } = useGitActions.getState()
+  const current = live.branch ?? 'HEAD'
+  const name = gitRef.name
+  const busyOrStuck = !!busy || !!live.operation
+  const history = model.history
+  let items: MenuItem[]
+  if (gitRef.type === 'branch') {
+    const checkedOut = name === live.branch
+    const base = history.repo.defaultBranch
+    const prUrl = gitRef.upstream && base && name !== base ? newPullRequestUrl(history.repo.web, base, name) : undefined
+    items = [
+      { label: 'Switch to it', icon: 'check', disabled: checkedOut || !!busy, onSelect: () => void run({ type: 'checkout', ref: name, target: 'branch' }) },
+      { label: `Merge into ${current}`, icon: 'merge', disabled: checkedOut || busyOrStuck, onSelect: () => void run({ type: 'merge', ref: name }) },
+      { label: `Squash and merge into ${current}`, icon: 'merge', disabled: checkedOut || busyOrStuck, onSelect: () => void run({ type: 'merge', ref: name, squash: true }) },
+      {
+        label: `Rebase ${current} onto it`,
+        icon: 'branch',
+        disabled: checkedOut || busyOrStuck || !live.branch,
+        onSelect: () => confirmThen(`Rebase ${current} onto ${name}?`, `The commits of ${current} are replayed on top of ${name}. If they were pushed, the next push needs a force push.`, 'Rebase', { type: 'rebase', onto: name }, false),
+      },
+      { separator: true },
+      { label: 'New branch from it…', icon: 'plus', onSelect: () => openDialog({ kind: 'create-branch', from: gitRef.commit, fromLabel: name }) },
+      { label: 'Rename…', icon: 'edit', onSelect: () => openDialog({ kind: 'rename-branch', name }) },
+      ...(prUrl ? [{ label: 'Create pull request', icon: 'pr', hint: `into ${base}`, onSelect: () => window.open(prUrl, '_blank', 'noopener') } satisfies MenuItem] : []),
+      {
+        label: 'Delete…',
+        icon: 'trash',
+        danger: true,
+        disabled: checkedOut || !!busy,
+        title: checkedOut ? 'Switch to another branch first' : undefined,
+        onSelect: () => openDialog({ kind: 'delete-branch', name, upstream: gitRef.upstream && !gitRef.gone ? gitRef.upstream : undefined }),
+      },
+    ]
+  } else if (gitRef.type === 'remote') {
+    if (name.endsWith('/HEAD')) return null
+    items = [
+      { label: 'Check out', icon: 'check', hint: 'as a local branch', disabled: !!busy, onSelect: () => void run({ type: 'checkout', ref: name, target: 'remote' }) },
+      { label: `Merge into ${current}`, icon: 'merge', disabled: busyOrStuck, onSelect: () => void run({ type: 'merge', ref: name }) },
+      { separator: true },
+      {
+        label: 'Delete on the remote…',
+        icon: 'trash',
+        danger: true,
+        disabled: !!busy,
+        onSelect: () => confirmThen(`Delete ${name}?`, `The branch is deleted on the remote, for everyone. Local branches keep their commits.`, 'Delete on the remote', { type: 'delete-remote-branch', name }),
+      },
+    ]
+  } else {
+    items = [
+      { label: 'Check out', icon: 'commit', hint: 'detached', disabled: !!busy, onSelect: () => void run({ type: 'checkout', ref: gitRef.commit, target: 'commit' }) },
+      { label: 'Push the tag', icon: 'push', disabled: !!busy || !live.remote, hint: live.remote, onSelect: () => void run({ type: 'push-tag', name }) },
+      { separator: true },
+      { label: 'Delete…', icon: 'trash', danger: true, disabled: !!busy, onSelect: () => confirmThen(`Delete tag ${name}?`, 'The tag is deleted in this repository (not on the remote).', 'Delete tag', { type: 'delete-tag', name }) },
+    ]
+  }
+  return (
+    <ActionMenu label={`Commands for ${name}`} items={items} className="dim-toggle ref-menu" testId={`ref-menu-${gitRef.type}:${name}`}>
+      <Icon name="more" size={14} />
+    </ActionMenu>
   )
 }
 

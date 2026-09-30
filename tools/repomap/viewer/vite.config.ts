@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
+import { handleApi, workspaceAllows } from '../src/core/api.ts'
 import { readSource } from '../src/core/source.ts'
 import type { RepoGraph } from '../src/shared/types.ts'
 
@@ -13,8 +14,8 @@ const gitFile = resolve(toolRoot, '.out', 'git.json')
 
 /**
  * `npm run dev` serves the last built graph (tools/repomap/.out/graph.json) as /graph.json and
- * pushes a reload event when it changes, like `repomap serve` does. The production build is a
- * plain static site.
+ * pushes a reload event when it changes, like `repomap serve` does, including saving files and
+ * running git commands in the mapped repository. The production build is a plain static site.
  */
 function devGraph(): Plugin {
   return {
@@ -28,8 +29,22 @@ function devGraph(): Plugin {
           if (name === 'git.json') for (const client of clients) client.write('event: git\ndata: {}\n\n')
         })
       }
+      const readGraph = (): RepoGraph | undefined => {
+        try {
+          return JSON.parse(readFileSync(graphFile, 'utf8')) as RepoGraph
+        } catch {
+          return undefined
+        }
+      }
+      const repoRoot = () => readGraph()?.meta.repo.root ?? resolve(toolRoot, '..', '..')
       server.middlewares.use((req, res, next) => {
         const url = (req.url ?? '').split('?')[0]
+        if (url.startsWith('/api/') || (url === '/source' && req.method === 'PUT')) {
+          handleApi(req, res, new URL(req.url ?? '/', 'http://localhost'), { repoRoot, graph: readGraph })
+            .then((handled) => handled || next())
+            .catch(next)
+          return
+        }
         if (url === '/graph.json') {
           if (!existsSync(graphFile)) {
             res.statusCode = 404
@@ -53,17 +68,15 @@ function devGraph(): Plugin {
           return
         }
         if (url === '/source') {
-          let graph: RepoGraph | undefined
-          try {
-            graph = JSON.parse(readFileSync(graphFile, 'utf8')) as RepoGraph
-          } catch {
-            graph = undefined
-          }
           const path = new URL(req.url ?? '/', 'http://localhost').searchParams.get('path')
-          const result = readSource(graph?.meta.repo.root ?? resolve(toolRoot, '..', '..'), graph, path)
+          const result = readSource(repoRoot(), readGraph(), path, workspaceAllows(repoRoot()))
           res.statusCode = result.ok ? 200 : result.status
           res.setHeader('Content-Type', 'text/plain; charset=utf-8')
           res.setHeader('Cache-Control', 'no-store')
+          if (result.ok) {
+            res.setHeader('ETag', result.etag)
+            res.setHeader('X-Repomap-Writable', '1')
+          }
           res.end(result.ok ? result.text : result.error)
           return
         }

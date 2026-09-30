@@ -6,7 +6,10 @@ they connect — inside a layer and across layers. Click anything to trace its f
 `HomePage → api.profile.getFirstName → GET /api/firstname → Profile.FirstName → profiles.first_name`.
 
 A second tab shows the **git history** as a graph: every branch, merge, tag and pull request, the
-uncommitted changes, and for any commit the files it changed — linked both ways with the map.
+uncommitted changes, and for any commit the files it changed — linked both ways with the map. Served
+from your checkout, it is also a git client (commit, push, pull, fetch, branches, merges, stashes…),
+the code panel is an editor that saves as you type, and a file explorer creates, renames and deletes
+files — the map is rebuilt and shows them on their plane.
 
 It runs in the browser (a static site — deployable anywhere) and is self-contained: nothing here imports
 the app it maps.
@@ -45,7 +48,7 @@ Other commands:
 | --- | --- |
 | `npm run map` | Build `.out/graph.json` and `.out/git.json` (`-- --relayout` to lay out from scratch, `-- --no-cache` to re-run every plugin) |
 | `npm run history` | Only re-read the git history (`.out/git.json`) |
-| `npm run view` | Serve the viewer + the last graph on http://127.0.0.1:5199 |
+| `npm run view` | Serve the viewer + the last graph on http://127.0.0.1:5199 (`-- --read-only`: no editing, no git commands) |
 | `npm start` | `map` + `view` + watch the repo and live-reload the browser |
 | `npm run dev` | Viewer development (Vite, port 5198), serving the last built graph |
 | `npm run build:viewer` | Static site in `viewer/dist` (deploy anywhere) |
@@ -75,11 +78,31 @@ The CLI is `node src/cli.ts <command>` (`node src/cli.ts help` lists the options
 - **Keys**: `/` or `⌘K` search · `F` fit · `S` side view · `1`–`9` top view of a layer · `R` reset ·
   `C` colour by kind/layer/role/feature · `L` labels · `[` filters · `?` help · `Esc` clear.
 - **Changes**: nodes added since the previous build glow green (*Display → Highlight changes*).
-- **Read the code**: right-click a node (Ctrl+click on a Mac trackpad, long-press on a touch screen) →
-  *View code*, or *Code* in the details panel. The file opens in a read-only editor coloured like VS Code
+- **Read and edit the code**: right-click a node (Ctrl+click on a Mac trackpad, long-press on a touch
+  screen) → *View code*, or *Code* in the details panel. The file opens in an editor coloured like VS Code
   (Dark+/Light+), scrolled to the node, with its declaration highlighted; ⌘F searches the file. Source is
   served by `repomap serve` from your checkout — only files that belong to a node of the graph, never
   anything outside the repository — so a static deployment of the viewer shows "not available" instead.
+- **Autosave**: when `repomap serve` maps your own repository on localhost (`npm start`), what you type is
+  saved a moment after you stop, on ⌘S, and when you close the panel or leave the page; the status bar
+  says *Unsaved changes* → *Saving…* → *Saved*. Undo/redo, Tab indentation and the file's own line
+  endings (LF/CRLF) are kept. A file changed on disk meanwhile (a checkout, a pull, another editor) is
+  reloaded when you haven't typed in it; when you have, nothing is overwritten: you choose *Keep mine* or
+  *Load the disk version*. On touch screens editing starts after tapping the pencil (so reading doesn't pop
+  up the keyboard). Only existing text files of the graph can be written. With `--watch` each save rebuilds
+  the map; the panel stays open on the file even when the node you opened it from is renamed.
+
+- **Files**: the side panel's *Files* tab is an explorer of the repository (every file git lists; ignored
+  ones like `.env` are left out), each file with the colour of the plane it is drawn on — a dashed dot means
+  "not in the map (yet)". Click a file to find it in the map, double-click to open it. Served from your
+  checkout (`npm start`), the ⋯ menus and the details panel (*New file here…*, *Rename or move…*,
+  *Delete…*) create, rename, move and delete files and whole folders. The new-file dialog shows where the
+  path lands — *Frontend · Production*, or "not in the map" when the config excludes it — from the same
+  rules the build uses, and starts the file from a template the extractors recognise (a React component or
+  hook, a module, a test, a C# class in its project's namespace…). The file opens in the editor; the map is
+  rebuilt and selects the new node once it is there. Paths must stay inside the repository and out of
+  `.git`, never through a symlink out; nothing is overwritten, and a folder holding another repository is
+  never deleted. Deletions are uncommitted changes: the History tab can discard them.
 
 ## The git history tab
 
@@ -101,8 +124,40 @@ The CLI is `node src/cli.ts <command>` (`node src/cli.ts help` lists the options
   the target button) shows one alone. **Search** matches messages, authors, files, branches, hash prefixes and
   `#12` — non-matching commits fade and `Enter` / `n` / `N` step through the matches.
 - **Keys**: `↑` `↓` (`k` `j`) walk the commits · `Home` `End` · `H` HEAD · `/` search · `[` panel · `Esc`.
-- **Read-only**: nothing here changes the repository; remote branches are as of your last fetch. With
-  `npm start`, commits, checkouts, fetches and staging refresh the tab live.
+- **Read-only** when it isn't your checkout (a static site, a dropped git.json, the demo, `--graph`,
+  `--read-only`, or a non-localhost `--host`); remote branches are as of your last fetch. With `npm start`,
+  commits, checkouts, fetches and staging made anywhere refresh the tab live.
+
+### Git commands (served from your checkout)
+
+A bar above the graph works like GitHub Desktop:
+
+- **Current branch** ▾ — switch to a local branch, or check out a remote one as a tracking branch; *New
+  branch…*, *Merge into…*, *Squash and merge into…*, *Rebase…*, *Rename…*.
+- **The sync button** does what's due: *Publish branch* (push -u), *Pull origin ↓n*, *Push origin ↑n*, else
+  *Fetch origin*. The ⋯ menu has each of them, *Force push…* (with a lease), stashing, *Create pull
+  request* (opens the host's compare page) and *View branch on the web*.
+- **Uncommitted changes** (the button, or the dashed row) open the changes panel: every changed file with a
+  checkbox (all ticked; only ticked files are committed, whatever is staged), summary + description,
+  *Amend last commit*, discard (per file or ticked), stash, and the stashes to restore or drop. The pencil
+  opens a file in the editor.
+- **Merge conflicts**: a banner says a merge (rebase, cherry-pick, revert) is in progress; conflicted files
+  are red in the changes panel — edit them in the code panel, then *Commit merge* / *Continue* (refused while
+  conflict markers remain), or *Abort*.
+- **A commit** (details panel → *Actions*): *New branch here…*, *Tag…* (annotated with a message),
+  *Check out* (detached), *Cherry-pick onto…*, *Revert*, *Undo commit* (HEAD: its changes go back to your
+  files), *Reset … to here…* (soft / mixed / hard).
+- **Branches panel**: `+` makes a branch; the ⋯ on a branch, remote branch or tag switches, merges,
+  squash-merges, rebases, renames, deletes (optionally on the remote too), pushes or deletes tags.
+- Failures show git's reason (e.g. *The remote has commits you don't have yet: pull them first*) with its full
+  output on demand. Commands that lose work ask first.
+
+**Safety.** git runs without a shell and never prompts (no terminal, no editor; credentials come from your
+credential helper or ssh agent), one command at a time. Every name must pass `git check-ref-format`,
+commits must be hashes, and only files git reports as changed can be committed or discarded. The writing
+endpoints (`PUT /source`, `GET /api/git/state`, `POST /api/git`, `GET`/`POST /api/files`, see `src/core/api.ts`) answer only
+requests from the viewer itself: a localhost `Host` (no DNS rebinding), the same `Origin`, and an
+`X-Repomap-Request` header that other sites can't send without a CORS preflight, which is never granted.
 
 ## How it works
 
@@ -240,7 +295,15 @@ used for "Open in VS Code" links) and your uncommitted changes out of git.json.
   tests never touch the network) and a real temporary repository; the history tab's lanes, ref filters and
   search; the server's routes, the source-file guard (traversal, symlinks, size, binaries) and live-reload
   events; builds with misbehaving plugins (crashing, garbage, schema violations, timeouts, missing tools),
-  caching, `--public` and the CLI's `validate`/`diff`. Plus a run of every plugin on this repository that
+  caching, `--public` and the CLI's `validate`/`diff`. Editing: autosave (debounce, saves during saves,
+  retries, conflicts; mocked timers), saving through the source guard with ETags, and every request the
+  writing API must refuse (other origins, other hosts, no header, read-only servers). Git commands against
+  real temporary repositories with a bare remote and a teammate's clone: partial commits, renames,
+  deletions, amend, undo, discard, push/publish/force push, fetch/pull of diverged work, branches, tracking
+  checkouts, merges through a conflict, squash, rebase, cherry-pick, revert, reset, tags, stashes, and
+  refused input (bad names, option injection, unchanged files). File operations: create/rename/move/delete
+  of files and folders, and every path refused (outside, `.git`, symlinks out, overwrites, nested
+  repositories); templates; where the real config puts a new path. Plus a run of every plugin on this repository that
   checks the facts that matter (every endpoint of the README's API table, the HomePage →
   `profiles.first_name` chain, DI, migrations, test tagging, no unresolved links, a valid git.json).
 - **Browser** (`e2e/`, Playwright against the demo graph and history), in Chromium and WebKit (Firefox in CI or
@@ -248,7 +311,15 @@ used for "Open in VS Code" links) and your uncommitted changes out of git.json.
   code, theme and view settings, shortcuts, opening and dropping files, `?graph=`, live reload), the history
   tab (graph, details, keyboard, search, branch filters, pull requests, deep links, map ↔ history), the phone
   layout (drawers, bottom sheets, long-press, no sideways scrolling) and WCAG 2.1 AA checks (axe) of both
-  tabs in both themes. Every test fails on page errors.
+  tabs in both themes. Editing and git commands run against a real repository per test (`e2e/repo-fixture.ts`:
+  a bare origin, a clone served by repomap, a teammate's clone): typing and autosave, ⌘S, closing, undo,
+  files changed on disk, CRLF, read-only servers; committing ticked files, publishing and pushing, fetching
+  and pulling, a merge conflict resolved in the editor, abort, switching and deleting branches, tags,
+  revert, undo, cherry-pick, discard, stash, failures, keyboard menus, axe on all of it, and on a phone.
+  With `realMap` the fixture builds the map with the real pipeline and rebuilds it after every change: a
+  component created from the explorer lands on the Frontend plane, renames and deletions from the details
+  panel update the map, a deleted folder comes back through the History tab.
+  Every test fails on page errors.
 - **CI**: the `repomap` job in `.github/workflows/ci.yml` runs all of the above on every push and pull request.
 
 ## Limitations and next steps

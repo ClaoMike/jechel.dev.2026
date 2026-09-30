@@ -3,7 +3,7 @@
  * repomap CLI.
  *
  *   node src/cli.ts build     [-c config] [--no-cache] [--public]
- *   node src/cli.ts serve     [-c config] [--build] [--watch] [--port 5199] [--no-open] [--graph file] [--git file]
+ *   node src/cli.ts serve     [-c config] [--build] [--watch] [--port 5199] [--no-open] [--read-only] [--graph file] [--git file]
  *   node src/cli.ts validate  [graph.json]
  *   node src/cli.ts diff      <before.json> <after.json>   (default: previous history entry vs current)
  *   node src/cli.ts history   [-c config] [--public]   (git.json only)
@@ -42,6 +42,8 @@ Options
   -p, --port <n>        serve: port (default 5199)
       --host <host>     serve: host (default 127.0.0.1)
       --no-open         serve: don't open a browser
+      --read-only       serve: never save files or run git commands from the viewer
+                        (they are only offered for your own repository on a localhost address)
       --graph <file>    serve: serve this graph.json instead of building one
       --git <file>      serve: serve this git.json (default: name.git.json or git.json beside the graph)
   -v, --verbose         Show plugin logs
@@ -61,6 +63,7 @@ async function main(): Promise<number> {
       port: { type: 'string', short: 'p' },
       host: { type: 'string' },
       'no-open': { type: 'boolean' },
+      'read-only': { type: 'boolean' },
       graph: { type: 'string' },
       git: { type: 'string' },
       verbose: { type: 'boolean', short: 'v' },
@@ -110,6 +113,7 @@ async function main(): Promise<number> {
         build: !!values.build,
         graphPath: values.graph ? resolve(values.graph) : undefined,
         gitPath: values.git ? resolve(values.git) : undefined,
+        readOnly: !!values['read-only'],
       })
       return -1 // keep running
     }

@@ -204,3 +204,22 @@ export function branchUrl(web: GitRepoInfo['web'], branch: string): string | und
       return undefined
   }
 }
+
+/** The hosting service's page for opening a pull request from `head` into `base`. */
+export function newPullRequestUrl(web: GitRepoInfo['web'], base: string, head: string): string | undefined {
+  if (!web) return undefined
+  const b = encodeURIComponent(base)
+  const h = encodeURIComponent(head)
+  switch (web.host) {
+    case 'github':
+      return `${web.url}/compare/${base.split('/').map(encodeURIComponent).join('/')}...${head.split('/').map(encodeURIComponent).join('/')}?expand=1`
+    case 'gitlab':
+      return `${web.url}/-/merge_requests/new?merge_request%5Bsource_branch%5D=${h}&merge_request%5Btarget_branch%5D=${b}`
+    case 'bitbucket':
+      return `${web.url}/pull-requests/new?source=${h}&dest=${b}`
+    case 'azure':
+      return `${web.url}/pullrequestcreate?sourceRef=${h}&targetRef=${b}`
+    default:
+      return undefined
+  }
+}

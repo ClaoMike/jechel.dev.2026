@@ -1,9 +1,12 @@
 /** The selected commit (or the uncommitted changes): message, people, relations, pull request, files. */
 import { useMemo, useState, type ReactNode } from 'react'
+import { isCommitHash } from '../../../src/shared/git-actions.ts'
 import { commitUrl, pullRequestUrl, WORKTREE, type GitCommit, type GitFileChange, type GitPullRequest, type GitRef } from '../../../src/shared/git-types.ts'
 import type { GraphIndex } from '../model/graph.ts'
 import { useViewer } from '../model/store.ts'
 import { Icon } from '../ui/icons.tsx'
+import { confirmThen, useGitActions } from './actions.ts'
+import { ChangesPanel } from './ChangesPanel.tsx'
 import { containingRefs, fullDate, mergedBranch, mergeTarget, refBadges, relativeTime, shortHash, type GitModel } from './model.ts'
 import { Avatar, FILE_STATUS, laneColor, PR_STATE_LABEL, PrBadge, prState, RefBadgeView, worktreeStatus } from './parts.tsx'
 import { useGit } from './store.ts'
@@ -15,6 +18,7 @@ export function CommitDetails({ model }: { model: GitModel }) {
   const expanded = useGit((s) => s.sheetExpanded)
   const index = useViewer((s) => s.index)
   const fileNodes = useMemo(() => filesInMap(index), [index])
+  const live = useGitActions((s) => (s.available ? s.live : null))
   if (!selected) return null
   const commit = selected === WORKTREE ? null : model.byHash.get(selected)
   if (selected !== WORKTREE && !commit) return null
@@ -29,7 +33,13 @@ export function CommitDetails({ model }: { model: GitModel }) {
       >
         <span />
       </button>
-      {commit ? <CommitBody model={model} commit={commit} fileNodes={fileNodes} /> : <WorktreeBody model={model} fileNodes={fileNodes} />}
+      {commit ? (
+        <CommitBody model={model} commit={commit} fileNodes={fileNodes} />
+      ) : live ? (
+        <ChangesPanel model={model} fileNodes={fileNodes} />
+      ) : (
+        <WorktreeBody model={model} fileNodes={fileNodes} />
+      )}
     </aside>
   )
 }
@@ -145,6 +155,8 @@ function CommitBody({ model, commit, fileNodes }: { model: GitModel; commit: Git
             <RefChips refs={containing} model={model} />
           </section>
         )}
+
+        <CommitActions model={model} commit={commit} />
 
         <FileList
           files={commit.files ?? []}
@@ -448,6 +460,95 @@ function CopyButton({ text, label }: { text: string; label: string }) {
     >
       <Icon name="copy" size={13} /> {copied ? 'Copied' : 'Copy'}
     </button>
+  )
+}
+
+/** What can be done with a commit, when `repomap serve` runs git commands. */
+function CommitActions({ model, commit }: { model: GitModel; commit: GitCommit }) {
+  const available = useGitActions((s) => s.available)
+  const live = useGitActions((s) => s.live)
+  const busy = useGitActions((s) => s.busy)
+  const head = live?.head
+  // Commits the checked-out branch already has: cherry-pick makes no sense for them, revert does.
+  const inHead = useMemo(() => {
+    const reached = new Set<string>()
+    const stack = head ? [head] : []
+    while (stack.length > 0) {
+      const hash = stack.pop()!
+      if (reached.has(hash)) continue
+      reached.add(hash)
+      for (const parent of model.byHash.get(hash)?.parents ?? []) stack.push(parent)
+    }
+    return reached
+  }, [model, head])
+  if (!available || !live || !isCommitHash(commit.hash)) return null
+  const { run, openDialog } = useGitActions.getState()
+  const short = commit.hash.slice(0, 7)
+  const current = live.branch ?? 'HEAD'
+  const isHead = commit.hash === head
+  const contained = inHead.has(commit.hash)
+  const operation = !!live.operation
+  const disabled = !!busy
+  return (
+    <section className="detail-section" data-testid="commit-actions">
+      <h3>
+        <Icon name="git" size={14} /> Actions
+      </h3>
+      <div className="chips action-chips">
+        <button type="button" className="chip" disabled={disabled} onClick={() => openDialog({ kind: 'create-branch', from: commit.hash, fromLabel: `${short} ${commit.subject}` })}>
+          <Icon name="branch" size={13} /> New branch here…
+        </button>
+        <button type="button" className="chip" disabled={disabled} onClick={() => openDialog({ kind: 'create-tag', commit: commit.hash, label: commit.subject })}>
+          <Icon name="tag" size={13} /> Tag…
+        </button>
+        {!isHead && (
+          <button
+            type="button"
+            className="chip"
+            disabled={disabled}
+            onClick={() => void run({ type: 'checkout', ref: commit.hash, target: 'commit' })}
+            title="Check out this commit without a branch (detached HEAD)"
+          >
+            <Icon name="commit" size={13} /> Check out
+          </button>
+        )}
+        {!contained && (
+          <button type="button" className="chip" disabled={disabled || operation || !head} onClick={() => void run({ type: 'cherry-pick', commit: commit.hash })} title={`Apply this commit's changes on ${current}`}>
+            <Icon name="merge" size={13} /> Cherry-pick onto {current}
+          </button>
+        )}
+        {contained && (
+          <button
+            type="button"
+            className="chip"
+            disabled={disabled || operation}
+            onClick={() => confirmThen(`Revert ${short}?`, `A new commit on ${current} undoes the changes of “${commit.subject}”.`, 'Revert', { type: 'revert', commit: commit.hash }, false)}
+          >
+            <Icon name="reset" size={13} /> Revert
+          </button>
+        )}
+        {isHead && commit.parents.length > 0 && (
+          <button
+            type="button"
+            className="chip"
+            disabled={disabled || operation}
+            onClick={() =>
+              live.upstream && live.ahead === 0
+                ? confirmThen('Undo a pushed commit?', `“${commit.subject}” is already on ${live.upstream}. Undoing it here means the next push needs a force push.`, 'Undo commit', { type: 'undo-commit' })
+                : void run({ type: 'undo-commit' })
+            }
+            title="Take this commit back: its changes return to your working tree"
+          >
+            <Icon name="reset" size={13} /> Undo commit
+          </button>
+        )}
+        {contained && !isHead && (
+          <button type="button" className="chip" disabled={disabled || operation} onClick={() => openDialog({ kind: 'reset', commit: commit.hash, label: commit.subject })}>
+            <Icon name="reset" size={13} /> Reset {current} to here…
+          </button>
+        )}
+      </div>
+    </section>
   )
 }
 

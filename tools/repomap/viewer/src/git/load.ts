@@ -100,17 +100,36 @@ let listening = false
 function listen(): void {
   if (listening) return
   listening = true
-  onServerEvent('git', async () => {
-    const git = useGit.getState()
-    if (git.source && git.source.kind !== 'server') return
-    try {
-      const history = await fetchHistory('git.json')
-      const before = git.history?.commits.length ?? 0
-      git.setHistory(history, { kind: 'server', name: history.repo.name }, git.status === 'ready')
-      const added = history.commits.length - before
-      if (before > 0 && added > 0) useViewer.getState().notify(`History updated: ${added} new commit${added === 1 ? '' : 's'}`)
-    } catch {
-      // Keep what is shown; the next rebuild tries again.
-    }
-  })
+  // New commits are announced, unless a command run from here made them (it says what it did itself).
+  onServerEvent('git', () => void reloadServerHistory(quiet === 0))
+}
+
+let quiet = 0
+
+/** Runs a git command from the viewer: rebuilds announced meanwhile are its own doing. */
+export async function withoutAnnouncements<T>(task: () => Promise<T>): Promise<T> {
+  quiet++
+  try {
+    return await task()
+  } finally {
+    // The server's announcement can arrive just after the answer.
+    setTimeout(() => quiet--, 1500)
+  }
+}
+
+/** Re-reads git.json from the server (after a rebuild, or a git command run from the viewer). */
+export async function reloadServerHistory(announce = false): Promise<void> {
+  const git = useGit.getState()
+  if (git.source && git.source.kind !== 'server') return
+  try {
+    const history = await fetchHistory('git.json')
+    const before = useGit.getState().history
+    // Unchanged (the server re-reads it after every command, and announces it too): nothing to redo.
+    if (before && before.generatedAt === history.generatedAt && before.fingerprint === history.fingerprint) return
+    git.setHistory(history, { kind: 'server', name: history.repo.name }, useGit.getState().status === 'ready')
+    const added = history.commits.length - (before?.commits.length ?? 0)
+    if (announce && before && added > 0) useViewer.getState().notify(`History updated: ${added} new commit${added === 1 ? '' : 's'}`)
+  } catch {
+    // Keep what is shown; the next rebuild tries again.
+  }
 }

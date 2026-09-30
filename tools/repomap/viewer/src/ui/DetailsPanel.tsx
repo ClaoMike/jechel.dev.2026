@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useGit } from '../git/store.ts'
+import { useFiles } from '../model/files.ts'
 import type { GraphIndex } from '../model/graph.ts'
 import { useViewer } from '../model/store.ts'
 import { traceByLayer } from '../model/trace.ts'
@@ -94,6 +95,8 @@ export function DetailsPanel() {
           </div>
         )}
 
+        {node.file && <FileCommands file={node.file} />}
+
         <Attributes attrs={node.attrs} />
 
         {node.roleReason && (
@@ -141,6 +144,29 @@ export function DetailsPanel() {
         <Connections index={index} i={selected} />
       </div>
     </aside>
+  )
+}
+
+/** Create a file next to this one, rename or move it, delete it (when the server allows editing). */
+function FileCommands({ file }: { file: string }) {
+  const writable = useFiles((s) => s.writable)
+  const busy = useFiles((s) => s.busy)
+  if (!writable) return null
+  const { openDialog } = useFiles.getState()
+  const slash = file.lastIndexOf('/')
+  const folder = slash >= 0 ? file.slice(0, slash) : ''
+  return (
+    <div className="chips file-commands" data-testid="file-commands">
+      <button type="button" className="chip" disabled={busy} onClick={() => openDialog({ kind: 'create', folder })} title={`New file in ${folder || 'the repository root'}/`}>
+        <Icon name="plus" size={13} /> New file here…
+      </button>
+      <button type="button" className="chip" disabled={busy} onClick={() => openDialog({ kind: 'rename', path: file, folder: false })}>
+        <Icon name="edit" size={13} /> Rename or move…
+      </button>
+      <button type="button" className="chip danger" disabled={busy} onClick={() => openDialog({ kind: 'delete', path: file, folder: false, count: 1 })}>
+        <Icon name="trash" size={13} /> Delete…
+      </button>
+    </div>
   )
 }
 

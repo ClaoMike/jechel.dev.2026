@@ -1,18 +1,21 @@
 /**
  * `repomap serve`: serves the built viewer + graph.json (+ git.json), source files for the code panel,
  * pushes live reloads over Server-Sent Events, and (with --watch) rebuilds when the repository changes.
+ * When writable (see api.ts), the code panel saves files and the History tab runs git commands.
  */
 import { spawn } from 'node:child_process'
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync, watch } from 'node:fs'
-import { createServer, type Server, type ServerResponse } from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { dirname, extname, join, normalize, relative, sep } from 'node:path'
 import type { RepoGraph } from '../shared/types.ts'
+import { handleApi, isLoopbackHost, workspaceAllows } from './api.ts'
 import { buildGraph } from './build.ts'
 import { TOOL_ROOT, type RepoMapConfig } from './config.ts'
-import { matcher } from './files.ts'
+import { classifyFiles, matcher } from './files.ts'
 import { gitHistoryPath, historyBeside, updateGitHistory } from './git-history.ts'
 import { color, type Logger } from './log.ts'
 import { readSource } from './source.ts'
+import { workspaceFiles } from './workspace.ts'
 
 export interface ServeOptions {
   config: RepoMapConfig
@@ -26,6 +29,8 @@ export interface ServeOptions {
   graphPath?: string
   /** Serve this git.json (default: the one beside the graph). */
   gitPath?: string
+  /** Never save files or run git commands. */
+  readOnly?: boolean
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -52,6 +57,16 @@ export interface ServerOptions {
   host: string
   watching?: boolean
   distDir?: string
+  /** Let the viewer save files and run git commands in `repoRoot` (default: off). */
+  writable?: boolean
+  /** After the code panel saved a file. */
+  onSaved?(path: string): void
+  /** After a git command: re-read the history (the server then announces it). */
+  onGitChanged?(): Promise<void>
+  /** After files were created, deleted or renamed from the viewer. */
+  onFilesChanged?(): void
+  /** The layer and role the build gives a path (the "new file" dialog shows it). */
+  classify?(path: string): { layer: string; role: string; reason: string } | undefined
 }
 
 export interface ServerHandle {
@@ -77,6 +92,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
     }
   }
 
+  const repoRoot = () => currentGraph()?.meta.repo.root ?? options.repoRoot
   const server: Server = createServer((req, res) => {
     let url: URL
     try {
@@ -85,6 +101,26 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       res.writeHead(400).end()
       return
     }
+    if (options.writable) {
+      handleApi(req, res, url, {
+        repoRoot,
+        graph: currentGraph,
+        onSaved: options.onSaved,
+        onGitChanged: options.onGitChanged,
+        onFilesChanged: options.onFilesChanged,
+        classify: options.classify,
+      })
+        .then((handled) => handled || route(req, res, url))
+        .catch((error: Error) => {
+          if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' })
+          res.end(error.message)
+        })
+    } else {
+      route(req, res, url)
+    }
+  })
+
+  const route = (req: IncomingMessage, res: ServerResponse, url: URL): void => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405, { Allow: 'GET, HEAD' }).end()
       return
@@ -95,10 +131,22 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       case '/git.json':
         return sendFile(res, gitPath, 'git.json not built yet: run `npm run map`')
       case '/source': {
-        const graph = currentGraph()
-        const result = readSource(graph?.meta.repo.root ?? options.repoRoot, graph, url.searchParams.get('path'))
+        // A writable server opens any file git lists: only for pages served from this machine.
+        const host = (req.headers.host ?? '').replace(/:\d+$/, '').toLowerCase()
+        if (options.writable && !isLoopbackHost(host)) {
+          res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Only on localhost')
+          return
+        }
+        const result = readSource(repoRoot(), currentGraph(), url.searchParams.get('path'), options.writable ? workspaceAllows(repoRoot()) : undefined)
         if (result.ok) {
-          res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
+          res.writeHead(200, {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+            ETag: result.etag,
+            // Whether the code panel may save it.
+            'X-Repomap-Writable': options.writable ? '1' : '0',
+          })
           res.end(result.text)
         } else {
           res.writeHead(result.status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' })
@@ -113,9 +161,18 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
         req.on('close', () => clients.delete(res))
         return
       default:
+        if (url.pathname === '/api/info') {
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end('{"writable":false}')
+          return
+        }
+        // Editing API of a read-only server: a clear "no" rather than the app.
+        if (url.pathname.startsWith('/api/')) {
+          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('This server is read-only')
+          return
+        }
         return serveStatic(dist, url.pathname, res)
     }
-  })
+  }
 
   const port = await listen(server, options.port, options.host)
   const keepAlive = setInterval(() => broadcast('ping', Date.now()), 25_000)
@@ -144,20 +201,59 @@ export async function serve(options: ServeOptions): Promise<void> {
   if (!options.graphPath && (options.build || !existsSync(graphPath))) {
     await buildGraph(config, { log })
   }
-  const handle = await startServer({
+  // Only your own repository, only on this machine: a --graph file may describe another checkout.
+  const writable = !options.graphPath && !options.readOnly && isLoopbackHost(options.host)
+  let handle: ServerHandle | undefined
+  const announce = (event: 'graph' | 'git') => handle?.broadcast(event, { at: Date.now() })
+  const watcher = options.watch && !options.graphPath ? startWatcher(config, log, announce) : undefined
+  const refreshHistory = watcher?.refreshHistory ?? serialized(async () => {
+    const result = await updateGitHistory(config, { log })
+    if (result.changed) announce('git')
+  })
+  // Without a watcher, files created, deleted or renamed from the viewer rebuild the map here.
+  const rebuild = serialized(async () => {
+    const result = await buildGraph(config, { log })
+    if (result.changed) announce('graph')
+    if (result.gitChanged) announce('git')
+  })
+  handle = await startServer({
     graphPath,
     gitPath: options.gitPath ?? (options.graphPath ? historyBeside(graphPath) : gitHistoryPath(config)),
     repoRoot: config.repoRoot,
     port: options.port,
     host: options.host,
     watching: options.watch,
+    writable,
+    // With --watch the saved file is picked up by the watcher (graph and history); without, the history shows the change.
+    onSaved: watcher ? undefined : () => void refreshHistory().catch(() => undefined),
+    onGitChanged: config.history.enabled ? refreshHistory : undefined,
+    onFilesChanged: watcher ? undefined : () => void rebuild().catch((error: Error) => log.error(`rebuild failed: ${error.message}`)),
+    classify: (path) => classifyPath(config, path),
   })
   log.info(`\n  ${color.bold('repomap')} viewer running at ${color.cyan(handle.url)}`)
-  log.info(color.dim(`  graph: ${relative(process.cwd(), graphPath) || graphPath}${options.watch ? ' · watching for changes' : ''} · Ctrl+C to stop\n`))
-  if (options.watch && !options.graphPath) {
-    startWatcher(config, log, (event) => handle.broadcast(event, { at: Date.now() }))
-  }
+  log.info(
+    color.dim(
+      `  graph: ${relative(process.cwd(), graphPath) || graphPath}${options.watch ? ' · watching for changes' : ''}${writable ? ' · editing on' : ' · read-only'} · Ctrl+C to stop\n`,
+    ),
+  )
   if (options.open) openBrowser(handle.url)
+}
+
+/** The layer and role a (possibly new) file gets, from the config's rules; undefined when excluded. */
+export function classifyPath(config: RepoMapConfig, path: string): { layer: string; role: string; reason: string } | undefined {
+  if (matcher(config.exclude)(path)) return undefined
+  const { files } = workspaceFiles(config.repoRoot)
+  const entry = classifyFiles(files.includes(path) ? files : [...files, path], config).find((f) => f.path === path)
+  return entry && { layer: entry.layer, role: entry.role, reason: entry.roleReason }
+}
+
+/** One run at a time; a call made during a run waits for it and runs again once. */
+function serialized(task: () => Promise<void>): () => Promise<void> {
+  let current: Promise<void> = Promise.resolve()
+  return () => {
+    current = current.catch(() => undefined).then(task)
+    return current
+  }
 }
 
 function sendFile(res: ServerResponse, path: string, missing: string): void {
@@ -243,12 +339,14 @@ const ALWAYS_IGNORED = ['.git/**', '**/node_modules/**', '**/bin/**', '**/obj/**
  * Rebuilds after file changes (debounced, never two builds at once) and reports what changed.
  * Changes inside .git (commits, checkouts, fetches, staging) only refresh the history.
  */
-function startWatcher(config: RepoMapConfig, log: Logger, onRebuilt: (event: 'graph' | 'git') => void): void {
+function startWatcher(config: RepoMapConfig, log: Logger, onRebuilt: (event: 'graph' | 'git') => void): { refreshHistory(): Promise<void> } {
   const ignored = matcher([...ALWAYS_IGNORED, ...config.exclude])
   let timer: NodeJS.Timeout | undefined
   let running = false
   let pendingGraph = false
   let pendingHistory = false
+  /** Callers waiting for the history to be re-read (after a git command). */
+  let waiting: (() => void)[] = []
   const rebuild = async () => {
     if (running) return
     running = true
@@ -272,6 +370,10 @@ function startWatcher(config: RepoMapConfig, log: Logger, onRebuilt: (event: 'gr
     } finally {
       running = false
       if (pendingGraph || pendingHistory) schedule()
+      else {
+        for (const resolveWait of waiting) resolveWait()
+        waiting = []
+      }
     }
   }
   const schedule = () => {
@@ -304,6 +406,15 @@ function startWatcher(config: RepoMapConfig, log: Logger, onRebuilt: (event: 'gr
       schedule()
     }, Math.max(1, config.history.githubCacheMinutes) * 60_000 + 1000)
     refresh.unref()
+  }
+  return {
+    refreshHistory: () =>
+      new Promise<void>((resolveWait) => {
+        waiting.push(resolveWait)
+        pendingHistory = true
+        clearTimeout(timer)
+        void rebuild()
+      }),
   }
 }
 

@@ -3,7 +3,7 @@
  * in the actions that change its inputs, so rendering code only reads plain arrays.
  */
 import { create } from 'zustand'
-import type { RepoGraph, Visibility } from '../../../src/shared/types.ts'
+import type { GraphNode, RepoGraph, Visibility } from '../../../src/shared/types.ts'
 import type { ColorBy } from './colors.ts'
 import {
   computeCounts,
@@ -81,8 +81,13 @@ interface State {
   toast: { text: string; nonce: number } | null
   /** Right-click / long-press menu on a node, at scene coordinates. */
   contextMenu: { node: number; x: number; y: number } | null
-  /** The node whose source file is open in the code panel. */
-  codeView: { node: number } | null
+  /**
+   * The file open in the code panel, and the node it was opened from (null when a rebuild removed
+   * it, e.g. after renaming it in the editor: the panel stays open on the file).
+   */
+  codeView: { node: number | null; opened: GraphNode } | null
+  /** A file just created or renamed: selected in the map once a rebuild brings it in. */
+  pendingReveal: string | null
   /** Bumped whenever something the 3D scene draws changes. */
   version: number
 }
@@ -117,7 +122,10 @@ interface Actions {
   openContextMenu(node: number, x: number, y: number): void
   closeContextMenu(): void
   openCode(node: number): void
+  /** Opens a file in the code panel, whether or not the map has a node for it yet. */
+  openFile(path: string): void
   closeCode(): void
+  revealFile(path: string | null): void
   viewState(): ViewState
 }
 
@@ -181,6 +189,7 @@ export const useViewer = create<State & Actions>((set, get) => {
     toast: null,
     contextMenu: null,
     codeView: null,
+    pendingReveal: null,
     version: 0,
 
     setTab(tab) {
@@ -212,11 +221,10 @@ export const useViewer = create<State & Actions>((set, get) => {
       const selected = selectedId !== undefined ? (index.byId.get(selectedId) ?? null) : null
       derive(filters, {
         contextMenu: null,
-        codeView: keepView && previous.codeView && previous.index ? (() => {
-          const id = previous.index.nodes[previous.codeView.node]?.id
-          const i = id !== undefined ? index.byId.get(id) : undefined
-          return i !== undefined ? { node: i } : null
-        })() : null,
+        codeView:
+          keepView && previous.codeView
+            ? { node: index.byId.get(previous.codeView.opened.id) ?? nodeForFile(index, previous.codeView.opened.file!) ?? null, opened: previous.codeView.opened }
+            : null,
         graph,
         index,
         source,
@@ -230,6 +238,15 @@ export const useViewer = create<State & Actions>((set, get) => {
         labels: view?.labels ?? previous.labels,
       })
       if (!keepView) get().command(selected !== null ? { type: 'focus', node: selected } : { type: 'fit' })
+      // A file created or renamed from here: show where it landed.
+      const reveal = get().pendingReveal
+      const found = reveal ? nodeForFile(index, reveal) : undefined
+      if (reveal && found !== undefined) {
+        set({ pendingReveal: null })
+        get().select(found, true)
+        const layer = index.layerById.get(index.nodes[found].layer)?.label
+        get().notify(`${reveal.split('/').pop()} is in the map${layer ? ` (${layer})` : ''}`)
+      }
     },
 
     setLoading(loading) {
@@ -368,7 +385,25 @@ export const useViewer = create<State & Actions>((set, get) => {
     },
 
     openCode(node) {
-      set({ codeView: { node }, contextMenu: null })
+      const opened = get().index?.nodes[node]
+      if (opened?.file) set({ codeView: { node, opened }, contextMenu: null })
+    },
+
+    openFile(path) {
+      const index = get().index
+      const node = index ? nodeForFile(index, path) : undefined
+      if (node !== undefined) {
+        get().openCode(node)
+        return
+      }
+      const name = path.split('/').pop() ?? path
+      // Not in the map (yet): a stand-in node, replaced when a rebuild brings the file in.
+      const opened: GraphNode = { id: `file:${path}`, label: name, kind: 'file', layer: '', role: '', file: path }
+      set({ codeView: { node: null, opened }, contextMenu: null })
+    },
+
+    revealFile(path) {
+      set({ pendingReveal: path })
     },
 
     closeCode() {
@@ -387,3 +422,20 @@ export const useViewer = create<State & Actions>((set, get) => {
     },
   }
 })
+
+/** The node that stands for a file in the map: its file node, else its outermost declaration. */
+export function nodeForFile(index: GraphIndex, path: string): number | undefined {
+  let best: number | undefined
+  index.nodes.forEach((node, i) => {
+    if (node.file !== path) return
+    if (node.id.includes(':file:')) {
+      best = i
+      return
+    }
+    if (best !== undefined && index.nodes[best].id.includes(':file:')) return
+    const parent = node.parent ? index.byId.get(node.parent) : undefined
+    const outermost = parent === undefined || index.nodes[parent].file !== path
+    if (best === undefined || (outermost && (index.nodes[best].line ?? Infinity) > (node.line ?? Infinity))) best = i
+  })
+  return best
+}

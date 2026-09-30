@@ -3,6 +3,9 @@ import { defineConfig, devices } from '@playwright/test'
 /** Viewer tests against the bundled demo graph and history (WebGL runs on SwiftShader in headless Chromium). */
 export default defineConfig({
   testDir: './e2e',
+  // Lazily loaded chunks (the editor, the history) and the real-map builds of e2e/files.spec.ts running in
+  // parallel make a busy machine slower than the default 5 s.
+  expect: { timeout: 10_000 },
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: 'http://127.0.0.1:5299',

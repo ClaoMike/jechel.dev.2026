@@ -186,7 +186,7 @@ const CommitRow = memo(
     const className = `git-row${selected ? ' selected' : ''}${dimmed ? ' dimmed' : ''}${commit ? '' : ' worktree'}`
     if (!commit) {
       const parts = tree
-        ? [tree.staged && `${tree.staged} staged`, tree.unstaged && `${tree.unstaged} modified`, tree.untracked && `${tree.untracked} untracked`, tree.conflicted && `${tree.conflicted} conflicts`].filter(Boolean)
+        ? [tree.staged && `${tree.staged} staged`, tree.unstaged && `${tree.unstaged} modified`, tree.untracked && `${tree.untracked} untracked`, tree.conflicted && `${tree.conflicted} ${tree.conflicted === 1 ? 'conflict' : 'conflicts'}`].filter(Boolean)
         : []
       return (
         <div id={`commit-${hash}`} role="option" aria-selected={selected} className={className} style={{ top, height }} onClick={select} data-testid="worktree-row">

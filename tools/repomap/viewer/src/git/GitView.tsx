@@ -3,10 +3,14 @@
  * (its own chunk) and kept mounted afterwards, so the scroll position survives tab switches.
  * App renders the tab panel around it.
  */
+import { useEffect } from 'react'
 import { NARROW, useMediaQuery } from '../model/media.ts'
 import { Icon } from '../ui/icons.tsx'
+import { useGitActions } from './actions.ts'
 import { CommitDetails } from './CommitDetails.tsx'
 import { CommitList } from './CommitList.tsx'
+import { GitActionBar } from './GitActionBar.tsx'
+import { GitDialogs } from './GitDialogs.tsx'
 import type { GitModel } from './model.ts'
 import { RefsPanel } from './RefsPanel.tsx'
 import { useGit } from './store.ts'
@@ -17,7 +21,13 @@ export default function GitView() {
   const message = useGit((s) => s.message)
   const panelOpen = useGit((s) => s.panelOpen)
   const selected = useGit((s) => s.selected)
+  const serverHistory = useGit((s) => s.source?.kind === 'server')
   const narrow = useMediaQuery(NARROW)
+
+  // Git commands: only for the history `repomap serve` reads from your repository.
+  useEffect(() => {
+    if (serverHistory) void useGitActions.getState().refresh()
+  }, [serverHistory])
 
   return (
     <>
@@ -26,6 +36,7 @@ export default function GitView() {
       <section className="git-main" aria-label="Commit graph">
         {status === 'ready' && model ? (
           <>
+            {serverHistory && <GitActionBar model={model} />}
             <FilterBar model={model} />
             {model.rows.length > 0 ? (
               <CommitList model={model} />
@@ -56,6 +67,7 @@ export default function GitView() {
         )}
       </section>
       {model && selected && <CommitDetails model={model} />}
+      {serverHistory && <GitDialogs />}
     </>
   )
 }

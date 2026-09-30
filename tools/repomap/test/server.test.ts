@@ -55,8 +55,12 @@ describe('source files for the code panel', () => {
   const read = (path: string | null) => readSource(repo, graph, path)
 
   it('serves text files that are part of the graph', () => {
-    assert.deepEqual(read('src/a.ts'), { ok: true, text: 'export const a = 1\n' })
-    assert.deepEqual(read('./src/../src/a.ts'), { ok: true, text: 'export const a = 1\n' }, 'normalised first')
+    const text = (path: string) => {
+      const result = read(path)
+      return result.ok ? result.text : `${result.status}`
+    }
+    assert.equal(text('src/a.ts'), 'export const a = 1\n')
+    assert.equal(text('./src/../src/a.ts'), 'export const a = 1\n', 'normalised first')
   })
 
   it('refuses everything else', () => {

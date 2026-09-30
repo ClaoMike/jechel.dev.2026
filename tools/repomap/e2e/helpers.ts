@@ -1,5 +1,5 @@
 import { AxeBuilder } from '@axe-core/playwright'
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 /** Collects uncaught errors and console errors, to assert a page stayed clean. */
 export function watchErrors(page: Page): string[] {
@@ -68,4 +68,9 @@ export async function violations(page: Page): Promise<string[]> {
   return result.violations.flatMap((v) =>
     v.nodes.map((n) => `${v.id}: ${v.help} — ${n.target.join(' ')}${n.failureSummary ? ` (${n.failureSummary.split('\n').slice(1).join(' ').trim()})` : ''}`),
   )
+}
+
+/** The map has loaded (the top bar shows the repository): searching before that finds nothing. */
+export async function mapLoaded(page: Page): Promise<void> {
+  await expect(page.locator('.topbar .repo')).toBeVisible({ timeout: 20_000 })
 }
