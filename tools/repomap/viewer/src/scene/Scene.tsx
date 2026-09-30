@@ -90,6 +90,7 @@ export function Scene() {
   }
 
   const onPointerDown = (event: ReactPointerEvent) => {
+    useViewer.getState().markInteracted()
     pointers.current.add(event.pointerId)
     if (pointers.current.size > 1) {
       // Pinch / two-finger pan: a camera gesture, not a tap.

@@ -1,9 +1,22 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { ColorBy } from '../model/colors.ts'
 import { loadGraphFile } from '../model/load.ts'
 import { useViewer, type LabelMode } from '../model/store.ts'
 import { Icon } from './icons.tsx'
 import { SearchBox } from './SearchBox.tsx'
+
+const COLOR_OPTIONS: { value: ColorBy; label: string }[] = [
+  { value: 'kind', label: 'Kind' },
+  { value: 'layer', label: 'Layer' },
+  { value: 'role', label: 'Role' },
+  { value: 'feature', label: 'Feature' },
+]
+
+const LABEL_OPTIONS: { value: LabelMode; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'all', label: 'All' },
+  { value: 'none', label: 'Selection' },
+]
 
 export function TopBar() {
   const index = useViewer((s) => s.index)
@@ -11,14 +24,16 @@ export function TopBar() {
   const colorBy = useViewer((s) => s.colorBy)
   const labels = useViewer((s) => s.labels)
   const theme = useViewer((s) => s.theme)
-  const { toggleSidebar, command, setColorBy, setLabels, setTheme, setHelp } = useViewer.getState()
+  const viewMenuOpen = useViewer((s) => s.viewMenuOpen)
+  const { toggleSidebar, command, setColorBy, setLabels, setTheme, setHelp, setSearchExpanded, setViewMenu } = useViewer.getState()
   const file = useRef<HTMLInputElement>(null)
   const meta = index?.graph.meta
+  const openFile = () => file.current?.click()
 
   return (
     <header className="topbar">
       <div className="brand">
-        <button type="button" className="icon-button" onClick={toggleSidebar} aria-label="Toggle filters ([)" title="Filters  [">
+        <button type="button" className="icon-button" onClick={toggleSidebar} aria-label="Toggle filters" title="Filters  [">
           <Icon name="menu" />
         </button>
         <span className="logo" aria-hidden="true">
@@ -45,69 +60,182 @@ export function TopBar() {
       <SearchBox />
 
       <div className="toolbar">
-        <div className="segmented" role="group" aria-label="Camera">
-          <button type="button" onClick={() => command({ type: 'fit' })} title="Fit visible  (F)">
-            <Icon name="fit" size={15} /> <span className="hide-sm">Fit</span>
+        <div className="wide-only">
+          <div className="segmented" role="group" aria-label="Camera">
+            <button type="button" onClick={() => command({ type: 'fit' })} title="Fit visible  (F)">
+              <Icon name="fit" size={15} /> <span className="hide-md">Fit</span>
+            </button>
+            <button type="button" onClick={() => command({ type: 'side' })} title="Side view — the layer stack  (S)">
+              <Icon name="side" size={15} /> <span className="hide-md">Side</span>
+            </button>
+            <select
+              aria-label="Top view of a layer"
+              title="Top-down view of one layer  (1–9)"
+              value=""
+              onChange={(e) => e.target.value && command({ type: 'layer', layer: e.target.value })}
+            >
+              <option value="">Top ▾</option>
+              {index?.planes.map((plane, k) => (
+                <option key={plane.layer} value={plane.layer}>
+                  {k + 1} · {index.layerById.get(plane.layer)?.label ?? plane.layer}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <label className="select-label" title="Colour nodes by  (C)">
+            <span className="hide-md">Color</span>
+            <select value={colorBy} onChange={(e) => setColorBy(e.target.value as ColorBy)} aria-label="Color by">
+              {COLOR_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="select-label" title="Labels  (L)">
+            <span className="hide-md">Labels</span>
+            <select value={labels} onChange={(e) => setLabels(e.target.value as LabelMode)} aria-label="Labels">
+              {LABEL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button type="button" className="icon-button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="Toggle theme" title="Light/dark">
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
           </button>
-          <button type="button" onClick={() => command({ type: 'side' })} title="Side view — the layer stack  (S)">
-            <Icon name="side" size={15} /> <span className="hide-sm">Side</span>
+          <button type="button" className="icon-button" onClick={openFile} aria-label="Open graph.json" title="Open a graph.json (or drop it anywhere)">
+            <Icon name="open" />
           </button>
-          <select
-            aria-label="Top view of a layer"
-            title="Top-down view of one layer  (1–9)"
-            value=""
-            onChange={(e) => e.target.value && command({ type: 'layer', layer: e.target.value })}
-          >
-            <option value="">Top ▾</option>
-            {index?.planes.map((plane, k) => (
-              <option key={plane.layer} value={plane.layer}>
-                {k + 1} · {index.layerById.get(plane.layer)?.label ?? plane.layer}
-              </option>
-            ))}
-          </select>
+          <button type="button" className="icon-button" onClick={() => setHelp(true)} aria-label="Help" title="Help & shortcuts  (?)">
+            <Icon name="help" />
+          </button>
         </div>
 
-        <label className="select-label" title="Colour nodes by  (C)">
-          <span className="hide-sm">Color</span>
-          <select value={colorBy} onChange={(e) => setColorBy(e.target.value as ColorBy)} aria-label="Color by">
-            <option value="kind">Kind</option>
-            <option value="layer">Layer</option>
-            <option value="role">Role</option>
-            <option value="feature">Feature</option>
-          </select>
-        </label>
+        <div className="narrow-only">
+          <button type="button" className="icon-button" onClick={() => setSearchExpanded(true)} aria-label="Search">
+            <Icon name="search" />
+          </button>
+          <button type="button" className="icon-button" onClick={() => setViewMenu(!viewMenuOpen)} aria-label="View options" aria-expanded={viewMenuOpen} aria-haspopup="menu">
+            <MoreIcon />
+          </button>
+        </div>
+      </div>
 
-        <label className="select-label" title="Labels  (L)">
-          <span className="hide-sm">Labels</span>
-          <select value={labels} onChange={(e) => setLabels(e.target.value as LabelMode)} aria-label="Labels">
-            <option value="auto">Auto</option>
-            <option value="all">All</option>
-            <option value="none">Selection</option>
-          </select>
-        </label>
+      <input
+        ref={file}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        data-testid="open-file"
+        onChange={(e) => {
+          const picked = e.target.files?.[0]
+          if (picked) void loadGraphFile(picked)
+          e.target.value = ''
+        }}
+      />
+      {viewMenuOpen && <ViewMenu onOpenFile={openFile} />}
+    </header>
+  )
+}
 
-        <button type="button" className="icon-button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="Toggle theme" title="Light/dark">
-          <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+function MoreIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true" fill="currentColor">
+      <circle cx="4.5" cy="10" r="1.6" />
+      <circle cx="10" cy="10" r="1.6" />
+      <circle cx="15.5" cy="10" r="1.6" />
+    </svg>
+  )
+}
+
+/** Phones: everything the wide toolbar has, as a dropdown sheet. */
+function ViewMenu({ onOpenFile }: { onOpenFile: () => void }) {
+  const index = useViewer((s) => s.index)
+  const colorBy = useViewer((s) => s.colorBy)
+  const labels = useViewer((s) => s.labels)
+  const theme = useViewer((s) => s.theme)
+  const { command, setColorBy, setLabels, setTheme, setHelp, setViewMenu } = useViewer.getState()
+  const ref = useRef<HTMLDivElement>(null)
+  const close = () => setViewMenu(false)
+
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      const target = event.target as HTMLElement
+      if (!ref.current?.contains(target) && !target.closest('[aria-label="View options"]')) close()
+    }
+    const key = (event: KeyboardEvent) => event.key === 'Escape' && close()
+    window.addEventListener('pointerdown', outside, true)
+    window.addEventListener('keydown', key)
+    return () => {
+      window.removeEventListener('pointerdown', outside, true)
+      window.removeEventListener('keydown', key)
+    }
+  })
+
+  const act = (fn: () => void) => () => {
+    fn()
+    close()
+  }
+  return (
+    <div ref={ref} className="view-menu" role="menu" aria-label="View options" data-testid="view-menu">
+      <div className="view-menu-section">
+        <div className="view-menu-title">Camera</div>
+        <div className="view-menu-row">
+          <button type="button" className="chip" onClick={act(() => command({ type: 'fit' }))}>
+            <Icon name="fit" size={14} /> Fit
+          </button>
+          <button type="button" className="chip" onClick={act(() => command({ type: 'side' }))}>
+            <Icon name="side" size={14} /> Side
+          </button>
+          <button type="button" className="chip" onClick={act(() => command({ type: 'reset' }))}>
+            <Icon name="reset" size={14} /> Reset
+          </button>
+        </div>
+        <div className="view-menu-row">
+          {index?.planes.map((plane) => (
+            <button key={plane.layer} type="button" className="chip" onClick={act(() => command({ type: 'layer', layer: plane.layer }))}>
+              <Icon name="top" size={14} /> {index.layerById.get(plane.layer)?.label ?? plane.layer}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="view-menu-section">
+        <div className="view-menu-title">Colour by</div>
+        <div className="view-menu-row" role="group" aria-label="Color by">
+          {COLOR_OPTIONS.map((o) => (
+            <button key={o.value} type="button" className={`chip${colorBy === o.value ? ' active' : ''}`} aria-pressed={colorBy === o.value} onClick={() => setColorBy(o.value)}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="view-menu-section">
+        <div className="view-menu-title">Labels</div>
+        <div className="view-menu-row" role="group" aria-label="Labels">
+          {LABEL_OPTIONS.map((o) => (
+            <button key={o.value} type="button" className={`chip${labels === o.value ? ' active' : ''}`} aria-pressed={labels === o.value} onClick={() => setLabels(o.value)}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="view-menu-section view-menu-row">
+        <button type="button" className="chip" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={14} /> {theme === 'dark' ? 'Light theme' : 'Dark theme'}
         </button>
-        <button type="button" className="icon-button" onClick={() => file.current?.click()} aria-label="Open graph.json" title="Open a graph.json (or drop it anywhere)">
-          <Icon name="open" />
+        <button type="button" className="chip" onClick={act(onOpenFile)}>
+          <Icon name="open" size={14} /> Open graph…
         </button>
-        <input
-          ref={file}
-          type="file"
-          accept=".json,application/json"
-          hidden
-          onChange={(e) => {
-            const picked = e.target.files?.[0]
-            if (picked) void loadGraphFile(picked)
-            e.target.value = ''
-          }}
-        />
-        <button type="button" className="icon-button" onClick={() => setHelp(true)} aria-label="Help" title="Help & shortcuts  (?)">
-          <Icon name="help" />
+        <button type="button" className="chip" onClick={act(() => setHelp(true))}>
+          <Icon name="help" size={14} /> Help
         </button>
       </div>
-    </header>
+    </div>
   )
 }
 

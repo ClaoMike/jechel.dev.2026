@@ -3,13 +3,16 @@ import { useThree } from '@react-three/fiber'
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import type { GraphIndex } from '../model/graph.ts'
+import { matches, NARROW } from '../model/media.ts'
 import { useViewer } from '../model/store.ts'
 
 const HOME_DIRECTION = new THREE.Vector3(0.62, 0.55, 0.9).normalize()
+/** Portrait screens: a lower angle makes the layer stack taller, filling the height instead of the width. */
+const PORTRAIT_HOME_DIRECTION = new THREE.Vector3(0.55, 0.36, 0.9).normalize()
 
 /**
- * Orbit (left drag), pan (right drag or Shift+drag), zoom to cursor (wheel/pinch), with smooth
- * transitions for fit, focus, top-down layer views and the side view.
+ * Orbit (left drag / one finger), pan (right drag, Shift+drag or two fingers), zoom to cursor
+ * (wheel/pinch), with smooth transitions for fit, focus, top-down layer views and the side view.
  */
 export function CameraRig() {
   const controls = useRef<CameraControlsImpl>(null)
@@ -21,29 +24,34 @@ export function CameraRig() {
 
   useEffect(() => {
     const target = controls.current
-    if (!command || !target || !index) return
+    if (!command || !target || !index || size.width === 0 || size.height === 0) return
     const animate = !first.current
     first.current = false
     const visibility = useViewer.getState().visibility
-    // camera-controls knows the camera's aspect and FOV; keep a little breathing room.
-    const fitDistance = (radius: number) => target.getDistanceToFitSphere(radius) * 0.92
-    const direction = () => {
-      const current = new THREE.Vector3()
-      target.getPosition(current)
+    const aspect = size.width / size.height
+    const home = aspect < 0.8 ? PORTRAIT_HOME_DIRECTION : HOME_DIRECTION
+    const currentDirection = () => {
+      const position = new THREE.Vector3()
       const lookAt = new THREE.Vector3()
+      target.getPosition(position)
       target.getTarget(lookAt)
-      const d = current.sub(lookAt)
-      return d.lengthSq() > 1e-6 ? d.normalize() : HOME_DIRECTION.clone()
+      const d = position.sub(lookAt)
+      return d.lengthSq() > 1e-6 ? d.normalize() : home.clone()
+    }
+    // On phones the details sheet covers the bottom of the view while something is selected.
+    const bottomInset = matches(NARROW) && useViewer.getState().selected !== null ? (window.innerHeight * 0.46) / size.height : 0
+    const look = (box: THREE.Box3, direction: THREE.Vector3, minDistance = 0) => {
+      const { center, distance } = framing(box, direction, camera, aspect, bottomInset)
+      const d = Math.max(distance, minDistance)
+      void target.setLookAt(center.x + direction.x * d, center.y + direction.y * d, center.z + direction.z * d, center.x, center.y, center.z, animate)
     }
     switch (command.type) {
       case 'fit':
-      case 'reset': {
-        const { center, radius } = visibleSphere(index, visibility?.nodes)
-        const dir = command.type === 'reset' || !animate ? HOME_DIRECTION : direction()
-        const distance = fitDistance(radius)
-        void target.setLookAt(center.x + dir.x * distance, center.y + dir.y * distance, center.z + dir.z * distance, center.x, center.y, center.z, animate)
+        look(visibleBox(index, visibility?.nodes), animate ? currentDirection() : home)
         break
-      }
+      case 'reset':
+        look(visibleBox(index, visibility?.nodes), home)
+        break
       case 'focus': {
         // Frame the node together with its traced chain, so the context is visible.
         const trace = useViewer.getState().trace
@@ -56,29 +64,20 @@ export function CameraRig() {
             box.expandByPoint(point.fromArray(index.positions, i * 3))
           }
         }
-        const sphere = box.getBoundingSphere(new THREE.Sphere())
-        const dir = direction()
-        const distance = Math.max(80, fitDistance(Math.max(24, sphere.radius)))
-        const c = sphere.center
-        void target.setLookAt(c.x + dir.x * distance, c.y + dir.y * distance, c.z + dir.z * distance, c.x, c.y, c.z, animate)
+        box.expandByScalar(Math.max(10, index.radius[command.node] * 4))
+        look(box, currentDirection(), 60)
         break
       }
       case 'layer': {
         const plane = index.planes.find((p) => p.layer === command.layer)
         if (!plane) break
-        const cx = (plane.minX + plane.maxX) / 2
-        const cz = (plane.minZ + plane.maxZ) / 2
-        const radius = Math.max(plane.maxX - plane.minX, plane.maxZ - plane.minZ) / 2
-        const distance = fitDistance(radius) * 0.95
-        void target.setLookAt(cx, plane.y + distance, cz + distance * 0.02, cx, plane.y, cz, animate)
+        const box = new THREE.Box3(new THREE.Vector3(plane.minX, plane.y - 1, plane.minZ), new THREE.Vector3(plane.maxX, plane.y + 1, plane.maxZ))
+        look(box, new THREE.Vector3(0, 1, 0.02).normalize())
         break
       }
-      case 'side': {
-        const { center, radius } = visibleSphere(index, visibility?.nodes)
-        const distance = fitDistance(radius)
-        void target.setLookAt(center.x + distance * 0.02, center.y + distance * 0.06, center.z + distance, center.x, center.y, center.z, animate)
+      case 'side':
+        look(visibleBox(index, visibility?.nodes), new THREE.Vector3(0.02, 0.06, 1).normalize())
         break
-      }
     }
   }, [command, index, camera, size.width, size.height])
 
@@ -90,12 +89,14 @@ export function CameraRig() {
     }
     const down = (e: KeyboardEvent) => e.key === 'Shift' && set(true)
     const up = (e: KeyboardEvent) => e.key === 'Shift' && set(false)
+    const blur = () => set(false)
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
-    window.addEventListener('blur', () => set(false))
+    window.addEventListener('blur', blur)
     return () => {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
+      window.removeEventListener('blur', blur)
     }
   }, [])
 
@@ -115,25 +116,82 @@ export function CameraRig() {
   )
 }
 
-function visibleSphere(index: GraphIndex, levels: Uint8Array | undefined): { center: THREE.Vector3; radius: number } {
+/**
+ * Where to put the camera so the box fills the view when looking along -direction. Projects the
+ * eight corners (tighter than a bounding sphere, which matters on narrow screens) and re-centres the
+ * projected picture, so perspective doesn't leave empty space on one side. `bottomInset` is the
+ * fraction of the view covered from below (a bottom sheet on phones).
+ */
+export function framing(
+  box: THREE.Box3,
+  direction: THREE.Vector3,
+  camera: THREE.PerspectiveCamera,
+  aspect: number,
+  bottomInset = 0,
+  padding = 1.08,
+): { center: THREE.Vector3; distance: number } {
+  const d = direction.clone().normalize()
+  const forward = d.clone().negate()
+  const worldUp = Math.abs(forward.y) > 0.98 ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0)
+  const right = new THREE.Vector3().crossVectors(forward, worldUp).normalize()
+  const up = new THREE.Vector3().crossVectors(right, forward).normalize()
+  const tanV = Math.tan((camera.fov * Math.PI) / 360)
+  const tanH = tanV * aspect
+  const corners: THREE.Vector3[] = []
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) corners.push(new THREE.Vector3(x, y, z))
+
+  // Visible part of the view in NDC (y goes from -1 at the bottom to 1 at the top).
+  const inset = Math.min(0.8, Math.max(0, bottomInset))
+  const visibleBottom = -1 + 2 * inset
+  const targetY = (visibleBottom + 1) / 2
+  const halfHeight = (1 - visibleBottom) / 2
+
+  const center = box.getCenter(new THREE.Vector3())
+  let distance = Math.max(1, box.getSize(new THREE.Vector3()).length())
+  const position = new THREE.Vector3()
+  const v = new THREE.Vector3()
+  for (let iteration = 0; iteration < 6; iteration++) {
+    position.copy(center).addScaledVector(d, distance)
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const corner of corners) {
+      v.copy(corner).sub(position)
+      const depth = Math.max(1e-3, -v.dot(d))
+      const x = v.dot(right) / (depth * tanH)
+      const y = v.dot(up) / (depth * tanV)
+      minX = Math.min(minX, x)
+      maxX = Math.max(maxX, x)
+      minY = Math.min(minY, y)
+      maxY = Math.max(maxY, y)
+    }
+    // Shift so the projected box is centred in the visible area…
+    const shiftX = (minX + maxX) / 2
+    const shiftY = (minY + maxY) / 2 - targetY
+    center.addScaledVector(right, shiftX * tanH * distance).addScaledVector(up, shiftY * tanV * distance)
+    // …and move closer/further so it just fits.
+    const fill = Math.max((maxX - minX) / 2, (maxY - minY) / 2 / halfHeight) * padding
+    distance *= Math.min(4, Math.max(0.25, fill))
+  }
+  return { center, distance: Math.max(20, distance) }
+}
+
+/** Visible nodes plus the outlines of the layers they are on. */
+function visibleBox(index: GraphIndex, levels: Uint8Array | undefined): THREE.Box3 {
   const box = new THREE.Box3()
   const point = new THREE.Vector3()
-  let any = false
+  const layers = new Set<string>()
   for (let i = 0; i < index.nodes.length; i++) {
     if (levels && levels[i] === 0) continue
     box.expandByPoint(point.fromArray(index.positions, i * 3))
-    any = true
+    layers.add(index.nodes[i].layer)
   }
-  if (!any) {
-    const c = new THREE.Vector3(...index.center)
-    return { center: c, radius: index.extent }
+  if (box.isEmpty()) {
+    const [x, y, z] = index.center
+    return new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, y, z), new THREE.Vector3(index.extent, index.extent, index.extent))
   }
-  // Include the planes of visible layers so the layer outlines fit too.
   for (const plane of index.planes) {
-    if (!index.nodes.some((n, i) => n.layer === plane.layer && (!levels || levels[i] > 0))) continue
+    if (!layers.has(plane.layer)) continue
     box.expandByPoint(point.set(plane.minX, plane.y, plane.minZ))
     box.expandByPoint(point.set(plane.maxX, plane.y, plane.maxZ))
   }
-  const sphere = box.getBoundingSphere(new THREE.Sphere())
-  return { center: sphere.center, radius: Math.max(20, sphere.radius) }
+  return box
 }

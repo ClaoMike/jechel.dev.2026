@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import type { ColorBy } from './model/colors.ts'
 import { loadInitialGraph } from './model/load.ts'
+import { COARSE, NARROW, useMediaQuery } from './model/media.ts'
 import { useViewer, type LabelMode } from './model/store.ts'
 import { writeViewToHash } from './model/url.ts'
 import { Scene } from './scene/Scene.tsx'
@@ -21,6 +22,8 @@ export function App() {
   const sidebarOpen = useViewer((s) => s.sidebarOpen)
   const selected = useViewer((s) => s.selected)
   const codeView = useViewer((s) => s.codeView)
+  const searchExpanded = useViewer((s) => s.searchExpanded)
+  const narrow = useMediaQuery(NARROW)
 
   useEffect(() => {
     void loadInitialGraph()
@@ -107,10 +110,11 @@ export function App() {
   }, [])
 
   return (
-    <div className={`app theme-${theme}${sidebarOpen ? ' with-sidebar' : ''}${selected !== null ? ' with-details' : ''}`}>
+    <div className={`app theme-${theme}${sidebarOpen ? ' with-sidebar' : ''}${selected !== null ? ' with-details' : ''}${searchExpanded ? ' search-expanded' : ''}`}>
       <TopBar />
       <main className="workspace">
         <Sidebar />
+        {narrow && sidebarOpen && <div className="drawer-backdrop" onClick={() => useViewer.getState().setSidebar(false)} aria-hidden="true" />}
         <div className="stage">
           <Scene />
           <ContextMenu />
@@ -143,10 +147,20 @@ export function App() {
 function Hint() {
   const selected = useViewer((s) => s.selected)
   const index = useViewer((s) => s.index)
+  const interacted = useViewer((s) => s.interacted)
+  const touch = useMediaQuery(COARSE)
   if (!index || selected !== null) return null
+  if (touch) {
+    if (interacted) return null
+    return (
+      <div className="hint touch" data-testid="hint">
+        drag to rotate · pinch to zoom · two fingers to pan · tap a node to trace it · long-press for code
+      </div>
+    )
+  }
   return (
-    <div className="hint">
-      <kbd>drag</kbd> rotate · <kbd>right-drag</kbd> pan · <kbd>scroll</kbd> zoom · <kbd>click</kbd> a node to trace it · <kbd>?</kbd> help
+    <div className="hint" data-testid="hint">
+      <kbd>drag</kbd> rotate · <kbd>right-drag</kbd> pan · <kbd>scroll</kbd> zoom · <kbd>click</kbd> a node to trace it · <kbd>right-click</kbd> code · <kbd>?</kbd> help
     </div>
   )
 }

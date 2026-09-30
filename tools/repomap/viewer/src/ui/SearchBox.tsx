@@ -8,6 +8,8 @@ export function SearchBox() {
   const index = useViewer((s) => s.index)
   const open = useViewer((s) => s.searchOpen)
   const setOpen = useViewer((s) => s.setSearchOpen)
+  const expanded = useViewer((s) => s.searchExpanded)
+  const setExpanded = useViewer((s) => s.setSearchExpanded)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const input = useRef<HTMLInputElement>(null)
@@ -15,18 +17,19 @@ export function SearchBox() {
   const hits = useMemo(() => (index ? search(index, query, 12) : []), [index, query])
 
   useEffect(() => {
-    if (open) input.current?.focus()
-  }, [open])
+    if (open || expanded) input.current?.focus()
+  }, [open, expanded])
   useEffect(() => setActive(0), [query])
 
   const choose = (i: number) => {
     useViewer.getState().select(i, true)
     setOpen(false)
+    setExpanded(false)
     input.current?.blur()
   }
 
   return (
-    <div className={`search${open && query ? ' has-results' : ''}`}>
+    <div className={`search${open && query ? ' has-results' : ''}${expanded ? ' expanded' : ''}`}>
       <Icon name="search" size={15} />
       <input
         ref={input}
@@ -49,13 +52,17 @@ export function SearchBox() {
             choose(hits[active].i)
           } else if (e.key === 'Escape') {
             setQuery('')
+            setExpanded(false)
             input.current?.blur()
           }
         }}
         aria-label="Search the graph"
         data-testid="search"
       />
-      <kbd>⌘K</kbd>
+      <kbd className="wide-only-inline">⌘K</kbd>
+      <button type="button" className="icon-button narrow-only-inline" onClick={() => setExpanded(false)} aria-label="Close search">
+        <Icon name="close" size={16} />
+      </button>
       {open && query && index && (
         <ul className="search-results" role="listbox">
           {hits.length === 0 && <li className="empty">No matches</li>}

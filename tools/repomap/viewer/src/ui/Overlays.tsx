@@ -28,6 +28,14 @@ export function HelpOverlay() {
               <li><kbd>wheel</kbd> / <kbd>pinch</kbd> zoom to cursor</li>
               <li><kbd>click</kbd> select &amp; trace</li>
               <li><kbd>double-click</kbd> fly to a node (empty space: fit)</li>
+              <li><kbd>right-click</kbd> / <kbd>⌃ click</kbd> a node → read its code</li>
+            </ul>
+            <h3>Touch</h3>
+            <ul className="keys">
+              <li><kbd>one finger</kbd> rotate</li>
+              <li><kbd>pinch</kbd> zoom · <kbd>two fingers</kbd> pan</li>
+              <li><kbd>tap</kbd> select &amp; trace · <kbd>double-tap</kbd> fly to a node</li>
+              <li><kbd>long-press</kbd> a node for its code</li>
             </ul>
             <h3>Keyboard</h3>
             <ul className="keys">

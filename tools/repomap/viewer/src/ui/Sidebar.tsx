@@ -125,7 +125,13 @@ export function Sidebar() {
   const changes = index.graph.meta.changes
 
   return (
-    <aside className={`sidebar${open ? ' open' : ''}`} data-testid="sidebar">
+    <aside className={`sidebar${open ? ' open' : ''}`} data-testid="sidebar" aria-label="Filters">
+      <div className="drawer-header narrow-only">
+        <strong>Filters</strong>
+        <button type="button" className="icon-button" onClick={() => useViewer.getState().setSidebar(false)} aria-label="Close filters">
+          <Icon name="close" />
+        </button>
+      </div>
       <div className="sidebar-scroll">
         <Section title="Presets">
           <div className="presets">

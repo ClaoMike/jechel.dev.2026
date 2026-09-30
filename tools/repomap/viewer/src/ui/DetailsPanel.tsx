@@ -9,6 +9,7 @@ export function DetailsPanel() {
   const selected = useViewer((s) => s.selected)
   const trace = useViewer((s) => s.trace)
   const traceTests = useViewer((s) => s.traceTests)
+  const sheetExpanded = useViewer((s) => s.sheetExpanded)
   const { select, setTraceTests } = useViewer.getState()
 
   if (!index || selected === null) return null
@@ -21,7 +22,16 @@ export function DetailsPanel() {
   const unresolved = index.unresolvedByNode.get(selected) ?? []
 
   return (
-    <aside className="details" data-testid="details">
+    <aside className={`details${sheetExpanded ? ' expanded' : ''}`} data-testid="details" aria-label="Details">
+      <button
+        type="button"
+        className="sheet-handle narrow-only"
+        onClick={() => useViewer.getState().setSheetExpanded(!sheetExpanded)}
+        aria-label={sheetExpanded ? 'Collapse details' : 'Expand details'}
+        aria-expanded={sheetExpanded}
+      >
+        <span />
+      </button>
       <header className="details-header">
         <ShapeIcon shape={kind.shape} color={kind.color} size={20} />
         <div className="details-title">

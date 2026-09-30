@@ -18,6 +18,7 @@ import {
   type Visibilities,
 } from './filters.ts'
 import { indexGraph, type GraphIndex } from './graph.ts'
+import { matches, NARROW } from './media.ts'
 import { computeTrace, type TraceResult } from './trace.ts'
 import { readPref, writePref, type ViewState } from './url.ts'
 
@@ -65,6 +66,14 @@ interface State {
   sidebarOpen: boolean
   helpOpen: boolean
   searchOpen: boolean
+  /** Narrow screens: the search field is expanded over the top bar. */
+  searchExpanded: boolean
+  /** Narrow screens: camera/colour/labels/theme menu. */
+  viewMenuOpen: boolean
+  /** Narrow screens: the details bottom sheet is pulled up. */
+  sheetExpanded: boolean
+  /** The user has touched/clicked the scene (hides the gesture hint). */
+  interacted: boolean
   camera: CameraCommand | null
   toast: { text: string; nonce: number } | null
   /** Right-click / long-press menu on a node, at scene coordinates. */
@@ -92,8 +101,13 @@ interface Actions {
   setTheme(value: Theme): void
   setShowChanges(value: boolean): void
   toggleSidebar(): void
+  setSidebar(open: boolean): void
   setHelp(open: boolean): void
   setSearchOpen(open: boolean): void
+  setSearchExpanded(open: boolean): void
+  setViewMenu(open: boolean): void
+  setSheetExpanded(expanded: boolean): void
+  markInteracted(): void
   command(command: CameraRequest): void
   notify(text: string): void
   openContextMenu(node: number, x: number, y: number): void
@@ -151,9 +165,13 @@ export const useViewer = create<State & Actions>((set, get) => {
     labels: readPref<LabelMode>('labels', 'auto'),
     theme: initialTheme(),
     showChanges: true,
-    sidebarOpen: window.innerWidth > 720,
+    sidebarOpen: !matches(NARROW),
     helpOpen: false,
     searchOpen: false,
+    searchExpanded: false,
+    viewMenuOpen: false,
+    sheetExpanded: false,
+    interacted: false,
     camera: null,
     toast: null,
     contextMenu: null,
@@ -247,8 +265,11 @@ export const useViewer = create<State & Actions>((set, get) => {
 
     select(i, focus = false) {
       const { index, traceTests } = get()
+      const narrow = matches(NARROW)
       set({
         selected: i,
+        // On phones the details sheet replaces the filter drawer and starts half-open.
+        ...(narrow && i !== null ? { sidebarOpen: false, sheetExpanded: false, searchExpanded: false } : {}),
         trace: i !== null && index ? computeTrace(index, i, { includeTests: traceTests }) : null,
         version: get().version + 1,
       })
@@ -288,7 +309,27 @@ export const useViewer = create<State & Actions>((set, get) => {
     },
 
     toggleSidebar() {
-      set({ sidebarOpen: !get().sidebarOpen })
+      set({ sidebarOpen: !get().sidebarOpen, viewMenuOpen: false })
+    },
+
+    setSidebar(open) {
+      if (get().sidebarOpen !== open) set({ sidebarOpen: open })
+    },
+
+    setSearchExpanded(open) {
+      set({ searchExpanded: open, viewMenuOpen: false })
+    },
+
+    setViewMenu(open) {
+      set({ viewMenuOpen: open })
+    },
+
+    setSheetExpanded(expanded) {
+      set({ sheetExpanded: expanded })
+    },
+
+    markInteracted() {
+      if (!get().interacted) set({ interacted: true })
     },
 
     setHelp(open) {
