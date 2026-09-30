@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { hexToRgb, mix, type RGB } from '../model/colors.ts'
 import type { GraphIndex } from '../model/graph.ts'
+import { matches, REDUCED_MOTION } from '../model/media.ts'
 import { useViewer } from '../model/store.ts'
 import { inkFor, srgbToLinear, THEMES } from './theme.ts'
 
@@ -310,7 +311,8 @@ function TraceEdges({ geometry }: { geometry: EdgeGeometry }) {
     if (!mesh || !data || data.paths.length === 0) return
     // The map tab is hidden: stop animating (showing it again invalidates, which restarts this).
     if (useViewer.getState().tab !== 'map') return
-    const time = state.clock.elapsedTime
+    const still = matches(REDUCED_MOTION)
+    const time = still ? 0 : state.clock.elapsedTime
     let k = 0
     for (let p = 0; p < data.paths.length && k < MAX_PARTICLES; p++) {
       const path = data.paths[p]
@@ -326,7 +328,8 @@ function TraceEdges({ geometry }: { geometry: EdgeGeometry }) {
       }
     }
     mesh.instanceMatrix.needsUpdate = true
-    state.invalidate()
+    // With reduced motion the particles are drawn once, standing still along the trace.
+    if (!still) state.invalidate()
   })
 
   if (!data || data.points.length === 0) return null

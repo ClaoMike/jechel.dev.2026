@@ -24,6 +24,7 @@ import {
   type HistoryOptions,
 } from '../src/core/git-history.ts'
 import { createLogger } from '../src/core/log.ts'
+import { validateGitHistory } from '../src/core/validate.ts'
 import { checkGitHistory, commitUrl, pullRequestUrl, type GitCommit, type GitHistory } from '../src/shared/git-types.ts'
 
 // The user's git config must not leak into the tests (signing, hooks, default branch…).
@@ -259,6 +260,7 @@ describe('reading a repository', () => {
 
   it('writes a valid git.json', () => {
     assert.equal(checkGitHistory(history), null)
+    assert.deepEqual(validateGitHistory(history), [])
     assert.equal(history.kind, 'repomap-git')
     assert.equal(history.repo.name, 'demo')
   })
@@ -451,5 +453,35 @@ describe('reading a repository', () => {
       assert.equal(historyBeside(join(dir, 'demo.graph.json')), join(dir, 'demo.git.json'))
       assert.equal(historyBeside(join(dir, 'graph.json')), join(dir, 'git.json'))
     })
+  })
+})
+
+describe('git.json schema', () => {
+  it('accepts the bundled demo history', () => {
+    const demo = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'viewer', 'public', 'samples', 'demo.git.json'), 'utf8')) as GitHistory
+    assert.deepEqual(validateGitHistory(demo), [])
+  })
+
+  it('explains what is wrong with a broken history', () => {
+    const base = (): GitHistory => ({
+      kind: 'repomap-git',
+      version: 1,
+      generatedAt: '2026-01-01T00:00:00Z',
+      repo: { name: 'x', remotes: [] },
+      commits: [
+        { hash: 'bbbbbbb', parents: ['aaaaaaa'], author: 'A', date: 2, subject: 'Two', pr: 9 },
+        { hash: 'aaaaaaa', parents: [], author: 'A', date: 1, subject: 'One' },
+      ],
+      refs: [{ name: 'main', type: 'branch', commit: 'ccccccc' }],
+      pullRequests: [],
+    })
+    const problems = validateGitHistory(base())
+    assert.ok(problems.some((p) => p.includes('branch main points at unknown commit ccccccc')))
+    assert.ok(problems.some((p) => p.includes('unknown pull request #9')))
+    const reversed = base()
+    reversed.commits.reverse()
+    assert.ok(validateGitHistory(reversed).some((p) => p.includes('listed after its parent')))
+    assert.ok(validateGitHistory({ ...base(), kind: 'nope' }).length > 0)
+    assert.ok(validateGitHistory({ ...base(), commits: [{ hash: 'NOT A HASH', parents: [], author: 'A', date: 1, subject: 'x' }] }).length > 0)
   })
 })

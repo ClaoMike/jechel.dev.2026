@@ -209,16 +209,17 @@ The history tab has its own (optional) section; these are the defaults:
 ## Output, cache and history
 
 - `.out/graph.json` — one node/edge per line (diff-friendly). Schema: `schema/graph.schema.json`.
-- `.out/git.json` — the history tab (types: `src/shared/git-types.ts`). Rewritten only when something in it
-  changed; commits are re-read only when a ref moved. `.out/cache/_github-pulls.json` holds the last GitHub
-  answer.
+- `.out/git.json` — the history tab. Schema: `schema/git.schema.json` (types: `src/shared/git-types.ts`).
+  Rewritten only when something in it changed; commits are re-read only when a ref moved.
+  `.out/cache/_github-pulls.json` holds the last GitHub answer. `npm run validate -- .out/git.json` checks it.
 - `.out/cache/` — one entry per extractor, keyed by plugin source + options + the exact files it read (paths
   and contents). Unchanged plugins are skipped; a rebuild after editing one file takes about a second for
   the frontend, ~4 s when C# changed. Linkers always run.
 - `.out/history/` — the last 30 graphs that differ; `npm run diff` compares the last two. `meta.changes` in
   graph.json records what was added/removed since the previous build (the viewer highlights it).
 - Layout positions are baked into graph.json and warm-started from the previous build, so the picture stays
-  put as the code evolves. `--relayout` starts fresh.
+  put as the code evolves; when nothing that shapes the layout changed, positions are kept exactly.
+  `--relayout` starts fresh.
 
 ## Putting it on the web
 
@@ -231,15 +232,24 @@ used for "Open in VS Code" links) and your uncommitted changes out of git.json.
 
 ## Tests
 
-- `npm test` — unit tests (routes, layout, config, file rules, merge, the viewer's filters/trace/search on a
-  hand-written graph; git output parsing, pull request detection, GitHub enrichment with a stubbed API and a
-  real temporary repository; lanes, ref filters and search of the history tab; the server's routes, the
-  source-file guard and live-reload events) and an end-to-end run of every plugin on this repository that
+`npm run typecheck`, `npm test` and `npm run test:e2e` keep the tool in its current state:
+
+- **Unit and integration** (`test/`, Node's test runner): routes, layout (and that unchanged builds keep
+  positions exactly), config (colours included), file rules, merge; the viewer's filters, trace, search, camera
+  framing, code languages and links; git output parsing, pull request detection, GitHub enrichment (stubbed —
+  tests never touch the network) and a real temporary repository; the history tab's lanes, ref filters and
+  search; the server's routes, the source-file guard (traversal, symlinks, size, binaries) and live-reload
+  events; builds with misbehaving plugins (crashing, garbage, schema violations, timeouts, missing tools),
+  caching, `--public` and the CLI's `validate`/`diff`. Plus a run of every plugin on this repository that
   checks the facts that matter (every endpoint of the README's API table, the HomePage →
   `profiles.first_name` chain, DI, migrations, test tagging, no unresolved links, a valid git.json).
-- `npm run test:e2e` — Playwright against the demo graph and history: renders, presets, dim/hide, search +
-  trace, URL state, help, the history tab (graph, details, keyboard, search, branch filters, pull requests,
-  map ↔ history links, opening files); fails on any page error.
+- **Browser** (`e2e/`, Playwright against the demo graph and history), in Chromium and WebKit (Firefox in CI or
+  with `ALL_BROWSERS=1`) and on a phone (Pixel 7): the map (presets, filters, search + trace, right-click →
+  code, theme and view settings, shortcuts, opening and dropping files, `?graph=`, live reload), the history
+  tab (graph, details, keyboard, search, branch filters, pull requests, deep links, map ↔ history), the phone
+  layout (drawers, bottom sheets, long-press, no sideways scrolling) and WCAG 2.1 AA checks (axe) of both
+  tabs in both themes. Every test fails on page errors.
+- **CI**: the `repomap` job in `.github/workflows/ci.yml` runs all of the above on every push and pull request.
 
 ## Limitations and next steps
 

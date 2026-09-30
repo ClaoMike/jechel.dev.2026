@@ -130,7 +130,8 @@ export interface GraphMeta {
   kinds: KindDef[]
   edgeTypes: EdgeTypeDef[]
   presets: PresetDef[]
-  layout?: { algorithm: string; layerGap: number; seed: number }
+  /** `signature` hashes the layout's inputs: a build with the same inputs keeps the positions as they are. */
+  layout?: { algorithm: string; layerGap: number; seed: number; signature?: string }
   plugins?: PluginRunInfo[]
   changes?: GraphChanges
   stats?: { nodes: number; edges: number; unresolved: number; durationMs?: number }

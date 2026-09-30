@@ -2,32 +2,11 @@
  * View state in the URL hash (shareable links, back/forward) plus the last view in localStorage.
  * Only differences from the defaults are stored.
  */
-import type { ColorBy } from './colors.ts'
-import type { FilterState } from './filters.ts'
+import { decodeView, encodeView, type ViewState } from './view-code.ts'
 
-export interface ViewState {
-  preset?: string
-  filters?: Partial<FilterState>
-  selected?: string
-  colorBy?: ColorBy
-  labels?: 'auto' | 'all' | 'none'
-}
+export { decodeView, encodeView, type ViewState }
 
 const STORAGE_KEY = 'repomap.view'
-
-export function encodeView(view: ViewState): string {
-  const json = JSON.stringify(view)
-  return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-export function decodeView(text: string): ViewState | null {
-  try {
-    const base64 = text.replace(/-/g, '+').replace(/_/g, '/')
-    return JSON.parse(decodeURIComponent(escape(atob(base64)))) as ViewState
-  } catch {
-    return null
-  }
-}
 
 function hashParams(): URLSearchParams {
   return new URLSearchParams(window.location.hash.replace(/^#/, ''))

@@ -8,6 +8,18 @@ import { initials, type RefBadge } from './model.ts'
 const LANES_DARK = ['#38bdf8', '#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#fb923c', '#60a5fa', '#f87171', '#2dd4bf', '#c084fc', '#a3e635', '#e879f9']
 const LANES_LIGHT = ['#0284c7', '#7c3aed', '#db2777', '#059669', '#b45309', '#ea580c', '#2563eb', '#dc2626', '#0d9488', '#9333ea', '#4d7c0f', '#c026d3']
 
+/** Dark or white text, whichever reads better on a colour (#rrggbb). */
+export function inkOn(hex: string): string {
+  const channel = (i: number) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  const luminance = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+  const dark = (luminance + 0.05) / (0.0063 + 0.05)
+  const white = 1.05 / (luminance + 0.05)
+  return dark >= white ? '#0b1220' : '#ffffff'
+}
+
 export function laneColor(index: number, theme: Theme): string {
   const palette = theme === 'light' ? LANES_LIGHT : LANES_DARK
   return palette[((index % palette.length) + palette.length) % palette.length]
@@ -19,7 +31,7 @@ export function Avatar({ name, size = 18 }: { name: string; size?: number }) {
     <span
       className="avatar"
       aria-hidden="true"
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.46), background: `hsl(${hue} 55% 46%)` }}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.46), background: `hsl(${hue} 62% 78%)` }}
     >
       {initials(name)}
     </span>
@@ -44,10 +56,15 @@ export function RefBadgeView({ badge, color, compact = false }: { badge: RefBadg
   return (
     <span
       className={`ref-badge branch${badge.head ? ' head' : ''}${badge.local ? '' : ' remote-only'}`}
-      style={{ ['--badge' as string]: color }}
+      style={{ ['--badge' as string]: color, ...(badge.head && color.startsWith('#') ? { ['--badge-ink' as string]: inkOn(color) } : {}) }}
       title={title}
     >
-      {badge.head && <span className="head-dot" aria-label="HEAD" />}
+      {badge.head && (
+        <>
+          <span className="head-dot" aria-hidden="true" />
+          <span className="sr-only">HEAD:</span>
+        </>
+      )}
       {!badge.local && <CloudIcon />}
       <span className="ref-name">{badge.label}</span>
       {badge.local && badge.remotes.length > 0 && !compact && (

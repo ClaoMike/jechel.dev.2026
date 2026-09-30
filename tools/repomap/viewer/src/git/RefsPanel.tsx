@@ -206,9 +206,10 @@ function PrRow({ pr, model }: { pr: GitPullRequest; model: GitModel }) {
         title={inHistory ? 'Go to its commit' : url ? 'Not in the local history: open it on the hosting service' : 'Not in the local history'}
         data-testid={`pr-${pr.number}`}
       >
-        <span className={`pr-state-icon ${state}`} aria-label={PR_STATE_LABEL[state]}>
+        <span className={`pr-state-icon ${state}`} aria-hidden="true">
           <Icon name="pr" size={14} />
         </span>
+        <span className="sr-only">{PR_STATE_LABEL[state]}:</span>
         <span className="pr-main">
           <span className="pr-row-title">
             <span className="pr-number">#{pr.number}</span> {pr.title}

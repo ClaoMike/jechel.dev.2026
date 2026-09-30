@@ -18,6 +18,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "plugins", "samples", "test", "e2e", "playwright.config.ts", "viewer/vite.config.ts"],
+  "include": ["src", "plugins", "samples", "test", "playwright.config.ts", "viewer/vite.config.ts"],
   "exclude": ["plugins/extract-dotnet"]
 }

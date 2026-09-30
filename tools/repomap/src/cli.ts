@@ -17,7 +17,8 @@ import { diffGraphs, formatDiff } from './core/diff.ts'
 import { updateGitHistory } from './core/git-history.ts'
 import { color, createLogger } from './core/log.ts'
 import { ensureViewerBuilt, serve } from './core/serve.ts'
-import { validateGraph } from './core/validate.ts'
+import { validateGitHistory, validateGraph } from './core/validate.ts'
+import type { GitHistory } from './shared/git-types.ts'
 
 const HELP = `${color.bold('repomap')} — 3D architecture map of a repository
 
@@ -27,7 +28,7 @@ Commands
   build              Extract, link and lay out the graph → graph.json (and the git history → git.json)
   history            Only read the git history → git.json
   serve              Open the viewer in the browser (builds the viewer if needed)
-  validate [file]    Check a graph.json against the schema
+  validate [file]    Check a graph.json (or git.json) against its schema
   diff [a] [b]       Structural diff of two graphs (default: last two builds)
   build-viewer       Build the static viewer into viewer/dist
 
@@ -122,6 +123,17 @@ async function main(): Promise<number> {
       const graph = readGraph(file)
       if (!graph) {
         log.error(`cannot read ${file}`)
+        return 1
+      }
+      // A git.json (the history tab) is checked against its own schema.
+      if ((graph as unknown as { kind?: string }).kind === 'repomap-git') {
+        const history = graph as unknown as GitHistory
+        const problems = validateGitHistory(history)
+        if (problems.length === 0) {
+          log.info(`${color.green('✔')} ${file} is valid (${history.commits.length} commits, ${history.refs.length} refs)`)
+          return 0
+        }
+        for (const problem of problems) log.error(problem)
         return 1
       }
       const problems = validateGraph(graph)

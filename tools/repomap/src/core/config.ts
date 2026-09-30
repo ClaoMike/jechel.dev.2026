@@ -134,8 +134,16 @@ export function loadConfig(configPath: string): RepoMapConfig {
     history: { ...DEFAULT_HISTORY, ...((merged.history as Json | undefined) ?? {}) } as HistoryConfig,
     plugins,
   }
+  for (const item of [...config.layers, ...config.roles, ...config.kinds, ...config.edgeTypes]) item.color = normalizeColor(item.color)
   validateConfig(config)
   return config
+}
+
+/** "#abc" → "#aabbcc" (graph.json stores six-digit colours); anything else is left for validation. */
+export function normalizeColor(color: unknown): string {
+  if (typeof color !== 'string') return color as string
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(color.trim())
+  return short ? `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase() : color.trim()
 }
 
 function loadWithExtends(path: string, seen: Set<string>): Json {
@@ -200,6 +208,11 @@ function validateConfig(config: RepoMapConfig): void {
   }
   for (const role of config.roles) {
     if (role.parent && !config.roles.some((r) => r.id === role.parent)) problems.push(`role "${role.id}" has unknown parent "${role.parent}"`)
+  }
+  for (const [what, items] of [['layer', config.layers], ['role', config.roles], ['kind', config.kinds], ['edge type', config.edgeTypes]] as const) {
+    for (const item of items) {
+      if (!/^#[0-9a-f]{6}$/i.test(item.color ?? '')) problems.push(`${what} "${item.id}": color must look like #1e90ff (got ${JSON.stringify(item.color)})`)
+    }
   }
   if (config.history.github !== 'auto' && config.history.github !== 'off') problems.push('history.github must be "auto" or "off"')
   if (!(config.history.maxCommits > 0)) problems.push('history.maxCommits must be a positive number')

@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Ajv, type ErrorObject, type ValidateFunction } from 'ajv'
 import { TOOL_ROOT } from './config.ts'
+import type { GitHistory } from '../shared/git-types.ts'
 import type { PluginOutput, RepoGraph } from '../shared/types.ts'
 
-let validators: { graph: ValidateFunction; plugin: ValidateFunction } | undefined
+let validators: { graph: ValidateFunction; plugin: ValidateFunction; git: ValidateFunction } | undefined
 
 function getValidators() {
   if (!validators) {
@@ -14,6 +15,7 @@ function getValidators() {
     validators = {
       graph: ajv.compile(load('graph.schema.json')),
       plugin: ajv.compile(load('plugin-output.schema.json')),
+      git: ajv.compile(load('git.schema.json')),
     }
   }
   return validators
@@ -53,6 +55,33 @@ export function validateGraph(graph: unknown): string[] {
     if (!ids.has(edge.from)) problems.push(`edge ${edge.type}: missing from ${edge.from}`)
     if (!ids.has(edge.to)) problems.push(`edge ${edge.type}: missing to ${edge.to}`)
     if (!edgeTypes.has(edge.type)) problems.push(`edge ${edge.from} → ${edge.to}: unknown type "${edge.type}"`)
+  }
+  return problems.slice(0, 50)
+}
+
+/** Schema + semantics of git.json: refs and pull requests point at listed commits, parents come later. */
+export function validateGitHistory(value: unknown): string[] {
+  const { git: validate } = getValidators()
+  if (!validate(value)) return format(validate.errors)
+  const history = value as GitHistory
+  const problems: string[] = []
+  const index = new Map<string, number>()
+  history.commits.forEach((commit, i) => {
+    if (index.has(commit.hash)) problems.push(`duplicate commit ${commit.hash}`)
+    index.set(commit.hash, i)
+  })
+  history.commits.forEach((commit, i) => {
+    for (const parent of commit.parents) {
+      const at = index.get(parent)
+      if (at !== undefined && at <= i) problems.push(`commit ${commit.hash.slice(0, 7)} is listed after its parent ${parent.slice(0, 7)}`)
+    }
+  })
+  // A cut-off history may miss the commits of old refs; a complete one may not.
+  if (!history.truncated) {
+    for (const ref of history.refs) if (!index.has(ref.commit)) problems.push(`${ref.type} ${ref.name} points at unknown commit ${ref.commit.slice(0, 7)}`)
+  }
+  for (const commit of history.commits) {
+    if (commit.pr !== undefined && !history.pullRequests.some((pr) => pr.number === commit.pr)) problems.push(`commit ${commit.hash.slice(0, 7)} names unknown pull request #${commit.pr}`)
   }
   return problems.slice(0, 50)
 }

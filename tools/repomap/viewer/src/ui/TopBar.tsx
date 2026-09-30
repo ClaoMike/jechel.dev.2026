@@ -156,7 +156,7 @@ function MapTools({ onOpenFile }: { onOpenFile: () => void }) {
         <button type="button" className="icon-button" onClick={() => setSearchExpanded(true)} aria-label="Search">
           <Icon name="search" />
         </button>
-        <button type="button" className="icon-button" onClick={() => setViewMenu(!viewMenuOpen)} aria-label="View options" aria-expanded={viewMenuOpen} aria-haspopup="menu">
+        <button type="button" className="icon-button" onClick={() => setViewMenu(!viewMenuOpen)} aria-label="View options" aria-expanded={viewMenuOpen} aria-haspopup="dialog">
           <MoreIcon />
         </button>
       </div>

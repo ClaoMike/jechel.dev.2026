@@ -11,8 +11,8 @@
   --border: rgba(148, 163, 184, 0.14);
   --border-strong: rgba(148, 163, 184, 0.28);
   --text: #e6edf7;
-  --muted: #94a3b8;
-  --faint: #64748b;
+  --muted: #a9b5c7;
+  --faint: #8593a8; /* ≥ 4.5:1 on every dark surface (WCAG AA) */
   --hover: rgba(148, 163, 184, 0.09);
   --press: rgba(148, 163, 184, 0.16);
   --chip: rgba(148, 163, 184, 0.12);
@@ -23,10 +23,11 @@
   --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
   --radius: 10px;
   --warn: #fbbf24;
-  --pr-open: #3fb950;
-  --pr-draft: #8b949e;
-  --pr-merged: #a371f7;
-  --pr-closed: #f85149;
+  --pr-open: #56d364;
+  --pr-draft: #9da7b3;
+  --pr-merged: #c4a0ff;
+  --pr-closed: #ff7b72;
+  --pr-ink: #0b1220;
   color-scheme: dark;
 }
 
@@ -38,21 +39,22 @@
   --border: rgba(15, 23, 42, 0.1);
   --border-strong: rgba(15, 23, 42, 0.2);
   --text: #0f172a;
-  --muted: #475569;
-  --faint: #94a3b8;
+  --muted: #3b4a61;
+  --faint: #4e5c73; /* ≥ 4.5:1 on every light surface (WCAG AA) */
   --hover: rgba(15, 23, 42, 0.05);
   --press: rgba(15, 23, 42, 0.09);
   --chip: rgba(15, 23, 42, 0.06);
-  --accent: #0284c7;
+  --accent: #0369a1;
   --accent-ink: #ffffff;
-  --danger: #e11d48;
-  --ok: #16a34a;
+  --danger: #be123c;
+  --ok: #166534;
   --shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
   --warn: #b45309;
-  --pr-open: #1a7f37;
-  --pr-draft: #6e7781;
-  --pr-merged: #8250df;
-  --pr-closed: #cf222e;
+  --pr-open: #0f5a26;
+  --pr-draft: #4b535c;
+  --pr-merged: #5b33a8;
+  --pr-closed: #930c22;
+  --pr-ink: #ffffff;
   color-scheme: light;
 }
 
@@ -107,6 +109,19 @@ kbd {
 
 .muted {
   color: var(--faint);
+}
+
+/* Read by screen readers, not shown. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ---------------------------------------------------------------- layout */
@@ -545,15 +560,20 @@ button.chip:hover {
   padding-left: 18px;
 }
 
+/* Hidden rows: fainter, but text keeps a readable contrast (colour, not opacity). */
 .facet-row.hide .facet-text,
-.facet-row.hide .facet-count,
+.facet-row.hide .facet-count {
+  color: var(--faint);
+}
+
 .facet-row.hide .shape-icon,
-.facet-row.hide .swatch {
+.facet-row.hide .swatch,
+.facet-row.hide .ref-icon {
   opacity: 0.4;
 }
 
 .facet-row.dim .facet-text {
-  opacity: 0.7;
+  color: var(--muted);
 }
 
 .facet-row.empty {
@@ -1015,6 +1035,9 @@ button.chip:hover {
 }
 
 .trace-layer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 3px;
   font-size: 11.5px;
   font-weight: 700;
@@ -1543,9 +1566,17 @@ button.chip:hover {
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
-.git-row.dimmed .git-desc,
-.git-row.dimmed .git-meta > * {
-  opacity: 0.38;
+/* Search misses: grey, still readable (graph lines fade instead). */
+.git-row.dimmed .git-subject,
+.git-row.dimmed .git-author {
+  color: var(--faint);
+}
+
+.git-row.dimmed .ref-badge,
+.git-row.dimmed .pr-badge,
+.git-row.dimmed .avatar,
+.git-row.dimmed .wip-badge {
+  filter: grayscale(1);
 }
 
 .git-desc {
@@ -1616,7 +1647,7 @@ button.chip:hover {
   flex: none;
   place-items: center;
   border-radius: 50%;
-  color: #fff;
+  color: #0b1220;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -1655,7 +1686,7 @@ button.chip:hover {
 .ref-badge.head {
   border-color: var(--badge);
   background: var(--badge);
-  color: #0b1220;
+  color: var(--badge-ink, #0b1220);
 }
 
 .head-dot {
@@ -1842,7 +1873,7 @@ button.chip:hover {
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--pr-color);
-  color: #fff;
+  color: var(--pr-ink);
   font-size: 10.5px;
   font-weight: 700;
 }
@@ -2393,7 +2424,11 @@ button.chip:hover {
 }
 
 .code-dir {
-  color: #8b8b8b;
+  color: #9d9d9d;
+}
+
+.code-light .code-dir {
+  color: #6b6b6b;
 }
 
 .code-actions {
@@ -2955,5 +2990,17 @@ button.chip:hover {
 
   .section-toggle {
     padding: 10px 4px;
+  }
+}
+
+/* ---------------------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
   }
 }

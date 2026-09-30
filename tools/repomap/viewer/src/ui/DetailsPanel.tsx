@@ -196,7 +196,8 @@ function TraceList({ index }: { index: GraphIndex }) {
         const layer = index.layerById.get(group.layer)
         return (
           <div key={group.layer} className="trace-group">
-            <div className="trace-layer" style={{ color: layer?.color }}>
+            <div className="trace-layer">
+              <span className="swatch" style={{ background: layer?.color }} aria-hidden="true" />
               {layer?.label ?? group.layer} <span className="muted">{group.items.length}</span>
             </div>
             <ul className="plain">

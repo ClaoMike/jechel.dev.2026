@@ -1,0 +1,8 @@
+{
+  // Browser tests: Node code plus callbacks that run in the page (page.evaluate), so DOM types too.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  "include": ["."]
+}

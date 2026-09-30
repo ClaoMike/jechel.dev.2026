@@ -192,7 +192,7 @@ function onGitKey(event: KeyboardEvent, typing: boolean): void {
   }
   if (typing || event.metaKey || event.ctrlKey || event.altKey) return
   const target = event.target as HTMLElement | null
-  if (target?.closest('[role="tablist"], [role="menu"], .modal')) return
+  if (target?.closest('[role="tablist"], [role="menu"], [role="dialog"]')) return
   const moves: Record<string, () => void> = {
     ArrowDown: () => git.move(1),
     j: () => git.move(1),

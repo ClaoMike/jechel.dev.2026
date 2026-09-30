@@ -22,6 +22,13 @@ describe('config', () => {
     assert.equal(merged.name, 'child')
   })
 
+  it('rejects colours the viewer cannot use', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'repomap-colors-'))
+    const path = join(dir, 'repomap.config.json')
+    writeFileSync(path, JSON.stringify({ layers: [{ id: 'app', label: 'App', color: 'blue' }] }))
+    assert.throws(() => loadConfig(path), /layer "app": color must look like #1e90ff \(got "blue"\)/)
+  })
+
   it('loads the stack preset through extends', () => {
     const config = loadConfig(join(TOOL_ROOT, 'repomap.config.json'))
     assert.deepEqual(config.layers.map((l) => l.id), ['frontend', 'backend', 'database', 'infra'])

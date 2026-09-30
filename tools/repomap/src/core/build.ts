@@ -112,21 +112,22 @@ export async function buildGraph(config: RepoMapConfig, options: BuildOptions): 
   const previousPositions = new Map<string, Vec3>()
   if (!options.relayout) for (const node of previous?.nodes ?? []) if (node.pos) previousPositions.set(node.id, node.pos)
   const layoutStarted = performance.now()
-  const positions = computeLayout(
-    nodes.map((n) => ({ id: n.id, layer: n.layer, role: n.role, parent: n.parent, tags: n.tags, size: kindSize(meta.kinds, n.kind) })),
-    edges,
-    {
-      layers: meta.layers.map((l) => l.id),
-      flatLayers: meta.layers.filter((l) => l.flat).map((l) => l.id),
-      roleOffsets: Object.fromEntries(meta.roles.filter((r) => r.planeOffset !== undefined).map((r) => [r.id, r.planeOffset!])),
-      roleParents: Object.fromEntries(meta.roles.filter((r) => r.parent).map((r) => [r.id, r.parent!])),
-      layerGap: config.layout.layerGap,
-      seed: config.layout.seed,
-      previous: previousPositions,
-    },
-  )
+  const layoutNodes = nodes.map((n) => ({ id: n.id, layer: n.layer, role: n.role, parent: n.parent, tags: n.tags, size: kindSize(meta.kinds, n.kind) }))
+  const layoutOptions = {
+    layers: meta.layers.map((l) => l.id),
+    flatLayers: meta.layers.filter((l) => l.flat).map((l) => l.id),
+    roleOffsets: Object.fromEntries(meta.roles.filter((r) => r.planeOffset !== undefined).map((r) => [r.id, r.planeOffset!])),
+    roleParents: Object.fromEntries(meta.roles.filter((r) => r.parent).map((r) => [r.id, r.parent!])),
+    layerGap: config.layout.layerGap,
+    seed: config.layout.seed,
+  }
+  // Same layout inputs as last time: keep the positions exactly (a re-run would nudge them, and nudges add up).
+  const signature = hashString(JSON.stringify([layoutNodes, edges.map(edgeKey).sort(), layoutOptions])).toString(36)
+  const reuse = !options.relayout && previous?.meta.layout?.signature === signature && nodes.every((n) => previousPositions.has(n.id))
+  const positions = reuse ? previousPositions : computeLayout(layoutNodes, edges, { ...layoutOptions, previous: previousPositions })
   for (const node of nodes) node.pos = positions.get(node.id)
-  log.debug(`layout: ${formatMs(performance.now() - layoutStarted)}`)
+  if (meta.layout) meta.layout.signature = signature
+  log.debug(`layout: ${reuse ? 'unchanged, positions kept' : formatMs(performance.now() - layoutStarted)}`)
 
   // ---- Changes since the previous build
   const changes = computeChanges(previous, nodes, edges)

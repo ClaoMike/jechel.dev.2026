@@ -1,8 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 
 /**
- * A dropdown sheet under the top bar (phones): closes on Escape or a tap outside it (the button
- * that opens it, labelled "View options", toggles it instead).
+ * A dropdown sheet under the top bar (phones): a small non-modal dialog of grouped controls. Closes
+ * on Escape or a tap outside it (the button that opens it, labelled "View options", toggles it).
  */
 export function MenuSheet({ label, onClose, children, testId }: { label: string; onClose: () => void; children: ReactNode; testId?: string }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -20,7 +20,7 @@ export function MenuSheet({ label, onClose, children, testId }: { label: string;
     }
   })
   return (
-    <div ref={ref} className="view-menu" role="menu" aria-label={label} data-testid={testId}>
+    <div ref={ref} className="view-menu" role="dialog" aria-label={label} data-testid={testId}>
       {children}
     </div>
   )
