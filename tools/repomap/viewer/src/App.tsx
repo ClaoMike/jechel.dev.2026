@@ -1,7 +1,9 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { ensureGitHistory } from './git/load.ts'
+import { useGit } from './git/store.ts'
 import type { ColorBy } from './model/colors.ts'
 import { loadInitialGraph } from './model/load.ts'
-import { COARSE, NARROW, useMediaQuery } from './model/media.ts'
+import { COARSE, matches, NARROW, useMediaQuery } from './model/media.ts'
 import { useViewer, type LabelMode } from './model/store.ts'
 import { writeViewToHash } from './model/url.ts'
 import { Scene } from './scene/Scene.tsx'
@@ -11,23 +13,32 @@ import { Banner, DropZone, HelpOverlay, Status, Toast } from './ui/Overlays.tsx'
 import { Sidebar } from './ui/Sidebar.tsx'
 import { TopBar } from './ui/TopBar.tsx'
 
-// The editor (CodeMirror + grammars) loads only when code is first opened.
+// The editor (CodeMirror + grammars) loads only when code is first opened, the history tab when first shown.
 const CodeViewer = lazy(() => import('./ui/code/CodeViewer.tsx'))
+const GitView = lazy(() => import('./git/GitView.tsx'))
 
 const COLOR_CYCLE: ColorBy[] = ['kind', 'layer', 'role', 'feature']
 const LABEL_CYCLE: LabelMode[] = ['auto', 'all', 'none']
 
 export function App() {
+  const tab = useViewer((s) => s.tab)
   const theme = useViewer((s) => s.theme)
   const sidebarOpen = useViewer((s) => s.sidebarOpen)
   const selected = useViewer((s) => s.selected)
   const codeView = useViewer((s) => s.codeView)
   const searchExpanded = useViewer((s) => s.searchExpanded)
   const narrow = useMediaQuery(NARROW)
+  const [gitShown, setGitShown] = useState(tab === 'git')
 
   useEffect(() => {
     void loadInitialGraph()
   }, [])
+
+  useEffect(() => {
+    if (tab !== 'git') return
+    setGitShown(true)
+    ensureGitHistory()
+  }, [tab])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -55,6 +66,10 @@ export function App() {
       const store = useViewer.getState()
       const target = event.target as HTMLElement | null
       const typing = target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      if (store.tab === 'git') {
+        onGitKey(event, !!typing)
+        return
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         document.querySelector<HTMLInputElement>('[data-testid="search"]')?.focus()
@@ -110,19 +125,36 @@ export function App() {
   }, [])
 
   return (
-    <div className={`app theme-${theme}${sidebarOpen ? ' with-sidebar' : ''}${selected !== null ? ' with-details' : ''}${searchExpanded ? ' search-expanded' : ''}`}>
+    <div className={`app theme-${theme} tab-${tab}${sidebarOpen ? ' with-sidebar' : ''}${selected !== null ? ' with-details' : ''}${searchExpanded ? ' search-expanded' : ''}`}>
       <TopBar />
-      <main className="workspace">
-        <Sidebar />
-        {narrow && sidebarOpen && <div className="drawer-backdrop" onClick={() => useViewer.getState().setSidebar(false)} aria-hidden="true" />}
-        <div className="stage">
-          <Scene />
-          <ContextMenu />
-          <Banner />
-          <Status />
-          <Hint />
+      {/* Both tabs stay mounted (the 3D scene keeps its camera); the hidden one is inert and paused. */}
+      <main className="panels">
+        <div className={`workspace${tab === 'map' ? '' : ' inactive'}`} id="panel-map" role="tabpanel" aria-labelledby="tab-map" inert={tab !== 'map'}>
+          <Sidebar />
+          {narrow && sidebarOpen && <div className="drawer-backdrop" onClick={() => useViewer.getState().setSidebar(false)} aria-hidden="true" />}
+          <div className="stage">
+            <Scene />
+            <ContextMenu />
+            <Banner />
+            <Status />
+            <Hint />
+          </div>
+          <DetailsPanel />
         </div>
-        <DetailsPanel />
+        <div className={`workspace git-workspace${tab === 'git' ? '' : ' inactive'}`} id="panel-git" role="tabpanel" aria-labelledby="tab-git" inert={tab !== 'git'} data-testid="git-view">
+          {gitShown && (
+            <Suspense
+              fallback={
+                <div className="status">
+                  <div className="spinner" aria-hidden="true" />
+                  <p>Loading the history…</p>
+                </div>
+              }
+            >
+              <GitView />
+            </Suspense>
+          )}
+        </div>
       </main>
       {codeView && (
         <Suspense
@@ -142,6 +174,67 @@ export function App() {
       <Toast />
     </div>
   )
+}
+
+function focusGitSearch(): void {
+  if (matches(NARROW)) useGit.getState().setSearchExpanded(true)
+  else document.querySelector<HTMLInputElement>('[data-testid="git-search"]')?.focus()
+}
+
+/** History tab: ↑/↓ (j/k) walk the commits, n/N the search matches, H goes to HEAD. */
+function onGitKey(event: KeyboardEvent, typing: boolean): void {
+  const git = useGit.getState()
+  const viewer = useViewer.getState()
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    focusGitSearch()
+    return
+  }
+  if (typing || event.metaKey || event.ctrlKey || event.altKey) return
+  const target = event.target as HTMLElement | null
+  if (target?.closest('[role="tablist"], [role="menu"], .modal')) return
+  const moves: Record<string, () => void> = {
+    ArrowDown: () => git.move(1),
+    j: () => git.move(1),
+    ArrowUp: () => git.move(-1),
+    k: () => git.move(-1),
+    PageDown: () => git.move(15),
+    PageUp: () => git.move(-15),
+    Home: () => git.selectEdge('first'),
+    End: () => git.selectEdge('last'),
+  }
+  if (moves[event.key]) {
+    event.preventDefault()
+    moves[event.key]()
+    return
+  }
+  switch (event.key) {
+    case '/':
+      event.preventDefault()
+      focusGitSearch()
+      break
+    case 'n':
+      git.step(1)
+      break
+    case 'N':
+      git.step(-1)
+      break
+    case 'h':
+    case 'H':
+      git.jumpToHead()
+      break
+    case '[':
+      git.togglePanel()
+      break
+    case '?':
+      viewer.setHelp(!viewer.helpOpen)
+      break
+    case 'Escape':
+      if (viewer.helpOpen) viewer.setHelp(false)
+      else if (git.selected) git.select(null)
+      else if (git.path) git.setPath(null)
+      break
+  }
 }
 
 function Hint() {

@@ -26,6 +26,7 @@ import { hashFiles, hashSources, PluginCache, sha256 } from './cache.ts'
 import type { PluginConfig, RepoMapConfig } from './config.ts'
 import { classifyFiles, listRepoFiles, matcher } from './files.ts'
 import { gitInfo } from './git.ts'
+import { updateGitHistory } from './git-history.ts'
 import { color, formatMs, type Logger } from './log.ts'
 import { GraphAssembler } from './merge.ts'
 import { checkRequires, runPlugin } from './plugins.ts'
@@ -38,6 +39,8 @@ export interface BuildOptions {
   publicOutput?: boolean
   /** Ignore the previous positions and lay everything out from scratch. */
   relayout?: boolean
+  /** Also refresh git.json (default true). */
+  history?: boolean
 }
 
 export interface BuildResult {
@@ -151,7 +154,8 @@ export async function buildGraph(config: RepoMapConfig, options: BuildOptions): 
   if (changed) writeHistory(outDir, graph, text)
 
   summarize(graph, log)
-  return { graph, outputPath: config.output, durationMs, changed }
+  const history = options.history === false ? undefined : await updateGitHistory(config, { log, publicOutput: options.publicOutput })
+  return { graph, outputPath: config.output, durationMs, changed, gitChanged: history?.changed }
 }
 
 function selectFiles(plugin: PluginConfig, files: FileEntry[]): FileEntry[] {

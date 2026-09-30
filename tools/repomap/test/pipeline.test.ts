@@ -6,12 +6,14 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { before, describe, it } from 'node:test'
 import { buildGraph } from '../src/core/build.ts'
 import { loadConfig, TOOL_ROOT } from '../src/core/config.ts'
+import { readGitHistoryFile } from '../src/core/git-history.ts'
 import { createLogger } from '../src/core/log.ts'
 import { validateGraph } from '../src/core/validate.ts'
+import { checkGitHistory, type GitHistory } from '../src/shared/git-types.ts'
 import type { RepoGraph } from '../src/shared/types.ts'
 
 const hasDotnet = !spawnSync('dotnet', ['--version'], { stdio: 'ignore' }).error
@@ -25,10 +27,22 @@ describe('pipeline on this repository', { skip: !hasDotnet && 'dotnet SDK not fo
   }
   const hasEdge = (from: string, type: string, to: string) => graph.edges.some((e) => e.from === id(from) && e.type === type && e.to === id(to))
 
+  let history: GitHistory | undefined
+
   before(async () => {
     const config = loadConfig(join(TOOL_ROOT, 'repomap.config.json'))
     config.output = join(mkdtempSync(join(tmpdir(), 'repomap-pipeline-')), 'graph.json')
+    config.history.github = 'off' // no network in tests
     graph = (await buildGraph(config, { log: createLogger({ quiet: true }) })).graph
+    history = readGitHistoryFile(join(dirname(config.output), 'git.json'))
+  })
+
+  it('writes the git history next to the graph', () => {
+    assert.ok(history, 'git.json exists')
+    assert.equal(checkGitHistory(history), null)
+    assert.ok(history.commits.length > 0)
+    assert.ok(history.repo.head?.commit)
+    assert.ok(history.refs.some((r) => r.type === 'branch'))
   })
 
   it('produces a valid graph where every node has a layer and a role', () => {

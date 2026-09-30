@@ -73,7 +73,7 @@ function FacetRow({ label, title, icon, count, value, mixed, depth = 0, expanded
   )
 }
 
-function Section({ title, children, defaultOpen = true, aside }: { title: string; children: ReactNode; defaultOpen?: boolean; aside?: ReactNode }) {
+export function Section({ title, children, defaultOpen = true, aside }: { title: string; children: ReactNode; defaultOpen?: boolean; aside?: ReactNode }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <section className={`side-section${open ? ' open' : ''}`}>
@@ -304,7 +304,7 @@ export function Sidebar() {
   )
 }
 
-function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (value: boolean) => void }) {
+export function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
     <label className="toggle" title={hint}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />

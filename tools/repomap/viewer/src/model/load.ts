@@ -3,10 +3,13 @@
  *   1. ?graph=<url>          any graph.json on the web (CORS permitting)
  *   2. ./graph.json          served next to the viewer (repomap serve, a deployed site, vite dev)
  *   3. the bundled demo      so the static site always shows something
- * Dropping or picking a graph.json file replaces it. When served by `repomap serve --watch`,
- * Server-Sent Events announce rebuilds and the graph reloads in place.
+ * Dropping or picking a graph.json file replaces it (a git.json goes to the History tab). When
+ * served by `repomap serve --watch`, Server-Sent Events announce rebuilds and the graph reloads in place.
  */
+import { checkGitHistory, type GitHistory } from '../../../src/shared/git-types.ts'
 import type { RepoGraph } from '../../../src/shared/types.ts'
+import { useGit } from '../git/store.ts'
+import { onServerEvent } from './events.ts'
 import { checkGraph } from './graph.ts'
 import { useViewer, type GraphSource } from './store.ts'
 import { readStoredView, readViewFromHash } from './url.ts'
@@ -51,6 +54,14 @@ export async function loadGraphFile(file: File): Promise<void> {
   const store = useViewer.getState()
   try {
     const json = JSON.parse(await file.text()) as unknown
+    if ((json as { kind?: unknown } | null)?.kind === 'repomap-git') {
+      const problem = checkGitHistory(json)
+      if (problem) throw new Error(problem)
+      useGit.getState().setHistory(json as GitHistory, { kind: 'file', name: file.name })
+      store.setTab('git')
+      store.notify(`Loaded ${file.name}`)
+      return
+    }
     const problem = checkGraph(json)
     if (problem) throw new Error(problem)
     const source: GraphSource = { kind: 'file', name: file.name }
@@ -62,9 +73,7 @@ export async function loadGraphFile(file: File): Promise<void> {
 }
 
 function listenForUpdates(): void {
-  if (typeof EventSource === 'undefined') return
-  const events = new EventSource('events')
-  events.addEventListener('graph', async () => {
+  onServerEvent('graph', async () => {
     try {
       const graph = await fetchGraph('graph.json')
       const store = useViewer.getState()
@@ -79,7 +88,4 @@ function listenForUpdates(): void {
       useViewer.getState().notify(`Reload failed: ${(error as Error).message}`)
     }
   })
-  events.onerror = () => {
-    // The browser reconnects on its own; nothing to do.
-  }
 }

@@ -10,10 +10,11 @@
   "scripts": {
     "start": "node src/cli.ts serve --build --watch",
     "map": "node src/cli.ts build",
+    "history": "node src/cli.ts history",
     "view": "node src/cli.ts serve",
     "dev": "vite --config viewer/vite.config.ts",
     "build:viewer": "vite build --config viewer/vite.config.ts",
-    "demo": "node samples/synthetic.ts --features 6 --out viewer/public/samples/demo.graph.json",
+    "demo": "node samples/synthetic.ts --features 6 --out viewer/public/samples/demo.graph.json && node samples/synthetic-git.ts --out viewer/public/samples/demo.git.json",
     "validate": "node src/cli.ts validate",
     "diff": "node src/cli.ts diff",
     "typecheck": "tsc -p tsconfig.json && tsc -p viewer/tsconfig.json",

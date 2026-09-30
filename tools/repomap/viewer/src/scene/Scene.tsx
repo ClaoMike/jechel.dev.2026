@@ -13,7 +13,8 @@ function Invalidator() {
   const invalidate = useThree((s) => s.invalidate)
   const version = useViewer((s) => s.version)
   const hovered = useViewer((s) => s.hovered)
-  useEffect(() => invalidate(), [version, hovered, invalidate])
+  const tab = useViewer((s) => s.tab)
+  useEffect(() => invalidate(), [version, hovered, tab, invalidate])
   return null
 }
 

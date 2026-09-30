@@ -5,13 +5,16 @@ every route, component, API call, endpoint, service, entity, table and column is
 they connect — inside a layer and across layers. Click anything to trace its full chain, e.g.
 `HomePage → api.profile.getFirstName → GET /api/firstname → Profile.FirstName → profiles.first_name`.
 
+A second tab shows the **git history** as a graph: every branch, merge, tag and pull request, the
+uncommitted changes, and for any commit the files it changed — linked both ways with the map.
+
 It runs in the browser (a static site — deployable anywhere) and is self-contained: nothing here imports
 the app it maps.
 
 ```
 tools/repomap/
-  src/cli.ts                 CLI: build · serve · validate · diff · build-viewer
-  src/core/                  config, file rules, plugin runner, cache, merge, serve
+  src/cli.ts                 CLI: build · history · serve · validate · diff · build-viewer
+  src/core/                  config, file rules, plugin runner, cache, merge, git history, serve
   src/shared/                graph types, layout, route matching (used by CLI, plugins and viewer)
   plugins/
     extract-dotnet/          C# (Roslyn): endpoints, services, DI, entities, tests…  + EF Core snapshot/migrations
@@ -21,8 +24,8 @@ tools/repomap/
     link-contracts/          frontend types ↔ backend DTOs
   presets/                   stack presets: vocabulary, detection rules, filter presets, plugins
   schema/                    JSON Schemas of graph.json and of plugin output
-  viewer/                    Vite + React + three.js (react-three-fiber) web app
-  samples/synthetic.ts       demo/stress graph generator
+  viewer/                    Vite + React + three.js (react-three-fiber) web app (viewer/src/git: the history tab)
+  samples/                   demo/stress graph generator, demo git history generator
   repomap.config.json        config for this repository
 ```
 
@@ -40,12 +43,13 @@ Other commands:
 
 | Command | What it does |
 | --- | --- |
-| `npm run map` | Build `.out/graph.json` (`-- --relayout` to lay out from scratch, `-- --no-cache` to re-run every plugin) |
+| `npm run map` | Build `.out/graph.json` and `.out/git.json` (`-- --relayout` to lay out from scratch, `-- --no-cache` to re-run every plugin) |
+| `npm run history` | Only re-read the git history (`.out/git.json`) |
 | `npm run view` | Serve the viewer + the last graph on http://127.0.0.1:5199 |
 | `npm start` | `map` + `view` + watch the repo and live-reload the browser |
 | `npm run dev` | Viewer development (Vite, port 5198), serving the last built graph |
 | `npm run build:viewer` | Static site in `viewer/dist` (deploy anywhere) |
-| `npm run demo` | Regenerate the bundled demo graph |
+| `npm run demo` | Regenerate the bundled demo graph and demo history |
 | `npm run diff` | Structural diff of the last two builds |
 | `npm test` · `npm run test:e2e` · `npm run typecheck` | Unit + whole-repo pipeline tests · browser tests · types |
 
@@ -76,6 +80,29 @@ The CLI is `node src/cli.ts <command>` (`node src/cli.ts help` lists the options
   (Dark+/Light+), scrolled to the node, with its declaration highlighted; ⌘F searches the file. Source is
   served by `repomap serve` from your checkout — only files that belong to a node of the graph, never
   anything outside the repository — so a static deployment of the viewer shows "not available" instead.
+
+## The git history tab
+
+- **The graph**: every commit of every branch, newest first. Each coloured line is a line of work; forks and
+  merges bend between lines; the default branch stays on the far left. ● commit · ○ merge · a ring marks
+  HEAD · a dashed circle on top is your uncommitted changes (staged, modified, untracked).
+- **Badges**: local branches (a cloud when the remote has the same branch at the same commit), remote-only
+  branches (dashed), tags, pull requests (open, draft, merged, closed), and the name of merged branches that
+  no longer exist (italic, read from the merge message).
+- **Pull requests**: merged ones are recognised from merge and squash messages (GitHub, GitLab, Bitbucket,
+  Azure DevOps). When the remote is on github.com, open and closed ones come from GitHub's REST API — a
+  read-only request, cached for 10 minutes, anonymous for public repositories or with `GITHUB_TOKEN` /
+  `GH_TOKEN` / the `gh` CLI's login; it never fails the build (`"history": { "github": "off" }` turns it off).
+- **A commit** (click it): message, author and committer, co-authors, parents and children (links), the pull
+  request, the branches and tags that contain it, and the files it changed with +/− counts. The clock button
+  on a file follows that file through the history; the layers button shows it in the architecture map. In
+  the map, *History* on a node does the reverse.
+- **Filters** (left): untick a branch, remote branch or tag to hide the commits only it reaches; ⌥-click (or
+  the target button) shows one alone. **Search** matches messages, authors, files, branches, hash prefixes and
+  `#12` — non-matching commits fade and `Enter` / `n` / `N` step through the matches.
+- **Keys**: `↑` `↓` (`k` `j`) walk the commits · `Home` `End` · `H` HEAD · `/` search · `[` panel · `Esc`.
+- **Read-only**: nothing here changes the repository; remote branches are as of your last fetch. With
+  `npm start`, commits, checkouts, fetches and staging refresh the tab live.
 
 ## How it works
 
@@ -166,9 +193,25 @@ The preset defines everything the viewer shows — nothing is hard-coded:
 Values that plugins produce but the config doesn't declare still appear in the viewer (with generated
 colours), so new categories show up automatically.
 
+The history tab has its own (optional) section; these are the defaults:
+
+```jsonc
+"history": {
+  "enabled": true,
+  "maxCommits": 2000,          // newest commits across all branches
+  "maxFilesPerCommit": 150,    // files listed per commit (totals always count all of them)
+  "github": "auto",            // "off": never ask GitHub for pull requests
+  "githubCacheMinutes": 10,
+  "maxPullRequests": 200
+}
+```
+
 ## Output, cache and history
 
 - `.out/graph.json` — one node/edge per line (diff-friendly). Schema: `schema/graph.schema.json`.
+- `.out/git.json` — the history tab (types: `src/shared/git-types.ts`). Rewritten only when something in it
+  changed; commits are re-read only when a ref moved. `.out/cache/_github-pulls.json` holds the last GitHub
+  answer.
 - `.out/cache/` — one entry per extractor, keyed by plugin source + options + the exact files it read (paths
   and contents). Unchanged plugins are skipped; a rebuild after editing one file takes about a second for
   the frontend, ~4 s when C# changed. Linkers always run.
@@ -181,17 +224,22 @@ colours), so new categories show up automatically.
 
 `npm run build:viewer` produces a static site in `viewer/dist` (relative paths — works from any folder of
 any static host). The viewer loads, in order: `?graph=<url>`, a `graph.json` next to `index.html`, or the
-bundled demo. Anyone can also drop or open a `graph.json` in the page. Build with `--public` to leave your
-local absolute path out of graph.json (it is only used for "Open in VS Code" links).
+bundled demo. The history comes from `?git=<url>`, else from beside the graph (`name.graph.json` →
+`name.git.json`, or `git.json` in the same folder). Anyone can also drop or open a `graph.json` or
+`git.json` in the page. Build with `--public` to leave your local absolute path out of graph.json (it is only
+used for "Open in VS Code" links) and your uncommitted changes out of git.json.
 
 ## Tests
 
 - `npm test` — unit tests (routes, layout, config, file rules, merge, the viewer's filters/trace/search on a
-  hand-written graph) and an end-to-end run of every plugin on this repository that checks the facts that
-  matter (every endpoint of the README's API table, the HomePage → `profiles.first_name` chain, DI, migrations,
-  test tagging, no unresolved links).
-- `npm run test:e2e` — Playwright against the demo graph: renders, presets, dim/hide, search + trace, URL state,
-  help; fails on any page error.
+  hand-written graph; git output parsing, pull request detection, GitHub enrichment with a stubbed API and a
+  real temporary repository; lanes, ref filters and search of the history tab; the server's routes, the
+  source-file guard and live-reload events) and an end-to-end run of every plugin on this repository that
+  checks the facts that matter (every endpoint of the README's API table, the HomePage →
+  `profiles.first_name` chain, DI, migrations, test tagging, no unresolved links, a valid git.json).
+- `npm run test:e2e` — Playwright against the demo graph and history: renders, presets, dim/hide, search +
+  trace, URL state, help, the history tab (graph, details, keyboard, search, branch filters, pull requests,
+  map ↔ history links, opening files); fails on any page error.
 
 ## Limitations and next steps
 

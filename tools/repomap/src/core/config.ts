@@ -50,6 +50,29 @@ export interface PluginConfig {
   timeoutMs?: number
 }
 
+/** The History tab (git.json). */
+export interface HistoryConfig {
+  enabled: boolean
+  /** Newest commits to read (across all branches). */
+  maxCommits: number
+  /** Changed files listed per commit (the totals always count all of them). */
+  maxFilesPerCommit: number
+  /** Read pull requests from api.github.com when the main remote is on github.com ("auto"), or never ("off"). */
+  github: 'auto' | 'off'
+  /** Minutes to reuse the last GitHub answer. */
+  githubCacheMinutes: number
+  maxPullRequests: number
+}
+
+export const DEFAULT_HISTORY: HistoryConfig = {
+  enabled: true,
+  maxCommits: 2000,
+  maxFilesPerCommit: 150,
+  github: 'auto',
+  githubCacheMinutes: 10,
+  maxPullRequests: 200,
+}
+
 export interface RepoMapConfig {
   name: string
   /** Absolute path of the repository to map. */
@@ -71,6 +94,7 @@ export interface RepoMapConfig {
   edgeTypes: EdgeTypeDef[]
   presets: PresetDef[]
   layout: { layerGap: number; seed: number }
+  history: HistoryConfig
   plugins: PluginConfig[]
 }
 
@@ -107,6 +131,7 @@ export function loadConfig(configPath: string): RepoMapConfig {
     edgeTypes: (merged.edgeTypes as EdgeTypeDef[] | undefined) ?? [],
     presets: (merged.presets as PresetDef[] | undefined) ?? [],
     layout: { layerGap: 90, seed: 7, ...((merged.layout as Json | undefined) ?? {}) } as RepoMapConfig['layout'],
+    history: { ...DEFAULT_HISTORY, ...((merged.history as Json | undefined) ?? {}) } as HistoryConfig,
     plugins,
   }
   validateConfig(config)
@@ -176,6 +201,8 @@ function validateConfig(config: RepoMapConfig): void {
   for (const role of config.roles) {
     if (role.parent && !config.roles.some((r) => r.id === role.parent)) problems.push(`role "${role.id}" has unknown parent "${role.parent}"`)
   }
+  if (config.history.github !== 'auto' && config.history.github !== 'off') problems.push('history.github must be "auto" or "off"')
+  if (!(config.history.maxCommits > 0)) problems.push('history.maxCommits must be a positive number')
   if (problems.length > 0) throw new Error(`Invalid config ${config.configPath}:\n  - ${problems.join('\n  - ')}`)
 }
 

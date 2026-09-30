@@ -3,9 +3,10 @@
  * repomap CLI.
  *
  *   node src/cli.ts build     [-c config] [--no-cache] [--public]
- *   node src/cli.ts serve     [-c config] [--build] [--watch] [--port 5199] [--no-open] [--graph file]
+ *   node src/cli.ts serve     [-c config] [--build] [--watch] [--port 5199] [--no-open] [--graph file] [--git file]
  *   node src/cli.ts validate  [graph.json]
  *   node src/cli.ts diff      <before.json> <after.json>   (default: previous history entry vs current)
+ *   node src/cli.ts history   [-c config] [--public]   (git.json only)
  */
 import { existsSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -13,6 +14,7 @@ import { parseArgs } from 'node:util'
 import { buildGraph, readGraph } from './core/build.ts'
 import { loadConfig, TOOL_ROOT } from './core/config.ts'
 import { diffGraphs, formatDiff } from './core/diff.ts'
+import { updateGitHistory } from './core/git-history.ts'
 import { color, createLogger } from './core/log.ts'
 import { ensureViewerBuilt, serve } from './core/serve.ts'
 import { validateGraph } from './core/validate.ts'
@@ -22,7 +24,8 @@ const HELP = `${color.bold('repomap')} — 3D architecture map of a repository
 Usage: node src/cli.ts <command> [options]
 
 Commands
-  build              Extract, link and lay out the graph → graph.json
+  build              Extract, link and lay out the graph → graph.json (and the git history → git.json)
+  history            Only read the git history → git.json
   serve              Open the viewer in the browser (builds the viewer if needed)
   validate [file]    Check a graph.json against the schema
   diff [a] [b]       Structural diff of two graphs (default: last two builds)
@@ -31,7 +34,7 @@ Commands
 Options
   -c, --config <file>   Config file (default: ./repomap.config.json)
       --no-cache        Re-run every plugin
-      --public          Leave the absolute repository path out of graph.json
+      --public          Leave the absolute repository path and uncommitted changes out
       --relayout        Lay the graph out from scratch (ignore previous positions)
       --build           serve: rebuild the graph before serving
   -w, --watch           serve: rebuild when repository files change (live reload)
@@ -39,6 +42,7 @@ Options
       --host <host>     serve: host (default 127.0.0.1)
       --no-open         serve: don't open a browser
       --graph <file>    serve: serve this graph.json instead of building one
+      --git <file>      serve: serve this git.json (default: name.git.json or git.json beside the graph)
   -v, --verbose         Show plugin logs
   -q, --quiet           Only warnings and errors
 `
@@ -57,6 +61,7 @@ async function main(): Promise<number> {
       host: { type: 'string' },
       'no-open': { type: 'boolean' },
       graph: { type: 'string' },
+      git: { type: 'string' },
       verbose: { type: 'boolean', short: 'v' },
       quiet: { type: 'boolean', short: 'q' },
       help: { type: 'boolean', short: 'h' },
@@ -78,6 +83,20 @@ async function main(): Promise<number> {
       await buildGraph(config, { log, noCache: values['no-cache'], publicOutput: values.public, relayout: values.relayout })
       return 0
     }
+    case 'history': {
+      const config = loadConfig(configPath())
+      if (!config.history.enabled) {
+        log.error('the history is turned off in the config (history.enabled)')
+        return 1
+      }
+      const result = await updateGitHistory(config, { log, publicOutput: values.public })
+      if (!result.history) {
+        log.error(`${config.repoRoot} is not a git repository`)
+        return 1
+      }
+      log.info(`${color.green('✔')} ${result.path}${result.changed ? '' : color.dim(' (unchanged)')}`)
+      return 0
+    }
     case 'serve': {
       const config = loadConfig(configPath())
       await serve({
@@ -89,6 +108,7 @@ async function main(): Promise<number> {
         watch: !!values.watch,
         build: !!values.build,
         graphPath: values.graph ? resolve(values.graph) : undefined,
+        gitPath: values.git ? resolve(values.git) : undefined,
       })
       return -1 // keep running
     }

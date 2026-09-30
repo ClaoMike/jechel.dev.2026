@@ -29,17 +29,37 @@ export function decodeView(text: string): ViewState | null {
   }
 }
 
+function hashParams(): URLSearchParams {
+  return new URLSearchParams(window.location.hash.replace(/^#/, ''))
+}
+
+/** A parameter of the URL hash (#tab=git&commit=…&view=…). */
+export function readHashParam(name: string): string | null {
+  return hashParams().get(name)
+}
+
+/** Sets (or, with null, removes) hash parameters and keeps the others, without a history entry. */
+export function writeHashParams(values: Record<string, string | null | undefined>): void {
+  const params = hashParams()
+  for (const [key, value] of Object.entries(values)) {
+    if (value === null || value === undefined || value === '') params.delete(key)
+    else params.set(key, value)
+  }
+  const text = params.toString()
+  const hash = text ? `#${text}` : ''
+  if (window.location.hash.replace(/^#$/, '') !== hash) {
+    history.replaceState(history.state, '', `${window.location.pathname}${window.location.search}${hash}`)
+  }
+}
+
 export function readViewFromHash(): ViewState | null {
-  const match = /(?:^#|&)view=([^&]+)/.exec(window.location.hash)
-  return match ? decodeView(match[1]) : null
+  const text = readHashParam('view')
+  return text ? decodeView(text) : null
 }
 
 export function writeViewToHash(view: ViewState): void {
   const empty = Object.values(view).every((v) => v === undefined)
-  const hash = empty ? '' : `#view=${encodeView(view)}`
-  if (window.location.hash !== hash) {
-    history.replaceState(null, '', `${window.location.pathname}${window.location.search}${hash}`)
-  }
+  writeHashParams({ view: empty ? null : encodeView(view) })
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(view))
   } catch {

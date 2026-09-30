@@ -10,6 +10,7 @@ import type { RepoGraph } from '../shared/types.ts'
 import { buildGraph } from './build.ts'
 import { TOOL_ROOT, type RepoMapConfig } from './config.ts'
 import { matcher } from './files.ts'
+import { gitHistoryPath, historyBeside, updateGitHistory } from './git-history.ts'
 import { color, type Logger } from './log.ts'
 import { readSource } from './source.ts'
 
@@ -23,6 +24,8 @@ export interface ServeOptions {
   build: boolean
   /** Serve this graph file instead of the config output. */
   graphPath?: string
+  /** Serve this git.json (default: the one beside the graph). */
+  gitPath?: string
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -143,7 +146,7 @@ export async function serve(options: ServeOptions): Promise<void> {
   }
   const handle = await startServer({
     graphPath,
-    gitPath: join(dirname(config.output), 'git.json'),
+    gitPath: options.gitPath ?? (options.graphPath ? historyBeside(graphPath) : gitHistoryPath(config)),
     repoRoot: config.repoRoot,
     port: options.port,
     host: options.host,
@@ -236,30 +239,39 @@ function newestMtime(paths: string[]): number {
 
 const ALWAYS_IGNORED = ['.git/**', '**/node_modules/**', '**/bin/**', '**/obj/**', '**/dist/**', '**/.out/**', '**/coverage/**', '**/test-results/**', '**/playwright-report/**']
 
-/** Rebuilds after file changes (debounced, never two builds at once) and reports what changed. */
+/**
+ * Rebuilds after file changes (debounced, never two builds at once) and reports what changed.
+ * Changes inside .git (commits, checkouts, fetches, staging) only refresh the history.
+ */
 function startWatcher(config: RepoMapConfig, log: Logger, onRebuilt: (event: 'graph' | 'git') => void): void {
   const ignored = matcher([...ALWAYS_IGNORED, ...config.exclude])
   let timer: NodeJS.Timeout | undefined
   let running = false
-  let again = false
+  let pendingGraph = false
+  let pendingHistory = false
   const rebuild = async () => {
-    if (running) {
-      again = true
-      return
-    }
+    if (running) return
     running = true
     try {
-      const result = await buildGraph(config, { log })
-      if (result.changed) onRebuilt('graph')
-      if (result.gitChanged) onRebuilt('git')
+      while (pendingGraph || pendingHistory) {
+        const graph = pendingGraph
+        pendingGraph = false
+        pendingHistory = false
+        if (graph) {
+          // A file change can also change the working tree shown in the History tab.
+          const result = await buildGraph(config, { log })
+          if (result.changed) onRebuilt('graph')
+          if (result.gitChanged) onRebuilt('git')
+        } else {
+          const result = await updateGitHistory(config, { log })
+          if (result.changed) onRebuilt('git')
+        }
+      }
     } catch (error) {
       log.error(`rebuild failed: ${(error as Error).message}`)
     } finally {
       running = false
-      if (again) {
-        again = false
-        void rebuild()
-      }
+      if (pendingGraph || pendingHistory) schedule()
     }
   }
   const schedule = () => {
@@ -270,18 +282,28 @@ function startWatcher(config: RepoMapConfig, log: Logger, onRebuilt: (event: 'gr
     watch(config.repoRoot, { recursive: true }, (_event, filename) => {
       if (!filename) return
       const path = filename.toString().split(sep).join('/')
-      // Commits, checkouts and fetches move refs: rebuild so the Git tab stays current.
-      if (/^\.git\/(HEAD|packed-refs|refs\/|FETCH_HEAD|ORIG_HEAD)/.test(path)) {
+      if (/^\.git\/(HEAD|index|packed-refs|refs\/|FETCH_HEAD|ORIG_HEAD|MERGE_HEAD)/.test(path)) {
+        if (!config.history.enabled || path.endsWith('.lock')) return
         log.debug(`git changed: ${path}`)
+        pendingHistory = true
         schedule()
         return
       }
       if (ignored(path)) return
       log.debug(`changed: ${path}`)
+      pendingGraph = true
       schedule()
     })
   } catch (error) {
     log.warn(`file watching unavailable: ${(error as Error).message}`)
+  }
+  // Pull requests change on GitHub without anything happening locally.
+  if (config.history.enabled && config.history.github === 'auto') {
+    const refresh = setInterval(() => {
+      pendingHistory = true
+      schedule()
+    }, Math.max(1, config.history.githubCacheMinutes) * 60_000 + 1000)
+    refresh.unref()
   }
 }
 

@@ -1,9 +1,13 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
+import { GitMenu, GitSearch, GitTools } from '../git/GitBar.tsx'
+import { useGit } from '../git/store.ts'
 import type { ColorBy } from '../model/colors.ts'
 import { loadGraphFile } from '../model/load.ts'
 import { useViewer, type LabelMode } from '../model/store.ts'
 import { Icon } from './icons.tsx'
+import { MenuSheet, MoreIcon } from './menu.tsx'
 import { SearchBox } from './SearchBox.tsx'
+import { Tabs } from './Tabs.tsx'
 
 const COLOR_OPTIONS: { value: ColorBy; label: string }[] = [
   { value: 'kind', label: 'Kind' },
@@ -19,27 +23,32 @@ const LABEL_OPTIONS: { value: LabelMode; label: string }[] = [
 ]
 
 export function TopBar() {
+  const tab = useViewer((s) => s.tab)
   const index = useViewer((s) => s.index)
   const source = useViewer((s) => s.source)
-  const colorBy = useViewer((s) => s.colorBy)
-  const labels = useViewer((s) => s.labels)
-  const theme = useViewer((s) => s.theme)
   const viewMenuOpen = useViewer((s) => s.viewMenuOpen)
-  const { toggleSidebar, command, setColorBy, setLabels, setTheme, setHelp, setSearchExpanded, setViewMenu } = useViewer.getState()
   const file = useRef<HTMLInputElement>(null)
   const meta = index?.graph.meta
   const openFile = () => file.current?.click()
+  const map = tab === 'map'
 
   return (
     <header className="topbar">
       <div className="brand">
-        <button type="button" className="icon-button" onClick={toggleSidebar} aria-label="Toggle filters" title="Filters  [">
+        <button
+          type="button"
+          className="icon-button"
+          onClick={() => (map ? useViewer.getState().toggleSidebar() : useGit.getState().togglePanel())}
+          aria-label={map ? 'Toggle filters' : 'Toggle branches panel'}
+          title={map ? 'Filters  [' : 'Branches & pull requests  ['}
+        >
           <Icon name="menu" />
         </button>
         <span className="logo" aria-hidden="true">
           <Icon name="layers" size={18} />
         </span>
         <span className="brand-name">repomap</span>
+        <Tabs />
         {meta && (
           <span className="repo" title={meta.repo.root ?? meta.repo.name}>
             <strong>{meta.repo.name}</strong>
@@ -57,74 +66,9 @@ export function TopBar() {
         )}
       </div>
 
-      <SearchBox />
+      {map ? <SearchBox /> : <GitSearch />}
 
-      <div className="toolbar">
-        <div className="wide-only">
-          <div className="segmented" role="group" aria-label="Camera">
-            <button type="button" onClick={() => command({ type: 'fit' })} title="Fit visible  (F)">
-              <Icon name="fit" size={15} /> <span className="hide-md">Fit</span>
-            </button>
-            <button type="button" onClick={() => command({ type: 'side' })} title="Side view — the layer stack  (S)">
-              <Icon name="side" size={15} /> <span className="hide-md">Side</span>
-            </button>
-            <select
-              aria-label="Top view of a layer"
-              title="Top-down view of one layer  (1–9)"
-              value=""
-              onChange={(e) => e.target.value && command({ type: 'layer', layer: e.target.value })}
-            >
-              <option value="">Top ▾</option>
-              {index?.planes.map((plane, k) => (
-                <option key={plane.layer} value={plane.layer}>
-                  {k + 1} · {index.layerById.get(plane.layer)?.label ?? plane.layer}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <label className="select-label" title="Colour nodes by  (C)">
-            <span className="hide-md">Color</span>
-            <select value={colorBy} onChange={(e) => setColorBy(e.target.value as ColorBy)} aria-label="Color by">
-              {COLOR_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="select-label" title="Labels  (L)">
-            <span className="hide-md">Labels</span>
-            <select value={labels} onChange={(e) => setLabels(e.target.value as LabelMode)} aria-label="Labels">
-              {LABEL_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <button type="button" className="icon-button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="Toggle theme" title="Light/dark">
-            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
-          </button>
-          <button type="button" className="icon-button" onClick={openFile} aria-label="Open graph.json" title="Open a graph.json (or drop it anywhere)">
-            <Icon name="open" />
-          </button>
-          <button type="button" className="icon-button" onClick={() => setHelp(true)} aria-label="Help" title="Help & shortcuts  (?)">
-            <Icon name="help" />
-          </button>
-        </div>
-
-        <div className="narrow-only">
-          <button type="button" className="icon-button" onClick={() => setSearchExpanded(true)} aria-label="Search">
-            <Icon name="search" />
-          </button>
-          <button type="button" className="icon-button" onClick={() => setViewMenu(!viewMenuOpen)} aria-label="View options" aria-expanded={viewMenuOpen} aria-haspopup="menu">
-            <MoreIcon />
-          </button>
-        </div>
-      </div>
+      <div className="toolbar">{map ? <MapTools onOpenFile={openFile} /> : <GitTools onOpenFile={openFile} />}</div>
 
       <input
         ref={file}
@@ -138,18 +82,85 @@ export function TopBar() {
           e.target.value = ''
         }}
       />
-      {viewMenuOpen && <ViewMenu onOpenFile={openFile} />}
+      {viewMenuOpen && (map ? <ViewMenu onOpenFile={openFile} /> : <GitMenu onOpenFile={openFile} />)}
     </header>
   )
 }
 
-function MoreIcon() {
+function MapTools({ onOpenFile }: { onOpenFile: () => void }) {
+  const index = useViewer((s) => s.index)
+  const colorBy = useViewer((s) => s.colorBy)
+  const labels = useViewer((s) => s.labels)
+  const theme = useViewer((s) => s.theme)
+  const viewMenuOpen = useViewer((s) => s.viewMenuOpen)
+  const { command, setColorBy, setLabels, setTheme, setHelp, setSearchExpanded, setViewMenu } = useViewer.getState()
   return (
-    <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true" fill="currentColor">
-      <circle cx="4.5" cy="10" r="1.6" />
-      <circle cx="10" cy="10" r="1.6" />
-      <circle cx="15.5" cy="10" r="1.6" />
-    </svg>
+    <>
+      <div className="wide-only">
+        <div className="segmented" role="group" aria-label="Camera">
+          <button type="button" onClick={() => command({ type: 'fit' })} title="Fit visible  (F)">
+            <Icon name="fit" size={15} /> <span className="hide-md">Fit</span>
+          </button>
+          <button type="button" onClick={() => command({ type: 'side' })} title="Side view — the layer stack  (S)">
+            <Icon name="side" size={15} /> <span className="hide-md">Side</span>
+          </button>
+          <select
+            aria-label="Top view of a layer"
+            title="Top-down view of one layer  (1–9)"
+            value=""
+            onChange={(e) => e.target.value && command({ type: 'layer', layer: e.target.value })}
+          >
+            <option value="">Top ▾</option>
+            {index?.planes.map((plane, k) => (
+              <option key={plane.layer} value={plane.layer}>
+                {k + 1} · {index.layerById.get(plane.layer)?.label ?? plane.layer}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <label className="select-label" title="Colour nodes by  (C)">
+          <span className="hide-md">Color</span>
+          <select value={colorBy} onChange={(e) => setColorBy(e.target.value as ColorBy)} aria-label="Color by">
+            {COLOR_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="select-label" title="Labels  (L)">
+          <span className="hide-md">Labels</span>
+          <select value={labels} onChange={(e) => setLabels(e.target.value as LabelMode)} aria-label="Labels">
+            {LABEL_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <button type="button" className="icon-button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="Toggle theme" title="Light/dark">
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+        </button>
+        <button type="button" className="icon-button" onClick={onOpenFile} aria-label="Open graph.json" title="Open a graph.json (or drop it anywhere)">
+          <Icon name="open" />
+        </button>
+        <button type="button" className="icon-button" onClick={() => setHelp(true)} aria-label="Help" title="Help & shortcuts  (?)">
+          <Icon name="help" />
+        </button>
+      </div>
+
+      <div className="narrow-only">
+        <button type="button" className="icon-button" onClick={() => setSearchExpanded(true)} aria-label="Search">
+          <Icon name="search" />
+        </button>
+        <button type="button" className="icon-button" onClick={() => setViewMenu(!viewMenuOpen)} aria-label="View options" aria-expanded={viewMenuOpen} aria-haspopup="menu">
+          <MoreIcon />
+        </button>
+      </div>
+    </>
   )
 }
 
@@ -160,29 +171,14 @@ function ViewMenu({ onOpenFile }: { onOpenFile: () => void }) {
   const labels = useViewer((s) => s.labels)
   const theme = useViewer((s) => s.theme)
   const { command, setColorBy, setLabels, setTheme, setHelp, setViewMenu } = useViewer.getState()
-  const ref = useRef<HTMLDivElement>(null)
   const close = () => setViewMenu(false)
-
-  useEffect(() => {
-    const outside = (event: PointerEvent) => {
-      const target = event.target as HTMLElement
-      if (!ref.current?.contains(target) && !target.closest('[aria-label="View options"]')) close()
-    }
-    const key = (event: KeyboardEvent) => event.key === 'Escape' && close()
-    window.addEventListener('pointerdown', outside, true)
-    window.addEventListener('keydown', key)
-    return () => {
-      window.removeEventListener('pointerdown', outside, true)
-      window.removeEventListener('keydown', key)
-    }
-  })
 
   const act = (fn: () => void) => () => {
     fn()
     close()
   }
   return (
-    <div ref={ref} className="view-menu" role="menu" aria-label="View options" data-testid="view-menu">
+    <MenuSheet label="View options" onClose={close} testId="view-menu">
       <div className="view-menu-section">
         <div className="view-menu-title">Camera</div>
         <div className="view-menu-row">
@@ -235,7 +231,7 @@ function ViewMenu({ onOpenFile }: { onOpenFile: () => void }) {
           <Icon name="help" size={14} /> Help
         </button>
       </div>
-    </div>
+    </MenuSheet>
   )
 }
 

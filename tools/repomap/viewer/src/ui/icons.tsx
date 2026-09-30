@@ -52,7 +52,7 @@ export function EdgeIcon({ color }: { color: string }) {
 
 type IconName =
   | 'menu' | 'search' | 'close' | 'fit' | 'side' | 'top' | 'sun' | 'moon' | 'help' | 'open' | 'chevron' | 'dim' | 'copy'
-  | 'external' | 'up' | 'down' | 'link' | 'warn' | 'reset' | 'layers' | 'code' | 'wrap' | 'lock' | 'git' | 'branch' | 'tag' | 'commit' | 'pr' | 'user' | 'clock' | 'file'
+  | 'external' | 'up' | 'down' | 'link' | 'warn' | 'reset' | 'layers' | 'code' | 'wrap' | 'lock' | 'git' | 'branch' | 'tag' | 'commit' | 'pr' | 'user' | 'clock' | 'file' | 'focus'
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -87,6 +87,7 @@ export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
     user: <><circle cx="10" cy="7" r="3.2" /><path d="M3.8 17a6.2 6.2 0 0 1 12.4 0" /></>,
     clock: <><circle cx="10" cy="10" r="7" /><path d="M10 6v4.3l2.8 1.7" /></>,
     file: <><path d="M5 2.8h6.5L15.5 7v10a.8.8 0 0 1-.8.8H5a.8.8 0 0 1-.8-.8V3.6a.8.8 0 0 1 .8-.8z" /><path d="M11.3 2.8V7h4.2" /></>,
+    focus: <><circle cx="10" cy="10" r="5.2" /><circle cx="10" cy="10" r="1.3" fill="currentColor" /><path d="M10 2.2v2.6M10 15.2v2.6M2.2 10h2.6M15.2 10h2.6" /></>,
   }
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

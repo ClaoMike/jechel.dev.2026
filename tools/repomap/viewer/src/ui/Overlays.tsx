@@ -6,8 +6,10 @@ import { EdgeIcon, Icon, ShapeIcon } from './icons.tsx'
 export function HelpOverlay() {
   const open = useViewer((s) => s.helpOpen)
   const index = useViewer((s) => s.index)
+  const tab = useViewer((s) => s.tab)
   const setHelp = useViewer((s) => s.setHelp)
   if (!open) return null
+  if (tab === 'git') return <GitHelp onClose={() => setHelp(false)} />
   const kinds = index ? [...index.layerKinds.values()].flat().filter((k, i, all) => all.indexOf(k) === i).map((k) => index.kinds.get(k)!) : []
   const edgeTypes = index ? index.presentEdgeTypes.map((t) => index.edgeTypes.get(t)!) : []
   return (
@@ -83,7 +85,81 @@ export function HelpOverlay() {
   )
 }
 
-/** Drop a graph.json anywhere on the page. */
+function GitHelp({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div className="modal" role="dialog" aria-label="Help" onClick={(e) => e.stopPropagation()}>
+        <header>
+          <h2>How to read the history</h2>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Close help">
+            <Icon name="close" />
+          </button>
+        </header>
+        <div className="help-grid">
+          <section>
+            <h3>The graph</h3>
+            <p>
+              Newest commits on top. Each coloured line is a line of work: a commit sits on its branch's line, a fork is where a line leaves another, and a merge is
+              where one joins another. The default branch stays on the far left.
+            </p>
+            <ul className="legend git-legend">
+              <li>
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="4.6" fill="#38bdf8" /></svg> commit
+              </li>
+              <li>
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="3.6" fill="none" stroke="#a78bfa" strokeWidth="2" /></svg> merge commit
+              </li>
+              <li>
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#38bdf8" strokeWidth="1.5" /><circle cx="9" cy="9" r="4" fill="#38bdf8" /></svg> HEAD (checked out)
+              </li>
+              <li>
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2.5 2.5" /></svg> uncommitted changes
+              </li>
+            </ul>
+            <h3>Badges</h3>
+            <ul className="keys">
+              <li><span className="ref-badge branch head" style={{ ['--badge' as string]: '#38bdf8' }}><span className="head-dot" />main</span> the checked-out branch</li>
+              <li><span className="ref-badge branch" style={{ ['--badge' as string]: '#a78bfa' }}>feature</span> a local branch (a cloud: also on the remote)</li>
+              <li><span className="ref-badge branch remote-only" style={{ ['--badge' as string]: '#f472b6' }}>origin/fix</span> only on the remote</li>
+              <li><span className="ref-badge ghost" style={{ ['--badge' as string]: '#34d399' }}>old-branch</span> a merged branch that no longer exists</li>
+              <li><span className="ref-badge tag">v1.0</span> a tag</li>
+              <li>
+                <span className="pr-badge open">#12</span> <span className="pr-badge merged">#9</span> <span className="pr-badge closed">#4</span> pull requests: open, merged, closed
+              </li>
+            </ul>
+          </section>
+          <section>
+            <h3>Keyboard</h3>
+            <ul className="keys">
+              <li><kbd>↑</kbd> <kbd>↓</kbd> or <kbd>k</kbd> <kbd>j</kbd> previous / next commit</li>
+              <li><kbd>Home</kbd> <kbd>End</kbd> newest / oldest · <kbd>H</kbd> HEAD</li>
+              <li><kbd>/</kbd> or <kbd>⌘K</kbd> search · <kbd>Enter</kbd> / <kbd>n</kbd> <kbd>N</kbd> next / previous match</li>
+              <li><kbd>[</kbd> branches panel · <kbd>Esc</kbd> close the details</li>
+            </ul>
+            <h3>Search</h3>
+            <p>
+              Every word must match the message, an author, a file path, a branch or a hash prefix; <code>#12</code> finds pull request 12. Non-matching commits
+              fade out and the graph stays whole.
+            </p>
+            <h3>Branches &amp; pull requests</h3>
+            <p>
+              Untick a branch to hide the commits only it reaches; <kbd>⌥</kbd>-click (or the target button) shows only that one. Merged pull requests are read from
+              merge and squash messages; open ones come from GitHub when the remote is there.
+            </p>
+            <h3>Files</h3>
+            <p>
+              A commit lists the files it changed. The clock button follows one file through the history; the layers button shows it in the architecture map (and
+              the map's <strong>History</strong> button comes back here).
+            </p>
+            <p className="muted">Read-only: nothing here changes the repository.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Drop a graph.json (or git.json) anywhere on the page. */
 export function DropZone() {
   const [active, setActive] = useState(false)
   useEffect(() => {
@@ -121,7 +197,7 @@ export function DropZone() {
     <div className="dropzone">
       <div>
         <Icon name="open" size={28} />
-        <p>Drop a repomap graph.json to view it</p>
+        <p>Drop a repomap graph.json or git.json to view it</p>
       </div>
     </div>
   )

@@ -20,9 +20,10 @@ import {
 import { indexGraph, type GraphIndex } from './graph.ts'
 import { matches, NARROW } from './media.ts'
 import { computeTrace, type TraceResult } from './trace.ts'
-import { readPref, writePref, type ViewState } from './url.ts'
+import { readHashParam, readPref, writeHashParams, writePref, type ViewState } from './url.ts'
 
 export type Theme = 'dark' | 'light'
+export type Tab = 'map' | 'git'
 export type LabelMode = 'auto' | 'all' | 'none'
 
 export type CameraCommand =
@@ -42,6 +43,8 @@ export interface GraphSource {
 }
 
 interface State {
+  /** Architecture map or git history. */
+  tab: Tab
   graph: RepoGraph | null
   index: GraphIndex | null
   source: GraphSource | null
@@ -85,6 +88,7 @@ interface State {
 }
 
 interface Actions {
+  setTab(tab: Tab): void
   setGraph(graph: RepoGraph, source: GraphSource, view?: ViewState | null, keepView?: boolean): void
   setLoading(loading: boolean): void
   setError(error: string | null): void
@@ -147,6 +151,7 @@ export const useViewer = create<State & Actions>((set, get) => {
   }
 
   return {
+    tab: readHashParam('tab') === 'git' ? 'git' : 'map',
     graph: null,
     index: null,
     source: null,
@@ -177,6 +182,12 @@ export const useViewer = create<State & Actions>((set, get) => {
     contextMenu: null,
     codeView: null,
     version: 0,
+
+    setTab(tab) {
+      if (get().tab === tab) return
+      set({ tab, contextMenu: null, viewMenuOpen: false, searchExpanded: false, helpOpen: false })
+      writeHashParams({ tab: tab === 'map' ? null : tab })
+    },
 
     setGraph(graph, source, view, keepView) {
       const index = indexGraph(graph)

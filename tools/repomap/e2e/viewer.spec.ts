@@ -1,13 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-
-function watchErrors(page: Page): string[] {
-  const errors: string[] = []
-  page.on('pageerror', (error) => errors.push(error.message))
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  return errors
-}
+import { watchErrors } from './helpers.ts'
 
 const footer = (page: Page) => page.locator('.sidebar-footer')
 

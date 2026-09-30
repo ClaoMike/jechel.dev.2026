@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useGit } from '../git/store.ts'
 import type { GraphIndex } from '../model/graph.ts'
 import { useViewer } from '../model/store.ts'
 import { traceByLayer } from '../model/trace.ts'
@@ -74,6 +75,18 @@ export function DetailsPanel() {
                   <Icon name="external" size={13} /> Open
                 </a>
               )}
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  useGit.getState().setPath(node.file!)
+                  useViewer.getState().setTab('git')
+                }}
+                title="Commits that changed this file (Git history tab)"
+                data-testid="file-history"
+              >
+                <Icon name="clock" size={13} /> History
+              </button>
               <button type="button" className="link-button" onClick={() => void navigator.clipboard?.writeText(`${node.file}${node.line ? `:${node.line}` : ''}`)} title="Copy path">
                 <Icon name="copy" size={13} /> Copy
               </button>

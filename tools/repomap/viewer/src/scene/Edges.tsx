@@ -308,6 +308,8 @@ function TraceEdges({ geometry }: { geometry: EdgeGeometry }) {
   useFrame((state) => {
     const mesh = particles.current
     if (!mesh || !data || data.paths.length === 0) return
+    // The map tab is hidden: stop animating (showing it again invalidates, which restarts this).
+    if (useViewer.getState().tab !== 'map') return
     const time = state.clock.elapsedTime
     let k = 0
     for (let p = 0; p < data.paths.length && k < MAX_PARTICLES; p++) {
