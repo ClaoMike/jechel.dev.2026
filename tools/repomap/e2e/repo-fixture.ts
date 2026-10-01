@@ -16,6 +16,7 @@ import { readGitHistory } from '../src/core/git-history.ts'
 import { createLogger } from '../src/core/log.ts'
 import { classifyPath, startServer, type ServerHandle } from '../src/core/serve.ts'
 import type { RepoGraph } from '../src/shared/types.ts'
+import { FakeAnthropic } from '../test/fake-anthropic.ts'
 import { BOOK_CARD_SOURCE } from './helpers.ts'
 
 // The user's git config must not leak into the tests (signing, hooks, default branch…).
@@ -40,13 +41,15 @@ export interface Repo {
   write(path: string, text: string): void
   /** Runs git in the teammate's clone. */
   teammateGit(...args: string[]): string
+  /** With `withAI`: the fake Anthropic API the assistant talks to (script its replies, read its requests). */
+  ai: FakeAnthropic
 }
 
 function sh(cwd: string, args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 }
 
-async function createRepo(realMap: boolean): Promise<{ repo: Repo; server: ServerHandle; cleanup(): Promise<void> }> {
+async function createRepo(realMap: boolean, withAI: boolean): Promise<{ repo: Repo; server: ServerHandle; cleanup(): Promise<void> }> {
   const root = mkdtempSync(join(sandbox, 'case-'))
   const origin = join(root, 'origin.git')
   const dir = join(root, 'repo')
@@ -112,7 +115,10 @@ async function createRepo(realMap: boolean): Promise<{ repo: Repo; server: Serve
       await refresh()
     })
   }
+  const ai = new FakeAnthropic()
+  if (withAI) await ai.start()
   server = await startServer({
+    ...(withAI ? { ai: { settingsPath: join(out, 'settings.json'), conversationsDir: join(out, 'chats'), baseURL: ai.url } } : {}),
     graphPath: join(out, 'graph.json'),
     gitPath,
     repoRoot: dir,
@@ -133,12 +139,14 @@ async function createRepo(realMap: boolean): Promise<{ repo: Repo; server: Serve
     read: (path) => readFileSync(join(dir, path), 'utf8'),
     write,
     teammateGit: (...args) => sh(teammate, args),
+    ai,
   }
   return {
     repo,
     server,
     cleanup: async () => {
       closed = true
+      if (withAI) await ai.close()
       await building.catch(() => undefined)
       rmSync(root, { recursive: true, force: true })
     },
@@ -167,10 +175,11 @@ function mapConfig(dir: string, out: string) {
   return loadConfig(path)
 }
 
-export const test = base.extend<{ repo: Repo; realMap: boolean }>({
+export const test = base.extend<{ repo: Repo; realMap: boolean; withAI: boolean }>({
   realMap: [false, { option: true }],
-  repo: async ({ realMap }, use) => {
-    const { repo, server, cleanup } = await createRepo(realMap)
+  withAI: [false, { option: true }],
+  repo: async ({ realMap, withAI }, use) => {
+    const { repo, server, cleanup } = await createRepo(realMap, withAI)
     await use(repo)
     await server.close()
     await cleanup()

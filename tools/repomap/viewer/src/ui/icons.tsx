@@ -53,7 +53,7 @@ export function EdgeIcon({ color }: { color: string }) {
 export type IconName =
   | 'menu' | 'search' | 'close' | 'fit' | 'side' | 'top' | 'sun' | 'moon' | 'help' | 'open' | 'chevron' | 'dim' | 'copy'
   | 'external' | 'up' | 'down' | 'link' | 'warn' | 'reset' | 'layers' | 'code' | 'wrap' | 'lock' | 'git' | 'branch' | 'tag' | 'commit' | 'pr' | 'user' | 'clock' | 'file' | 'focus'
-  | 'caret' | 'edit' | 'check' | 'plus' | 'sync' | 'push' | 'pull' | 'merge' | 'stash' | 'more' | 'trash'
+  | 'caret' | 'edit' | 'check' | 'sparkle' | 'gear' | 'send' | 'stop' | 'plus' | 'sync' | 'push' | 'pull' | 'merge' | 'stash' | 'more' | 'trash'
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -90,6 +90,10 @@ export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
     file: <><path d="M5 2.8h6.5L15.5 7v10a.8.8 0 0 1-.8.8H5a.8.8 0 0 1-.8-.8V3.6a.8.8 0 0 1 .8-.8z" /><path d="M11.3 2.8V7h4.2" /></>,
     focus: <><circle cx="10" cy="10" r="5.2" /><circle cx="10" cy="10" r="1.3" fill="currentColor" /><path d="M10 2.2v2.6M10 15.2v2.6M2.2 10h2.6M15.2 10h2.6" /></>,
     caret: <path d="M5.5 8l4.5 4.5L14.5 8" />,
+    sparkle: <><path d="M10 2.8l1.6 4.4 4.4 1.6-4.4 1.6L10 14.8l-1.6-4.4L4 8.8l4.4-1.6z" /><path d="M15.5 13.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" /></>,
+    gear: <><circle cx="10" cy="10" r="2.6" /><path d="M10 2.5v2.1M10 15.4v2.1M2.5 10h2.1M15.4 10h2.1M4.7 4.7l1.5 1.5M13.8 13.8l1.5 1.5M4.7 15.3l1.5-1.5M13.8 6.2l1.5-1.5" /></>,
+    send: <path d="M3.5 10 16.5 4l-4.2 12.5-2.6-5.2zM9.7 11.3l6.8-7.3" />,
+    stop: <rect x="5" y="5" width="10" height="10" rx="1.5" fill="currentColor" />,
     edit: <path d="M12.8 3.7a1.7 1.7 0 0 1 2.4 0l1.1 1.1a1.7 1.7 0 0 1 0 2.4L7.6 15.9 3.5 16.5l.6-4.1zM11.3 5.2l3.5 3.5" />,
     check: <path d="M4 10.5l3.8 3.8L16 6" />,
     plus: <path d="M10 4v12M4 10h12" />,

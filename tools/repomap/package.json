@@ -2,7 +2,7 @@
   "name": "repomap",
   "version": "0.1.0",
   "private": true,
-  "description": "Interactive 3D architecture map of a repository: extract \u2192 link \u2192 layout \u2192 view in the browser",
+  "description": "Interactive 3D architecture map of a repository: extract → link → layout → view in the browser",
   "type": "module",
   "engines": {
     "node": ">=22.18"
@@ -22,6 +22,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.130.0",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.12",

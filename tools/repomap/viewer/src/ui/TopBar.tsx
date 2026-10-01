@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { useAssistant } from '../ai/store.ts'
 import { GitMenu, GitSearch, GitTools } from '../git/GitBar.tsx'
 import { useGit } from '../git/store.ts'
 import type { ColorBy } from '../model/colors.ts'
@@ -68,7 +69,10 @@ export function TopBar() {
 
       {map ? <SearchBox /> : <GitSearch />}
 
-      <div className="toolbar">{map ? <MapTools onOpenFile={openFile} /> : <GitTools onOpenFile={openFile} />}</div>
+      <div className="toolbar">
+        {map ? <MapTools onOpenFile={openFile} /> : <GitTools onOpenFile={openFile} />}
+        <AssistantButtons />
+      </div>
 
       <input
         ref={file}
@@ -232,6 +236,32 @@ function ViewMenu({ onOpenFile }: { onOpenFile: () => void }) {
         </button>
       </div>
     </MenuSheet>
+  )
+}
+
+/** Show/hide the assistant, and its settings (only when repomap serves your own repository). */
+function AssistantButtons() {
+  const available = useAssistant((s) => s.available)
+  const open = useAssistant((s) => s.open)
+  if (!available) return null
+  const { setOpen, setSettingsOpen } = useAssistant.getState()
+  return (
+    <>
+      <button
+        type="button"
+        className={`icon-button assistant-toggle${open ? ' active' : ''}`}
+        onClick={() => setOpen(!open)}
+        aria-label={open ? 'Hide the assistant' : 'Show the assistant'}
+        aria-pressed={open}
+        title="Assistant  (⌘J)"
+        data-testid="assistant-toggle"
+      >
+        <Icon name="sparkle" />
+      </button>
+      <button type="button" className="icon-button wide-only-inline" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings" data-testid="settings-button">
+        <Icon name="gear" />
+      </button>
+    </>
   )
 }
 

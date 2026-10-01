@@ -8,7 +8,10 @@ import { createReadStream, existsSync, readdirSync, readFileSync, statSync, watc
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { dirname, extname, join, normalize, relative, sep } from 'node:path'
 import type { RepoGraph } from '../shared/types.ts'
-import { handleApi, isLoopbackHost, workspaceAllows } from './api.ts'
+import { Assistant } from './ai/assistant.ts'
+import { ConversationStore } from './ai/conversations.ts'
+import { SettingsStore } from './ai/settings.ts'
+import { handleApi, isLoopbackHost, workspaceAllows, type ApiContext } from './api.ts'
 import { buildGraph } from './build.ts'
 import { TOOL_ROOT, type RepoMapConfig } from './config.ts'
 import { classifyFiles, matcher } from './files.ts'
@@ -67,6 +70,8 @@ export interface ServerOptions {
   onFilesChanged?(): void
   /** The layer and role the build gives a path (the "new file" dialog shows it). */
   classify?(path: string): { layer: string; role: string; reason: string } | undefined
+  /** The AI assistant (writable servers only): where settings and chats live; tests set a fake API. */
+  ai?: { settingsPath?: string; conversationsDir: string; baseURL?: string }
 }
 
 export interface ServerHandle {
@@ -93,6 +98,22 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
   }
 
   const repoRoot = () => currentGraph()?.meta.repo.root ?? options.repoRoot
+  let ai: ApiContext['ai']
+  if (options.writable && options.ai) {
+    const settings = new SettingsStore(options.ai.settingsPath)
+    const conversations = new ConversationStore(options.ai.conversationsDir)
+    const assistant = new Assistant({
+      root: repoRoot,
+      graph: currentGraph,
+      settings,
+      conversations,
+      baseURL: options.ai.baseURL,
+      // Rebuild the map (which re-reads the history too); with --watch the watcher does it.
+      filesChanged: () => options.onFilesChanged?.(),
+      gitChanged: () => options.onGitChanged?.() ?? Promise.resolve(),
+    })
+    ai = { assistant, settings, conversations }
+  }
   const server: Server = createServer((req, res) => {
     let url: URL
     try {
@@ -109,6 +130,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
         onGitChanged: options.onGitChanged,
         onFilesChanged: options.onFilesChanged,
         classify: options.classify,
+        ai,
       })
         .then((handled) => handled || route(req, res, url))
         .catch((error: Error) => {
@@ -186,6 +208,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
     broadcast,
     close: () =>
       new Promise((resolveClose) => {
+        ai?.assistant.closeAll()
         clearInterval(keepAlive)
         for (const client of clients) client.end()
         server.close(() => resolveClose())
@@ -229,6 +252,7 @@ export async function serve(options: ServeOptions): Promise<void> {
     onGitChanged: config.history.enabled ? refreshHistory : undefined,
     onFilesChanged: watcher ? undefined : () => void rebuild().catch((error: Error) => log.error(`rebuild failed: ${error.message}`)),
     classify: (path) => classifyPath(config, path),
+    ai: { conversationsDir: join(dirname(config.output), 'ai', 'conversations') },
   })
   log.info(`\n  ${color.bold('repomap')} viewer running at ${color.cyan(handle.url)}`)
   log.info(

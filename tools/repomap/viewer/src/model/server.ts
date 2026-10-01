@@ -3,11 +3,25 @@
  * then files can be saved, created, deleted and renamed, and git commands run. Asked once; a
  * read-only server answers `{ writable: false }`, a static host answers with the app's HTML.
  */
-let writable: Promise<boolean> | null = null
+export interface ServerInfo {
+  writable: boolean
+  /** The AI assistant is available. */
+  ai: boolean
+}
+
+let info: Promise<ServerInfo> | null = null
+
+export function serverInfo(): Promise<ServerInfo> {
+  info ??= fetch('api/info', { cache: 'no-store' })
+    .then(async (response) => {
+      if (!(response.headers.get('content-type') ?? '').includes('application/json')) return { writable: false, ai: false }
+      const data = (await response.json()) as Partial<ServerInfo>
+      return { writable: data.writable === true, ai: data.writable === true && data.ai === true }
+    })
+    .catch(() => ({ writable: false, ai: false }))
+  return info
+}
 
 export function serverWritable(): Promise<boolean> {
-  writable ??= fetch('api/info', { cache: 'no-store' })
-    .then(async (response) => (response.headers.get('content-type') ?? '').includes('application/json') && ((await response.json()) as { writable?: boolean }).writable === true)
-    .catch(() => false)
-  return writable
+  return serverInfo().then((i) => i.writable)
 }

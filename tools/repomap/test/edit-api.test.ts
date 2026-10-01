@@ -208,7 +208,7 @@ describe('the editing API', () => {
   })
 
   it('says whether it is writable', async () => {
-    assert.deepEqual(JSON.parse((await send(server.url, 'GET', '/api/info')).body), { writable: true })
+    assert.deepEqual(JSON.parse((await send(server.url, 'GET', '/api/info')).body), { writable: true, ai: false })
     const locked = await send(readOnly.url, 'GET', '/api/info')
     assert.equal(locked.status, 200)
     assert.deepEqual(JSON.parse(locked.body), { writable: false })

@@ -1,5 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { ensureGitHistory } from './git/load.ts'
+import { ChatDock } from './ai/ChatDock.tsx'
+import { SettingsDialog } from './ai/SettingsDialog.tsx'
+import { FILES_CHANGED_EVENT, useAssistant } from './ai/store.ts'
+import { useGitActions } from './git/actions.ts'
+import { ensureGitHistory, reloadServerHistory } from './git/load.ts'
 import { useGit } from './git/store.ts'
 import type { ColorBy } from './model/colors.ts'
 import { useFiles } from './model/files.ts'
@@ -34,8 +38,11 @@ export function App() {
 
   useEffect(() => {
     void loadInitialGraph().then(() => {
-      // Your own repository, served by repomap: the explorer lists git's files and can change them.
-      if (useViewer.getState().source?.kind === 'server') void useFiles.getState().refresh()
+      // Your own repository, served by repomap: the explorer lists git's files and can change them, and the assistant works in it.
+      if (useViewer.getState().source?.kind === 'server') {
+        void useFiles.getState().refresh()
+        void useAssistant.getState().init()
+      }
     })
   }, [])
 
@@ -48,6 +55,17 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
+
+  // The assistant changed files or ran git: the explorer, the git bar and the history catch up.
+  useEffect(() => {
+    const refresh = () => {
+      void useFiles.getState().refresh()
+      if (useGitActions.getState().available) void useGitActions.getState().refresh()
+      void reloadServerHistory()
+    }
+    window.addEventListener(FILES_CHANGED_EVENT, refresh)
+    return () => window.removeEventListener(FILES_CHANGED_EVENT, refresh)
+  }, [])
 
   // Keep the URL hash (and localStorage) in sync with the view, so links are shareable.
   useEffect(() => {
@@ -69,6 +87,13 @@ export function App() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const store = useViewer.getState()
+      // ⌘J / Ctrl+J: the assistant, from anywhere (the code panel included).
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'j' && useAssistant.getState().available) {
+        event.preventDefault()
+        const assistant = useAssistant.getState()
+        assistant.setOpen(!assistant.open)
+        return
+      }
       const target = event.target as HTMLElement | null
       const typing = target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
       if (store.tab === 'git') {
@@ -174,6 +199,8 @@ export function App() {
           <CodeViewer />
         </Suspense>
       )}
+      <ChatDock />
+      <SettingsDialog />
       <FileDialogs />
       <HelpOverlay />
       <DropZone />

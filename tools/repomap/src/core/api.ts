@@ -2,12 +2,13 @@
  * The writing side of `repomap serve`: saving files from the code panel and running git commands
  * from the History tab.
  *
- *   GET  /api/info        { writable: true } (a read-only server answers false: the viewer asks this first)
+ *   GET  /api/info        { writable: true, ai } (a read-only server answers false: the viewer asks this first)
  *   PUT  /source?path=…   save a file of the graph (If-Match: the ETag it was opened with)
  *   GET  /api/git/state   branch, upstream, changed files, stashes, merge/rebase in progress
  *   GET  /api/files       the repository's files (as git lists them: ignored ones left out)
  *   GET  /api/files/classify?path=…   the layer and role a (new) file would get
  *   POST /api/files       create / delete / rename a file or folder (JSON FileOperation)
+ *   /api/ai/…             the assistant: settings, models, chats, a message (streamed), approvals, stop
  *   POST /api/git         run one GitAction (JSON)
  *
  * Only served when enabled (by default: `repomap serve` of your own repository on a loopback
@@ -16,8 +17,12 @@
  * site cannot add without a CORS preflight, and the server never grants one.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { AiSettingsUpdate, ApprovalDecision, ChatEvent } from '../shared/ai.ts'
 import { WRITE_HEADER, type GitAction } from '../shared/git-actions.ts'
 import type { RepoGraph } from '../shared/types.ts'
+import { apiError, AssistantError, type Assistant, type SendRequest } from './ai/assistant.ts'
+import { publicConversation, type ConversationStore } from './ai/conversations.ts'
+import { SettingsError, type SettingsStore } from './ai/settings.ts'
 import { GitRequestError, readGitState, runGitAction } from './git-actions.ts'
 import { MAX_SOURCE_BYTES, writeSource } from './source.ts'
 import { applyFileOperation, checkPath, forgetWorkspace, workspaceFiles, WorkspaceError, type FileOperation } from './workspace.ts'
@@ -33,6 +38,8 @@ export interface ApiContext {
   onFilesChanged?(): void
   /** The layer and role the build would give a path (undefined: excluded from the map). */
   classify?(path: string): { layer: string; role: string; reason: string } | undefined
+  /** The AI assistant (absent: not offered). */
+  ai?: { assistant: Assistant; settings: SettingsStore; conversations: ConversationStore }
 }
 
 /** On a writable server the code panel may open every file git lists, not only the graph's. */
@@ -51,7 +58,7 @@ export function isLoopbackHost(host: string): boolean {
 export async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL, context: ApiContext): Promise<boolean> {
   const route = `${req.method} ${url.pathname}`
   if (route === 'GET /api/info') {
-    sendJson(res, 200, { writable: true })
+    sendJson(res, 200, { writable: true, ai: !!context.ai })
     return true
   }
   if (url.pathname === '/source' && req.method === 'PUT') {
@@ -96,6 +103,15 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, url: 
   if (route === 'POST /api/files') {
     if (!allowed(req, res)) return true
     await fileOperation(req, res, context)
+    return true
+  }
+  if (url.pathname.startsWith('/api/ai/')) {
+    if (!allowed(req, res, req.method !== 'GET')) return true
+    if (!context.ai) {
+      sendJson(res, 404, { error: 'The assistant is not available on this server' })
+      return true
+    }
+    await aiRoute(req, res, url, context.ai)
     return true
   }
   if (url.pathname.startsWith('/api/')) {
@@ -188,6 +204,73 @@ async function fileOperation(req: IncomingMessage, res: ServerResponse, context:
     if (error instanceof WorkspaceError) return sendJson(res, error.status, { ok: false, error: error.message })
     sendJson(res, 500, { ok: false, error: (error as Error).message })
   }
+}
+
+/** The assistant's routes (the guard has run). */
+async function aiRoute(req: IncomingMessage, res: ServerResponse, url: URL, ai: NonNullable<ApiContext['ai']>): Promise<void> {
+  const { assistant, settings } = ai
+  const path = url.pathname.slice('/api/ai/'.length)
+  const conversationMatch = /^conversations\/([0-9a-f-]{36})$/.exec(path)
+  try {
+    if (req.method === 'GET' && path === 'settings') return sendJson(res, 200, settings.view())
+    if (req.method === 'PUT' && path === 'settings') return sendJson(res, 200, settings.update(await jsonBody<AiSettingsUpdate>(req)))
+    if (req.method === 'GET' && path === 'models') return sendJson(res, 200, { models: await assistant.models() })
+    if (req.method === 'GET' && path === 'conversations') return sendJson(res, 200, { conversations: ai.conversations.list() })
+    if (conversationMatch && req.method === 'GET') {
+      const conversation = assistant.conversation(conversationMatch[1])
+      if (!conversation) return sendJson(res, 404, { error: 'No such chat' })
+      return sendJson(res, 200, { ...publicConversation(conversation), running: assistant.isRunning(conversation.id) })
+    }
+    if (conversationMatch && req.method === 'DELETE') {
+      if (assistant.isRunning(conversationMatch[1])) return sendJson(res, 409, { error: 'The assistant is still working on this chat' })
+      const deleted = ai.conversations.delete(conversationMatch[1])
+      return sendJson(res, deleted ? 200 : 404, { ok: deleted })
+    }
+    if (req.method === 'POST' && path === 'approve') {
+      const body = await jsonBody<{ conversationId: string; toolId: string; decision: ApprovalDecision }>(req)
+      if (!['allow', 'deny', 'always'].includes(body.decision)) return sendJson(res, 400, { error: 'decision must be allow, deny or always' })
+      return sendJson(res, 200, { ok: assistant.approve(body.conversationId, body.toolId, body.decision) })
+    }
+    if (req.method === 'POST' && path === 'stop') {
+      const body = await jsonBody<{ conversationId: string }>(req)
+      return sendJson(res, 200, { ok: assistant.stop(body.conversationId) })
+    }
+    if (req.method === 'POST' && path === 'chat') return await chat(req, res, assistant)
+    sendJson(res, 404, { error: 'Not found' })
+  } catch (error) {
+    if (error instanceof SettingsError || error instanceof SyntaxError) return sendJson(res, 400, { error: error.message })
+    const failure = apiError(error)
+    if (!res.headersSent) sendJson(res, failure.status, { error: failure.message })
+  }
+}
+
+/** One message: the reply streams back as JSON lines (ChatEvent), until "done". */
+async function chat(req: IncomingMessage, res: ServerResponse, assistant: Assistant): Promise<void> {
+  const request = await jsonBody<SendRequest>(req)
+  const controller = new AbortController()
+  // The browser went away (tab closed, reload): stop working for it.
+  res.on('close', () => {
+    if (!res.writableEnded) controller.abort()
+  })
+  const emit = (event: ChatEvent) => {
+    if (!res.headersSent) res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
+    if (!res.writableEnded) res.write(`${JSON.stringify(event)}\n`)
+  }
+  try {
+    await assistant.send(request, emit, controller.signal)
+  } catch (error) {
+    const failure = error instanceof AssistantError ? error : apiError(error)
+    if (!res.headersSent) return sendJson(res, failure.status, { error: failure.message })
+    emit({ type: 'error', message: failure.message })
+  }
+  res.end()
+}
+
+async function jsonBody<T>(req: IncomingMessage): Promise<T> {
+  if (!(req.headers['content-type'] ?? '').includes('application/json')) throw new SettingsError('Send JSON')
+  const body = await readBody(req, 1024 * 1024)
+  if (body === null) throw new SettingsError('Request too large')
+  return JSON.parse(body.toString('utf8') || '{}') as T
 }
 
 /** The request body, or null when it is larger than `limit` bytes. */

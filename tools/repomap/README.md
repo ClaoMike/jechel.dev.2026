@@ -8,8 +8,9 @@ they connect — inside a layer and across layers. Click anything to trace its f
 A second tab shows the **git history** as a graph: every branch, merge, tag and pull request, the
 uncommitted changes, and for any commit the files it changed — linked both ways with the map. Served
 from your checkout, it is also a git client (commit, push, pull, fetch, branches, merges, stashes…),
-the code panel is an editor that saves as you type, and a file explorer creates, renames and deletes
-files — the map is rebuilt and shows them on their plane.
+the code panel is an editor that saves as you type, a file explorer creates, renames and deletes
+files — the map is rebuilt and shows them on their plane — and an AI assistant (Claude) works in the
+repository from a chat docked under everything, like Claude Code.
 
 It runs in the browser (a static site — deployable anywhere) and is self-contained: nothing here imports
 the app it maps.
@@ -50,7 +51,7 @@ Other commands:
 | `npm run history` | Only re-read the git history (`.out/git.json`) |
 | `npm run view` | Serve the viewer + the last graph on http://127.0.0.1:5199 (`-- --read-only`: no editing, no git commands) |
 | `npm start` | `map` + `view` + watch the repo and live-reload the browser |
-| `npm run dev` | Viewer development (Vite, port 5198), serving the last built graph |
+| `npm run dev` | Viewer development (Vite, port 5198), serving the last built graph (no assistant: use `npm start`) |
 | `npm run build:viewer` | Static site in `viewer/dist` (deploy anywhere) |
 | `npm run demo` | Regenerate the bundled demo graph and demo history |
 | `npm run diff` | Structural diff of the last two builds |
@@ -104,6 +105,43 @@ The CLI is `node src/cli.ts <command>` (`node src/cli.ts help` lists the options
   `.git`, never through a symlink out; nothing is overwritten, and a folder holding another repository is
   never deleted. Deletions are uncommitted changes: the History tab can discard them.
 
+## The AI assistant
+
+Served from your checkout (`npm start`), a chat docked at the bottom of every view — the map, the
+history, the code editor — lets you ask Claude about the repository and have it change things.
+**⌘J** (Ctrl+J) shows and hides it; drag its top edge to resize it.
+
+- **Settings** (the gear in the top bar): provider (Anthropic; others are planned), the API key, the
+  model (listed live from the API), the effort, and what Claude may do without asking. The key is kept
+  by `repomap serve` in `~/.config/repomap/settings.json` (`REPOMAP_SETTINGS` moves it), readable only by
+  you; the page never sees it again (only `sk-ant-…abcd`), and it is sent only to Anthropic. Without a
+  saved key, the server's `ANTHROPIC_API_KEY` is used.
+- **Context**: what you are looking at is attached to each message as chips — the selected node (with
+  what it uses and what uses it), the open file and your selection in the editor (**✦** in the code
+  panel's header asks about it), the selected commit, or the uncommitted changes. Click a chip to leave it
+  out. Claude can always look further itself.
+- **What Claude can do**, like Claude Code: read files and folders, search the code (`git grep`), find
+  files, query the architecture map (what calls what across layers), read git (status, diffs, log),
+  edit and create files (Claude's text editor tool), run shell commands in a persistent shell in the
+  repository (no input, 2-minute limit, output capped), run the History tab's git commands, delete and
+  rename files, and search / read the web for current documentation.
+- **Permissions** (in the chat's header too): *Ask before changes* (default — reads run, every edit, git
+  and shell command shows what it will do, an edit with its diff, and waits for **Allow** / **Allow …
+  in this chat** / **Deny**), *Accept edits* (file changes run by themselves), *Auto* (everything runs;
+  you still see every step). **Stop** ends the work at any point; the chat can always continue.
+- **Every step is visible**: reads, searches, commands with their output, edits with their diffs. The map
+  rebuilds after changes and the open editor reloads a file Claude changed (with unsaved edits of your
+  own, nothing is overwritten — you choose).
+- **Chats** are saved in `.out/ai/conversations/` (git ignores `.out`); the chat menu reopens them.
+- **Boundaries**: paths stay inside the repository and out of `.git`, never through symlinks; files git
+  ignores (`.env`, build output) are neither read nor written; one message runs at most 80 steps.
+- **Under the hood**: a streaming agent loop on the server (`src/core/ai/`) with the Anthropic SDK:
+  adaptive thinking (its summary is shown), the chosen effort, prompt caching of the system prompt and
+  the conversation, an append-only history, and `fallbacks: "default"` on the models that support it (a
+  request declined by the safety classifiers is retried on the recommended model, and the chat says so).
+- **Costs**: requests are billed to your API key at the model's rates; the chat shows nothing until you
+  send a message, and reading the map or files costs nothing.
+
 ## The git history tab
 
 - **The graph**: every commit of every branch, newest first. Each coloured line is a line of work; forks and
@@ -155,7 +193,7 @@ A bar above the graph works like GitHub Desktop:
 **Safety.** git runs without a shell and never prompts (no terminal, no editor; credentials come from your
 credential helper or ssh agent), one command at a time. Every name must pass `git check-ref-format`,
 commits must be hashes, and only files git reports as changed can be committed or discarded. The writing
-endpoints (`PUT /source`, `GET /api/git/state`, `POST /api/git`, `GET`/`POST /api/files`, see `src/core/api.ts`) answer only
+endpoints (`PUT /source`, `GET /api/git/state`, `POST /api/git`, `GET`/`POST /api/files`, `/api/ai/…`, see `src/core/api.ts`) answer only
 requests from the viewer itself: a localhost `Host` (no DNS rebinding), the same `Origin`, and an
 `X-Repomap-Request` header that other sites can't send without a CORS preflight, which is never granted.
 
@@ -303,7 +341,11 @@ used for "Open in VS Code" links) and your uncommitted changes out of git.json.
   checkouts, merges through a conflict, squash, rebase, cherry-pick, revert, reset, tags, stashes, and
   refused input (bad names, option injection, unchanged files). File operations: create/rename/move/delete
   of files and folders, and every path refused (outside, `.git`, symlinks out, overwrites, nested
-  repositories); templates; where the real config puts a new path. Plus a run of every plugin on this repository that
+  repositories); templates; where the real config puts a new path. The assistant, against a fake
+  Anthropic API (`test/fake-anthropic.ts`, the real streaming format, no network): the request (model,
+  thinking, effort, caching, fallbacks, tools, context), the tool loop with approvals and permission
+  modes, everything it must not touch, refusals, fallback echoing, stopping, API errors, its shell, its
+  settings (key stored owner-only, never returned) and its HTTP routes behind the guard. Plus a run of every plugin on this repository that
   checks the facts that matter (every endpoint of the README's API table, the HomePage →
   `profiles.first_name` chain, DI, migrations, test tagging, no unresolved links, a valid git.json).
 - **Browser** (`e2e/`, Playwright against the demo graph and history), in Chromium and WebKit (Firefox in CI or
@@ -318,7 +360,9 @@ used for "Open in VS Code" links) and your uncommitted changes out of git.json.
   revert, undo, cherry-pick, discard, stash, failures, keyboard menus, axe on all of it, and on a phone.
   With `realMap` the fixture builds the map with the real pipeline and rebuilds it after every change: a
   component created from the explorer lands on the Frontend plane, renames and deletions from the details
-  panel update the map, a deleted folder comes back through the History tab.
+  panel update the map, a deleted folder comes back through the History tab. With `withAI` it talks to
+  the fake API: settings and the key, context chips, streamed Markdown answers, approving an edit (the
+  open editor shows it), declining a command, stopping, chats across tabs, and axe on the dock.
   Every test fails on page errors.
 - **CI**: the `repomap` job in `.github/workflows/ci.yml` runs all of the above on every push and pull request.
 

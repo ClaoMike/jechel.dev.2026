@@ -25,7 +25,9 @@ import {
 } from '@codemirror/view'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { GraphNode } from '../../../../src/shared/types.ts'
+import { FILES_CHANGED_EVENT, useAssistant } from '../../ai/store.ts'
 import { Autosaver, type AutosaveState } from '../../model/autosave.ts'
+import { useEditor } from '../../model/editor.ts'
 import { onServerEvent } from '../../model/events.ts'
 import { fetchSource, saveSource, type SourceFile } from '../../model/source.ts'
 import { useViewer } from '../../model/store.ts'
@@ -125,6 +127,12 @@ function CodePanel({ node }: { node: GraphNode }) {
     return () => previous?.focus?.()
   }, [])
 
+  // The assistant knows which file is open (and, once the editor reports it, the cursor and selection).
+  useEffect(() => {
+    useEditor.setState({ file, cursorLine: target.current.line ?? null, selection: null })
+    return () => useEditor.setState({ file: null, cursorLine: null, selection: null })
+  }, [file])
+
   useEffect(() => {
     const controller = new AbortController()
     setLoad({ status: 'loading' })
@@ -203,6 +211,11 @@ function CodePanel({ node }: { node: GraphNode }) {
             const head = update.state.selection.main.head
             const at = update.state.doc.lineAt(head)
             setCursor({ line: at.number, col: head - at.from + 1 })
+            // What the assistant sees as "the selection".
+            const range = update.state.selection.main
+            const from = update.state.doc.lineAt(range.from).number
+            const to = update.state.doc.lineAt(range.to).number
+            useEditor.setState({ file, cursorLine: at.number, selection: range.empty ? null : { from, to, text: update.state.sliceDoc(range.from, range.to) } })
           }
         }),
       ],
@@ -271,10 +284,13 @@ function CodePanel({ node }: { node: GraphNode }) {
     const offGit = onServerEvent('git', () => void checkDisk())
     const onFocus = () => void checkDisk()
     window.addEventListener('focus', onFocus)
+    // The assistant edited files: show its changes.
+    window.addEventListener(FILES_CHANGED_EVENT, onFocus)
     return () => {
       offGraph()
       offGit()
       window.removeEventListener('focus', onFocus)
+      window.removeEventListener(FILES_CHANGED_EVENT, onFocus)
     }
   }, [writable, checkDisk])
 
@@ -358,6 +374,7 @@ function CodePanel({ node }: { node: GraphNode }) {
             {node.line ? <span className="code-dir">:{node.line}</span> : null}
           </div>
           <div className="code-actions">
+            <AskClaude />
             {writable && (
               <button
                 type="button"
@@ -454,6 +471,17 @@ function CodePanel({ node }: { node: GraphNode }) {
         </footer>
       </div>
     </div>
+  )
+}
+
+/** Opens the assistant with this file (and the selection) attached. */
+function AskClaude() {
+  const available = useAssistant((s) => s.available)
+  if (!available) return null
+  return (
+    <button type="button" className="code-button ask-claude" onClick={() => useAssistant.getState().setOpen(true)} title="Ask Claude about this file or the selection  (⌘J)" aria-label="Ask Claude" data-testid="ask-claude">
+      <Icon name="sparkle" size={15} />
+    </button>
   )
 }
 
