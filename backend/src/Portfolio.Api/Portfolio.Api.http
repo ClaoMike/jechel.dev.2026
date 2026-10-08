@@ -1,6 +1,11 @@
 @Portfolio.Api_HostAddress = http://localhost:5105
 
-GET {{Portfolio.Api_HostAddress}}/firstname
+GET {{Portfolio.Api_HostAddress}}/api/firstname
+Accept: application/json
+
+###
+
+GET {{Portfolio.Api_HostAddress}}/api/auth/me
 Accept: application/json
 
 ###
