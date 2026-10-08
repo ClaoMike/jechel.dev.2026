@@ -1,0 +1,169 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "repomap/git.schema.json",
+  "title": "repomap git.json",
+  "description": "The history of a repository, as shown in the viewer's git history tab. Types: src/shared/git-types.ts.",
+  "type": "object",
+  "required": ["kind", "version", "generatedAt", "repo", "commits", "refs", "pullRequests"],
+  "properties": {
+    "kind": { "const": "repomap-git" },
+    "version": { "const": 1 },
+    "generatedAt": { "type": "string" },
+    "repo": {
+      "type": "object",
+      "required": ["name", "remotes"],
+      "properties": {
+        "name": { "type": "string" },
+        "head": {
+          "type": "object",
+          "required": ["commit"],
+          "properties": { "branch": { "type": "string" }, "commit": { "$ref": "#/definitions/hash" } },
+          "additionalProperties": false
+        },
+        "defaultBranch": { "type": "string" },
+        "remotes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "url"],
+            "properties": { "name": { "type": "string" }, "url": { "type": "string" } },
+            "additionalProperties": false
+          }
+        },
+        "web": {
+          "type": "object",
+          "required": ["host", "url"],
+          "properties": {
+            "host": { "enum": ["github", "gitlab", "bitbucket", "azure", "other"] },
+            "url": { "type": "string", "pattern": "^https://" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "commits": { "type": "array", "items": { "$ref": "#/definitions/commit" } },
+    "refs": { "type": "array", "items": { "$ref": "#/definitions/ref" } },
+    "pullRequests": { "type": "array", "items": { "$ref": "#/definitions/pullRequest" } },
+    "workingTree": {
+      "type": "object",
+      "required": ["staged", "unstaged", "untracked", "conflicted", "files"],
+      "properties": {
+        "staged": { "type": "integer", "minimum": 0 },
+        "unstaged": { "type": "integer", "minimum": 0 },
+        "untracked": { "type": "integer", "minimum": 0 },
+        "conflicted": { "type": "integer", "minimum": 0 },
+        "files": {
+          "type": "array",
+          "maxItems": 300,
+          "items": {
+            "type": "object",
+            "required": ["path", "status"],
+            "properties": { "path": { "type": "string" }, "status": { "type": "string", "minLength": 2, "maxLength": 2 } },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "truncated": { "type": "boolean" },
+    "totalCommits": { "type": "integer", "minimum": 0 },
+    "sources": {
+      "type": "object",
+      "required": ["pullRequests"],
+      "properties": {
+        "pullRequests": { "type": "array", "items": { "enum": ["messages", "github"] } },
+        "github": {
+          "type": "object",
+          "properties": { "fetchedAt": { "type": "string" }, "error": { "type": "string" } },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "fingerprint": { "type": "string" }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{7,64}$" },
+    "commit": {
+      "type": "object",
+      "required": ["hash", "parents", "author", "date", "subject"],
+      "properties": {
+        "hash": { "$ref": "#/definitions/hash" },
+        "parents": { "type": "array", "items": { "$ref": "#/definitions/hash" } },
+        "author": { "type": "string" },
+        "date": { "type": "number" },
+        "committer": { "type": "string" },
+        "committedAt": { "type": "number" },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "coAuthors": { "type": "array", "items": { "type": "string" } },
+        "stats": {
+          "type": "object",
+          "required": ["files", "additions", "deletions"],
+          "properties": {
+            "files": { "type": "integer", "minimum": 0 },
+            "additions": { "type": "integer", "minimum": 0 },
+            "deletions": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "status"],
+            "properties": {
+              "path": { "type": "string" },
+              "status": { "enum": ["A", "M", "D", "R", "C", "T", "U", "X"] },
+              "from": { "type": "string" },
+              "additions": { "type": "integer", "minimum": 0 },
+              "deletions": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "filesOmitted": { "type": "integer", "minimum": 1 },
+        "pr": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "ref": {
+      "type": "object",
+      "required": ["name", "type", "commit"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "enum": ["branch", "remote", "tag"] },
+        "commit": { "$ref": "#/definitions/hash" },
+        "upstream": { "type": "string" },
+        "ahead": { "type": "integer", "minimum": 1 },
+        "behind": { "type": "integer", "minimum": 1 },
+        "gone": { "const": true },
+        "message": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "pullRequest": {
+      "type": "object",
+      "required": ["number", "title", "state", "origin"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string" },
+        "state": { "enum": ["open", "merged", "closed"] },
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "author": { "type": "string" },
+        "url": { "type": "string" },
+        "mergeCommit": { "$ref": "#/definitions/hash" },
+        "headCommit": { "$ref": "#/definitions/hash" },
+        "createdAt": { "type": "string" },
+        "mergedAt": { "type": "string" },
+        "closedAt": { "type": "string" },
+        "draft": { "type": "boolean" },
+        "origin": { "enum": ["merge-message", "squash-message", "github"] }
+      },
+      "additionalProperties": false
+    }
+  }
+}
