@@ -148,7 +148,7 @@ describe('MessagesInbox', () => {
       await user.click(within(dialog).getByRole('button', { name: button }))
       await expect(navigator.clipboard.readText()).resolves.toBe(value)
     }
-    expect(within(dialog).getByRole('button', { name: 'Copy message' })).toHaveTextContent('Copied')
+    expect(within(dialog).getByRole('button', { name: 'Copy message' })).toHaveAttribute('title', 'Copied!')
   })
 
   it('closes with Escape, the close button, or a backdrop click, and returns focus to the message', async () => {

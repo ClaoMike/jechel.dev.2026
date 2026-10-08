@@ -31,7 +31,7 @@ Personal portfolio website of Claudiu Jechel.
 │   │   ├── layout/                        # site frame: greeting, session bar, section tabs
 │   │   ├── pages/                         # one component per route
 │   │   ├── features/<feature>/            # a feature's components and rules (e.g. contact form + inbox)
-│   │   ├── components/                    # shared UI: Modal, CopyButton
+│   │   ├── components/                    # shared UI: Modal, CopyButton, icons
 │   │   └── test/                          # Vitest setup, MSW mock server, render helpers
 │   ├── e2e/                               # Playwright specs
 │   └── playwright.config.ts
@@ -110,6 +110,8 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/contact/messages?page=&pageSize=` | cookie | Inbox page, newest first: `{ items: [{ id, name, receivedAt, isRead }], page, pageSize, totalCount }` (pageSize 1–50, default 10) |
 | GET    | `/api/contact/messages/{id}` | cookie | One message `{ id, name, email, message, receivedAt, readAt }`, or **404**. Doesn't mark it read |
 | POST   | `/api/contact/messages/{id}/read` | cookie | Marks it read (keeps the first read time): **204**, or **404** |
+| GET    | `/api/about`                | public  | The About Me page (photo, links, skills, experience, education, papers, qualifications); placeholders until the first save |
+| PUT    | `/api/about`                | cookie  | Replaces the whole page: **200** with it as stored (trimmed, experience/education sorted newest first), or **400** with field errors keyed by path (`experience[0].title`) |
 
 ## Authentication (Google, admin only)
 
@@ -212,7 +214,7 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 | What's new? | `/` | placeholder |
 | Apps | `/apps` | placeholder |
 | YouTube | `/youtube` | placeholder |
-| About Me | `/about` | placeholder |
+| About Me | `/about` | profile, skills chart, experience, education, papers, qualifications; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
 
 To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real page. Unknown URLs redirect to `/`.
@@ -221,7 +223,16 @@ To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real 
 
 - **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. Errors appear after the first submit and then update as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields.
 - **The admin** (`<SignedIn>`) gets the inbox: a table of name and date received, 10 per page (the page is in the URL, `?page=2`). Unread messages are bold, with a blue dot. Clicking a row opens a popup with every field and a **Copy** button for each, and marks the message as read.
+- Each detail has a copy-to-clipboard icon button (`src/components/CopyButton.tsx`); the icons are in `src/components/icons.tsx`.
 - The popup is `src/components/Modal.tsx`: it keeps focus inside (Tab wraps), closes with Escape, the × button or a click on the backdrop, and returns focus to the row's button.
+
+**About Me** (`src/pages/AboutPage.tsx`, `src/features/about/`, API in `backend/.../Features/About/`):
+
+- The page is **one JSON document** (`AboutContent`), stored in the `about_page` table (`jsonb`, one row). It's always read and saved whole, so changing its shape means changing `AboutContent.cs` and the matching types in `api.ts`, with no new migration. Until the first save, `GET` returns `AboutDefaults` (placeholders).
+- **Sections:** photo and links (résumé download, GitHub, LinkedIn, Instagram; an empty link is hidden), skills (a 0–100 bar chart, in the order you set), work experience (title, company, optional location, start month, which may be in the future, an end month or *ongoing*, and bullet points), education (the same, without bullet points), academic papers, and qualifications (both bullet lists).
+- **Editing:** when signed in, each section has an **Edit** button that turns it into a form; **Save** sends the whole page with that section changed. The API validates everything (`AboutRules.cs`), trims text, drops empty bullets, and sorts experience and education **newest first** (for the same start, ongoing first). The page then shows what the API stored. Field errors come back keyed by path and show under the matching input.
+- **Links** must be `http(s)://…` or a path on this site (`/resume.pdf`), checked by the API and again before rendering, so a stored value can never become a `javascript:` link. Photo and résumé are URLs for now; there's no file upload yet.
+- Dates are months, stored as the 1st (`2023-01-01`). The month picker is a select plus a year box, because desktop Safari and Firefox don't support `<input type="month">`.
 
 ## Configuration
 

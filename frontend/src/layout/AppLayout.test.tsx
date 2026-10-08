@@ -55,7 +55,6 @@ describe('AppLayout: tabs', () => {
     ['/', "What's new?", /news and updates/i],
     ['/apps', 'Apps', /apps I build/i],
     ['/youtube', 'YouTube', /youtube videos/i],
-    ['/about', 'About Me', /more about me/i],
   ])('%s shows the %s placeholder and marks its tab as current', async (url, tab, text) => {
     renderApp(url)
 
@@ -71,7 +70,7 @@ describe('AppLayout: tabs', () => {
     renderApp('/')
 
     await userEvent.click(tabs().getByRole('link', { name: 'About Me' }))
-    expect(screen.getByRole('heading', { level: 2, name: 'About Me' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: 'About Me' })).toBeInTheDocument()
 
     await userEvent.click(tabs().getByRole('link', { name: 'Contact' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Contact me' })).toBeInTheDocument()

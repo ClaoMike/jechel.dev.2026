@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
+import type { AboutContent } from '../services/api'
 
 export const API = 'http://api.test'
 
@@ -10,12 +11,55 @@ export const TEST_USER = {
   sessionExpiresInSeconds: 600,
 }
 
+/** About Me content used by default. A fresh copy each call, so tests can't leak changes. */
+export function aboutContent(): AboutContent {
+  return {
+    photoUrl: '',
+    links: {
+      resumeUrl: '/resume.pdf',
+      gitHubUrl: 'https://github.com/claudiu',
+      linkedInUrl: 'https://www.linkedin.com/in/claudiu',
+      instagramUrl: '',
+    },
+    skills: [
+      { name: 'C#', level: 90 },
+      { name: 'Python', level: 70 },
+    ],
+    experience: [
+      { title: 'Senior Engineer', company: 'Acme', location: 'Remote', start: '2023-01-01', end: null, bullets: ['Built the platform', 'Led the team'] },
+      { title: 'Engineer', company: 'Globex', location: '', start: '2019-06-01', end: '2022-12-01', bullets: [] },
+    ],
+    education: [{ title: 'BSc Computer Science', institution: 'Uni', location: 'Bucharest', start: '2015-10-01', end: '2019-06-01' }],
+    papers: ['A paper about things (2020)'],
+    qualifications: ['Azure Developer Associate'],
+  }
+}
+
 // Default handlers: anonymous visitor, happy path. Override per test with server.use(...)
 export const handlers = [
   http.get(`${API}/api/firstname`, () => HttpResponse.json({ firstName: 'Claudiu' })),
   http.get(`${API}/api/auth/me`, () => new HttpResponse(null, { status: 401 })),
   http.post(`${API}/api/auth/logout`, () => new HttpResponse(null, { status: 200 })),
+  http.get(`${API}/api/about`, () => HttpResponse.json(aboutContent())),
 ]
+
+/**
+ * The About Me API for the signed-in admin: PUT stores the body (as the real API would, minus
+ * sorting) and GET returns it. `saved` records every PUT body.
+ */
+export function aboutApi(initial = aboutContent()) {
+  let current = initial
+  const saved: AboutContent[] = []
+  const handlers = [
+    http.get(`${API}/api/about`, () => HttpResponse.json(current)),
+    http.put(`${API}/api/about`, async ({ request }) => {
+      current = (await request.json()) as AboutContent
+      saved.push(current)
+      return HttpResponse.json(current)
+    }),
+  ]
+  return { handlers, saved }
+}
 
 export const signedIn = () => http.get(`${API}/api/auth/me`, () => HttpResponse.json(TEST_USER))
 

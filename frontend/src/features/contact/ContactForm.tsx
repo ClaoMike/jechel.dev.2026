@@ -79,6 +79,7 @@ export function ContactForm() {
   const fieldProps = (field: ContactField) => ({
     id: `${id}-${field}`,
     name: field,
+    required: true,
     value: values[field],
     'aria-invalid': errors[field] ? true : undefined,
     'aria-describedby': [field === 'message' ? `${id}-message-hint` : '', errors[field] ? `${id}-${field}-error` : '']
@@ -89,7 +90,7 @@ export function ContactForm() {
   return (
     <section className="card" aria-labelledby={`${id}-title`}>
       <h2 id={`${id}-title`}>Contact me</h2>
-      <p className="muted">Have a question or an idea? Send me a message and I'll reply by email.</p>
+      <p className="muted">Have a question or an idea? Send me a message and I'll reply by email. All fields are required.</p>
 
       <form className="contact-form" noValidate onSubmit={(event) => void handleSubmit(event)}>
         <div className="field">

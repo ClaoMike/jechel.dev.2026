@@ -60,6 +60,53 @@ export interface Page<T> {
   totalCount: number
 }
 
+export interface AboutContent {
+  /** Empty: show a placeholder. */
+  photoUrl: string
+  links: AboutLinks
+  skills: Skill[]
+  /** Newest first (the API sorts on save). */
+  experience: ExperienceItem[]
+  /** Newest first (the API sorts on save). */
+  education: EducationItem[]
+  papers: string[]
+  qualifications: string[]
+}
+
+/** Empty strings hide the link. */
+export interface AboutLinks {
+  resumeUrl: string
+  gitHubUrl: string
+  linkedInUrl: string
+  instagramUrl: string
+}
+
+export interface Skill {
+  name: string
+  /** 0 to 100. */
+  level: number
+}
+
+export interface ExperienceItem {
+  title: string
+  company: string
+  location: string
+  /** First of a month, "YYYY-MM-01". May be in the future. */
+  start: string
+  /** First of a month, or null while ongoing. */
+  end: string | null
+  bullets: string[]
+}
+
+export interface EducationItem {
+  /** The degree or course. */
+  title: string
+  institution: string
+  location: string
+  start: string
+  end: string | null
+}
+
 /** Field errors of a 400 response, keyed by camelCase field name (ASP.NET Core ValidationProblem). */
 export type ValidationErrors = Record<string, string[]>
 
@@ -111,6 +158,22 @@ async function post<T = void>(path: string, body?: unknown, config?: AxiosReques
 // ---------- Endpoints ----------
 
 export const api = {
+  about: {
+    /** Public. Placeholder content until the admin first saves the page. */
+    get(signal?: AbortSignal): Promise<AboutContent> {
+      return get<AboutContent>('/api/about', { signal })
+    },
+
+    /**
+     * Admin only. Replaces the whole page; resolves with it as stored (trimmed, sorted).
+     * Rejects with an ApiError whose `validationErrors` are keyed by path, e.g. "experience[0].title".
+     */
+    async update(content: AboutContent): Promise<AboutContent> {
+      const response = await http.put<AboutContent>('/api/about', content)
+      return response.data
+    },
+  },
+
   auth: {
     /**
      * The signed-in user, or null when not signed in.

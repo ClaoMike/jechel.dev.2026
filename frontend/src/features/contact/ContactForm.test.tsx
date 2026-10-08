@@ -65,6 +65,19 @@ describe('ContactForm', () => {
     expect(received).toEqual([])
   })
 
+  it('rejects a name that is only spaces', async () => {
+    const user = await renderForm()
+    expect(nameInput()).toBeRequired()
+
+    await user.type(nameInput(), '    ')
+    await user.type(emailInput(), 'ada@example.com')
+    await user.type(messageInput(), LONG_MESSAGE)
+    await user.click(submit())
+
+    expect(screen.getByText('Please enter your name.')).toBeInTheDocument()
+    expect(received).toEqual([])
+  })
+
   it('updates errors as you type once you have tried to submit', async () => {
     const user = await renderForm()
     await user.click(submit())

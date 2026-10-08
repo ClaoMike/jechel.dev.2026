@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { ClipboardCheckIcon, ClipboardIcon, ClipboardXIcon } from './icons'
 
 const FEEDBACK_MS = 2000
 
-/** Copies `value` to the clipboard and says so for a moment. `label` names what is copied, e.g. "email". */
+/** A copy-to-clipboard icon button. `label` names what is copied, e.g. "email". */
 export function CopyButton({ value, label }: { value: string; label: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
@@ -22,9 +23,17 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
     }
   }
 
+  const tooltip = state === 'copied' ? 'Copied!' : state === 'failed' ? "Couldn't copy" : `Copy ${label} to clipboard`
+
   return (
-    <button type="button" className="button button-small button-secondary copy-button" onClick={() => void copy()} aria-label={`Copy ${label}`}>
-      <span aria-hidden="true">{state === 'copied' ? 'Copied' : state === 'failed' ? 'Failed' : 'Copy'}</span>
+    <button
+      type="button"
+      className={`icon-button copy-button copy-button-${state}`}
+      onClick={() => void copy()}
+      aria-label={`Copy ${label}`}
+      title={tooltip}
+    >
+      {state === 'copied' ? <ClipboardCheckIcon /> : state === 'failed' ? <ClipboardXIcon /> : <ClipboardIcon />}
       <span className="visually-hidden" role="status">
         {state === 'copied' ? `${label} copied` : state === 'failed' ? `Couldn't copy ${label}` : ''}
       </span>
