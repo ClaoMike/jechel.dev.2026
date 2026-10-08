@@ -1,5 +1,5 @@
 /**
- * The single entry point for every backend call. Components never call `fetch` directly:
+ * The single entry point for every backend call. Components never call `fetch` or axios directly:
  *
  *   import { api } from '../services/api'
  *   const firstName = await api.profile.getFirstName()
@@ -7,6 +7,8 @@
  * Add new endpoints to the matching feature group below (or a new group), mirroring the
  * backend's `Features/<Feature>` folders.
  */
+
+import axios, { isAxiosError, type AxiosRequestConfig } from 'axios'
 
 // Empty by default: the app calls `/api/...` on its own origin (Vite proxies it to the API in dev).
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -28,6 +30,7 @@ interface FirstNameResponse {
 // ---------- HTTP plumbing ----------
 
 export class ApiError extends Error {
+  /** HTTP status, or 0 when no response arrived (network error). */
   readonly status: number
 
   constructor(path: string, status: number) {
@@ -36,27 +39,28 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path: string, init: RequestInit = {}): Promise<Response> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: 'same-origin',
-    headers: { Accept: 'application/json', ...init.headers },
-  })
+const http = axios.create({
+  baseURL: API_BASE_URL,
+  headers: { Accept: 'application/json' },
+})
 
-  if (!response.ok) {
-    throw new ApiError(path, response.status)
+// Every HTTP error leaves this module as an ApiError, so callers never depend on axios.
+// Cancellations (AbortSignal) are rethrown as they are.
+http.interceptors.response.use(undefined, (error: unknown) => {
+  if (isAxiosError(error) && !axios.isCancel(error)) {
+    throw new ApiError(error.config?.url ?? '', error.response?.status ?? 0)
   }
+  throw error
+})
 
-  return response
+async function get<T>(path: string, config?: AxiosRequestConfig): Promise<T> {
+  const response = await http.get<T>(path, config)
+  return response.data
 }
 
-async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await request(path, { signal })
-  return (await response.json()) as T
-}
-
-async function post(path: string): Promise<void> {
-  await request(path, { method: 'POST' })
+async function post<T = void>(path: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  const response = await http.post<T>(path, body, config)
+  return response.data
 }
 
 // ---------- Endpoints ----------
@@ -69,7 +73,7 @@ export const api = {
      */
     async me(signal?: AbortSignal): Promise<CurrentUser | null> {
       try {
-        return await get<CurrentUser>('/api/auth/me', signal)
+        return await get<CurrentUser>('/api/auth/me', { signal })
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) return null
         throw error
@@ -88,7 +92,7 @@ export const api = {
 
   profile: {
     async getFirstName(signal?: AbortSignal): Promise<string> {
-      const { firstName } = await get<FirstNameResponse>('/api/firstname', signal)
+      const { firstName } = await get<FirstNameResponse>('/api/firstname', { signal })
       return firstName
     },
   },

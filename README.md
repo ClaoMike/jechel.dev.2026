@@ -163,7 +163,7 @@ Production: set the same keys as environment variables (`Authentication__Google_
 
 ### `api`: the single API service
 
-Every backend call goes through the `api` object in `src/services/api.ts`. Components and hooks never call `fetch` directly.
+Every backend call goes through the `api` object in `src/services/api.ts`, which uses one shared [axios](https://axios-http.com) instance. Components and hooks never call `fetch` or axios directly.
 
 ```ts
 import { api } from '../services/api'
@@ -176,7 +176,7 @@ await api.auth.logout()
 
 - Endpoints are grouped by backend feature (`api.auth`, `api.profile`, ...). A new endpoint goes into its group, or a new group mirroring `backend/.../Features/<Feature>`.
 - Response types live in the same file, mirroring the backend records.
-- Non-2xx responses throw `ApiError` (with `.status`). Every call accepts an optional `AbortSignal`.
+- Non-2xx responses throw `ApiError` (with `.status`; `0` when there was no response). Cancelled requests reject with axios's cancellation error, not an `ApiError`. Every call accepts an optional `AbortSignal`.
 
 ### Auth state: `useAuth()`, `<SignedIn>`, `<SignedOut>`
 

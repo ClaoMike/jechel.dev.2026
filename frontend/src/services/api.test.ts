@@ -48,6 +48,21 @@ describe('api.profile', () => {
   it('getFirstName throws when the API responds with an error', async () => {
     server.use(http.get(`${API}/api/firstname`, () => new HttpResponse(null, { status: 404 })))
 
-    await expect(api.profile.getFirstName()).rejects.toThrow('status 404')
+    await expect(api.profile.getFirstName()).rejects.toThrow('Request to /api/firstname failed with status 404')
+  })
+
+  it('getFirstName throws an ApiError with status 0 when the network fails', async () => {
+    server.use(http.get(`${API}/api/firstname`, () => HttpResponse.error()))
+
+    await expect(api.profile.getFirstName()).rejects.toMatchObject({ status: 0 })
+  })
+
+  it('getFirstName rejects without an ApiError when cancelled', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    const error = await api.profile.getFirstName(controller.signal).catch((e: unknown) => e)
+
+    expect(error).not.toBeInstanceOf(ApiError)
   })
 })
