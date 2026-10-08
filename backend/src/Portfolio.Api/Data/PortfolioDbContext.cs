@@ -7,6 +7,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
 {
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
+    public DbSet<AboutPage> AboutPages => Set<AboutPage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,6 +36,15 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
 
             // The inbox lists newest first.
             entity.HasIndex(m => m.ReceivedAt);
+        });
+
+        modelBuilder.Entity<AboutPage>(entity =>
+        {
+            entity.ToTable("about_page");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(p => p.Content).HasColumnName("content").HasColumnType("jsonb").IsRequired();
+            entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         });
     }
 }
