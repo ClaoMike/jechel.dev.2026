@@ -28,7 +28,10 @@ Personal portfolio website of Claudiu Jechel.
 │   ├── src/
 │   │   ├── services/api.ts                # the single API service: every backend call goes through `api`
 │   │   ├── auth/                          # AuthProvider, useAuth, <SignedIn>/<SignedOut>
+│   │   ├── layout/                        # site frame: greeting, session bar, section tabs
 │   │   ├── pages/                         # one component per route
+│   │   ├── features/<feature>/            # a feature's components and rules (e.g. contact form + inbox)
+│   │   ├── components/                    # shared UI: Modal, CopyButton
 │   │   └── test/                          # Vitest setup, MSW mock server, render helpers
 │   ├── e2e/                               # Playwright specs
 │   └── playwright.config.ts
@@ -103,6 +106,10 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/auth/signin-google`   | public  | OAuth callback, handled by ASP.NET Core; don't call directly |
 | GET    | `/api/auth/me`              | cookie  | Current user `{ email, name, pictureUrl, sessionExpiresInSeconds }`, or **401** |
 | POST   | `/api/auth/logout`          | public  | Clears the cookie; when signed in, also ends the session everywhere |
+| POST   | `/api/contact`              | public  | Contact form `{ name, email, message }`: **201**, or **400** with field errors (`ValidationProblem`) |
+| GET    | `/api/contact/messages?page=&pageSize=` | cookie | Inbox page, newest first: `{ items: [{ id, name, receivedAt, isRead }], page, pageSize, totalCount }` (pageSize 1–50, default 10) |
+| GET    | `/api/contact/messages/{id}` | cookie | One message `{ id, name, email, message, receivedAt, readAt }`, or **404**. Doesn't mark it read |
+| POST   | `/api/contact/messages/{id}/read` | cookie | Marks it read (keeps the first read time): **204**, or **404** |
 
 ## Authentication (Google, admin only)
 
@@ -117,7 +124,7 @@ Only the site owner signs in, to reach the future admin area. There are no publi
    - allowed: the API starts a new database session (see below), issues the `portfolio.auth` cookie (HttpOnly, SameSite=Lax, Secure outside Development) and redirects to `returnUrl` (the home page)
    - not allowed: no cookie; redirects to `/admin?error=not_authorized`
    - cancelled or failed on Google: redirects to `/admin?error=login_failed`
-5. The frontend `AuthProvider` calls `/api/auth/me` on load. Signed in, the home page shows "Signed in as ... · Sign out", and `/admin` redirects to `/`.
+5. The frontend `AuthProvider` calls `/api/auth/me` on load. Signed in, the header shows "Signed in as ... · Sign out", the Contact tab shows the inbox instead of the form, and `/admin` redirects to `/`.
 
 ### Sessions (stored in the database)
 
@@ -196,6 +203,26 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 - It stays up to date on its own: it signs out in the UI when the session expires, and after `signOut()`.
 - This is for **display only**. The API enforces access (`.RequireAuthorization()`); hiding a button is never the security boundary.
 
+## Site sections and the contact feature
+
+The site is a header (greeting, plus the session bar when signed in) above five tabs, each a route rendered inside `src/layout/AppLayout.tsx`:
+
+| Tab | Route | Status |
+| --- | --- | --- |
+| What's new? | `/` | placeholder |
+| Apps | `/apps` | placeholder |
+| YouTube | `/youtube` | placeholder |
+| About Me | `/about` | placeholder |
+| Contact | `/contact` | contact form / admin inbox |
+
+To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real page. Unknown URLs redirect to `/`.
+
+**Contact** (`src/pages/ContactPage.tsx`, `src/features/contact/`):
+
+- **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. Errors appear after the first submit and then update as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields.
+- **The admin** (`<SignedIn>`) gets the inbox: a table of name and date received, 10 per page (the page is in the URL, `?page=2`). Unread messages are bold, with a blue dot. Clicking a row opens a popup with every field and a **Copy** button for each, and marks the message as read.
+- The popup is `src/components/Modal.tsx`: it keeps focus inside (Tab wraps), closes with Escape, the × button or a click on the backdrop, and returns focus to the row's button.
+
 ## Configuration
 
 Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can be overridden with environment variables (`__` as separator, e.g. `ConnectionStrings__Default`).
@@ -262,7 +289,8 @@ dotnet test tests/Portfolio.Api.IntegrationTests       # integration only
 | `npm run typecheck`     | `tsc -b`                                                            |
 
 - **Unit/component tests** live next to the code as `*.test.ts(x)`, run in jsdom, and mock HTTP with MSW. The default handlers in `src/test/server.ts` cover the happy path for an **anonymous** visitor; use `server.use(signedIn())` for a signed-in admin, or `server.use(...)` for other overrides. Unhandled requests fail the test. `renderApp(url)` in `src/test/render.tsx` renders the full app (router + auth) at a URL.
-- The real Google round-trip isn't automated. E2E tests cover the `/admin` page and fake a signed-in session with `page.route('**/api/auth/me', ...)`.
+- The real Google round-trip isn't automated. E2E tests cover the `/admin` page and fake a signed-in session with `page.route('**/api/auth/me', ...)`. The admin inbox E2E tests (`e2e/contact.spec.ts`) fake the inbox endpoints the same way. The visitor tests send real messages, so the local database collects a few `E2E visitor ...` rows.
+- For the inbox in component tests, `inbox(makeMessages(n))` in `src/test/server.ts` gives MSW handlers over an in-memory list that supports paging and marking messages as read.
 - **E2E tests** live in `e2e/`. Playwright starts the real API and the Vite dev server itself (or reuses ones already running locally). The database must be running (`docker compose up -d --wait`). First run: `npx playwright install`.
 - Browsers: Chromium and WebKit locally. **Firefox runs only in CI** because Playwright's Firefox build currently fails to launch on macOS 27 ("Could not find profile folder"). Try removing the `process.env.CI` guard in `playwright.config.ts` after a Playwright upgrade.
 

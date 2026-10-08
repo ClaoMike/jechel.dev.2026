@@ -27,15 +27,54 @@ interface FirstNameResponse {
   firstName: string
 }
 
+export interface SendMessageRequest {
+  name: string
+  email: string
+  message: string
+}
+
+export interface ContactMessageSummary {
+  id: number
+  name: string
+  /** ISO 8601 timestamp. */
+  receivedAt: string
+  isRead: boolean
+}
+
+export interface ContactMessageDetails {
+  id: number
+  name: string
+  email: string
+  message: string
+  /** ISO 8601 timestamp. */
+  receivedAt: string
+  /** ISO 8601 timestamp, or null while unread. */
+  readAt: string | null
+}
+
+export interface Page<T> {
+  items: T[]
+  /** 1-based. */
+  page: number
+  pageSize: number
+  totalCount: number
+}
+
+/** Field errors of a 400 response, keyed by camelCase field name (ASP.NET Core ValidationProblem). */
+export type ValidationErrors = Record<string, string[]>
+
 // ---------- HTTP plumbing ----------
 
 export class ApiError extends Error {
   /** HTTP status, or 0 when no response arrived (network error). */
   readonly status: number
+  /** Field errors, when the API rejected the request body (400 ValidationProblem). */
+  readonly validationErrors: ValidationErrors | null
 
-  constructor(path: string, status: number) {
+  constructor(path: string, status: number, validationErrors: ValidationErrors | null = null) {
     super(`Request to ${path} failed with status ${status}`)
     this.status = status
+    this.validationErrors = validationErrors
   }
 }
 
@@ -48,10 +87,16 @@ const http = axios.create({
 // Cancellations (AbortSignal) are rethrown as they are.
 http.interceptors.response.use(undefined, (error: unknown) => {
   if (isAxiosError(error) && !axios.isCancel(error)) {
-    throw new ApiError(error.config?.url ?? '', error.response?.status ?? 0)
+    throw new ApiError(error.config?.url ?? '', error.response?.status ?? 0, readValidationErrors(error.response?.data))
   }
   throw error
 })
+
+function readValidationErrors(body: unknown): ValidationErrors | null {
+  if (typeof body !== 'object' || body === null || !('errors' in body)) return null
+  const { errors } = body as { errors: unknown }
+  return typeof errors === 'object' && errors !== null ? (errors as ValidationErrors) : null
+}
 
 async function get<T>(path: string, config?: AxiosRequestConfig): Promise<T> {
   const response = await http.get<T>(path, config)
@@ -87,6 +132,28 @@ export const api = {
     /** Not a fetch: the browser navigates here to start the Google sign-in flow. */
     googleLoginUrl(returnUrl = '/'): string {
       return `${API_BASE_URL}/api/auth/login?returnUrl=${encodeURIComponent(returnUrl)}`
+    },
+  },
+
+  contact: {
+    /** Public. Rejects with an ApiError carrying `validationErrors` when a field is invalid. */
+    async send(message: SendMessageRequest): Promise<void> {
+      await post('/api/contact', message)
+    },
+
+    /** Admin only. Newest first. */
+    listMessages(page = 1, pageSize = 10, signal?: AbortSignal): Promise<Page<ContactMessageSummary>> {
+      return get<Page<ContactMessageSummary>>('/api/contact/messages', { params: { page, pageSize }, signal })
+    },
+
+    /** Admin only. Doesn't mark the message as read: call `markAsRead` for that. */
+    getMessage(id: number, signal?: AbortSignal): Promise<ContactMessageDetails> {
+      return get<ContactMessageDetails>(`/api/contact/messages/${id}`, { signal })
+    },
+
+    /** Admin only. Idempotent. */
+    async markAsRead(id: number): Promise<void> {
+      await post(`/api/contact/messages/${id}/read`)
     },
   },
 
