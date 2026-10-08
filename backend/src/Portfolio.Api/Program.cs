@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Auth;
+using Portfolio.Api.Features.Contact;
 using Portfolio.Api.Features.Profile;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -43,5 +44,6 @@ var api = app.MapGroup("/api");
 api.MapHealthChecks("/health");
 api.MapProfileEndpoints();
 api.MapAuthEndpoints();
+api.MapContactEndpoints();
 
 app.Run();
