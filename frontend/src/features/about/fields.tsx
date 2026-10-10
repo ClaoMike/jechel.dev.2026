@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject, type SyntheticEvent } from 'react'
-import { ArrowDownIcon, ArrowUpIcon, LinkIcon, PlusIcon, TrashIcon } from '../../components/icons'
+import { DeleteButton } from '../../components/DeleteButton'
+import { ArrowDownIcon, ArrowUpIcon, LinkIcon, PlusIcon } from '../../components/icons'
 import { isSafeUrl } from './format'
 import { formatLink } from './textLinks'
 
@@ -285,7 +286,10 @@ export function MonthField({ label, value, onChange, error }: { label: string; v
   )
 }
 
-/** Move up / move down / remove buttons for one item of an editable list. */
+/** Under "Remove …?" in the editors: nothing is lost until the section is saved. */
+export const REMOVE_DETAIL = 'It goes when you save this section; Cancel brings it back.'
+
+/** Move up / move down / remove buttons for one item of an editable list. Removing asks first. */
 export function ItemControls({ name, index, count, onMove, onRemove }: { name: string; index: number; count: number; onMove?: (from: number, to: number) => void; onRemove: () => void }) {
   return (
     <div className="item-controls">
@@ -299,9 +303,7 @@ export function ItemControls({ name, index, count, onMove, onRemove }: { name: s
           </button>
         </>
       )}
-      <button type="button" className="icon-button icon-button-danger" aria-label={`Remove ${name}`} title="Remove" onClick={onRemove}>
-        <TrashIcon />
-      </button>
+      <DeleteButton what={name} action="Remove" detail={REMOVE_DETAIL} onDelete={onRemove} />
     </div>
   )
 }

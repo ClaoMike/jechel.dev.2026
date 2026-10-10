@@ -30,6 +30,7 @@ public static class ContactEndpoints
         messages.MapGet("/", ListMessages).WithName("ListContactMessages");
         messages.MapGet("/{id:int}", GetMessage).WithName("GetContactMessage");
         messages.MapPost("/{id:int}/read", MarkAsRead).WithName("MarkContactMessageAsRead");
+        messages.MapDelete("/{id:int}", DeleteMessage).WithName("DeleteContactMessage");
 
         return app;
     }
@@ -115,6 +116,23 @@ public static class ContactEndpoints
             await db.SaveChangesAsync(cancellationToken);
         }
 
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>Deletes the message for good.</summary>
+    public static async Task<Results<NoContent, NotFound>> DeleteMessage(
+        int id,
+        PortfolioDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var message = await db.ContactMessages.FindAsync([id], cancellationToken);
+        if (message is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        db.ContactMessages.Remove(message);
+        await db.SaveChangesAsync(cancellationToken);
         return TypedResults.NoContent();
     }
 }

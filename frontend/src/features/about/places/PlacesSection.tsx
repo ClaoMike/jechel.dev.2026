@@ -1,8 +1,9 @@
 import { useEffect, useId, useState } from 'react'
+import { DeleteButton } from '../../../components/DeleteButton'
 import { CloseIcon, PencilIcon, SearchIcon, TrashIcon } from '../../../components/icons'
 import { api, VISIT_KINDS, type AboutColors, type City, type Place, type PlaceVisit, type VisitKind } from '../../../services/api'
 import { EditableSection } from '../EditableSection'
-import { ColorField, TextField, type EditorProps, type FieldErrors } from '../fields'
+import { ColorField, REMOVE_DETAIL, TextField, type EditorProps, type FieldErrors } from '../fields'
 import { VISIT_LABELS } from '../legend'
 import { removeAt, replaceAt } from '../list'
 import { placeLabel } from './placeLabel'
@@ -119,9 +120,9 @@ function PlacesEditor({ value, onChange, errors }: EditorProps<PlacesValue>) {
                 <button type="button" className="icon-button" aria-label={`Edit ${place.name}`} title="Edit" onClick={() => setEditing({ kind: 'existing', index: i, place })}>
                   <PencilIcon size={16} />
                 </button>
-                <button type="button" className="icon-button icon-button-danger" aria-label={`Remove ${place.name}`} title="Remove" onClick={() => setPlaces(removeAt(value.places, i))}>
+                <DeleteButton what={place.name} action="Remove" detail={REMOVE_DETAIL} onDelete={() => setPlaces(removeAt(value.places, i))}>
                   <TrashIcon size={16} />
-                </button>
+                </DeleteButton>
               </li>
             )
           })}
@@ -287,9 +288,16 @@ function PlacePopup({ editing, colors, errors, onApply, onRemove, onCancel }: Pl
           {editing.kind === 'new' ? 'Add to map' : 'Update place'}
         </button>
         {onRemove && (
-          <button type="button" className="button button-secondary button-small" onClick={onRemove}>
+          <DeleteButton
+            what={`${editing.place.name} from the map`}
+            action="Remove"
+            detail={REMOVE_DETAIL}
+            onDelete={onRemove}
+            className="button button-secondary button-small"
+            label="Remove from map"
+          >
             Remove from map
-          </button>
+          </DeleteButton>
         )}
       </div>
       <p className="muted editor-note">Changes show on the page once you save this section.</p>

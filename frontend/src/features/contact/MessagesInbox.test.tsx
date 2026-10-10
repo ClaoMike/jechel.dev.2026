@@ -33,7 +33,7 @@ describe('MessagesInbox', () => {
     await renderInbox(messages)
 
     const table = await screen.findByRole('table')
-    expect(within(table).getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['Status', 'Name', 'Date received'])
+    expect(within(table).getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['Status', 'Name', 'Date received', 'Actions'])
 
     const [first, , third] = await rows()
     expect(within(first).getByRole('button', { name: 'Sender 1' })).toBeInTheDocument()
@@ -205,5 +205,57 @@ describe('MessagesInbox', () => {
 
     expect(await within(await screen.findByRole('dialog')).findByText('sender1@example.com')).toBeInTheDocument()
     expect(isUnread('Sender 1')).toBe(true)
+  })
+
+  it('deletes a message from its row once confirmed, and Cancel keeps it', async () => {
+    const messages = makeMessages(12)
+    const { user, calls } = await renderInbox(messages)
+
+    await user.click(screen.getByRole('button', { name: 'Delete the message from Sender 2' }))
+    const confirm = screen.getByRole('dialog', { name: 'Delete the message from Sender 2?' })
+    expect(within(confirm).getByText("This can't be undone.")).toBeInTheDocument()
+    expect(within(confirm).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(calls.deleted).toEqual([])
+
+    await user.click(screen.getByRole('button', { name: 'Delete the message from Sender 2' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Sender 2' })).not.toBeInTheDocument())
+    expect(calls.deleted).toEqual([2])
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(await screen.findByText('11 messages')).toBeInTheDocument()
+    // The next page's first message moves up.
+    expect(screen.getByRole('button', { name: 'Sender 11' })).toBeInTheDocument()
+  })
+
+  it('deletes the open message from its popup; Escape first closes only the question', async () => {
+    const { user, calls } = await renderInbox(makeMessages(2))
+
+    await user.click(screen.getByRole('button', { name: 'Sender 1' }))
+    const message = await screen.findByRole('dialog', { name: 'Message from Sender 1' })
+    await user.click(await within(message).findByRole('button', { name: 'Delete message' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Delete the message from Sender 1?' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Message from Sender 1' })).toBeInTheDocument()
+
+    await user.click(within(message).getByRole('button', { name: 'Delete message' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Delete the message from Sender 1?' })).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(calls.deleted).toEqual([1])
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Sender 1' })).not.toBeInTheDocument())
+  })
+
+  it('says so when a delete fails, and keeps the message', async () => {
+    const { user } = await renderInbox(makeMessages(1))
+    server.use(http.delete(`${API}/api/contact/messages/:id`, () => new HttpResponse(null, { status: 500 })))
+
+    await user.click(screen.getByRole('button', { name: 'Delete the message from Sender 1' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+
+    expect(await within(screen.getByRole('dialog')).findByRole('alert')).toHaveTextContent("That didn't work. Please try again.")
+    expect(screen.getByRole('button', { name: 'Sender 1' })).toBeInTheDocument()
   })
 })

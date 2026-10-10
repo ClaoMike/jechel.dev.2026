@@ -412,6 +412,11 @@ export const api = {
     async markAsRead(id: number): Promise<void> {
       await post(`/api/contact/messages/${id}/read`)
     },
+
+    /** Admin only. For good. */
+    async deleteMessage(id: number): Promise<void> {
+      await http.delete(`/api/contact/messages/${id}`)
+    },
   },
 
   profile: {

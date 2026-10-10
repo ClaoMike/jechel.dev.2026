@@ -182,6 +182,12 @@ h2 {
   background: var(--surface-muted);
 }
 
+.button-danger {
+  border-color: var(--error);
+  background: var(--error);
+  color: var(--surface);
+}
+
 .button-small {
   min-height: 30px;
   padding: 0 12px;
@@ -416,6 +422,39 @@ h2 {
 .modal-header h2 {
   font-size: 20px;
   overflow-wrap: anywhere;
+}
+
+.message-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.col-actions {
+  width: 48px;
+  text-align: right;
+}
+
+.confirm-dialog h2 {
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.confirm-dialog-body p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.modal:has(.confirm-dialog) {
+  width: min(420px, 100%);
 }
 
 .message-details {

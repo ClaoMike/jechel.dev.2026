@@ -21,15 +21,15 @@ public class LeetCodeStatsServiceTests
         _leetCode, _memory, _time, NullLogger<LeetCodeStatsService>.Instance);
 
     [Fact]
-    public async Task Asks_leetcode_once_then_answers_from_memory_until_the_stats_are_six_hours_old()
+    public async Task Asks_leetcode_once_then_answers_from_memory_until_the_stats_are_a_day_old()
     {
         var first = await Service().GetAsync("neetcode", default);
-        _time.Advance(TimeSpan.FromHours(5));
+        _time.Advance(TimeSpan.FromHours(23));
         var second = await Service().GetAsync("NeetCode", default);
 
         Assert.Equal(1, _leetCode.Calls);
         Assert.Equal(first, second);
-        Assert.Equal(_time.GetUtcNow() - TimeSpan.FromHours(5), second.Stats!.FetchedAt);
+        Assert.Equal(_time.GetUtcNow() - TimeSpan.FromHours(23), second.Stats!.FetchedAt);
 
         _time.Advance(TimeSpan.FromHours(1));
         var third = await Service().GetAsync("neetcode", default);
@@ -67,7 +67,7 @@ public class LeetCodeStatsServiceTests
     {
         await Service().GetAsync("neetcode", default);
         var fetchedAt = _time.GetUtcNow();
-        _time.Advance(TimeSpan.FromHours(7));
+        _time.Advance(TimeSpan.FromHours(25));
         _leetCode.Fails = true;
 
         var lookup = await Service().GetAsync("neetcode", default);

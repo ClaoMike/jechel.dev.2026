@@ -65,6 +65,7 @@ public class ContactEndpointTests(PortfolioApiFactory factory)
     [InlineData("GET", "/api/contact/messages")]
     [InlineData("GET", "/api/contact/messages/1")]
     [InlineData("POST", "/api/contact/messages/1/read")]
+    [InlineData("DELETE", "/api/contact/messages/1")]
     public async Task The_inbox_is_admin_only(string method, string url)
     {
         var response = await factory.CreateBrowserClient().SendAsync(new HttpRequestMessage(new HttpMethod(method), url));
@@ -116,5 +117,19 @@ public class ContactEndpointTests(PortfolioApiFactory factory)
 
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/contact/messages/999999")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await admin.PostAsync("/api/contact/messages/999999/read", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.DeleteAsync("/api/contact/messages/999999")).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_admin_deletes_a_message()
+    {
+        var name = await SendAsync();
+        var admin = await SignedInClientAsync();
+        var summary = await FindAsync(admin, name);
+
+        var deleted = await admin.DeleteAsync($"/api/contact/messages/{summary.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync($"/api/contact/messages/{summary.Id}")).StatusCode);
     }
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
+import { DeleteButton } from '../../components/DeleteButton'
 import { api, type ContactMessageSummary, type Page } from '../../services/api'
 import { formatDateTime } from '../../utils/formatDate'
 import { MessageDialog } from './MessageDialog'
@@ -17,6 +18,8 @@ export function MessagesInbox() {
   const [result, setResult] = useState<Result | null>(null)
   const state: State = result && result.page === page ? result : { status: 'loading' }
   const [open, setOpen] = useState<ContactMessageSummary | null>(null)
+  // Bumped after a delete, to load the page again (with the next message moved up, and the new total).
+  const [reloads, setReloads] = useState(0)
 
   const goToPage = useCallback(
     (next: number) => setSearchParams(next === 1 ? {} : { page: String(next) }),
@@ -34,7 +37,7 @@ export function MessagesInbox() {
       })
 
     return () => controller.abort()
-  }, [page])
+  }, [page, reloads])
 
   const totalPages = state.status === 'loaded' ? Math.max(1, Math.ceil(state.data.totalCount / PAGE_SIZE)) : 1
 
@@ -49,6 +52,12 @@ export function MessagesInbox() {
         ? { ...current, data: { ...current.data, items: current.data.items.map((m) => (m.id === id ? { ...m, isRead: true } : m)) } }
         : current,
     )
+  }, [])
+
+  const deleteMessage = useCallback(async (id: number) => {
+    await api.contact.deleteMessage(id)
+    setOpen((current) => (current?.id === id ? null : current))
+    setReloads((n) => n + 1)
   }, [])
 
   return (
@@ -76,6 +85,9 @@ export function MessagesInbox() {
                 </th>
                 <th scope="col">Name</th>
                 <th scope="col">Date received</th>
+                <th scope="col" className="col-actions">
+                  <span className="visually-hidden">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -103,6 +115,9 @@ export function MessagesInbox() {
                   <td>
                     <time dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time>
                   </td>
+                  <td className="col-actions">
+                    <DeleteButton what={`the message from ${message.name}`} onDelete={() => deleteMessage(message.id)} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -124,7 +139,7 @@ export function MessagesInbox() {
         </>
       )}
 
-      {open && <MessageDialog messageId={open.id} name={open.name} onClose={() => setOpen(null)} onRead={markRead} />}
+      {open && <MessageDialog messageId={open.id} name={open.name} onClose={() => setOpen(null)} onRead={markRead} onDelete={deleteMessage} />}
     </section>
   )
 }

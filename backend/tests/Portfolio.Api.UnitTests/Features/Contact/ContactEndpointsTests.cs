@@ -133,4 +133,16 @@ public class ContactEndpointsTests
     {
         Assert.IsType<NotFound>((await ContactEndpoints.MarkAsRead(404, _db, _time, CancellationToken.None)).Result);
     }
+
+    [Fact]
+    public async Task DeleteMessage_removes_only_that_message()
+    {
+        var kept = Seed("Kept", Now);
+        var deleted = Seed("Deleted", Now);
+
+        Assert.IsType<NoContent>((await ContactEndpoints.DeleteMessage(deleted.Id, _db, CancellationToken.None)).Result);
+
+        Assert.Equal([kept.Id], _db.ContactMessages.Select(m => m.Id));
+        Assert.IsType<NotFound>((await ContactEndpoints.DeleteMessage(deleted.Id, _db, CancellationToken.None)).Result);
+    }
 }

@@ -19,7 +19,7 @@ public class LeetCodeStatsService(
     TimeProvider time,
     ILogger<LeetCodeStatsService> logger)
 {
-    public static readonly TimeSpan FreshFor = TimeSpan.FromHours(6);
+    public static readonly TimeSpan FreshFor = TimeSpan.FromHours(24);
     public static readonly TimeSpan RetryAfter = TimeSpan.FromMinutes(15);
 
     public async Task<LeetCodeLookup> GetAsync(string username, CancellationToken cancellationToken)

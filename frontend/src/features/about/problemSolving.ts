@@ -10,8 +10,8 @@ export const DIFFICULTIES = ['easy', 'medium', 'hard'] as const
 
 export const DIFFICULTY_LABELS: Record<(typeof DIFFICULTIES)[number], string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' }
 
-/** Stats older than this mean the API couldn't reach LeetCode since (it refreshes them every 6 hours). */
-export const STALE_AFTER_MS = 12 * 60 * 60 * 1000
+/** Stats older than this mean the API couldn't reach LeetCode since (it refreshes them every 24 hours). */
+export const STALE_AFTER_MS = 48 * 60 * 60 * 1000
 
 export const leetCodeProfileUrl = (username: string) => `https://leetcode.com/u/${encodeURIComponent(username)}/`
 

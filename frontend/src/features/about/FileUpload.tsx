@@ -1,5 +1,7 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
+import { DeleteButton } from '../../components/DeleteButton'
 import { TrashIcon, UploadIcon } from '../../components/icons'
+import { REMOVE_DETAIL } from './fields'
 import { ApiError, type UploadedFile, type UploadProgress } from '../../services/api'
 
 interface FileUploadProps {
@@ -66,10 +68,18 @@ export function FileUpload({ label, context, accept, maxBytes, hint, upload, onU
           {action}
         </button>
         {onRemove && (
-          <button type="button" className="button button-secondary button-small" disabled={status.state === 'uploading'} onClick={onRemove} aria-label={named(`Remove ${noun}`)}>
+          <DeleteButton
+            what={context ? `the ${noun} ${context}` : `the ${noun}`}
+            action="Remove"
+            detail={REMOVE_DETAIL}
+            onDelete={onRemove}
+            className="button button-secondary button-small"
+            disabled={status.state === 'uploading'}
+            label={named(`Remove ${noun}`) ?? `Remove ${noun}`}
+          >
             <TrashIcon size={16} />
             Remove {noun}
-          </button>
+          </DeleteButton>
         )}
       </div>
       <p className="field-hint" id={`${id}-hint`}>

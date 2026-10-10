@@ -26,6 +26,13 @@ async function renderAbout() {
   return user
 }
 
+/** Clicks a remove button, then confirms in the popup it opens. */
+async function removeConfirmed(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(screen.getByRole('button', { name }))
+  const confirm = screen.getByRole('dialog', { name: /^Remove .*\?$/ })
+  await user.click(within(confirm).getByRole('button', { name: 'Remove' }))
+}
+
 async function renderAsAdmin(initial = aboutContent()) {
   const api = aboutApi(initial)
   server.use(signedIn(), ...api.handlers)
@@ -323,8 +330,8 @@ describe('AboutPage for the admin', () => {
     const { user, saved } = await renderAsAdmin({ ...aboutContent(), photoUrl: '/api/files/x/photo.webp' })
 
     await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
-    await user.click(screen.getByRole('button', { name: 'Remove photo' }))
-    await user.click(screen.getByRole('button', { name: 'Remove résumé' }))
+    await removeConfirmed(user, 'Remove photo')
+    await removeConfirmed(user, 'Remove résumé')
     expect(screen.getByRole('button', { name: 'Upload photo' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -388,7 +395,7 @@ describe('AboutPage for the admin', () => {
     await user.click(second.getByRole('checkbox', { name: 'Work' })) // untick the default
     await user.click(second.getByRole('checkbox', { name: 'Academic' }))
     await user.click(screen.getByRole('button', { name: 'Move skill 3 up' }))
-    await user.click(screen.getByRole('button', { name: 'Remove skill 1' }))
+    await removeConfirmed(user, 'Remove skill 1')
     fireEvent.input(screen.getByLabelText('Personal', { selector: 'input[type=color]' }), { target: { value: '#aa00ff' } })
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -471,8 +478,8 @@ describe('AboutPage for the admin', () => {
     await user.type(added.getByLabelText('Title'), 'Something new')
     await user.upload(added.getByLabelText('PDF file for paper 3'), new File(['%PDF-'], 'new.pdf', { type: 'application/pdf' }))
     expect(await added.findByRole('link', { name: 'new.pdf' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Remove PDF for paper 2' }))
-    await user.click(screen.getByRole('button', { name: 'Remove paper 1' }))
+    await removeConfirmed(user, 'Remove PDF for paper 2')
+    await removeConfirmed(user, 'Remove paper 1')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     const papers = section('Academic papers')
@@ -559,7 +566,7 @@ describe('AboutPage for the admin', () => {
     const added = within(screen.getByRole('group', { name: 'Language 3' }))
     await user.type(added.getByLabelText('Language'), 'English')
     await user.selectOptions(added.getByLabelText('Level'), 'Fluent')
-    await user.click(screen.getByRole('button', { name: 'Remove language 2' }))
+    await removeConfirmed(user, 'Remove language 2')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await within(section('Languages')).findByText('English')).toBeInTheDocument()
@@ -583,7 +590,7 @@ describe('AboutPage for the admin', () => {
     expect(screen.getByText('Enter what the licence is for.')).toBeInTheDocument()
     await user.type(screen.getByLabelText('For'), 'Speedboat (DK)')
     await user.click(screen.getByRole('button', { name: 'Add licence' }))
-    await user.click(screen.getByRole('button', { name: 'Remove Forklift' }))
+    await removeConfirmed(user, 'Remove Forklift')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     const licences = section('Licences')
@@ -759,7 +766,7 @@ describe('AboutPage for the admin', () => {
     expect(saved[0].colors.places.worked).toBe('#00aa00')
 
     await user.click(screen.getByRole('button', { name: "Edit Where I've been" }))
-    await user.click(screen.getByRole('button', { name: 'Remove Manchester' }))
+    await removeConfirmed(user, 'Remove Manchester')
     await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(await within(section("Where I've been")).findByText('No places yet.')).toBeInTheDocument()
     expect(saved[1].places).toEqual([])
@@ -777,11 +784,37 @@ describe('AboutPage for the admin', () => {
     expect(screen.getByLabelText('Studied: note (optional)')).toHaveAccessibleDescription('Links must be http(s) links.')
   })
 
+  it('asks before removing anything, and Cancel in the question keeps it', async () => {
+    const { user } = await renderAsAdmin()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Languages' }))
+    await user.click(screen.getByRole('button', { name: 'Remove language 2' }))
+    const confirm = screen.getByRole('dialog', { name: 'Remove language 2?' })
+    expect(confirm).toHaveTextContent('It goes when you save this section; Cancel brings it back.')
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove language 2' })).toBeInTheDocument()
+  })
+
+  it('Escape in the question keeps the city popup open', async () => {
+    const { user } = await renderAsAdmin()
+
+    await user.click(screen.getByRole('button', { name: "Edit Where I've been" }))
+    await user.click(screen.getByRole('button', { name: 'Edit Manchester' }))
+    await user.click(screen.getByRole('button', { name: 'Remove from map' }))
+    expect(screen.getByRole('dialog', { name: 'Remove Manchester from the map?' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog', { name: 'Remove Manchester from the map?' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove from map' })).toBeInTheDocument()
+  })
+
   it('cancel throws away the changes', async () => {
     const { user, saved } = await renderAsAdmin()
 
     await user.click(screen.getByRole('button', { name: 'Edit Skills' }))
-    await user.click(screen.getByRole('button', { name: 'Remove skill 1' }))
+    await removeConfirmed(user, 'Remove skill 1')
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(within(section('Skills')).getByText('C#', { selector: '.skill-name' })).toBeInTheDocument()

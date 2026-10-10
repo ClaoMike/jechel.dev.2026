@@ -1,5 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { CopyButton } from '../../components/CopyButton'
+import { DeleteButton } from '../../components/DeleteButton'
+import { TrashIcon } from '../../components/icons'
 import { Modal } from '../../components/Modal'
 import { api, type ContactMessageDetails } from '../../services/api'
 import { formatDateTime } from '../../utils/formatDate'
@@ -16,10 +18,12 @@ interface MessageDialogProps {
   onClose: () => void
   /** Called once the message has been marked as read on the server. */
   onRead: (id: number) => void
+  /** Deletes the message on the server (after the admin confirms); the inbox then closes this. */
+  onDelete: (id: number) => Promise<void>
 }
 
 /** A message's details, each with a copy button. Opening it marks the message as read. */
-export function MessageDialog({ messageId, name, onClose, onRead }: MessageDialogProps) {
+export function MessageDialog({ messageId, name, onClose, onRead, onDelete }: MessageDialogProps) {
   const titleId = useId()
   const [state, setState] = useState<State>({ status: 'loading' })
 
@@ -67,6 +71,14 @@ export function MessageDialog({ messageId, name, onClose, onRead }: MessageDialo
           <DetailRow label="Received" value={formatDateTime(state.message.receivedAt)} />
           <DetailRow label="Message" value={state.message.message} multiline />
         </dl>
+      )}
+      {state.status === 'loaded' && (
+        <div className="message-actions">
+          <DeleteButton what={`the message from ${state.message.name}`} onDelete={() => onDelete(messageId)} className="button button-secondary button-small" label="Delete message">
+            <TrashIcon size={16} />
+            Delete
+          </DeleteButton>
+        </div>
       )}
     </Modal>
   )

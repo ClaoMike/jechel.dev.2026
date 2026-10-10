@@ -150,11 +150,11 @@ export function makeMessages(count: number): TestMessage[] {
 }
 
 /**
- * The admin inbox API over an in-memory list, which it mutates (marking as read), so tests can
- * inspect it afterwards. `calls` records the "read" requests.
+ * The admin inbox API over an in-memory list, which it mutates (marking as read, deleting), so
+ * tests can inspect it afterwards. `calls` records the "read" and delete requests.
  */
 export function inbox(messages: TestMessage[]) {
-  const calls = { markAsRead: [] as number[] }
+  const calls = { markAsRead: [] as number[], deleted: [] as number[] }
   const handlers = [
     http.get(`${API}/api/contact/messages`, ({ request }) => {
       const url = new URL(request.url)
@@ -174,6 +174,13 @@ export function inbox(messages: TestMessage[]) {
       if (!message) return new HttpResponse(null, { status: 404 })
       calls.markAsRead.push(message.id)
       message.readAt ??= new Date().toISOString()
+      return new HttpResponse(null, { status: 204 })
+    }),
+    http.delete(`${API}/api/contact/messages/:id`, ({ params }) => {
+      const index = messages.findIndex((m) => m.id === Number(params.id))
+      if (index === -1) return new HttpResponse(null, { status: 404 })
+      calls.deleted.push(messages[index].id)
+      messages.splice(index, 1)
       return new HttpResponse(null, { status: 204 })
     }),
   ]
