@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import type { AboutContent } from '../services/api'
+import type { AboutContent, AppDetails, AppRequest } from '../services/api'
 
 export const API = 'http://api.test'
 
@@ -84,6 +84,7 @@ export const handlers = [
   http.get(`${API}/api/about`, () => HttpResponse.json(aboutContent())),
   http.get(`${API}/api/leetcode`, () => HttpResponse.json(LEETCODE_STATS)),
   http.get(`${API}/api/youtube/videos`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),
+  http.get(`${API}/api/apps`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),
 ]
 
 /**
@@ -136,6 +137,63 @@ export function youtube(videos: ReturnType<typeof makeVideos>) {
     const pageSize = Number(url.searchParams.get('pageSize') ?? 9)
     return HttpResponse.json({ items: videos.slice((page - 1) * pageSize, page * pageSize), page, pageSize, totalCount: videos.length })
   })
+}
+
+/** `count` apps, newest first: app 1 is the newest. Each has an image; app 1 starts with a video. */
+export function makeApps(count: number): AppDetails[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i + 1,
+    title: `App ${i + 1}`,
+    description: `What app ${i + 1} does, on [GitHub](https://github.com/x/app${i + 1}).`,
+    media: [
+      ...(i === 0 ? [{ url: '/api/files/00000000-0000-0000-0000-000000000001/demo.mp4', kind: 'video' as const }] : []),
+      { url: `/api/files/00000000-0000-0000-0000-0000000001${String(i).padStart(2, '0')}/image.webp`, kind: 'image' as const },
+      { url: `/api/files/00000000-0000-0000-0000-0000000002${String(i).padStart(2, '0')}/image.webp`, kind: 'image' as const },
+    ],
+    createdAt: new Date(Date.UTC(2026, 9, 1) - i * 86_400_000).toISOString(),
+  }))
+}
+
+/**
+ * The Apps API over an in-memory list (newest first), which it changes. `sent` records the
+ * bodies of creates and updates; a missing title is refused like the API does.
+ */
+export function appsApi(apps: AppDetails[]) {
+  const sent: { method: string; body: AppRequest }[] = []
+  const deleted: number[] = []
+  const invalid = (body: AppRequest) => (body.title.trim() ? null : HttpResponse.json({ status: 400, errors: { title: ['Required.'] } }, { status: 400 }))
+  const handlers = [
+    http.get(`${API}/api/apps`, ({ request }) => {
+      const url = new URL(request.url)
+      const page = Number(url.searchParams.get('page') ?? 1)
+      const pageSize = Number(url.searchParams.get('pageSize') ?? 9)
+      return HttpResponse.json({ items: apps.slice((page - 1) * pageSize, page * pageSize), page, pageSize, totalCount: apps.length })
+    }),
+    http.post(`${API}/api/apps`, async ({ request }) => {
+      const body = (await request.json()) as AppRequest
+      sent.push({ method: 'POST', body })
+      const error = invalid(body)
+      if (error) return error
+      const app = { ...body, id: Math.max(0, ...apps.map((a) => a.id)) + 1, createdAt: new Date().toISOString() }
+      apps.unshift(app)
+      return HttpResponse.json(app, { status: 201 })
+    }),
+    http.put(`${API}/api/apps/:id`, async ({ request, params }) => {
+      const body = (await request.json()) as AppRequest
+      sent.push({ method: 'PUT', body })
+      const error = invalid(body)
+      if (error) return error
+      const index = apps.findIndex((a) => a.id === Number(params.id))
+      apps[index] = { ...apps[index], ...body }
+      return HttpResponse.json(apps[index])
+    }),
+    http.delete(`${API}/api/apps/:id`, ({ params }) => {
+      deleted.push(Number(params.id))
+      apps.splice(apps.findIndex((a) => a.id === Number(params.id)), 1)
+      return new HttpResponse(null, { status: 204 })
+    }),
+  ]
+  return { handlers, sent, deleted }
 }
 
 export const TEST_CITIES = [

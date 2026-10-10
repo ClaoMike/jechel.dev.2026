@@ -2,6 +2,7 @@ import { useId, useRef, useState, type ReactNode } from 'react'
 import { DeleteButton } from '../../components/DeleteButton'
 import { TrashIcon, UploadIcon } from '../../components/icons'
 import { REMOVE_DETAIL } from './fields'
+import { formatMegabytes } from './format'
 import { ApiError, type UploadedFile, type UploadProgress } from '../../services/api'
 
 interface FileUploadProps {
@@ -92,10 +93,4 @@ export function FileUpload({ label, context, accept, maxBytes, hint, upload, onU
       )}
     </fieldset>
   )
-}
-
-/** 20971520 → "20 MB", 25500000 → "24.3 MB". */
-function formatMegabytes(bytes: number): string {
-  const megabytes = bytes / 1024 / 1024
-  return `${Number.isInteger(megabytes) ? megabytes : megabytes.toFixed(1)} MB`
 }

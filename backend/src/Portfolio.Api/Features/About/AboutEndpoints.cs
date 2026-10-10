@@ -7,9 +7,6 @@ namespace Portfolio.Api.Features.About;
 
 public static class AboutEndpoints
 {
-    /// <summary>Uploads not used by the page are deleted on save once they're this old (an editor may still be open with them).</summary>
-    public static readonly TimeSpan UnusedUploadGracePeriod = TimeSpan.FromDays(1);
-
     public static IEndpointRouteBuilder MapAboutEndpoints(this IEndpointRouteBuilder app)
     {
         var about = app.MapGroup("/about");
@@ -64,8 +61,7 @@ public static class AboutEndpoints
         page.UpdatedAt = time.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
 
-        Guid[] used = [.. new[] { normalized.PhotoUrl, normalized.Links.ResumeUrl }.Concat(normalized.Papers.Select(p => p.FileUrl)).Select(FileRules.FileIdIn).OfType<Guid>()];
-        await files.DeleteAllExceptAsync(used, time.GetUtcNow() - UnusedUploadGracePeriod, cancellationToken);
+        await FileCleanup.DeleteUnusedAsync(db, files, time, cancellationToken);
 
         return TypedResults.Ok(normalized);
     }

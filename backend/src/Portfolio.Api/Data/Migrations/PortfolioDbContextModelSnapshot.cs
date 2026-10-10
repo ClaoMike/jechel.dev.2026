@@ -42,6 +42,47 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("about_page", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.AppEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Media")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("media");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.ToTable("apps", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.ContactMessage", b =>
                 {
                     b.Property<int>("Id")

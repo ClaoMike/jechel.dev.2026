@@ -47,3 +47,9 @@ export function fileNameOf(url: string): string {
     return last
   }
 }
+
+/** 20971520 → "20 MB", 25500000 → "24.3 MB". */
+export function formatMegabytes(bytes: number): string {
+  const megabytes = bytes / 1024 / 1024
+  return `${Number.isInteger(megabytes) ? megabytes : megabytes.toFixed(1)} MB`
+}

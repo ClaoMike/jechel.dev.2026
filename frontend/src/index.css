@@ -475,6 +475,221 @@ h2 {
   line-clamp: 3;
 }
 
+/* A card that opens a popup instead of a link. */
+button.media-card {
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.media-card-placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+/* The admin's "Add an app" tile, first in the grid. */
+.add-tile {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 240px;
+  border-style: dashed;
+  border-width: 2px;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.add-tile:hover {
+  background: var(--surface);
+}
+
+.modal.modal-wide {
+  width: min(960px, 100%);
+}
+
+/* ---------- Apps: details popup and editor ---------- */
+
+.app-details {
+  display: grid;
+  gap: 16px;
+}
+
+.app-description {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.app-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.carousel {
+  display: grid;
+  gap: 8px;
+}
+
+.carousel-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  border-radius: var(--radius);
+  background: #000;
+}
+
+.carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.carousel-track:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.carousel-slide {
+  display: grid;
+  place-items: center;
+  flex: 0 0 100%;
+  aspect-ratio: 16 / 9;
+  scroll-snap-align: start;
+}
+
+.carousel-slide img,
+.carousel-slide video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.carousel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.carousel-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.carousel-dot {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--border);
+  cursor: pointer;
+}
+
+.carousel-dot[aria-current='true'] {
+  background: var(--accent);
+}
+
+.carousel-count {
+  min-width: 48px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.app-form {
+  display: grid;
+  gap: 16px;
+}
+
+.app-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.app-form-actions .app-delete {
+  margin-right: auto;
+}
+
+.media-list-editor {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.media-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.media-list-item {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.media-list-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #000;
+}
+
+.media-list-video {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #fff;
+}
+
+.media-list-video video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.media-list-video svg {
+  position: relative;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.6));
+}
+
+.media-list-label {
+  font-size: 13px;
+}
+
+.media-list-controls {
+  display: flex;
+  justify-content: space-between;
+}
+
+.media-list-controls .icon-button {
+  width: 32px;
+  height: 32px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .media-card {
     transition: none;

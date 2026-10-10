@@ -212,10 +212,18 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 | Tab | Route | Status |
 | --- | --- | --- |
 | What's new? | `/` | placeholder |
-| Apps | `/apps` | placeholder |
+| Apps | `/apps` | my apps in a grid, each with a popup; the admin adds and edits them |
 | YouTube | `/youtube` | my videos, 9 a page |
 | About Me | `/about` | profile, where I've been (map), problem solving (LeetCode, NeetCode), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
+
+**Apps** (`src/pages/AppsPage.tsx`, `src/features/apps/`, API in `backend/.../Features/Apps/`):
+
+- The same paged 3 × 3 grid as YouTube, newest first. A tile shows the app's first image (whatever comes before it), its title and the start of its description. Clicking it opens a popup with every image and video in a sideways slider (swipe, arrows, dots or the arrow keys; moving on pauses a video) and the full description, which may hold `[text](url)` links.
+- **The admin** gets an **Add an app** tile first (the first page then holds 8 apps, so it stays 3 × 3), and an **Edit** button in each popup that turns it into the form used for adding: title, description, and the images and videos, which can be added several at once, moved left or right, and removed. Closing with unsaved changes asks first. **Delete app** asks too.
+- `GET /api/apps` (public), `POST /api/apps`, `PUT /api/apps/{id}`, `DELETE /api/apps/{id}` (admin), stored in the `apps` table (media as `jsonb`). `POST /api/files/app-media` takes one file: images (JPEG, PNG, WebP, GIF up to 15 MB) become a WebP of at most 1920 px without metadata; videos (MP4, MOV, WebM up to 200 MB, recognised by their first bytes) are kept as they are. Files are served with range requests, so videos can start before they're fully downloaded (Safari needs this).
+- Saving About Me or an app deletes uploads that **nothing** uses any more, once a day old (`FileCleanup.cs`).
+- Videos live in the database like every other upload and are read whole for each request. That's fine for a few short clips; for many or long videos, move `IFileStorage` to object storage (R2, S3) or link YouTube videos instead.
 
 **YouTube** (`src/pages/YouTubePage.tsx`, API in `backend/.../Features/YouTube/`): the channel's public videos, newest first, in a 3 × 3 grid (2 columns on tablets, 1 on phones). Each card shows the thumbnail, title, date and the start of the description (cut after three lines), and opens the video on YouTube in a new tab. More than 9 videos get Previous / Next, with the page in the URL (`?page=2`).
 
@@ -263,7 +271,7 @@ To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real 
 - `POST /api/files/photo`, `POST /api/files/resume` and `POST /api/files/paper` (admin, multipart field `file`) return `{ url, fileName }`. The editor puts the URL in the page; it's used once the section is saved.
 - Photos (JPEG, PNG, WebP or GIF, up to 15 MB) are turned upright, scaled to fit 800×800 and stored as WebP **without metadata**, so a phone photo's GPS position never reaches the site. Résumés (up to 20 MB) and papers (up to 200 MB) must be PDFs and keep their file name.
 - Each upload endpoint reads its own form and raises the server's request limit (Kestrel's default is 30 MB) for that request only. The editor checks the size before sending and shows the upload's progress. Limits are in `FileRules.cs` and `uploadLimits.ts`.
-- Files are served publicly from `GET /api/files/{id}/{name}`. Saving the page deletes uploads it no longer uses once they're a day old (a replaced photo, or one uploaded and never saved).
+- Files are served publicly from `GET /api/files/{id}/{name}`. Saving the page or an app deletes uploads nothing uses any more once they're a day old (a replaced photo, or one uploaded and never saved).
 - Storage is behind `IFileStorage`. `DatabaseFileStorage` keeps files in the `stored_files` table, which suits a photo and a PDF. Moving to object storage (Cloudflare R2, S3) means a new implementation and one line in `Program.cs`. There's no HTTP caching yet; adding a CDN later only needs cache headers, since a file's URL never changes.
 - Image processing uses SixLabors.ImageSharp 3.1 (Six Labors Split License: free for open source and for individuals or companies under $1M revenue; version 4 needs a license key). Advisories published in October 2026 (fixed only in 4.1.2+) affect TIFF, ICC-profile and histogram code: photos are only read as JPEG, PNG, WebP or GIF, and only the admin can upload. Moving to ImageSharp 4 (with a license key) or to SkiaSharp would clear them.
 - Flags come from the `flag-icons` package (MIT), as separate SVG files loaded when shown (`features/about/flags.ts`).

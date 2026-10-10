@@ -122,4 +122,16 @@ public class FileRulesTests
         Assert.Null(FileRules.FileIdIn("https://example.com/api/files/" + id + "/x"));
         Assert.Null(FileRules.FileIdIn(""));
     }
+
+    [Theory]
+    [InlineData(new byte[] { 0, 0, 0, 0x20, (byte)'f', (byte)'t', (byte)'y', (byte)'p', (byte)'i', (byte)'s', (byte)'o', (byte)'m' }, "video/mp4")]
+    [InlineData(new byte[] { 0, 0, 0, 0x14, (byte)'f', (byte)'t', (byte)'y', (byte)'p', (byte)'q', (byte)'t', (byte)' ', (byte)' ' }, "video/quicktime")]
+    [InlineData(new byte[] { 0x1A, 0x45, 0xDF, 0xA3, 0, 0, 0, 0, 0, 0, 0, 0 }, "video/webm")]
+    [InlineData(new byte[] { 0, 0, 0, 0x18, (byte)'f', (byte)'t', (byte)'y', (byte)'p', (byte)'h', (byte)'e', (byte)'i', (byte)'c' }, null)]
+    [InlineData(new byte[] { 0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0 }, null)]
+    [InlineData(new byte[] { 1, 2 }, null)]
+    public void Videos_are_recognised_by_their_first_bytes(byte[] start, string? contentType)
+    {
+        Assert.Equal(contentType, FileRules.VideoContentType(start));
+    }
 }

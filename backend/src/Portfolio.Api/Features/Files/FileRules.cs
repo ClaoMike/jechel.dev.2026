@@ -19,8 +19,15 @@ public static partial class FileRules
     /// <summary>Papers and theses can be big. Files live in the database and are read whole, so there is still a cap.</summary>
     public const long PaperMaxBytes = 200 * 1024 * 1024;
 
+    /// <summary>App images and videos, uploaded one at a time; the biggest request allowed is for a video.</summary>
+    public const long AppImageMaxBytes = 15 * 1024 * 1024;
+    public const long AppVideoMaxBytes = 200 * 1024 * 1024;
+
     /// <summary>Photos are scaled down to fit this many pixels on each side.</summary>
     public const int PhotoMaxPixels = 800;
+
+    /// <summary>App images (screenshots) are kept bigger, to look sharp in the popup.</summary>
+    public const int AppImageMaxPixels = 1920;
 
     public const int FileNameMaxLength = 100;
 
@@ -46,15 +53,15 @@ public static partial class FileRules
     /// position they were taken at. Throws <see cref="ImageFormatException"/> (or
     /// <see cref="UnknownImageFormatException"/>) when the bytes aren't an image.
     /// </summary>
-    public static async Task<byte[]> PreparePhotoAsync(Stream input, CancellationToken cancellationToken)
+    public static async Task<byte[]> PreparePhotoAsync(Stream input, CancellationToken cancellationToken, int maxPixels = PhotoMaxPixels)
     {
         using var image = await Image.LoadAsync(new DecoderOptions { Configuration = PhotoFormats, MaxFrames = 1 }, input, cancellationToken);
         image.Mutate(x =>
         {
             x.AutoOrient();
-            if (image.Width > PhotoMaxPixels || image.Height > PhotoMaxPixels)
+            if (image.Width > maxPixels || image.Height > maxPixels)
             {
-                x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(PhotoMaxPixels, PhotoMaxPixels) });
+                x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(maxPixels, maxPixels) });
             }
         });
         image.Metadata.ExifProfile = null;
@@ -65,6 +72,28 @@ public static partial class FileRules
         await image.SaveAsWebpAsync(output, new WebpEncoder { Quality = 85 }, cancellationToken);
         return output.ToArray();
     }
+
+    /// <summary>
+    /// "video/mp4", "video/quicktime" or "video/webm" when the file starts like one, else null.
+    /// MP4 and MOV start with an "ftyp" box; HEIC and AVIF photos do too, so their brands are left out.
+    /// </summary>
+    public static string? VideoContentType(ReadOnlySpan<byte> start)
+    {
+        if (start.Length >= 12 && start[4..8].SequenceEqual("ftyp"u8))
+        {
+            var brand = Encoding.ASCII.GetString(start[8..12]);
+            if (brand is "heic" or "heix" or "heim" or "heis" or "hevc" or "hevx" or "mif1" or "msf1" or "avif" or "avis") return null;
+            return brand == "qt  " ? "video/quicktime" : "video/mp4";
+        }
+        return start.Length >= 4 && start[..4].SequenceEqual((ReadOnlySpan<byte>)[0x1A, 0x45, 0xDF, 0xA3]) ? "video/webm" : null;
+    }
+
+    public static string VideoExtension(string contentType) => contentType switch
+    {
+        "video/quicktime" => ".mov",
+        "video/webm" => ".webm",
+        _ => ".mp4",
+    };
 
     /// <summary>Every PDF starts with "%PDF-".</summary>
     public static bool LooksLikePdf(ReadOnlySpan<byte> start) => start.StartsWith("%PDF-"u8);

@@ -11,6 +11,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<AboutPage> AboutPages => Set<AboutPage>();
     public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
     public DbSet<LeetCodeSnapshot> LeetCodeStats => Set<LeetCodeSnapshot>();
+    public DbSet<AppEntry> Apps => Set<AppEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,6 +69,21 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(s => s.Username).HasColumnName("username").HasMaxLength(50);
             entity.Property(s => s.Stats).HasColumnName("stats").HasColumnType("jsonb").IsRequired();
             entity.Property(s => s.FetchedAt).HasColumnName("fetched_at");
+        });
+
+        modelBuilder.Entity<AppEntry>(entity =>
+        {
+            entity.ToTable("apps");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Id).HasColumnName("id");
+            entity.Property(a => a.Title).HasColumnName("title").HasMaxLength(Features.Apps.AppRules.TitleMaxLength).IsRequired();
+            entity.Property(a => a.Description).HasColumnName("description").HasMaxLength(Features.Apps.AppRules.DescriptionMaxLength).IsRequired();
+            entity.Property(a => a.Media).HasColumnName("media").HasColumnType("jsonb").IsRequired();
+            entity.Property(a => a.CreatedAt).HasColumnName("created_at");
+            entity.Property(a => a.UpdatedAt).HasColumnName("updated_at");
+
+            // The grid lists newest first.
+            entity.HasIndex(a => a.CreatedAt);
         });
     }
 }

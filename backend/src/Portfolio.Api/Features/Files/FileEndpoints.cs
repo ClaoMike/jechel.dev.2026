@@ -7,6 +7,9 @@ namespace Portfolio.Api.Features.Files;
 /// <param name="Url">Where the file is served from; put it in the page content (photoUrl, links.resumeUrl).</param>
 public record UploadedFile(string Url, string FileName);
 
+/// <param name="Kind">"image" or "video" (see <see cref="Apps.AppMediaKinds"/>).</param>
+public record UploadedMedia(string Url, string FileName, string Kind);
+
 public static class FileEndpoints
 {
     public static IEndpointRouteBuilder MapFileEndpoints(this IEndpointRouteBuilder app)
@@ -19,6 +22,7 @@ public static class FileEndpoints
         files.MapPost("/photo", UploadPhoto).WithName("UploadPhoto").RequireAuthorization();
         files.MapPost("/resume", UploadResume).WithName("UploadResume").RequireAuthorization();
         files.MapPost("/paper", UploadPaper).WithName("UploadPaper").RequireAuthorization();
+        files.MapPost("/app-media", UploadAppMedia).WithName("UploadAppMedia").RequireAuthorization();
 
         // Public. The name in the URL is only for the browser; the id finds the file.
         files.MapGet("/{id:guid}/{fileName}", GetFile).WithName("GetFile");
@@ -46,6 +50,50 @@ public static class FileEndpoints
         const string name = "photo.webp";
         var id = await storage.SaveAsync(name, FileRules.PhotoContentType, photo, cancellationToken);
         return TypedResults.Ok(new UploadedFile(FileRules.UrlFor(id, name), name));
+    }
+
+    /// <summary>
+    /// An image or a video for an app. Images are stored as a WebP of at most 1920×1920 without
+    /// metadata, like the photo; MP4, MOV and WebM videos are kept as they are.
+    /// </summary>
+    public static async Task<Results<Ok<UploadedMedia>, ValidationProblem>> UploadAppMedia(HttpRequest request, IFileStorage storage, CancellationToken cancellationToken)
+    {
+        var (file, error) = await ReadUploadAsync(request, FileRules.AppVideoMaxBytes, cancellationToken);
+        if (error is not null) return error;
+
+        var header = new byte[12];
+        await using (var stream = file!.OpenReadStream())
+        {
+            await stream.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, cancellationToken);
+        }
+
+        if (FileRules.VideoContentType(header) is { } videoType)
+        {
+            var bytes = new byte[file.Length];
+            await using (var stream = file.OpenReadStream())
+            {
+                await stream.ReadExactlyAsync(bytes, cancellationToken);
+            }
+            var videoName = FileRules.CleanFileName(file.FileName, "Video", FileRules.VideoExtension(videoType));
+            var videoId = await storage.SaveAsync(videoName, videoType, bytes, cancellationToken);
+            return TypedResults.Ok(new UploadedMedia(FileRules.UrlFor(videoId, videoName), videoName, Apps.AppMediaKinds.Video));
+        }
+
+        if (file.Length > FileRules.AppImageMaxBytes) return Invalid($"Images must be at most {FileRules.AppImageMaxBytes / 1024 / 1024} MB.");
+        byte[] image;
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            image = await FileRules.PreparePhotoAsync(stream, cancellationToken, FileRules.AppImageMaxPixels);
+        }
+        catch (Exception e) when (e is ImageFormatException or NotSupportedException)
+        {
+            return Invalid("That file isn't an image or video we can use. Try a JPEG, PNG, WebP, GIF, MP4, MOV or WebM.");
+        }
+
+        const string name = "image.webp";
+        var id = await storage.SaveAsync(name, FileRules.PhotoContentType, image, cancellationToken);
+        return TypedResults.Ok(new UploadedMedia(FileRules.UrlFor(id, name), name, Apps.AppMediaKinds.Image));
     }
 
     /// <summary>A PDF, kept as it is and downloaded under the name it was uploaded with.</summary>
@@ -82,7 +130,8 @@ public static class FileEndpoints
         // Shown in the browser (inline); the page's download link saves it under FileName.
         context.Response.Headers.ContentDisposition = new System.Net.Mime.ContentDisposition { Inline = true, FileName = file.FileName }.ToString();
         context.Response.Headers.XContentTypeOptions = "nosniff";
-        return TypedResults.File(file.Content, file.ContentType);
+        // Ranges let a video start playing and skip around before it's all downloaded (Safari needs them).
+        return TypedResults.File(file.Content, file.ContentType, enableRangeProcessing: true);
     }
 
     /// <summary>

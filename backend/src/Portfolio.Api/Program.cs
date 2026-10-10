@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Portfolio.Api;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.About;
+using Portfolio.Api.Features.Apps;
 using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.Contact;
 using Portfolio.Api.Features.Files;
@@ -78,5 +79,6 @@ api.MapFileEndpoints();
 api.MapPlaceEndpoints();
 api.MapLeetCodeEndpoints();
 api.MapYouTubeEndpoints();
+api.MapAppEndpoints();
 
 app.Run();

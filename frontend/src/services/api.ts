@@ -266,6 +266,33 @@ export interface UploadedFile {
   fileName: string
 }
 
+export const APP_MEDIA_KINDS = ['image', 'video'] as const
+export type AppMediaKind = (typeof APP_MEDIA_KINDS)[number]
+
+export interface UploadedMedia extends UploadedFile {
+  kind: AppMediaKind
+}
+
+/** An image or video of an app. */
+export interface AppMedia {
+  /** An upload (/api/files/…). */
+  url: string
+  kind: AppMediaKind
+}
+
+/** An app on the Apps page. */
+export interface AppDetails {
+  id: number
+  title: string
+  /** May contain [text](https://…) links. */
+  description: string
+  /** In the order the admin chose; the tile shows the first image. */
+  media: AppMedia[]
+  createdAt: string
+}
+
+export type AppRequest = Pick<AppDetails, 'title' | 'description' | 'media'>
+
 /** Field errors of a 400 response, keyed by camelCase field name (ASP.NET Core ValidationProblem). */
 export type ValidationErrors = Record<string, string[]>
 
@@ -359,6 +386,11 @@ export const api = {
     uploadPaper(file: File, onProgress?: UploadProgress): Promise<UploadedFile> {
       return upload('/api/files/paper', file, onProgress)
     },
+
+    /** Admin only. An image (JPEG, PNG, WebP or GIF up to 15 MB; stored as a WebP up to 1920 px) or a video (MP4, MOV or WebM up to 200 MB). */
+    uploadAppMedia(file: File, onProgress?: UploadProgress): Promise<UploadedMedia> {
+      return upload('/api/files/app-media', file, onProgress) as Promise<UploadedMedia>
+    },
   },
 
   leetcode: {
@@ -376,6 +408,29 @@ export const api = {
     /** Public. Newest first. Rejects with a 503 ApiError when YouTube isn't set up or can't be reached. */
     listVideos(page = 1, pageSize = 9, signal?: AbortSignal): Promise<Page<YouTubeVideo>> {
       return get<Page<YouTubeVideo>>('/api/youtube/videos', { params: { page, pageSize }, signal })
+    },
+  },
+
+  apps: {
+    /** Public. Newest first. */
+    list(page = 1, pageSize = 9, signal?: AbortSignal): Promise<Page<AppDetails>> {
+      return get<Page<AppDetails>>('/api/apps', { params: { page, pageSize }, signal })
+    },
+
+    /** Admin only. Rejects with validationErrors keyed by path, e.g. "media[0].url". */
+    create(app: AppRequest): Promise<AppDetails> {
+      return post<AppDetails>('/api/apps', app)
+    },
+
+    /** Admin only. */
+    async update(id: number, app: AppRequest): Promise<AppDetails> {
+      const response = await http.put<AppDetails>(`/api/apps/${id}`, app)
+      return response.data
+    },
+
+    /** Admin only. */
+    async delete(id: number): Promise<void> {
+      await http.delete(`/api/apps/${id}`)
     },
   },
 

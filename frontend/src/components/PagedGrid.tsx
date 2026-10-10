@@ -12,6 +12,10 @@ export interface PagedGridProps<T> {
   renderItem: (item: T) => ReactNode
   /** Names the list for screen readers, e.g. "Videos". */
   label: string
+  /** A tile before the items on the first page, e.g. the admin's "Add" button. Shown even when there are no items. */
+  leading?: ReactNode
+  /** Change it to load the current page again, e.g. after adding an item. */
+  reloadKey?: unknown
   loading?: ReactNode
   empty?: ReactNode
   error?: ReactNode
@@ -29,6 +33,8 @@ export function PagedGrid<T>({
   itemKey,
   renderItem,
   label,
+  leading,
+  reloadKey,
   loading = <p>Loading…</p>,
   empty = <p className="muted">Nothing here yet.</p>,
   error = <p role="alert">This couldn't be loaded. Please try again later.</p>,
@@ -47,7 +53,7 @@ export function PagedGrid<T>({
         if (!controller.signal.aborted) setResult({ status: 'error', page })
       })
     return () => controller.abort()
-  }, [load, page, pageSize])
+  }, [load, page, pageSize, reloadKey])
 
   const totalPages = state?.status === 'loaded' ? Math.max(1, Math.ceil(state.data.totalCount / pageSize)) : 1
 
@@ -68,10 +74,11 @@ export function PagedGrid<T>({
     <div ref={top} className="paged-grid">
       {state === null && loading}
       {state?.status === 'error' && error}
-      {state?.status === 'loaded' && state.data.totalCount === 0 && empty}
-      {state?.status === 'loaded' && state.data.items.length > 0 && (
+      {state?.status === 'loaded' && state.data.totalCount === 0 && !leading && empty}
+      {state?.status === 'loaded' && (state.data.items.length > 0 || (leading && page === 1)) && (
         <>
           <ul className="paged-grid-items" aria-label={label}>
+            {leading && page === 1 && <li>{leading}</li>}
             {state.data.items.map((item) => (
               <li key={itemKey(item)}>{renderItem(item)}</li>
             ))}

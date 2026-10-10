@@ -9,6 +9,8 @@ interface ModalProps {
   /** Focused when it opens; by default the dialog itself. */
   initialFocus?: RefObject<HTMLElement | null>
   onClose: () => void
+  /** Extra class on the dialog, e.g. "modal-wide". */
+  className?: string
   children: ReactNode
 }
 
@@ -16,7 +18,7 @@ interface ModalProps {
  * An accessible modal dialog: focus moves into it and stays there (Tab wraps), Escape or a click
  * on the backdrop closes it, and focus returns to whatever opened it.
  */
-export function Modal({ labelledBy, initialFocus, onClose, children }: ModalProps) {
+export function Modal({ labelledBy, initialFocus, onClose, className, children }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const initialFocusRef = useRef(initialFocus)
 
@@ -68,7 +70,7 @@ export function Modal({ labelledBy, initialFocus, onClose, children }: ModalProp
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}>
+      <div ref={dialogRef} className={className ? `modal ${className}` : 'modal'} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}>
         {children}
       </div>
     </div>,
