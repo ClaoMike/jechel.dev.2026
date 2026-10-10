@@ -16,6 +16,7 @@ public static class FileEndpoints
         // API: the session cookie is SameSite=Lax, so another site can't post with it.
         files.MapPost("/photo", UploadPhoto).WithName("UploadPhoto").RequireAuthorization().DisableAntiforgery();
         files.MapPost("/resume", UploadResume).WithName("UploadResume").RequireAuthorization().DisableAntiforgery();
+        files.MapPost("/paper", UploadPaper).WithName("UploadPaper").RequireAuthorization().DisableAntiforgery();
 
         // Public. The name in the URL is only for the browser; the id finds the file.
         files.MapGet("/{id:guid}/{fileName}", GetFile).WithName("GetFile");
@@ -45,16 +46,23 @@ public static class FileEndpoints
     }
 
     /// <summary>A PDF, kept as it is and downloaded under the name it was uploaded with.</summary>
-    public static async Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadResume(IFormFile? file, IFileStorage storage, CancellationToken cancellationToken)
+    public static Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadResume(IFormFile? file, IFileStorage storage, CancellationToken cancellationToken) =>
+        UploadPdf(file, "Resume", "The résumé must be a PDF.", storage, cancellationToken);
+
+    /// <summary>An academic paper: a PDF, like the résumé.</summary>
+    public static Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadPaper(IFormFile? file, IFileStorage storage, CancellationToken cancellationToken) =>
+        UploadPdf(file, "Paper", "The paper must be a PDF.", storage, cancellationToken);
+
+    private static async Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadPdf(IFormFile? file, string fallbackName, string notPdf, IFileStorage storage, CancellationToken cancellationToken)
     {
-        if (CheckSize(file, FileRules.ResumeMaxBytes) is { } error) return error;
+        if (CheckSize(file, FileRules.PdfMaxBytes) is { } error) return error;
 
         using var buffer = new MemoryStream();
         await file!.CopyToAsync(buffer, cancellationToken);
         var bytes = buffer.ToArray();
-        if (!FileRules.LooksLikePdf(bytes)) return Invalid("The résumé must be a PDF.");
+        if (!FileRules.LooksLikePdf(bytes)) return Invalid(notPdf);
 
-        var name = FileRules.CleanFileName(file.FileName, "Resume", ".pdf");
+        var name = FileRules.CleanFileName(file.FileName, fallbackName, ".pdf");
         var id = await storage.SaveAsync(name, FileRules.PdfContentType, bytes, cancellationToken);
         return TypedResults.Ok(new UploadedFile(FileRules.UrlFor(id, name), name));
     }

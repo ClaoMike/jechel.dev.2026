@@ -214,7 +214,7 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 | What's new? | `/` | placeholder |
 | Apps | `/apps` | placeholder |
 | YouTube | `/youtube` | placeholder |
-| About Me | `/about` | profile, where I've been (map), skills timeline, experience, education, papers, qualifications; editable by the admin |
+| About Me | `/about` | profile, where I've been (map), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
 
 To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real page. Unknown URLs redirect to `/`.
@@ -230,13 +230,16 @@ To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real 
 
 - The page is **one JSON document** (`AboutContent`), stored in the `about_page` table (`jsonb`, one row). It's always read and saved whole, so changing its shape means changing `AboutContent.cs` and the matching types in `api.ts`, with no new migration. Until the first save, `GET` returns `AboutDefaults` (placeholders).
 - **Sections:**
-  - **Photo and links:** an uploaded photo (or a placeholder icon), an uploaded résumé (download button), and GitHub, LinkedIn and Instagram in their brand colours. An empty link is hidden.
+  - **Photo and links:** an uploaded photo (or a placeholder icon) on top, then citizenship and residence labels (`statuses`, e.g. "UK Settled Status"), then an uploaded résumé (download button) and GitHub, LinkedIn and Instagram in their brand colours. An empty link is hidden.
   - **Where I've been:** a dotted world map with a pin per city. Each city is marked *worked*, *studied* and/or *visited*, each with an optional note. A pin with several marks is split into equal slices, one colour each. Hovering, focusing or tapping a pin shows its notes. Zoom with the buttons, a pinch, or Ctrl/⌘ + scroll; drag to move.
-  - **Skills:** a timeline. Each skill has periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once. A skill without periods is listed without a bar.
+  - **Skills:** a timeline. Each skill has periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once. A skill without periods is listed without a bar. **Sort by experience** orders them by total time (applies on Save, like the sort below).
   - **Work experience:** title, company, optional location, start month (may be in the future), an end month or *ongoing*, and bullet points.
   - **Education:** the same, without bullet points.
-  - **Academic papers:** a list.
+  - **Academic papers:** a title and an uploaded PDF each. With a PDF, the title is a download link with a download icon.
   - **Qualifications:** a title, and optionally the issuer, the month obtained and a grade.
+  - **Languages:** a name and a level (native, fluent, advanced, intermediate, beginner), shown as a word and five steps.
+  - **Licences:** driving, flying and boating licences, shown as rounded labels grouped by kind. The admin clicks the ones they have from a built-in list (`licences.ts`: EU/UK driving categories, drone and pilot licences, boating certificates) and can add others by hand.
+  - **Hackathons:** name, year and bullet points; reorderable, with **Sort by year**.
 - **Colours:** the admin picks the legend colours (skill uses, map marks) with colour pickers. They're stored in the page (`colors`).
 - **Editing:** when signed in, each section has an **Edit** button that turns it into a form; **Save** sends the whole page with that section changed. The API validates everything (`AboutRules.cs`), trims text and drops empty bullets. The page then shows what the API stored. Field errors come back keyed by path and show under the matching input. Since the whole page is sent, a problem in another section also blocks the save: the message then names that section and item (`errorKeys` on `EditableSection` says which keys a section shows itself).
 - **Order:** every list is shown in the order the admin set, with the arrow buttons. Experience and education also have **Sort by end date** (ongoing first, then the latest end): it only reorders the form, so Save keeps it and Cancel undoes it.
@@ -247,8 +250,8 @@ To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real 
 
 **Uploaded files** (`backend/.../Features/Files/`):
 
-- `POST /api/files/photo` and `POST /api/files/resume` (admin, multipart field `file`) return `{ url, fileName }`. The editor puts the URL in the page; it's used once the section is saved.
-- Photos (any common image, up to 15 MB) are turned upright, scaled to fit 800×800 and stored as WebP **without metadata**, so a phone photo's GPS position never reaches the site. Résumés must be PDFs (up to 10 MB) and keep their file name.
+- `POST /api/files/photo`, `POST /api/files/resume` and `POST /api/files/paper` (admin, multipart field `file`) return `{ url, fileName }`. The editor puts the URL in the page; it's used once the section is saved.
+- Photos (any common image, up to 15 MB) are turned upright, scaled to fit 800×800 and stored as WebP **without metadata**, so a phone photo's GPS position never reaches the site. Résumés and papers must be PDFs (up to 20 MB) and keep their file name.
 - Files are served publicly from `GET /api/files/{id}/{name}`. Saving the page deletes uploads it no longer uses once they're a day old (a replaced photo, or one uploaded and never saved).
 - Storage is behind `IFileStorage`. `DatabaseFileStorage` keeps files in the `stored_files` table, which suits a photo and a PDF. Moving to object storage (Cloudflare R2, S3) means a new implementation and one line in `Program.cs`. There's no HTTP caching yet; adding a CDN later only needs cache headers, since a file's URL never changes.
 - Image processing uses SixLabors.ImageSharp 3.1 (Six Labors Split License: free for open source and for individuals or companies under $1M revenue; version 4 needs a license key).

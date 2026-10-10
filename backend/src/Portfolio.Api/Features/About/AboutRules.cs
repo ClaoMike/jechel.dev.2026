@@ -18,6 +18,8 @@ public static partial class AboutRules
     public const int MaxItems = 50;
     public const int MaxBullets = 20;
     public const int MaxPlaces = 500;
+    public const int MaxStatuses = 10;
+    public const int CodeMaxLength = 20;
 
     public static Dictionary<string, string[]> Validate(AboutContent? content)
     {
@@ -31,6 +33,7 @@ public static partial class AboutRules
         }
 
         CheckUrl(content.PhotoUrl, "photoUrl", Add);
+        CheckBullets(content.Statuses, "statuses", MaxStatuses, ShortTextMaxLength, Add);
         if (content.Links is null)
         {
             Add("links", "Links are required.");
@@ -131,7 +134,16 @@ public static partial class AboutRules
             }
         }
 
-        CheckBullets(content.Papers, "papers", MaxItems, EntryMaxLength, Add);
+        if (CheckList(content.Papers, "papers", MaxItems, Add))
+        {
+            for (var i = 0; i < content.Papers.Count; i++)
+            {
+                var paper = content.Papers[i];
+                if (paper is null) { Add($"papers[{i}]", "Paper is required."); continue; }
+                CheckText(paper.Title, $"papers[{i}].title", EntryMaxLength, Add);
+                CheckUrl(paper.FileUrl, $"papers[{i}].fileUrl", Add);
+            }
+        }
 
         if (CheckList(content.Qualifications, "qualifications", MaxItems, Add))
         {
@@ -147,6 +159,41 @@ public static partial class AboutRules
             }
         }
 
+        if (CheckList(content.Languages, "languages", MaxItems, Add))
+        {
+            for (var i = 0; i < content.Languages.Count; i++)
+            {
+                var language = content.Languages[i];
+                if (language is null) { Add($"languages[{i}]", "Language is required."); continue; }
+                CheckText(language.Name, $"languages[{i}].name", ShortTextMaxLength, Add);
+                if (language.Level is null || !LanguageLevels.All.Contains(language.Level)) Add($"languages[{i}].level", $"Must be one of: {string.Join(", ", LanguageLevels.All)}.");
+            }
+        }
+
+        if (CheckList(content.Licences, "licences", MaxItems, Add))
+        {
+            for (var i = 0; i < content.Licences.Count; i++)
+            {
+                var licence = content.Licences[i];
+                if (licence is null) { Add($"licences[{i}]", "Licence is required."); continue; }
+                if (licence.Category is null || !LicenceCategories.All.Contains(licence.Category)) Add($"licences[{i}].category", $"Must be one of: {string.Join(", ", LicenceCategories.All)}.");
+                CheckText(licence.Code, $"licences[{i}].code", CodeMaxLength, Add, required: false);
+                CheckText(licence.Name, $"licences[{i}].name", ShortTextMaxLength, Add);
+            }
+        }
+
+        if (CheckList(content.Hackathons, "hackathons", MaxItems, Add))
+        {
+            for (var i = 0; i < content.Hackathons.Count; i++)
+            {
+                var hackathon = content.Hackathons[i];
+                if (hackathon is null) { Add($"hackathons[{i}]", "Hackathon is required."); continue; }
+                CheckText(hackathon.Name, $"hackathons[{i}].name", ShortTextMaxLength, Add);
+                if (hackathon.Year is < 1950 or > 2200) Add($"hackathons[{i}].year", "Enter a year like 2024.");
+                CheckBullets(hackathon.Bullets, $"hackathons[{i}].bullets", MaxBullets, BulletMaxLength, Add);
+            }
+        }
+
         return errors;
     }
 
@@ -157,6 +204,7 @@ public static partial class AboutRules
     /// </summary>
     public static AboutContent Normalize(AboutContent content) => new(
         Trim(content.PhotoUrl),
+        CleanBullets(content.Statuses),
         new AboutLinks(Trim(content.Links.ResumeUrl), Trim(content.Links.GitHubUrl), Trim(content.Links.LinkedInUrl), Trim(content.Links.InstagramUrl)),
         new AboutColors(NormalizeColors(content.Colors.Skills, SkillUses.All), NormalizeColors(content.Colors.Places, PlaceVisitKinds.All)),
         [.. content.Places.Select(p => p with
@@ -172,8 +220,11 @@ public static partial class AboutRules
             [.. s.Periods.Select(p => new SkillPeriod(FirstOfMonth(p.Start), FirstOfMonth(p.End), [.. p.Uses.OrderBy(u => IndexIn(SkillUses.All, u))]))]))],
         [.. content.Experience.Select(e => new ExperienceItem(e.Title.Trim(), e.Company.Trim(), Trim(e.Location), FirstOfMonth(e.Start), FirstOfMonth(e.End), CleanBullets(e.Bullets)))],
         [.. content.Education.Select(e => new EducationItem(e.Title.Trim(), e.Institution.Trim(), Trim(e.Location), FirstOfMonth(e.Start), FirstOfMonth(e.End)))],
-        CleanBullets(content.Papers),
-        [.. content.Qualifications.Select(q => new Qualification(q.Title.Trim(), Trim(q.Issuer), FirstOfMonth(q.Obtained), Trim(q.Grade)))]);
+        [.. content.Papers.Select(p => new Paper(p.Title.Trim(), Trim(p.FileUrl)))],
+        [.. content.Qualifications.Select(q => new Qualification(q.Title.Trim(), Trim(q.Issuer), FirstOfMonth(q.Obtained), Trim(q.Grade)))],
+        [.. content.Languages.Select(l => new Language(l.Name.Trim(), l.Level))],
+        [.. content.Licences.Select(l => new Licence(l.Category, Trim(l.Code), l.Name.Trim()))],
+        [.. content.Hackathons.Select(h => new Hackathon(h.Name.Trim(), h.Year, CleanBullets(h.Bullets)))]);
 
     /// <summary>Empty, an http(s) URL, or a path on this site ("/resume.pdf"). Nothing else, so no javascript: links.</summary>
     public static bool IsSafeUrl(string? value)

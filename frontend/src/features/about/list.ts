@@ -23,3 +23,8 @@ export function sortByEndDate<T extends { start: string; end: string | null }>(i
   const end = (item: T) => item.end ?? '9999-12-01'
   return [...items].sort((a, b) => end(b).localeCompare(end(a)) || b.start.localeCompare(a.start))
 }
+
+/** Newest year first; entries from the same year keep their order. */
+export function sortByYear<T extends { year: number }>(items: T[]): T[] {
+  return [...items].sort((a, b) => b.year - a.year)
+}

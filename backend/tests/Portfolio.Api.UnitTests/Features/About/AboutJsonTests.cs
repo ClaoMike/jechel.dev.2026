@@ -40,6 +40,12 @@ public class AboutJsonTests
         Assert.Empty(page.Places);
         Assert.Equal("Co", page.Experience[0].Company);
         Assert.Equal(new Qualification("Azure Developer Associate", "", null, ""), page.Qualifications[0]);
+        Assert.Equal([new Paper("A paper", "")], page.Papers);
+        Assert.Empty(page.Statuses);
+        Assert.Empty(page.Languages);
+        Assert.Empty(page.Licences);
+        Assert.Empty(page.Hackathons);
+        Assert.Empty(AboutRules.Validate(page));
     }
 
     [Fact]

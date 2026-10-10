@@ -7,8 +7,8 @@ namespace Portfolio.Api.Features.About;
 /// Reads and writes the stored page. Reading also upgrades pages saved by older versions of the
 /// API, so the shape can change without a data migration:
 /// skills with a 0–100 level get no periods, qualifications that were plain text become a title
-/// without a date, a company or institution website becomes a [name](url) link in the name, and
-/// fields added later (colours, places) get their defaults.
+/// without a date, papers that were plain text become a title without a file, a company or institution website becomes a [name](url) link in the name, and
+/// fields added later (statuses, colours, places, languages, licences, hackathons) start empty.
 /// </summary>
 public static class AboutJson
 {
@@ -40,6 +40,14 @@ public static class AboutJson
             }
         }
 
+        if (node["papers"] is JsonArray papers)
+        {
+            for (var i = 0; i < papers.Count; i++)
+            {
+                if (papers[i] is JsonValue text && text.TryGetValue<string>(out var title)) papers[i] = new JsonObject { ["title"] = title, ["fileUrl"] = "" };
+            }
+        }
+
         LinkNameToWebsite(node["experience"], "company", "companyUrl");
         LinkNameToWebsite(node["education"], "institution", "institutionUrl");
 
@@ -49,7 +57,12 @@ public static class AboutJson
             Colors = new AboutColors(
                 WithDefaults(content.Colors?.Skills, AboutDefaults.Colors.Skills),
                 WithDefaults(content.Colors?.Places, AboutDefaults.Colors.Places)),
+            Statuses = content.Statuses ?? [],
             Places = content.Places ?? [],
+            Papers = [.. (content.Papers ?? []).Select(p => p with { FileUrl = p.FileUrl ?? "" })],
+            Languages = content.Languages ?? [],
+            Licences = [.. (content.Licences ?? []).Select(l => l with { Code = l.Code ?? "" })],
+            Hackathons = content.Hackathons ?? [],
             Experience = content.Experience ?? [],
             Education = content.Education ?? [],
             Qualifications = [.. (content.Qualifications ?? []).Select(q => q with { Issuer = q.Issuer ?? "", Grade = q.Grade ?? "" })],

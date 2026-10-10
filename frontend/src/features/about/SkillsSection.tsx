@@ -1,11 +1,12 @@
 import { useId, useState } from 'react'
+import { SortIcon } from '../../components/icons'
 import { SKILL_USES, type AboutColors, type Skill, type SkillPeriod } from '../../services/api'
 import { EditableSection } from './EditableSection'
 import { AddButton, CheckboxGroup, ColorField, ItemControls, MonthField, TextField, type EditorProps, type FieldErrors } from './fields'
 import { currentMonth, formatPeriod } from './format'
 import { SKILL_USE_LABELS, splitBackground } from './legend'
 import { move, removeAt, replaceAt } from './list'
-import { axisYears, chartRange, formatExperience, monthIndex, monthsUsed } from './skills'
+import { axisYears, chartRange, formatExperience, monthIndex, monthsUsed, sortByExperience } from './skills'
 
 export interface SkillsValue {
   skills: Skill[]
@@ -14,7 +15,7 @@ export interface SkillsValue {
 
 export function SkillsSection({ value, canEdit, onSave }: { value: SkillsValue; canEdit: boolean; onSave: (value: SkillsValue) => Promise<void> }) {
   return (
-    <EditableSection title="Skills" errorKeys={['skills', 'colors.skills']} value={value} canEdit={canEdit} onSave={onSave} editor={SkillsEditor}>
+    <EditableSection title="Skills" errorKeys={['skills', 'colors.skills']} value={value} canEdit={canEdit} onSave={onSave} editor={(props) => <SkillsEditor {...props} />}>
       {value.skills.length === 0 ? <p className="muted">No skills yet.</p> : <SkillsChart skills={value.skills} colors={value.colors} />}
     </EditableSection>
   )
@@ -93,11 +94,33 @@ function SkillBar({ skill, period, colors, now, left, right }: { skill: string; 
 }
 
 function SkillsEditor({ value, onChange, errors }: EditorProps<SkillsValue>) {
-  const setSkills = (skills: Skill[]) => onChange({ ...value, skills })
+  const [sorted, setSorted] = useState(false)
+  const setSkills = (skills: Skill[]) => {
+    setSorted(false)
+    onChange({ ...value, skills })
+  }
   const newSkill = (): Skill => ({ name: '', periods: [{ start: currentMonth(), end: null, uses: ['work'] }] })
 
   return (
     <div className="editor-list">
+      <div className="editor-list-header">
+        <p className="muted editor-note">Shown in this order. Move skills with the arrows, or sort them by experience.</p>
+        <button
+          type="button"
+          className="button button-secondary button-small"
+          disabled={value.skills.length < 2}
+          onClick={() => {
+            onChange({ ...value, skills: sortByExperience(value.skills) })
+            setSorted(true)
+          }}
+        >
+          <SortIcon size={16} />
+          Sort by experience
+        </button>
+      </div>
+      <p role="status" className={sorted ? 'editor-status' : 'visually-hidden'}>
+        {sorted ? 'Sorted by experience, most first. Save to keep this order, or Cancel to undo.' : ''}
+      </p>
       <fieldset className="editor-item">
         <legend>Colours</legend>
         <div className="color-row">

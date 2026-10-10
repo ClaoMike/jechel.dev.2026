@@ -15,6 +15,7 @@ export const TEST_USER = {
 export function aboutContent(): AboutContent {
   return {
     photoUrl: '',
+    statuses: ['Romanian citizenship', 'UK Settled Status'],
     links: {
       resumeUrl: '/resume.pdf',
       gitHubUrl: 'https://github.com/claudiu',
@@ -54,8 +55,20 @@ export function aboutContent(): AboutContent {
       { title: 'Engineer', company: 'Globex', location: '', start: '2019-06-01', end: '2022-12-01', bullets: [] },
     ],
     education: [{ title: 'BSc Computer Science', institution: 'Uni', location: 'Bucharest', start: '2015-10-01', end: '2019-06-01' }],
-    papers: ['A paper about things (2020)'],
+    papers: [
+      { title: 'A paper about things (2020)', fileUrl: '' },
+      { title: 'Scene reconstruction', fileUrl: '/api/files/33333333-3333-3333-3333-333333333333/scene.pdf' },
+    ],
     qualifications: [{ title: 'Azure Developer Associate', issuer: 'Microsoft', obtained: '2024-03-01', grade: '' }],
+    languages: [
+      { name: 'Romanian', level: 'native' },
+      { name: 'Danish', level: 'beginner' },
+    ],
+    licences: [
+      { category: 'driving', code: 'B', name: 'Car' },
+      { category: 'other', code: '', name: 'Forklift' },
+    ],
+    hackathons: [{ name: 'HackMCR', year: 2022, bullets: ['Built a game'] }],
   }
 }
 

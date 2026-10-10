@@ -73,18 +73,21 @@ public class AboutEndpointsTests
     {
         var oldPhoto = await Files.SaveAsync("photo.webp", "image/webp", [1], CancellationToken.None);
         var resume = await Files.SaveAsync("CV.pdf", "application/pdf", [2], CancellationToken.None);
+        var paper = await Files.SaveAsync("Paper.pdf", "application/pdf", [4], CancellationToken.None);
         _time.Advance(TimeSpan.FromDays(2));
         var justUploaded = await Files.SaveAsync("photo.webp", "image/webp", [3], CancellationToken.None);
         var content = AboutDefaults.Content with
         {
             PhotoUrl = FileRules.UrlFor(justUploaded, "photo.webp"),
             Links = AboutDefaults.Content.Links with { ResumeUrl = FileRules.UrlFor(resume, "CV.pdf") },
+            Papers = [new Paper("My paper", FileRules.UrlFor(paper, "Paper.pdf"))],
         };
 
         await AboutEndpoints.UpdateAbout(content, _db, Files, _time, CancellationToken.None);
 
         Assert.Null(await Files.GetAsync(oldPhoto, CancellationToken.None));
         Assert.NotNull(await Files.GetAsync(resume, CancellationToken.None));
+        Assert.NotNull(await Files.GetAsync(paper, CancellationToken.None));
         Assert.NotNull(await Files.GetAsync(justUploaded, CancellationToken.None));
     }
 

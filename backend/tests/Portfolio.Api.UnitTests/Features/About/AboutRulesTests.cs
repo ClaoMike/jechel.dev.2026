@@ -30,7 +30,7 @@ public class AboutRulesTests
     [Fact]
     public void Empty_sections_and_links_are_allowed()
     {
-        var empty = new AboutContent("", new AboutLinks("", "", "", ""), AboutDefaults.Colors, [], [], [], [], [], []);
+        var empty = new AboutContent("", [], new AboutLinks("", "", "", ""), AboutDefaults.Colors, [], [], [], [], [], [], [], [], []);
 
         Assert.Empty(AboutRules.Validate(empty));
     }
@@ -255,7 +255,10 @@ public class AboutRulesTests
         {
             PhotoUrl = " /me.jpg ",
             Experience = [new ExperienceItem(" Dev ", " [Co](https://co.example) ", " City ", new DateOnly(2020, 5, 17), new DateOnly(2021, 2, 9), [" Did things ", "", "   "])],
-            Papers = [" A paper ", ""],
+            Papers = [new Paper(" A paper ", " /api/files/x/p.pdf ")],
+            Statuses = [" EU citizenship ", " "],
+            Licences = [new Licence("driving", " B ", " Car ")],
+            Hackathons = [new Hackathon(" Hack ", 2024, [" Won ", ""])],
             Qualifications = [new Qualification(" Cert ", " Issuer ", new DateOnly(2024, 3, 15), " A ")],
         };
 
@@ -266,7 +269,34 @@ public class AboutRulesTests
         Assert.Equal(("Dev", "[Co](https://co.example)", "City"), (job.Title, job.Company, job.Location));
         Assert.Equal((new DateOnly(2020, 5, 1), new DateOnly(2021, 2, 1)), (job.Start, job.End));
         Assert.Equal(["Did things"], job.Bullets);
-        Assert.Equal(["A paper"], normalized.Papers);
+        Assert.Equal([new Paper("A paper", "/api/files/x/p.pdf")], normalized.Papers);
+        Assert.Equal(["EU citizenship"], normalized.Statuses);
+        Assert.Equal(new Licence("driving", "B", "Car"), normalized.Licences[0]);
+        Assert.Equal(("Hack", 2024), (normalized.Hackathons[0].Name, normalized.Hackathons[0].Year));
+        Assert.Equal(["Won"], normalized.Hackathons[0].Bullets);
         Assert.Equal(new Qualification("Cert", "Issuer", new DateOnly(2024, 3, 1), "A"), normalized.Qualifications[0]);
+    }
+
+    [Fact]
+    public void Papers_need_a_title_and_a_safe_file_link()
+    {
+        var content = Valid with { Papers = [new Paper(" ", ""), new Paper("Mine", "javascript:alert(1)"), new Paper("Fine", "")] };
+
+        Assert.Equal(["papers[0].title", "papers[1].fileUrl"], AboutRules.Validate(content).Keys.Order());
+    }
+
+    [Fact]
+    public void Languages_licences_and_hackathons_are_checked()
+    {
+        var content = Valid with
+        {
+            Languages = [new Language("Danish", "beginner"), new Language("", "expert")],
+            Licences = [new Licence("flying", "PPL(A)", "Private pilot, aeroplanes"), new Licence("space", "", "")],
+            Hackathons = [new Hackathon("HackMCR", 2022, ["Built a thing"]), new Hackathon("", 22, [])],
+        };
+
+        Assert.Equal(
+            ["hackathons[1].name", "hackathons[1].year", "languages[1].level", "languages[1].name", "licences[1].category", "licences[1].name"],
+            AboutRules.Validate(content).Keys.Order());
     }
 }

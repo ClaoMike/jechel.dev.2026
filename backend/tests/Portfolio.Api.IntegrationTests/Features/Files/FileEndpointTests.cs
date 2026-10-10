@@ -80,7 +80,21 @@ public class FileEndpointTests(PortfolioApiFactory factory)
         Assert.Equal("Claudiu Jechel CV.pdf", served.Content.Headers.ContentDisposition!.FileName?.Trim('"'));
     }
 
+    [Fact]
+    public async Task A_paper_is_uploaded_like_a_resume()
+    {
+        var admin = await SignedInClientAsync();
+
+        var upload = await admin.PostAsync("/api/files/paper", Form("%PDF-1.7\npaper"u8.ToArray(), "PCG paper.pdf", "application/pdf"));
+
+        var uploaded = (await upload.Content.ReadFromJsonAsync<UploadedFile>())!;
+        Assert.Equal("PCG paper.pdf", uploaded.FileName);
+        Assert.Equal(HttpStatusCode.OK, (await factory.CreateBrowserClient().GetAsync(uploaded.Url)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateBrowserClient().PostAsync("/api/files/paper", Form("%PDF-"u8.ToArray(), "p.pdf", "application/pdf"))).StatusCode);
+    }
+
     [Theory]
+    [InlineData("/api/files/paper", "<html>not a pdf</html>")]
     [InlineData("/api/files/photo", "not an image")]
     [InlineData("/api/files/resume", "<html>not a pdf</html>")]
     public async Task Wrong_file_types_are_rejected(string path, string body)

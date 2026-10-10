@@ -64,6 +64,8 @@ export interface Page<T> {
 export interface AboutContent {
   /** Empty: show a placeholder. An uploaded photo is a /api/files/… path. */
   photoUrl: string
+  /** Shown under the photo, e.g. "Romanian citizenship". */
+  statuses: string[]
   links: AboutLinks
   colors: AboutColors
   places: Place[]
@@ -72,8 +74,44 @@ export interface AboutContent {
   experience: ExperienceItem[]
   /** In the order the admin chose. */
   education: EducationItem[]
-  papers: string[]
+  papers: Paper[]
   qualifications: Qualification[]
+  languages: Language[]
+  licences: Licence[]
+  hackathons: Hackathon[]
+}
+
+export interface Paper {
+  title: string
+  /** The uploaded PDF (/api/files/…), or empty: the title isn't a link then. */
+  fileUrl: string
+}
+
+export const LANGUAGE_LEVELS = ['native', 'fluent', 'advanced', 'intermediate', 'beginner'] as const
+export type LanguageLevel = (typeof LANGUAGE_LEVELS)[number]
+
+export interface Language {
+  name: string
+  level: LanguageLevel
+}
+
+export const LICENCE_CATEGORIES = ['driving', 'flying', 'boating', 'other'] as const
+export type LicenceCategory = (typeof LICENCE_CATEGORIES)[number]
+
+/** A driving, flying or boating licence; see features/about/licences for the ones offered. */
+export interface Licence {
+  category: LicenceCategory
+  /** Short code, e.g. "B" or "PPL(A)"; may be empty. */
+  code: string
+  /** What it allows, e.g. "Car". */
+  name: string
+}
+
+export interface Hackathon {
+  /** May contain links. */
+  name: string
+  year: number
+  bullets: string[]
 }
 
 /** Empty strings hide the link. */
@@ -262,6 +300,11 @@ export const api = {
     /** Admin only. A PDF. Rejects with validationErrors.file. */
     uploadResume(file: File): Promise<UploadedFile> {
       return upload('/api/files/resume', file)
+    },
+
+    /** Admin only. An academic paper, as a PDF. Rejects with validationErrors.file. */
+    uploadPaper(file: File): Promise<UploadedFile> {
+      return upload('/api/files/paper', file)
     },
   },
 

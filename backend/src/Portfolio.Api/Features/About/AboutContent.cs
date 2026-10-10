@@ -5,16 +5,21 @@ namespace Portfolio.Api.Features.About;
 /// Dates have month precision: the day is always 1. Lists are shown in the order stored.
 /// Free text may contain links written as [text](https://…).
 /// </summary>
+/// <param name="Statuses">Shown under the photo, e.g. "Romanian citizenship", "UK Settled Status".</param>
 public record AboutContent(
     string PhotoUrl,
+    IReadOnlyList<string> Statuses,
     AboutLinks Links,
     AboutColors Colors,
     IReadOnlyList<Place> Places,
     IReadOnlyList<Skill> Skills,
     IReadOnlyList<ExperienceItem> Experience,
     IReadOnlyList<EducationItem> Education,
-    IReadOnlyList<string> Papers,
-    IReadOnlyList<Qualification> Qualifications);
+    IReadOnlyList<Paper> Papers,
+    IReadOnlyList<Qualification> Qualifications,
+    IReadOnlyList<Language> Languages,
+    IReadOnlyList<Licence> Licences,
+    IReadOnlyList<Hackathon> Hackathons);
 
 /// <summary>Empty strings hide the link.</summary>
 public record AboutLinks(string ResumeUrl, string GitHubUrl, string LinkedInUrl, string InstagramUrl);
@@ -69,6 +74,31 @@ public record EducationItem(string Title, string Institution, string Location, D
 /// <param name="Grade">Optional, e.g. "First Class" or "870/1000".</param>
 public record Qualification(string Title, string Issuer, DateOnly? Obtained, string Grade);
 
+/// <param name="FileUrl">The uploaded PDF (a /api/files/… path), or empty: then the title isn't a link.</param>
+public record Paper(string Title, string FileUrl);
+
+/// <param name="Level">One of <see cref="LanguageLevels"/>.</param>
+public record Language(string Name, string Level);
+
+public static class LanguageLevels
+{
+    public static readonly IReadOnlyList<string> All = ["native", "fluent", "advanced", "intermediate", "beginner"];
+}
+
+/// <summary>A driving, flying or boating licence.</summary>
+/// <param name="Category">One of <see cref="LicenceCategories"/>.</param>
+/// <param name="Code">Short code shown in the label, e.g. "B" or "PPL(A)"; optional.</param>
+/// <param name="Name">What it allows, e.g. "Car".</param>
+public record Licence(string Category, string Code, string Name);
+
+public static class LicenceCategories
+{
+    public static readonly IReadOnlyList<string> All = ["driving", "flying", "boating", "other"];
+}
+
+/// <param name="Bullets">What was built, the result, …</param>
+public record Hackathon(string Name, int Year, IReadOnlyList<string> Bullets);
+
 /// <summary>Shown until the admin saves the page for the first time.</summary>
 public static class AboutDefaults
 {
@@ -78,6 +108,7 @@ public static class AboutDefaults
 
     public static readonly AboutContent Content = new(
         PhotoUrl: "",
+        Statuses: ["Placeholder: a citizenship", "Placeholder: a residence status"],
         Links: new AboutLinks(ResumeUrl: "", GitHubUrl: "https://github.com/", LinkedInUrl: "https://www.linkedin.com/", InstagramUrl: "https://www.instagram.com/"),
         Colors: Colors,
         Places:
@@ -103,6 +134,9 @@ public static class AboutDefaults
         [
             new EducationItem("BSc Computer Science", "Placeholder University", "Bucharest, Romania", new DateOnly(2015, 10, 1), new DateOnly(2019, 6, 1)),
         ],
-        Papers: ["Placeholder: Author, A. (2020). Title of the paper. Journal name, 1(2), 3-4."],
-        Qualifications: [new Qualification("Placeholder: a certification", "Issuer", new DateOnly(2024, 1, 1), "")]);
+        Papers: [new Paper("Placeholder: Author, A. (2020). Title of the paper. Journal name, 1(2), 3-4.", "")],
+        Qualifications: [new Qualification("Placeholder: a certification", "Issuer", new DateOnly(2024, 1, 1), "")],
+        Languages: [new Language("English", "fluent"), new Language("Romanian", "native")],
+        Licences: [new Licence("driving", "B", "Car")],
+        Hackathons: [new Hackathon("Placeholder Hackathon", 2024, ["Placeholder: what you built."])]);
 }

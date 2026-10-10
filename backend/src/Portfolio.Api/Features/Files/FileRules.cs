@@ -11,7 +11,8 @@ namespace Portfolio.Api.Features.Files;
 public static partial class FileRules
 {
     public const long PhotoMaxBytes = 15 * 1024 * 1024;
-    public const long ResumeMaxBytes = 10 * 1024 * 1024;
+    /// <summary>Résumés and papers.</summary>
+    public const long PdfMaxBytes = 20 * 1024 * 1024;
 
     /// <summary>Photos are scaled down to fit this many pixels on each side.</summary>
     public const int PhotoMaxPixels = 800;

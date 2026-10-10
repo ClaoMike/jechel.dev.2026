@@ -1,6 +1,14 @@
-import type { SkillUse, VisitKind } from '../../services/api'
+import type { LanguageLevel, SkillUse, VisitKind } from '../../services/api'
 
 export const SKILL_USE_LABELS: Record<SkillUse, string> = { work: 'Work', academic: 'Academic', personal: 'Personal' }
+
+export const LANGUAGE_LEVEL_LABELS: Record<LanguageLevel, string> = {
+  native: 'Native',
+  fluent: 'Fluent',
+  advanced: 'Advanced',
+  intermediate: 'Intermediate',
+  beginner: 'Beginner',
+}
 
 export const VISIT_LABELS: Record<VisitKind, string> = { worked: 'Worked', studied: 'Studied', visited: 'Visited' }
 

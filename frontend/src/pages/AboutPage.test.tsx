@@ -165,6 +165,19 @@ describe('AboutPage for visitors', () => {
     expect(qualification).not.toHaveTextContent('Grade')
   })
 
+  it('shows papers as downloads, languages, licences and hackathons', async () => {
+    await renderAbout()
+
+    const papers = section('Academic papers')
+    expect(within(papers).getByRole('link', { name: 'Scene reconstruction (PDF)' })).toHaveAttribute('download')
+    expect(within(papers).getByText('A paper about things (2020)').closest('a')).toBeNull()
+    expect(within(section('Languages')).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['RomanianNative', 'DanishBeginner'])
+    expect(within(section('Licences')).getByRole('list', { name: 'Driving licences' })).toHaveTextContent('BCar')
+    expect(within(section('Licences')).getByRole('list', { name: 'Other licences' })).toHaveTextContent('Forklift')
+    expect(within(section('Hackathons')).getByRole('heading', { name: 'HackMCR' })).toBeInTheDocument()
+    expect(within(section('Hackathons')).getByText('Built a game')).toBeInTheDocument()
+  })
+
   it('has no edit buttons', async () => {
     await renderAbout()
 
@@ -191,6 +204,9 @@ describe('AboutPage for the admin', () => {
       'Edit Education',
       'Edit Academic papers',
       'Edit Qualifications',
+      'Edit Languages',
+      'Edit Licences',
+      'Edit Hackathons',
     ])
   })
 
@@ -328,17 +344,133 @@ describe('AboutPage for the admin', () => {
     expect(saved[0].education[0]).toEqual({ title: 'MSc Software Engineering', institution: 'Uni', location: 'Bucharest', start: '2015-10-01', end: '2019-06-01' })
   })
 
-  it('adds and removes papers', async () => {
+  it('adds a paper with its PDF, and removes another', async () => {
     const { user, saved } = await renderAsAdmin()
+    const upload = vi.spyOn(api.files, 'uploadPaper').mockResolvedValue({ url: '/api/files/44444444-4444-4444-4444-444444444444/new.pdf', fileName: 'new.pdf' })
 
     await user.click(screen.getByRole('button', { name: 'Edit Academic papers' }))
     await user.click(screen.getByRole('button', { name: 'Add paper' }))
-    await user.type(screen.getByLabelText('Paper 2'), 'Something new')
+    const added = within(screen.getByRole('group', { name: 'Paper 3' }))
+    await user.type(added.getByLabelText('Title'), 'Something new')
+    await user.upload(added.getByLabelText('PDF file for paper 3'), new File(['%PDF-'], 'new.pdf', { type: 'application/pdf' }))
+    expect(await added.findByRole('link', { name: 'new.pdf' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Remove PDF for paper 2' }))
     await user.click(screen.getByRole('button', { name: 'Remove paper 1' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await within(section('Academic papers')).findByText('Something new')).toBeInTheDocument()
-    expect(saved[0].papers).toEqual(['Something new'])
+    const papers = section('Academic papers')
+    expect(await within(papers).findByRole('link', { name: 'Something new (PDF)' })).toHaveAttribute('href', '/api/files/44444444-4444-4444-4444-444444444444/new.pdf')
+    expect(within(papers).queryByRole('link', { name: /Scene reconstruction/ })).not.toBeInTheDocument()
+    expect(upload).toHaveBeenCalledOnce()
+    expect(saved[0].papers).toEqual([
+      { title: 'Scene reconstruction', fileUrl: '' },
+      { title: 'Something new', fileUrl: '/api/files/44444444-4444-4444-4444-444444444444/new.pdf' },
+    ])
+  })
+
+  it('sorts skills by experience only when saved', async () => {
+    const { user, saved } = await renderAsAdmin({
+      ...aboutContent(),
+      skills: [
+        { name: 'Short', periods: [{ start: '2025-01-01', end: null, uses: ['work'] }] },
+        { name: 'Undated', periods: [] },
+        { name: 'Long', periods: [{ start: '2010-01-01', end: null, uses: ['work'] }] },
+      ],
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Edit Skills' }))
+    await user.click(screen.getByRole('button', { name: 'Sort by experience' }))
+    expect(screen.getByRole('status')).toHaveTextContent(/Save to keep this order/)
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await within(section('Skills')).findByText('Long', { selector: '.skill-name' })
+    expect(saved[0].skills.map((s) => s.name)).toEqual(['Long', 'Short', 'Undated'])
+  })
+
+  it('edits the citizenship and residence labels under the photo', async () => {
+    const { user, saved } = await renderAsAdmin()
+
+    expect(within(screen.getByRole('list', { name: 'Citizenship and residence' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Romanian citizenship', 'UK Settled Status'])
+    await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
+    await user.click(screen.getByRole('button', { name: 'Add label' }))
+    await user.type(screen.getByLabelText('Label 3'), 'EU citizenship')
+    await user.click(screen.getByRole('button', { name: 'Move label 3 up' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await within(screen.getByRole('list', { name: 'Citizenship and residence' })).findByText('EU citizenship')
+    expect(saved[0].statuses).toEqual(['Romanian citizenship', 'EU citizenship', 'UK Settled Status'])
+  })
+
+  it('adds languages with a level', async () => {
+    const { user, saved } = await renderAsAdmin()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Languages' }))
+    await user.click(screen.getByRole('button', { name: 'Add language' }))
+    const added = within(screen.getByRole('group', { name: 'Language 3' }))
+    await user.type(added.getByLabelText('Language'), 'English')
+    await user.selectOptions(added.getByLabelText('Level'), 'Fluent')
+    await user.click(screen.getByRole('button', { name: 'Remove language 2' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await within(section('Languages')).findByText('English')).toBeInTheDocument()
+    expect(within(section('Languages')).getByText('Fluent')).toBeInTheDocument()
+    expect(saved[0].languages).toEqual([
+      { name: 'Romanian', level: 'native' },
+      { name: 'English', level: 'fluent' },
+    ])
+  })
+
+  it('switches licences on and off, and adds one of its own', async () => {
+    const { user, saved } = await renderAsAdmin()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Licences' }))
+    expect(screen.getByRole('button', { name: 'B Car' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'B Car' }))
+    await user.click(screen.getByRole('button', { name: 'PPL(A) Private pilot, aeroplanes' }))
+    await user.click(screen.getByRole('button', { name: 'ICC International Certificate of Competence' }))
+    await user.selectOptions(screen.getByLabelText('Kind'), 'Boating')
+    await user.click(screen.getByRole('button', { name: 'Add licence' }))
+    expect(screen.getByText('Enter what the licence is for.')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('For'), 'Speedboat (DK)')
+    await user.click(screen.getByRole('button', { name: 'Add licence' }))
+    await user.click(screen.getByRole('button', { name: 'Remove Forklift' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    const licences = section('Licences')
+    expect(await within(licences).findByRole('list', { name: 'Flying licences' })).toHaveTextContent('PPL(A)Private pilot, aeroplanes')
+    expect(within(within(licences).getByRole('list', { name: 'Boating licences' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'ICCInternational Certificate of Competence',
+      'Speedboat (DK)',
+    ])
+    expect(within(licences).queryByRole('list', { name: 'Driving licences' })).not.toBeInTheDocument()
+    expect(saved[0].licences).toEqual([
+      { category: 'flying', code: 'PPL(A)', name: 'Private pilot, aeroplanes' },
+      { category: 'boating', code: 'ICC', name: 'International Certificate of Competence' },
+      { category: 'boating', code: '', name: 'Speedboat (DK)' },
+    ])
+  })
+
+  it('adds a hackathon with a year and bullet points, and sorts by year', async () => {
+    const { user, saved } = await renderAsAdmin()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Hackathons' }))
+    await user.click(screen.getByRole('button', { name: 'Add hackathon' }))
+    const added = within(screen.getByRole('group', { name: 'Hackathon 1' }))
+    await user.type(added.getByLabelText('Name'), 'Junction')
+    await user.clear(added.getByLabelText('Year'))
+    await user.type(added.getByLabelText('Year'), '2019')
+    await user.type(added.getByLabelText('Bullet point 1'), 'Made a robot')
+    await user.click(screen.getByRole('button', { name: 'Sort by year' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    const hackathons = section('Hackathons')
+    await within(hackathons).findByRole('heading', { name: 'Junction' })
+    expect(within(hackathons).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['HackMCR', 'Junction'])
+    expect(within(hackathons).getByText('2019')).toBeInTheDocument()
+    expect(saved[0].hackathons).toEqual([
+      { name: 'HackMCR', year: 2022, bullets: ['Built a game'] },
+      { name: 'Junction', year: 2019, bullets: ['Made a robot'] },
+    ])
   })
 
   it('adds a qualification with the month obtained and a grade', async () => {
@@ -362,8 +494,8 @@ describe('AboutPage for the admin', () => {
   it('inserts a link into the text', async () => {
     const { user, saved } = await renderAsAdmin()
 
-    await user.click(screen.getByRole('button', { name: 'Edit Academic papers' }))
-    await user.click(screen.getByRole('button', { name: 'Add link to Paper 1' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Hackathons' }))
+    await user.click(screen.getByRole('button', { name: 'Add link to Bullet point 1' }))
     await user.type(screen.getByLabelText('Link text'), 'Read it')
     await user.clear(screen.getByLabelText('Link URL'))
     await user.type(screen.getByLabelText('Link URL'), 'javascript:alert(1)')
@@ -372,9 +504,9 @@ describe('AboutPage for the admin', () => {
     await user.clear(screen.getByLabelText('Link URL'))
     await user.type(screen.getByLabelText('Link URL'), 'https://doi.org/10.1000/1{Enter}')
 
-    expect(screen.getByLabelText('Paper 1')).toHaveValue('A paper about things (2020)[Read it](https://doi.org/10.1000/1)')
+    expect(screen.getByLabelText('Bullet point 1')).toHaveValue('Built a game[Read it](https://doi.org/10.1000/1)')
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await within(section('Academic papers')).findByRole('link', { name: 'Read it' })).toHaveAttribute('href', 'https://doi.org/10.1000/1')
+    expect(await within(section('Hackathons')).findByRole('link', { name: 'Read it' })).toHaveAttribute('href', 'https://doi.org/10.1000/1')
     expect(saved).toHaveLength(1)
   })
 
@@ -531,7 +663,7 @@ describe('AboutPage for the admin', () => {
 
   it('shows the page as the API stored it (trimmed)', async () => {
     const { user } = await renderAsAdmin()
-    const stored = { ...aboutContent(), papers: ['Stored by the API'] }
+    const stored = { ...aboutContent(), papers: [{ title: 'Stored by the API', fileUrl: '' }] }
     server.use(http.put(`${API}/api/about`, () => HttpResponse.json(stored)))
 
     await user.click(screen.getByRole('button', { name: 'Edit Academic papers' }))

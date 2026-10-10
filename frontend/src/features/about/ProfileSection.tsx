@@ -1,21 +1,34 @@
-import { useId, useRef, useState, type ReactNode } from 'react'
-import { DownloadIcon, GitHubIcon, InstagramIcon, LinkedInIcon, PersonIcon, TrashIcon, UploadIcon } from '../../components/icons'
-import { ApiError, api, type AboutLinks, type UploadedFile } from '../../services/api'
+import type { ReactNode } from 'react'
+import { DownloadIcon, GitHubIcon, InstagramIcon, LinkedInIcon, PersonIcon } from '../../components/icons'
+import { api, type AboutLinks } from '../../services/api'
+import { BulletsEditor } from './BulletsSection'
 import { EditableSection } from './EditableSection'
+import { FileUpload } from './FileUpload'
 import { TextField, type EditorProps } from './fields'
 import { fileNameOf, isSafeUrl } from './format'
+import { RichText } from './RichText'
 
 export interface Profile {
   photoUrl: string
+  statuses: string[]
   links: AboutLinks
 }
 
-/** The photo and the résumé / GitHub / LinkedIn / Instagram links. */
+/** The photo, then citizenship / residence labels, then the résumé / GitHub / LinkedIn / Instagram links. */
 export function ProfileSection({ value, canEdit, onSave }: { value: Profile; canEdit: boolean; onSave: (value: Profile) => Promise<void> }) {
   return (
-    <EditableSection title="Photo and links" hideTitle errorKeys={['photoUrl', 'links']} className="profile-card" value={value} canEdit={canEdit} onSave={onSave} editor={ProfileEditor}>
+    <EditableSection title="Photo and links" hideTitle errorKeys={['photoUrl', 'statuses', 'links']} className="profile-card" value={value} canEdit={canEdit} onSave={onSave} editor={ProfileEditor}>
       <div className="profile">
         <ProfilePhoto url={value.photoUrl} />
+        {value.statuses.length > 0 && (
+          <ul className="chips profile-statuses" aria-label="Citizenship and residence">
+            {value.statuses.map((status, i) => (
+              <li key={i} className="chip">
+                <RichText text={status} />
+              </li>
+            ))}
+          </ul>
+        )}
         <ul className="profile-links" aria-label="Links">
           <ProfileLink href={value.links.resumeUrl} icon={<DownloadIcon />} download>
             Download résumé
@@ -86,7 +99,7 @@ function ProfileEditor({ value, onChange, update, errors }: EditorProps<Profile>
         <FileUpload
           label="Résumé"
           accept="application/pdf,.pdf"
-          hint="A PDF, up to 10 MB. Visitors download it under its file name."
+          hint="A PDF, up to 20 MB. Visitors download it under its file name."
           upload={api.files.uploadResume}
           onUploaded={(file) => setResume(file.url)}
           onRemove={value.links.resumeUrl ? () => setResume('') : undefined}
@@ -103,78 +116,16 @@ function ProfileEditor({ value, onChange, update, errors }: EditorProps<Profile>
           </p>
         </FileUpload>
       </div>
+      <fieldset className="editor-item">
+        <legend>Citizenship and residence</legend>
+        <p className="muted editor-note">Labels under the photo, e.g. Romanian citizenship, EU citizenship, UK Settled Status.</p>
+        <BulletsEditor itemName="label" value={value.statuses} onChange={(statuses) => onChange({ ...value, statuses })} errorFor={(i) => errors[`statuses[${i}]`]} listError={errors.statuses} />
+      </fieldset>
       <div className="editor-grid">
         <TextField label="GitHub URL" type="url" value={value.links.gitHubUrl} onChange={setLink('gitHubUrl')} error={errors['links.gitHubUrl']} hint="Leave empty to hide it." />
         <TextField label="LinkedIn URL" type="url" value={value.links.linkedInUrl} onChange={setLink('linkedInUrl')} error={errors['links.linkedInUrl']} />
         <TextField label="Instagram URL" type="url" value={value.links.instagramUrl} onChange={setLink('instagramUrl')} error={errors['links.instagramUrl']} />
       </div>
     </div>
-  )
-}
-
-interface FileUploadProps {
-  label: string
-  accept: string
-  hint: string
-  upload: (file: File) => Promise<UploadedFile>
-  onUploaded: (file: UploadedFile) => void
-  /** Absent when there's nothing to remove. */
-  onRemove?: () => void
-  error?: string
-  /** What's there now: the photo, or the résumé's name. */
-  children: ReactNode
-}
-
-/**
- * Upload / Replace and Remove buttons for one file. The file is uploaded straight away, but
- * the page only uses it once the section is saved.
- */
-function FileUpload({ label, accept, hint, upload, onUploaded, onRemove, error, children }: FileUploadProps) {
-  const id = useId()
-  const input = useRef<HTMLInputElement>(null)
-  const [status, setStatus] = useState<{ state: 'idle' } | { state: 'uploading' } | { state: 'failed'; message: string }>({ state: 'idle' })
-  const message = status.state === 'failed' ? status.message : error
-
-  async function handleFile(file: File | undefined) {
-    if (!file) return
-    setStatus({ state: 'uploading' })
-    try {
-      onUploaded(await upload(file))
-      setStatus({ state: 'idle' })
-    } catch (e) {
-      const reason = e instanceof ApiError && e.validationErrors?.file?.[0]
-      const expired = e instanceof ApiError && e.status === 401
-      setStatus({ state: 'failed', message: reason || (expired ? 'Your session has ended. Sign in again, then upload.' : "Couldn't upload. Please try again.") })
-    } finally {
-      if (input.current) input.current.value = ''
-    }
-  }
-
-  return (
-    <fieldset className="upload" aria-describedby={`${id}-hint${message ? ` ${id}-error` : ''}`}>
-      <legend className="field-label">{label}</legend>
-      {children}
-      <div className="upload-actions">
-        <input ref={input} id={id} type="file" accept={accept} className="visually-hidden" tabIndex={-1} onChange={(e) => void handleFile(e.target.files?.[0])} aria-label={`${label} file`} />
-        <button type="button" className="button button-secondary button-small" disabled={status.state === 'uploading'} onClick={() => input.current?.click()}>
-          <UploadIcon size={16} />
-          {status.state === 'uploading' ? 'Uploading…' : onRemove ? `Replace ${label.toLowerCase()}` : `Upload ${label.toLowerCase()}`}
-        </button>
-        {onRemove && (
-          <button type="button" className="button button-secondary button-small" disabled={status.state === 'uploading'} onClick={onRemove}>
-            <TrashIcon size={16} />
-            Remove {label.toLowerCase()}
-          </button>
-        )}
-      </div>
-      <p className="field-hint" id={`${id}-hint`}>
-        {hint}
-      </p>
-      {message && (
-        <p className="field-error" id={`${id}-error`} role="alert">
-          {message}
-        </p>
-      )}
-    </fieldset>
   )
 }

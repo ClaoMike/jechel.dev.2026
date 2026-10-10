@@ -100,6 +100,7 @@ export function EditableSection<T>({ title, hideTitle = false, editLabel, classN
 /** Section titles by the first part of an API error key, for errors raised by another section. */
 const SECTION_TITLES: Record<string, string> = {
   photoUrl: 'Photo and links',
+  statuses: 'Photo and links',
   links: 'Photo and links',
   places: "Where I've been",
   'colors.places': "Where I've been",
@@ -109,6 +110,9 @@ const SECTION_TITLES: Record<string, string> = {
   education: 'Education',
   papers: 'Academic papers',
   qualifications: 'Qualifications',
+  languages: 'Languages',
+  licences: 'Licences',
+  hackathons: 'Hackathons',
 }
 
 const owns = (prefixes: string[], key: string) => prefixes.some((prefix) => key === prefix || key.startsWith(`${prefix}.`) || key.startsWith(`${prefix}[`))

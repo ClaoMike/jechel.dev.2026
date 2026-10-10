@@ -535,9 +535,10 @@ h2 {
 
 .profile {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
+  text-align: center;
 }
 
 .profile-photo {
@@ -559,6 +560,7 @@ h2 {
 .profile-links {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 10px;
   margin: 0;
   padding: 0;
@@ -990,6 +992,197 @@ h2 {
   flex: 1;
   min-width: 0;
   font-size: 14px;
+}
+
+/* Rounded labels: citizenship and residence, licences. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-statuses {
+  justify-content: center;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  font-size: 13px;
+}
+
+/* ---------- About Me: papers, languages, licences ---------- */
+
+.papers {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.paper-download {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.paper-download svg {
+  flex: none;
+  transform: translateY(3px);
+}
+
+.paper-download:hover span {
+  text-decoration: underline;
+}
+
+.languages {
+  display: grid;
+  grid-template-columns: minmax(80px, max-content) auto 1fr;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.language {
+  display: contents;
+}
+
+.language-name {
+  font-weight: 500;
+}
+
+.language-steps {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.language-step {
+  width: 14px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.language-step-on {
+  background: var(--accent);
+}
+
+.language-level {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.licence-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.licence-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.licence-code {
+  font-variant-numeric: tabular-nums;
+}
+
+.licence-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.licence-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.licence-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.licence-toggle:hover {
+  background: var(--surface-muted);
+}
+
+.licence-toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.licence-own {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.licence-own li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.licence-own .item-controls {
+  padding-top: 0;
+  margin-left: auto;
+}
+
+.licence-own-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+.select,
+.year-input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.year-input {
+  width: 90px;
+}
+
+.year-input[aria-invalid='true'] {
+  border-color: var(--error);
 }
 
 /* ---------- About Me: qualifications ---------- */

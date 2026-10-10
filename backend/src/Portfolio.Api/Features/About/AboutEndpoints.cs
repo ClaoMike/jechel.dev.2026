@@ -60,7 +60,7 @@ public static class AboutEndpoints
         page.UpdatedAt = time.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
 
-        Guid[] used = [.. new[] { normalized.PhotoUrl, normalized.Links.ResumeUrl }.Select(FileRules.FileIdIn).OfType<Guid>()];
+        Guid[] used = [.. new[] { normalized.PhotoUrl, normalized.Links.ResumeUrl }.Concat(normalized.Papers.Select(p => p.FileUrl)).Select(FileRules.FileIdIn).OfType<Guid>()];
         await files.DeleteAllExceptAsync(used, time.GetUtcNow() - UnusedUploadGracePeriod, cancellationToken);
 
         return TypedResults.Ok(normalized);

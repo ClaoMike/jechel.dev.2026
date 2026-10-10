@@ -96,21 +96,53 @@ test('the admin uploads a photo, sent as a multipart form', async ({ page }) => 
 test('the admin pins a city on the map', async ({ page }) => {
   const saved = await asAdmin(page)
   await page.route('**/api/places/search**', (route) =>
-    route.fulfill({ json: [{ id: 2643123, name: 'Manchester', region: 'England', country: 'United Kingdom', latitude: 53.481, longitude: -2.237, population: 568996 }] }),
+    // A made-up town, so it's never already on the map.
+    route.fulfill({ json: [{ id: 999999999, name: 'Testville', region: 'Nowhere', country: 'Testland', latitude: 10, longitude: 10, population: 1000 }] }),
   )
   await page.goto('/about')
 
   await page.getByRole('button', { name: "Edit Where I've been" }).click()
-  await page.getByLabel('Add a city').fill('manch')
-  await page.getByRole('button', { name: 'Manchester, England, United Kingdom' }).click()
-  const popup = page.getByRole('dialog', { name: 'Manchester, England, United Kingdom' })
+  await page.getByLabel('Add a city').fill('testv')
+  await page.getByRole('button', { name: 'Testville, Nowhere, Testland' }).click()
+  const popup = page.getByRole('dialog', { name: 'Testville, Nowhere, Testland' })
   await popup.getByRole('checkbox', { name: 'Studied' }).check()
   await popup.getByLabel('Studied: note (optional)').fill('BSc at [The University of Manchester](https://www.manchester.ac.uk)')
   await popup.getByRole('button', { name: 'Add to map' }).click()
   await page.getByRole('button', { name: 'Save' }).click()
 
   const map = page.getByRole('region', { name: "Where I've been" })
-  await map.getByRole('button', { name: /^Manchester, England, United Kingdom\./ }).hover()
+  await map.getByRole('button', { name: /^Testville, Nowhere, Testland\./ }).hover()
   await expect(map.getByRole('link', { name: 'The University of Manchester' })).toHaveAttribute('href', 'https://www.manchester.ac.uk')
+  expect(saved).toHaveLength(1)
+})
+
+test('the admin uploads a paper, whose title then downloads it', async ({ page }) => {
+  const saved = await asAdmin(page)
+  await page.route('**/api/files/paper', (route) => route.fulfill({ json: { url: '/favicon.svg', fileName: 'paper.pdf' } }))
+  await page.goto('/about')
+
+  await page.getByRole('button', { name: 'Edit Academic papers' }).click()
+  await page.getByRole('button', { name: 'Add paper' }).click()
+  const paper = page.getByRole('group', { name: /^Paper \d+$/ }).last()
+  await paper.getByLabel('Title', { exact: true }).fill('My new paper')
+  await paper.locator('input[type=file]').setInputFiles({ name: 'paper.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7') })
+  await expect(paper.getByRole('button', { name: /^Remove PDF/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  await expect(page.getByRole('region', { name: 'Academic papers' }).getByRole('link', { name: 'My new paper (PDF)' })).toHaveAttribute('href', '/favicon.svg')
+  expect(saved).toHaveLength(1)
+})
+
+test('the admin switches on a licence', async ({ page }) => {
+  const saved = await asAdmin(page)
+  await page.goto('/about')
+
+  await page.getByRole('button', { name: 'Edit Licences' }).click()
+  const toggle = page.getByRole('button', { name: 'PPL(A) Private pilot, aeroplanes' })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  await expect(page.getByRole('region', { name: 'Licences' }).getByRole('list', { name: 'Flying licences' })).toContainText('Private pilot, aeroplanes')
   expect(saved).toHaveLength(1)
 })

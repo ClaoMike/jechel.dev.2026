@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../auth'
-import { BulletsSection } from '../features/about/BulletsSection'
+import { HackathonsSection } from '../features/about/HackathonsSection'
+import { LanguagesSection } from '../features/about/LanguagesSection'
+import { LicencesSection } from '../features/about/LicencesSection'
+import { PapersSection } from '../features/about/PapersSection'
 import { PlacesSection } from '../features/about/places/PlacesSection'
 import { ProfileSection } from '../features/about/ProfileSection'
 import { QualificationsSection } from '../features/about/QualificationsSection'
@@ -10,7 +13,10 @@ import { api, type AboutContent } from '../services/api'
 
 type State = { status: 'loading' } | { status: 'loaded'; content: AboutContent } | { status: 'error' }
 
-/** About Me: photo and links, where I've been, skills, work experience, education, papers, qualifications. The admin can edit every section. */
+/**
+ * About Me: photo and links, where I've been, skills, work experience, education, papers,
+ * qualifications, languages, licences, hackathons. The admin can edit every section.
+ */
 export function AboutPage() {
   const { isAuthenticated } = useAuth()
   const [state, setState] = useState<State>({ status: 'loading' })
@@ -58,7 +64,7 @@ export function AboutPage() {
   return (
     <div className="about">
       {heading}
-      <ProfileSection value={{ photoUrl: page.photoUrl, links: page.links }} canEdit={isAuthenticated} onSave={(profile) => save(profile)} />
+      <ProfileSection value={{ photoUrl: page.photoUrl, statuses: page.statuses, links: page.links }} canEdit={isAuthenticated} onSave={(profile) => save(profile)} />
       <PlacesSection
         value={{ places: page.places, colors: page.colors.places }}
         canEdit={isAuthenticated}
@@ -71,8 +77,11 @@ export function AboutPage() {
       />
       <ExperienceSection value={page.experience} canEdit={isAuthenticated} onSave={(experience) => save({ experience })} />
       <EducationSection value={page.education} canEdit={isAuthenticated} onSave={(education) => save({ education })} />
-      <BulletsSection title="Academic papers" errorKey="papers" itemName="paper" value={page.papers} canEdit={isAuthenticated} onSave={(papers) => save({ papers })} />
+      <PapersSection value={page.papers} canEdit={isAuthenticated} onSave={(papers) => save({ papers })} />
       <QualificationsSection value={page.qualifications} canEdit={isAuthenticated} onSave={(qualifications) => save({ qualifications })} />
+      <LanguagesSection value={page.languages} canEdit={isAuthenticated} onSave={(languages) => save({ languages })} />
+      <LicencesSection value={page.licences} canEdit={isAuthenticated} onSave={(licences) => save({ licences })} />
+      <HackathonsSection value={page.hackathons} canEdit={isAuthenticated} onSave={(hackathons) => save({ hackathons })} />
     </div>
   )
 }

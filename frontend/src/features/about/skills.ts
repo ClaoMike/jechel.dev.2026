@@ -57,3 +57,8 @@ export function axisYears(range: { from: number; to: number }, max = 8): number[
   for (let year = Math.ceil(first / step) * step; year <= last; year += step) years.push(year)
   return years
 }
+
+/** Most experience first (see monthsUsed); skills with as much go by name. */
+export function sortByExperience(skills: Skill[], now = new Date()): Skill[] {
+  return [...skills].sort((a, b) => monthsUsed(b, now) - monthsUsed(a, now) || a.name.localeCompare(b.name))
+}
