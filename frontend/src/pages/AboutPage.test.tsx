@@ -80,6 +80,15 @@ describe('AboutPage for visitors', () => {
     expect(chart).not.toHaveTextContent(/out of 100|%/)
   })
 
+  it('lists a skill without dates, with no bar', async () => {
+    server.use(http.get(`${API}/api/about`, () => HttpResponse.json({ ...aboutContent(), skills: [{ name: 'Docker', periods: [] }] })))
+    await renderAbout()
+
+    const row = within(section('Skills')).getByText('Docker').closest('li')!
+    expect(row.querySelector('.skill-bar')).toBeNull()
+    expect(row.querySelector('.skill-value')).toHaveTextContent('')
+  })
+
   it('pins the places on the map, with their details on hover', async () => {
     const user = await renderAbout()
 
@@ -107,7 +116,7 @@ describe('AboutPage for visitors', () => {
     expect(svg.getAttribute('viewBox')).toBe(fullView)
   })
 
-  it('turns [text](url) in the text into links, and links the company to its website', async () => {
+  it('turns [text](url) in any text into links', async () => {
     const content = aboutContent()
     content.experience[0].bullets = ['Built [the platform](https://platform.example)']
     server.use(http.get(`${API}/api/about`, () => HttpResponse.json(content)))
@@ -126,6 +135,7 @@ describe('AboutPage for visitors', () => {
     expect(roles).toHaveLength(2)
     expect(within(roles[0]).getByRole('heading', { name: 'Senior Engineer' })).toBeInTheDocument()
     expect(roles[0]).toHaveTextContent('Acme')
+    expect(roles[0]).not.toHaveTextContent('https://acme.example')
     expect(roles[0]).toHaveTextContent('Remote')
     expect(roles[0]).toHaveTextContent(`${formatMonth('2023-01-01')} – Present`)
     expect(within(roles[0]).getByText('Led the team')).toBeInTheDocument()
@@ -281,7 +291,6 @@ describe('AboutPage for the admin', () => {
     expect(saved[0].experience[0]).toEqual({
       title: 'Founder',
       company: 'Next Thing',
-      companyUrl: '',
       location: '',
       start: '2099-03-01',
       end: null,
@@ -316,7 +325,7 @@ describe('AboutPage for the admin', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await within(section('Education')).findByRole('heading', { name: 'MSc Software Engineering' })).toBeInTheDocument()
-    expect(saved[0].education[0]).toEqual({ title: 'MSc Software Engineering', institution: 'Uni', institutionUrl: '', location: 'Bucharest', start: '2015-10-01', end: '2019-06-01' })
+    expect(saved[0].education[0]).toEqual({ title: 'MSc Software Engineering', institution: 'Uni', location: 'Bucharest', start: '2015-10-01', end: '2019-06-01' })
   })
 
   it('adds and removes papers', async () => {
@@ -492,6 +501,22 @@ describe('AboutPage for the admin', () => {
     const first = within(screen.getByRole('group', { name: 'Role 1' }))
     expect(first.getByLabelText('Bullet point 2')).toHaveAccessibleDescription('Must be at most 500 characters.')
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+  })
+
+  it('names the other section when that is what stops the save', async () => {
+    const { user } = await renderAsAdmin()
+    server.use(
+      http.put(`${API}/api/about`, () =>
+        HttpResponse.json({ status: 400, errors: { 'skills[2].periods[0].uses': ['Tick at least one: work, academic or personal.'] } }, { status: 400 }),
+      ),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Edit Academic papers' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't save, because another section needs fixing first. Skills, item 3: Tick at least one: work, academic or personal.",
+    )
   })
 
   it('says when the session has ended', async () => {

@@ -7,7 +7,7 @@ public class AboutRulesTests
     private static readonly AboutContent Valid = AboutDefaults.Content;
 
     private static ExperienceItem Job(string title, DateOnly start, DateOnly? end, params string[] bullets) =>
-        new(title, "Company", "", "Location", start, end, bullets);
+        new(title, "Company", "Location", start, end, bullets);
 
     private static Skill SkillUsed(string name, params string[] uses) =>
         new(name, [new SkillPeriod(new DateOnly(2020, 1, 1), null, uses)]);
@@ -87,7 +87,7 @@ public class AboutRulesTests
     }
 
     [Fact]
-    public void A_skill_needs_at_least_one_period_and_each_period_a_use()
+    public void Each_period_of_a_skill_needs_a_use()
     {
         var content = Valid with
         {
@@ -102,7 +102,7 @@ public class AboutRulesTests
         };
 
         Assert.Equal(
-            ["skills[0].periods", "skills[1].periods[0].uses", "skills[2].periods[0].uses", "skills[3].periods[0].uses", "skills[4].periods[0].end"],
+            ["skills[1].periods[0].uses", "skills[2].periods[0].uses", "skills[3].periods[0].uses", "skills[4].periods[0].end"],
             AboutRules.Validate(content).Keys.Order());
     }
 
@@ -144,7 +144,7 @@ public class AboutRulesTests
     }
 
     [Fact]
-    public void Qualifications_need_a_title_and_a_date_but_issuer_and_grade_are_optional()
+    public void Qualifications_need_a_title_but_issuer_date_and_grade_are_optional()
     {
         var content = Valid with
         {
@@ -155,7 +155,7 @@ public class AboutRulesTests
             ],
         };
 
-        Assert.Equal(["qualifications[1].grade", "qualifications[1].obtained", "qualifications[1].title"], AboutRules.Validate(content).Keys.Order());
+        Assert.Equal(["qualifications[1].grade", "qualifications[1].title"], AboutRules.Validate(content).Keys.Order());
     }
 
     [Fact]
@@ -164,21 +164,34 @@ public class AboutRulesTests
         var content = Valid with
         {
             Skills = [SkillUsed(" ", SkillUses.Work)],
-            Experience = [new ExperienceItem("", "", "ftp://example.com", "", default, null, [new string('b', AboutRules.BulletMaxLength + 1)])],
-            Education = [new EducationItem("BSc", " ", "", "", new DateOnly(2020, 1, 1), new DateOnly(2019, 1, 1))],
+            Experience = [new ExperienceItem("", "", "", default, null, [new string('b', AboutRules.BulletMaxLength + 1)])],
+            Education = [new EducationItem("BSc", " ", "", new DateOnly(2020, 1, 1), new DateOnly(2019, 1, 1))],
         };
 
         var errors = AboutRules.Validate(content);
 
         Assert.Equal(
-            ["education[0].end", "education[0].institution", "experience[0].bullets[0]", "experience[0].company", "experience[0].companyUrl", "experience[0].start", "experience[0].title", "skills[0].name"],
+            ["education[0].end", "education[0].institution", "experience[0].bullets[0]", "experience[0].company", "experience[0].start", "experience[0].title", "skills[0].name"],
             errors.Keys.Order());
+    }
+
+    [Fact]
+    public void A_page_upgraded_from_the_old_shape_can_be_saved_as_it_is()
+    {
+        // Skills without periods and qualifications without dates: what AboutJson makes of older pages.
+        var content = Valid with
+        {
+            Skills = [new Skill("C#", [])],
+            Qualifications = [new Qualification("Cambridge English", "", null, "")],
+        };
+
+        Assert.Empty(AboutRules.Validate(content));
     }
 
     [Fact]
     public void Location_is_optional_and_start_dates_may_be_in_the_future()
     {
-        var content = Valid with { Experience = [new ExperienceItem("Founder", "Next Thing", "", "", new DateOnly(2030, 1, 1), null, [])] };
+        var content = Valid with { Experience = [new ExperienceItem("Founder", "Next Thing", "", new DateOnly(2030, 1, 1), null, [])] };
 
         Assert.Empty(AboutRules.Validate(content));
     }
@@ -241,7 +254,7 @@ public class AboutRulesTests
         var content = Valid with
         {
             PhotoUrl = " /me.jpg ",
-            Experience = [new ExperienceItem(" Dev ", " Co ", " https://co.example ", " City ", new DateOnly(2020, 5, 17), new DateOnly(2021, 2, 9), [" Did things ", "", "   "])],
+            Experience = [new ExperienceItem(" Dev ", " [Co](https://co.example) ", " City ", new DateOnly(2020, 5, 17), new DateOnly(2021, 2, 9), [" Did things ", "", "   "])],
             Papers = [" A paper ", ""],
             Qualifications = [new Qualification(" Cert ", " Issuer ", new DateOnly(2024, 3, 15), " A ")],
         };
@@ -250,7 +263,7 @@ public class AboutRulesTests
 
         Assert.Equal("/me.jpg", normalized.PhotoUrl);
         var job = normalized.Experience[0];
-        Assert.Equal(("Dev", "Co", "https://co.example", "City"), (job.Title, job.Company, job.CompanyUrl, job.Location));
+        Assert.Equal(("Dev", "[Co](https://co.example)", "City"), (job.Title, job.Company, job.Location));
         Assert.Equal((new DateOnly(2020, 5, 1), new DateOnly(2021, 2, 1)), (job.Start, job.End));
         Assert.Equal(["Did things"], job.Bullets);
         Assert.Equal(["A paper"], normalized.Papers);

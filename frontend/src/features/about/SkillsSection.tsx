@@ -14,7 +14,7 @@ export interface SkillsValue {
 
 export function SkillsSection({ value, canEdit, onSave }: { value: SkillsValue; canEdit: boolean; onSave: (value: SkillsValue) => Promise<void> }) {
   return (
-    <EditableSection title="Skills" value={value} canEdit={canEdit} onSave={onSave} editor={SkillsEditor}>
+    <EditableSection title="Skills" errorKeys={['skills', 'colors.skills']} value={value} canEdit={canEdit} onSave={onSave} editor={SkillsEditor}>
       {value.skills.length === 0 ? <p className="muted">No skills yet.</p> : <SkillsChart skills={value.skills} colors={value.colors} />}
     </EditableSection>
   )
@@ -56,7 +56,7 @@ export function SkillsChart({ skills, colors, now: fixedNow }: { skills: Skill[]
                 <SkillBar key={p} skill={skill.name} period={period} colors={colors} now={now} left={at(monthIndex(period.start))} right={at(monthIndex(period.end ?? currentMonth(now)) + 1)} />
               ))}
             </span>
-            <span className="skill-value">{formatExperience(monthsUsed(skill, now))}</span>
+            <span className="skill-value">{skill.periods.length > 0 && formatExperience(monthsUsed(skill, now))}</span>
           </li>
         ))}
       </ul>
@@ -155,6 +155,7 @@ function SkillEditor({ index, count, skill, colors, errors, onChange, onMove, on
       </div>
       <TextField label="Skill" value={skill.name} required onChange={(name) => onChange({ ...skill, name })} error={errors[`${key}.name`]} />
       <div className="editor-subitems">
+        {skill.periods.length === 0 && <p className="muted editor-note">No dates yet. Add when you used it to show it on the timeline.</p>}
         {skill.periods.map((period, p) => (
           <PeriodEditor
             key={p}

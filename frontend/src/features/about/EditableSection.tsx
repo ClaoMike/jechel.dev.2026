@@ -10,6 +10,12 @@ interface EditableSectionProps<T> {
   /** Shown on the Edit button: "Edit {editLabel}". Defaults to the title. */
   editLabel?: string
   className?: string
+  /**
+   * The API error keys this section shows, as path prefixes: ["skills", "colors.skills"]. Errors
+   * for other keys come from other sections (the whole page is saved), so they're spelled out
+   * in the message instead.
+   */
+  errorKeys: string[]
   value: T
   /** The signed-in admin sees an Edit button. */
   canEdit: boolean
@@ -27,7 +33,7 @@ interface EditableSectionProps<T> {
 type Status = { state: 'viewing' } | { state: 'editing' | 'saving'; draft: unknown; errors: FieldErrors; message: string | null }
 
 /** A section of the About Me page that the admin can switch into an edit form, then save or cancel. */
-export function EditableSection<T>({ title, hideTitle = false, editLabel, className = '', value, canEdit, onSave, children, editor }: EditableSectionProps<T>) {
+export function EditableSection<T>({ title, hideTitle = false, editLabel, className = '', errorKeys, value, canEdit, onSave, children, editor }: EditableSectionProps<T>) {
   const headingId = useId()
   const [status, setStatus] = useState<Status>({ state: 'viewing' })
   const editing = status.state !== 'viewing' && canEdit
@@ -40,7 +46,7 @@ export function EditableSection<T>({ title, hideTitle = false, editLabel, classN
       await onSave(status.draft as T)
       setStatus({ state: 'viewing' })
     } catch (error) {
-      setStatus({ ...status, state: 'editing', ...describeError(error) })
+      setStatus({ ...status, state: 'editing', ...describeError(error, errorKeys) })
     }
   }
 
@@ -91,10 +97,42 @@ export function EditableSection<T>({ title, hideTitle = false, editLabel, classN
   )
 }
 
-function describeError(error: unknown): { errors: FieldErrors; message: string } {
+/** Section titles by the first part of an API error key, for errors raised by another section. */
+const SECTION_TITLES: Record<string, string> = {
+  photoUrl: 'Photo and links',
+  links: 'Photo and links',
+  places: "Where I've been",
+  'colors.places': "Where I've been",
+  skills: 'Skills',
+  'colors.skills': 'Skills',
+  experience: 'Work experience',
+  education: 'Education',
+  papers: 'Academic papers',
+  qualifications: 'Qualifications',
+}
+
+const owns = (prefixes: string[], key: string) => prefixes.some((prefix) => key === prefix || key.startsWith(`${prefix}.`) || key.startsWith(`${prefix}[`))
+
+/** "skills[2].periods[0].uses" → "Skills, item 3". */
+function describeErrorKey(key: string): string {
+  const section = Object.keys(SECTION_TITLES).find((prefix) => owns([prefix], key))
+  const title = section ? SECTION_TITLES[section] : key
+  const index = /^[a-z]+\[(\d+)\]/i.exec(key)?.[1]
+  return index === undefined ? title : `${title}, item ${Number(index) + 1}`
+}
+
+function describeError(error: unknown, errorKeys: string[]): { errors: FieldErrors; message: string } {
   if (error instanceof ApiError && error.validationErrors) {
     const errors: FieldErrors = {}
-    for (const [key, messages] of Object.entries(error.validationErrors)) errors[key] = messages[0]
+    const elsewhere: string[] = []
+    for (const [key, messages] of Object.entries(error.validationErrors)) {
+      errors[key] = messages[0]
+      if (!owns(errorKeys, key)) elsewhere.push(`${describeErrorKey(key)}: ${messages[0]}`)
+    }
+    if (elsewhere.length > 0) {
+      const more = elsewhere.length > 3 ? ` (and ${elsewhere.length - 3} more)` : ''
+      return { errors, message: `Couldn't save, because another section needs fixing first. ${elsewhere.slice(0, 3).join(' ')}${more}` }
+    }
     return { errors, message: 'Some fields need fixing; see the messages above.' }
   }
   if (error instanceof ApiError && error.status === 401) {

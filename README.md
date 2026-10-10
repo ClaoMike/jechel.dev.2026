@@ -232,16 +232,16 @@ To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real 
 - **Sections:**
   - **Photo and links:** an uploaded photo (or a placeholder icon), an uploaded résumé (download button), and GitHub, LinkedIn and Instagram in their brand colours. An empty link is hidden.
   - **Where I've been:** a dotted world map with a pin per city. Each city is marked *worked*, *studied* and/or *visited*, each with an optional note. A pin with several marks is split into equal slices, one colour each. Hovering, focusing or tapping a pin shows its notes. Zoom with the buttons, a pinch, or Ctrl/⌘ + scroll; drag to move.
-  - **Skills:** a timeline. Each skill has one or more periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once.
-  - **Work experience:** title, company (and optional website, which makes its name a link), optional location, start month (may be in the future), an end month or *ongoing*, and bullet points.
+  - **Skills:** a timeline. Each skill has periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once. A skill without periods is listed without a bar.
+  - **Work experience:** title, company, optional location, start month (may be in the future), an end month or *ongoing*, and bullet points.
   - **Education:** the same, without bullet points.
   - **Academic papers:** a list.
-  - **Qualifications:** a title, optional issuer, the month obtained, and an optional grade.
+  - **Qualifications:** a title, and optionally the issuer, the month obtained and a grade.
 - **Colours:** the admin picks the legend colours (skill uses, map marks) with colour pickers. They're stored in the page (`colors`).
-- **Editing:** when signed in, each section has an **Edit** button that turns it into a form; **Save** sends the whole page with that section changed. The API validates everything (`AboutRules.cs`), trims text and drops empty bullets. The page then shows what the API stored. Field errors come back keyed by path and show under the matching input.
+- **Editing:** when signed in, each section has an **Edit** button that turns it into a form; **Save** sends the whole page with that section changed. The API validates everything (`AboutRules.cs`), trims text and drops empty bullets. The page then shows what the API stored. Field errors come back keyed by path and show under the matching input. Since the whole page is sent, a problem in another section also blocks the save: the message then names that section and item (`errorKeys` on `EditableSection` says which keys a section shows itself).
 - **Order:** every list is shown in the order the admin set, with the arrow buttons. Experience and education also have **Sort by end date** (ongoing first, then the latest end): it only reorders the form, so Save keeps it and Cancel undoes it.
-- **Links in text:** any text field can hold `[text](https://…)` links. The **Add link** button under a field writes one at the cursor. Only http(s) links and paths on this site become links (`textLinks.ts`, and `AboutRules.LinksIn` on the API).
-- **Older pages:** `AboutJson.cs` upgrades a page saved in an older shape when it's read (e.g. 0–100 skill levels, qualifications as plain text), so changing the shape needs no data migration.
+- **Links in text:** any text field can hold `[text](https://…)` links, e.g. a company written as `[Acme](https://acme.example)`. The **Add link** button under a field writes one at the cursor. Only http(s) links and paths on this site become links (`textLinks.ts`, and `AboutRules.LinksIn` on the API).
+- **Older pages:** `AboutJson.cs` upgrades a page saved in an older shape when it's read (0–100 skill levels are dropped, qualifications as plain text get no date, a company or institution website becomes a link in its name), so changing the shape needs no data migration. Whatever it produces must pass `AboutRules`, or no section could be saved.
 - **Links** must be `http(s)://…` or a path on this site (`/resume.pdf`), checked by the API and again before rendering, so a stored value can never become a `javascript:` link.
 - Dates are months, stored as the 1st (`2023-01-01`). The month picker is a select plus a year box, because desktop Safari and Firefox don't support `<input type="month">`.
 

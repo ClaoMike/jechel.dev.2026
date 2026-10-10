@@ -50,10 +50,10 @@ export function aboutContent(): AboutContent {
       { name: 'Python', periods: [{ start: '2015-10-01', end: '2020-12-01', uses: ['academic'] }] },
     ],
     experience: [
-      { title: 'Senior Engineer', company: 'Acme', companyUrl: 'https://acme.example', location: 'Remote', start: '2023-01-01', end: null, bullets: ['Built the platform', 'Led the team'] },
-      { title: 'Engineer', company: 'Globex', companyUrl: '', location: '', start: '2019-06-01', end: '2022-12-01', bullets: [] },
+      { title: 'Senior Engineer', company: '[Acme](https://acme.example)', location: 'Remote', start: '2023-01-01', end: null, bullets: ['Built the platform', 'Led the team'] },
+      { title: 'Engineer', company: 'Globex', location: '', start: '2019-06-01', end: '2022-12-01', bullets: [] },
     ],
-    education: [{ title: 'BSc Computer Science', institution: 'Uni', institutionUrl: '', location: 'Bucharest', start: '2015-10-01', end: '2019-06-01' }],
+    education: [{ title: 'BSc Computer Science', institution: 'Uni', location: 'Bucharest', start: '2015-10-01', end: '2019-06-01' }],
     papers: ['A paper about things (2020)'],
     qualifications: [{ title: 'Azure Developer Associate', issuer: 'Microsoft', obtained: '2024-03-01', grade: '' }],
   }

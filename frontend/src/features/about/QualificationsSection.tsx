@@ -8,7 +8,7 @@ import { RichText } from './RichText'
 /** Certifications and the like: what, who issued it, when, and the grade if there was one. */
 export function QualificationsSection({ value, canEdit, onSave }: { value: Qualification[]; canEdit: boolean; onSave: (value: Qualification[]) => Promise<void> }) {
   return (
-    <EditableSection title="Qualifications" value={value} canEdit={canEdit} onSave={onSave} editor={QualificationsEditor}>
+    <EditableSection title="Qualifications" errorKeys={['qualifications']} value={value} canEdit={canEdit} onSave={onSave} editor={QualificationsEditor}>
       {value.length === 0 ? (
         <p className="muted">Nothing here yet.</p>
       ) : (

@@ -88,7 +88,7 @@ public static partial class AboutRules
                 var key = $"skills[{i}]";
                 if (skill is null) { Add(key, "Skill is required."); continue; }
                 CheckText(skill.Name, $"{key}.name", ShortTextMaxLength, Add);
-                if (skill.Periods is null || skill.Periods.Count == 0) { Add($"{key}.periods", "Add when you used it."); continue; }
+                if (skill.Periods is null) { Add($"{key}.periods", "Required (can be empty)."); continue; }
                 if (skill.Periods.Count > MaxSkillPeriods) { Add($"{key}.periods", $"At most {MaxSkillPeriods} periods."); continue; }
                 for (var p = 0; p < skill.Periods.Count; p++)
                 {
@@ -111,7 +111,6 @@ public static partial class AboutRules
                 if (item is null) { Add(key, "Experience is required."); continue; }
                 CheckText(item.Title, $"{key}.title", ShortTextMaxLength, Add);
                 CheckText(item.Company, $"{key}.company", ShortTextMaxLength, Add);
-                CheckUrl(item.CompanyUrl, $"{key}.companyUrl", Add);
                 CheckText(item.Location, $"{key}.location", ShortTextMaxLength, Add, required: false);
                 CheckPeriod(item.Start, item.End, key, Add);
                 CheckBullets(item.Bullets, $"{key}.bullets", MaxBullets, BulletMaxLength, Add);
@@ -127,7 +126,6 @@ public static partial class AboutRules
                 if (item is null) { Add(key, "Education is required."); continue; }
                 CheckText(item.Title, $"{key}.title", ShortTextMaxLength, Add);
                 CheckText(item.Institution, $"{key}.institution", ShortTextMaxLength, Add);
-                CheckUrl(item.InstitutionUrl, $"{key}.institutionUrl", Add);
                 CheckText(item.Location, $"{key}.location", ShortTextMaxLength, Add, required: false);
                 CheckPeriod(item.Start, item.End, key, Add);
             }
@@ -145,7 +143,7 @@ public static partial class AboutRules
                 CheckText(item.Title, $"{key}.title", EntryMaxLength, Add);
                 CheckText(item.Issuer, $"{key}.issuer", ShortTextMaxLength, Add, required: false);
                 CheckText(item.Grade, $"{key}.grade", GradeMaxLength, Add, required: false);
-                if (item.Obtained is null || item.Obtained == default(DateOnly)) Add($"{key}.obtained", "Date obtained is required.");
+                if (item.Obtained == default(DateOnly)) Add($"{key}.obtained", "Not a valid date.");
             }
         }
 
@@ -172,8 +170,8 @@ public static partial class AboutRules
         [.. content.Skills.Select(s => new Skill(
             s.Name.Trim(),
             [.. s.Periods.Select(p => new SkillPeriod(FirstOfMonth(p.Start), FirstOfMonth(p.End), [.. p.Uses.OrderBy(u => IndexIn(SkillUses.All, u))]))]))],
-        [.. content.Experience.Select(e => new ExperienceItem(e.Title.Trim(), e.Company.Trim(), Trim(e.CompanyUrl), Trim(e.Location), FirstOfMonth(e.Start), FirstOfMonth(e.End), CleanBullets(e.Bullets)))],
-        [.. content.Education.Select(e => new EducationItem(e.Title.Trim(), e.Institution.Trim(), Trim(e.InstitutionUrl), Trim(e.Location), FirstOfMonth(e.Start), FirstOfMonth(e.End)))],
+        [.. content.Experience.Select(e => new ExperienceItem(e.Title.Trim(), e.Company.Trim(), Trim(e.Location), FirstOfMonth(e.Start), FirstOfMonth(e.End), CleanBullets(e.Bullets)))],
+        [.. content.Education.Select(e => new EducationItem(e.Title.Trim(), e.Institution.Trim(), Trim(e.Location), FirstOfMonth(e.Start), FirstOfMonth(e.End)))],
         CleanBullets(content.Papers),
         [.. content.Qualifications.Select(q => new Qualification(q.Title.Trim(), Trim(q.Issuer), FirstOfMonth(q.Obtained), Trim(q.Grade)))]);
 

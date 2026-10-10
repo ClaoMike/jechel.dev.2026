@@ -4,16 +4,14 @@ import type { EducationItem, ExperienceItem } from '../../services/api'
 import { BulletsEditor } from './BulletsSection'
 import { EditableSection } from './EditableSection'
 import { AddButton, ItemControls, MonthField, TextField, type FieldErrors } from './fields'
-import { currentMonth, formatPeriod, isSafeUrl, isUpcoming } from './format'
+import { currentMonth, formatPeriod, isUpcoming } from './format'
 import { move, removeAt, replaceAt, sortByEndDate } from './list'
-import { ExternalLink, RichText } from './RichText'
+import { RichText } from './RichText'
 
 /** What experience and education have in common; `organization` is the company or the institution. */
 interface TimelineEntry {
   title: string
   organization: string
-  /** The organization's website, or empty. */
-  organizationUrl: string
   location: string
   start: string
   end: string | null
@@ -28,8 +26,6 @@ interface TimelineConfig<T> {
   organizationLabel: string
   /** API field name of the organization, for its errors. */
   organizationKey: 'company' | 'institution'
-  /** API field name of the organization's website. */
-  organizationUrlKey: 'companyUrl' | 'institutionUrl'
   withBullets: boolean
   toEntry: (item: T) => TimelineEntry
   fromEntry: (entry: TimelineEntry) => T
@@ -41,10 +37,9 @@ const EXPERIENCE: TimelineConfig<ExperienceItem> = {
   titleLabel: 'Job title',
   organizationLabel: 'Company',
   organizationKey: 'company',
-  organizationUrlKey: 'companyUrl',
   withBullets: true,
-  toEntry: ({ company, companyUrl, ...rest }) => ({ ...rest, organization: company, organizationUrl: companyUrl }),
-  fromEntry: ({ organization, organizationUrl, bullets = [], ...rest }) => ({ ...rest, company: organization, companyUrl: organizationUrl, bullets }),
+  toEntry: ({ company, ...rest }) => ({ ...rest, organization: company }),
+  fromEntry: ({ organization, bullets = [], ...rest }) => ({ ...rest, company: organization, bullets }),
 }
 
 const EDUCATION: TimelineConfig<EducationItem> = {
@@ -53,10 +48,9 @@ const EDUCATION: TimelineConfig<EducationItem> = {
   titleLabel: 'Degree or course',
   organizationLabel: 'Institution',
   organizationKey: 'institution',
-  organizationUrlKey: 'institutionUrl',
   withBullets: false,
-  toEntry: ({ institution, institutionUrl, ...rest }) => ({ ...rest, organization: institution, organizationUrl: institutionUrl }),
-  fromEntry: ({ organization, organizationUrl, ...rest }) => ({ ...rest, institution: organization, institutionUrl: organizationUrl }),
+  toEntry: ({ institution, ...rest }) => ({ ...rest, organization: institution }),
+  fromEntry: ({ organization, ...rest }) => ({ ...rest, institution: organization }),
 }
 
 interface SectionProps<T> {
@@ -77,6 +71,7 @@ function TimelineSection<T>({ title, config, value, canEdit, onSave }: SectionPr
   return (
     <EditableSection
       title={title}
+      errorKeys={[config.key]}
       value={value}
       canEdit={canEdit}
       onSave={onSave}
@@ -107,7 +102,9 @@ function TimelineItem({ entry }: { entry: TimelineEntry }) {
         {isUpcoming(entry.start) && <span className="tag">Upcoming</span>}
       </div>
       <p className="timeline-meta">
-        <span>{isSafeUrl(entry.organizationUrl) ? <ExternalLink href={entry.organizationUrl}>{entry.organization}</ExternalLink> : <RichText text={entry.organization} />}</span>
+        <span>
+          <RichText text={entry.organization} />
+        </span>
         {entry.location && (
           <span>
             <RichText text={entry.location} />
@@ -131,7 +128,7 @@ function TimelineItem({ entry }: { entry: TimelineEntry }) {
 }
 
 function TimelineEditor<T>({ config, value, onChange, errors }: { config: TimelineConfig<T>; value: TimelineEntry[]; onChange: (value: TimelineEntry[]) => void; errors: FieldErrors }) {
-  const newEntry = (): TimelineEntry => ({ title: '', organization: '', organizationUrl: '', location: '', start: currentMonth(), end: null, ...(config.withBullets ? { bullets: [''] } : {}) })
+  const newEntry = (): TimelineEntry => ({ title: '', organization: '', location: '', start: currentMonth(), end: null, ...(config.withBullets ? { bullets: [''] } : {}) })
   const [sorted, setSorted] = useState(false)
   const change = (entries: TimelineEntry[]) => {
     setSorted(false)
@@ -203,16 +200,8 @@ function TimelineEntryEditor<T>({ config, index, count, entry, errorAt, errors, 
       </div>
       <div className="editor-grid">
         <TextField label={config.titleLabel} value={entry.title} required onChange={(title) => set({ title })} error={errorAt('title')} allowLinks />
-        <TextField label={config.organizationLabel} value={entry.organization} required onChange={(organization) => set({ organization })} error={errorAt(config.organizationKey)} />
-        <TextField
-          label={`${config.organizationLabel} website (optional)`}
-          type="url"
-          value={entry.organizationUrl}
-          onChange={(organizationUrl) => set({ organizationUrl })}
-          error={errorAt(config.organizationUrlKey)}
-          hint={`Makes the ${config.organizationLabel.toLowerCase()}'s name a link.`}
-        />
-        <TextField label="Location (optional)" value={entry.location} onChange={(location) => set({ location })} error={errorAt('location')} />
+        <TextField label={config.organizationLabel} value={entry.organization} required onChange={(organization) => set({ organization })} error={errorAt(config.organizationKey)} allowLinks />
+        <TextField label="Location (optional)" value={entry.location} onChange={(location) => set({ location })} error={errorAt('location')} allowLinks />
       </div>
       <div className="editor-period">
         <MonthField label="Start" value={entry.start} onChange={(start) => set({ start })} error={errorAt('start')} />

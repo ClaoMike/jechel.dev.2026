@@ -38,8 +38,30 @@ public class AboutJsonTests
         Assert.Equal(AboutDefaults.Colors.Skills, page.Colors.Skills);
         Assert.Equal(AboutDefaults.Colors.Places, page.Colors.Places);
         Assert.Empty(page.Places);
-        Assert.Equal("", page.Experience[0].CompanyUrl);
-        Assert.Equal("", page.Education[0].InstitutionUrl);
+        Assert.Equal("Co", page.Experience[0].Company);
         Assert.Equal(new Qualification("Azure Developer Associate", "", null, ""), page.Qualifications[0]);
+    }
+
+    [Fact]
+    public void A_company_or_institution_website_becomes_a_link_in_its_name()
+    {
+        const string json = """
+            {
+              "photoUrl": "", "links": { "resumeUrl": "", "gitHubUrl": "", "linkedInUrl": "", "instagramUrl": "" },
+              "skills": [], "papers": [], "qualifications": [],
+              "experience": [
+                { "title": "Dev", "company": "Acme [UK]", "companyUrl": " https://acme.example ", "location": "", "start": "2020-01-01", "end": null, "bullets": [] },
+                { "title": "Dev", "company": "Globex", "companyUrl": "", "location": "", "start": "2020-01-01", "end": null, "bullets": [] },
+                { "title": "Dev", "company": "Evil", "companyUrl": "javascript:alert(1)", "location": "", "start": "2020-01-01", "end": null, "bullets": [] }
+              ],
+              "education": [ { "title": "BSc", "institution": "Uni", "institutionUrl": "https://uni.example", "location": "", "start": "2015-10-01", "end": null } ]
+            }
+            """;
+
+        var page = AboutJson.Deserialize(json);
+
+        Assert.Equal(["[Acme UK](https://acme.example)", "Globex", "Evil"], page.Experience.Select(e => e.Company));
+        Assert.Equal("[Uni](https://uni.example)", page.Education[0].Institution);
+        Assert.Empty(AboutRules.Validate(page));
     }
 }

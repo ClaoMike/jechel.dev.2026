@@ -43,8 +43,8 @@ public class AboutEndpointTests(PortfolioApiFactory factory)
         {
             Experience =
             [
-                new ExperienceItem("Older", "Co", "https://co.example", "", new DateOnly(2010, 1, 1), new DateOnly(2012, 1, 1), ["Did a thing"]),
-                new ExperienceItem(marker, "Co", "", "Remote", new DateOnly(2031, 2, 1), null, []),
+                new ExperienceItem("Older", "[Co](https://co.example)", "", new DateOnly(2010, 1, 1), new DateOnly(2012, 1, 1), ["Did a thing"]),
+                new ExperienceItem(marker, "Co", "Remote", new DateOnly(2031, 2, 1), null, []),
             ],
         };
 
@@ -55,7 +55,7 @@ public class AboutEndpointTests(PortfolioApiFactory factory)
         Assert.Equal(["Older", marker], page!.Experience.Select(e => e.Title));
         Assert.Null(page.Experience[1].End);
         Assert.Equal(["Did a thing"], page.Experience[0].Bullets);
-        Assert.Equal("https://co.example", page.Experience[0].CompanyUrl);
+        Assert.Equal("[Co](https://co.example)", page.Experience[0].Company);
         Assert.Equal(AboutDefaults.Content.Places.Select(p => p.Name), page.Places.Select(p => p.Name));
         Assert.Equal(AboutDefaults.Colors.Skills, page.Colors.Skills);
     }

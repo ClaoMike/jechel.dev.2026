@@ -42,6 +42,7 @@ public static class PlaceVisitKinds
     public static readonly IReadOnlyList<string> All = [Worked, Studied, Visited];
 }
 
+/// <param name="Periods">May be empty: skills saved before they had periods are shown without a bar.</param>
 public record Skill(string Name, IReadOnlyList<SkillPeriod> Periods);
 
 /// <param name="End">Null while still in use.</param>
@@ -56,17 +57,15 @@ public record Place(long Id, string Name, string Region, string Country, double 
 /// <param name="Note">Shown when hovering the city, e.g. "BSc at [The University of Manchester](https://…)". Optional.</param>
 public record PlaceVisit(string Kind, string Note);
 
-/// <param name="CompanyUrl">The company's website; makes its name a link. Optional.</param>
 /// <param name="Start">May be in the future.</param>
 /// <param name="End">Null while ongoing.</param>
-public record ExperienceItem(string Title, string Company, string CompanyUrl, string Location, DateOnly Start, DateOnly? End, IReadOnlyList<string> Bullets);
+public record ExperienceItem(string Title, string Company, string Location, DateOnly Start, DateOnly? End, IReadOnlyList<string> Bullets);
 
 /// <param name="Title">The degree or course, e.g. "BSc Computer Science".</param>
-/// <param name="InstitutionUrl">The institution's website; makes its name a link. Optional.</param>
-public record EducationItem(string Title, string Institution, string InstitutionUrl, string Location, DateOnly Start, DateOnly? End);
+public record EducationItem(string Title, string Institution, string Location, DateOnly Start, DateOnly? End);
 
 /// <param name="Issuer">Optional.</param>
-/// <param name="Obtained">Required when saving; null only in pages saved before qualifications had dates.</param>
+/// <param name="Obtained">Optional: pages saved before qualifications had dates have none.</param>
 /// <param name="Grade">Optional, e.g. "First Class" or "870/1000".</param>
 public record Qualification(string Title, string Issuer, DateOnly? Obtained, string Grade);
 
@@ -95,14 +94,14 @@ public static class AboutDefaults
         ],
         Experience:
         [
-            new ExperienceItem("Senior Software Engineer", "Placeholder Company", "", "Remote", new DateOnly(2023, 1, 1), null,
+            new ExperienceItem("Senior Software Engineer", "Placeholder Company", "Remote", new DateOnly(2023, 1, 1), null,
                 ["Placeholder: what you did in this role.", "Placeholder: a result you're proud of."]),
-            new ExperienceItem("Software Engineer", "Another Placeholder Ltd", "", "Bucharest, Romania", new DateOnly(2019, 6, 1), new DateOnly(2022, 12, 1),
+            new ExperienceItem("Software Engineer", "Another Placeholder Ltd", "Bucharest, Romania", new DateOnly(2019, 6, 1), new DateOnly(2022, 12, 1),
                 ["Placeholder: what you did in this role."]),
         ],
         Education:
         [
-            new EducationItem("BSc Computer Science", "Placeholder University", "", "Bucharest, Romania", new DateOnly(2015, 10, 1), new DateOnly(2019, 6, 1)),
+            new EducationItem("BSc Computer Science", "Placeholder University", "Bucharest, Romania", new DateOnly(2015, 10, 1), new DateOnly(2019, 6, 1)),
         ],
         Papers: ["Placeholder: Author, A. (2020). Title of the paper. Journal name, 1(2), 3-4."],
         Qualifications: [new Qualification("Placeholder: a certification", "Issuer", new DateOnly(2024, 1, 1), "")]);

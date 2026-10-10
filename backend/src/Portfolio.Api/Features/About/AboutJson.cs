@@ -7,7 +7,8 @@ namespace Portfolio.Api.Features.About;
 /// Reads and writes the stored page. Reading also upgrades pages saved by older versions of the
 /// API, so the shape can change without a data migration:
 /// skills with a 0–100 level get no periods, qualifications that were plain text become a title
-/// without a date, and fields added later (colours, places, website links) get their defaults.
+/// without a date, a company or institution website becomes a [name](url) link in the name, and
+/// fields added later (colours, places) get their defaults.
 /// </summary>
 public static class AboutJson
 {
@@ -39,6 +40,9 @@ public static class AboutJson
             }
         }
 
+        LinkNameToWebsite(node["experience"], "company", "companyUrl");
+        LinkNameToWebsite(node["education"], "institution", "institutionUrl");
+
         var content = node.Deserialize<AboutContent>(Options)!;
         return content with
         {
@@ -46,10 +50,24 @@ public static class AboutJson
                 WithDefaults(content.Colors?.Skills, AboutDefaults.Colors.Skills),
                 WithDefaults(content.Colors?.Places, AboutDefaults.Colors.Places)),
             Places = content.Places ?? [],
-            Experience = [.. (content.Experience ?? []).Select(e => e with { CompanyUrl = e.CompanyUrl ?? "" })],
-            Education = [.. (content.Education ?? []).Select(e => e with { InstitutionUrl = e.InstitutionUrl ?? "" })],
+            Experience = content.Experience ?? [],
+            Education = content.Education ?? [],
             Qualifications = [.. (content.Qualifications ?? []).Select(q => q with { Issuer = q.Issuer ?? "", Grade = q.Grade ?? "" })],
         };
+    }
+
+    /// <summary>"company": "Acme", "companyUrl": "https://acme.example" → "company": "[Acme](https://acme.example)".</summary>
+    private static void LinkNameToWebsite(JsonNode? items, string nameKey, string urlKey)
+    {
+        if (items is not JsonArray array) return;
+        foreach (var item in array.OfType<JsonObject>())
+        {
+            var url = item[urlKey]?.GetValue<string>()?.Trim();
+            item.Remove(urlKey);
+            var name = item[nameKey]?.GetValue<string>();
+            if (string.IsNullOrEmpty(url) || !AboutRules.IsSafeUrl(url) || string.IsNullOrEmpty(name) || AboutRules.LinksIn(name).Any()) continue;
+            item[nameKey] = $"[{name.Replace("[", "").Replace("]", "")}]({url})";
+        }
     }
 
     private static IReadOnlyDictionary<string, string> WithDefaults(IReadOnlyDictionary<string, string>? colors, IReadOnlyDictionary<string, string> defaults) =>

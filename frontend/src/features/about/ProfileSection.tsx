@@ -13,7 +13,7 @@ export interface Profile {
 /** The photo and the résumé / GitHub / LinkedIn / Instagram links. */
 export function ProfileSection({ value, canEdit, onSave }: { value: Profile; canEdit: boolean; onSave: (value: Profile) => Promise<void> }) {
   return (
-    <EditableSection title="Photo and links" hideTitle className="profile-card" value={value} canEdit={canEdit} onSave={onSave} editor={ProfileEditor}>
+    <EditableSection title="Photo and links" hideTitle errorKeys={['photoUrl', 'links']} className="profile-card" value={value} canEdit={canEdit} onSave={onSave} editor={ProfileEditor}>
       <div className="profile">
         <ProfilePhoto url={value.photoUrl} />
         <ul className="profile-links" aria-label="Links">

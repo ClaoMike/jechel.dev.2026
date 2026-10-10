@@ -16,7 +16,7 @@ export interface PlacesValue {
 /** "Where I've been": a dotted world map with a pin for every city the admin has added. */
 export function PlacesSection({ value, canEdit, onSave }: { value: PlacesValue; canEdit: boolean; onSave: (value: PlacesValue) => Promise<void> }) {
   return (
-    <EditableSection title="Where I've been" value={value} canEdit={canEdit} onSave={onSave} editor={(props) => <PlacesEditor {...props} />}>
+    <EditableSection title="Where I've been" errorKeys={['places', 'colors.places']} value={value} canEdit={canEdit} onSave={onSave} editor={(props) => <PlacesEditor {...props} />}>
       <Legend colors={value.colors} />
       <WorldMap places={value.places} colors={value.colors} />
       {value.places.length === 0 && <p className="muted">No places yet.</p>}

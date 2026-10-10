@@ -19,6 +19,7 @@ export function BulletsSection({ title, errorKey, itemName, value, canEdit, onSa
   return (
     <EditableSection
       title={title}
+      errorKeys={[errorKey]}
       value={value}
       canEdit={canEdit}
       onSave={onSave}

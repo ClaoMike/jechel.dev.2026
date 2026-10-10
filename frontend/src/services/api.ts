@@ -99,6 +99,7 @@ export interface AboutColors {
 
 export interface Skill {
   name: string
+  /** Empty for skills saved before they had periods: shown without a bar. */
   periods: SkillPeriod[]
 }
 
@@ -132,9 +133,8 @@ export interface PlaceVisit {
 
 export interface ExperienceItem {
   title: string
+  /** May be a link: "[Acme](https://acme.example)". */
   company: string
-  /** The company's website, or empty. */
-  companyUrl: string
   location: string
   /** First of a month, "YYYY-MM-01". May be in the future. */
   start: string
@@ -146,9 +146,8 @@ export interface ExperienceItem {
 export interface EducationItem {
   /** The degree or course. */
   title: string
+  /** May be a link: "[The University of Manchester](https://www.manchester.ac.uk)". */
   institution: string
-  /** The institution's website, or empty. */
-  institutionUrl: string
   location: string
   start: string
   end: string | null
@@ -158,7 +157,7 @@ export interface Qualification {
   title: string
   /** Optional. */
   issuer: string
-  /** First of a month. Null only in pages saved before qualifications had dates. */
+  /** First of a month, or null when not given. */
   obtained: string | null
   /** Optional, e.g. "First Class". */
   grade: string
