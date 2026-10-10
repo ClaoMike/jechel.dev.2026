@@ -4,6 +4,7 @@ import { AboutPage } from './pages/AboutPage'
 import { AdminPage } from './pages/AdminPage'
 import { ContactPage } from './pages/ContactPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { YouTubePage } from './pages/YouTubePage'
 
 function App() {
   return (
@@ -11,7 +12,7 @@ function App() {
       <Route element={<AppLayout />}>
         <Route index element={<PlaceholderPage title="What's new?" text="News and updates will show up here soon." />} />
         <Route path="apps" element={<PlaceholderPage title="Apps" text="The apps I build will be listed here soon." />} />
-        <Route path="youtube" element={<PlaceholderPage title="YouTube" text="My YouTube videos will be here soon." />} />
+        <Route path="youtube" element={<YouTubePage />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="contact" element={<ContactPage />} />
       </Route>

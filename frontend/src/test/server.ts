@@ -83,6 +83,7 @@ export const handlers = [
   http.post(`${API}/api/auth/logout`, () => new HttpResponse(null, { status: 200 })),
   http.get(`${API}/api/about`, () => HttpResponse.json(aboutContent())),
   http.get(`${API}/api/leetcode`, () => HttpResponse.json(LEETCODE_STATS)),
+  http.get(`${API}/api/youtube/videos`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),
 ]
 
 /**
@@ -113,6 +114,28 @@ export const LEETCODE_STATS = {
   solved: { all: 205, easy: 103, medium: 98, hard: 4 },
   total: { all: 4073, easy: 969, medium: 2124, hard: 980 },
   fetchedAt: '2026-10-10T09:00:00Z',
+}
+
+/** `count` videos, newest first: video 1 is the newest. */
+export function makeVideos(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `v${i + 1}`,
+    title: `Video ${i + 1}`,
+    description: `What happens in video ${i + 1}. `.repeat(20),
+    thumbnailUrl: `https://i.ytimg.com/vi/v${i + 1}/hqdefault.jpg`,
+    publishedAt: new Date(Date.UTC(2026, 8, 30 - i, 12)).toISOString(),
+    url: `https://www.youtube.com/watch?v=v${i + 1}`,
+  }))
+}
+
+/** GET /api/youtube/videos over `videos`, paged like the API. */
+export function youtube(videos: ReturnType<typeof makeVideos>) {
+  return http.get(`${API}/api/youtube/videos`, ({ request }) => {
+    const url = new URL(request.url)
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const pageSize = Number(url.searchParams.get('pageSize') ?? 9)
+    return HttpResponse.json({ items: videos.slice((page - 1) * pageSize, page * pageSize), page, pageSize, totalCount: videos.length })
+  })
 }
 
 export const TEST_CITIES = [

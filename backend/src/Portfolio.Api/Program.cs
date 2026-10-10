@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Portfolio.Api;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.About;
 using Portfolio.Api.Features.Auth;
@@ -8,6 +9,7 @@ using Portfolio.Api.Features.Files;
 using Portfolio.Api.Features.LeetCode;
 using Portfolio.Api.Features.Places;
 using Portfolio.Api.Features.Profile;
+using Portfolio.Api.Features.YouTube;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +34,15 @@ builder.Services.AddHttpClient<ILeetCodeClient, LeetCodeClient>(http =>
 });
 builder.Services.AddSingleton<LeetCodeMemoryCache>();
 builder.Services.AddScoped<LeetCodeStatsService>();
+
+builder.Services.Configure<YouTubeOptions>(builder.Configuration.GetSection(YouTubeOptions.Section));
+builder.Services.AddHttpClient<IYouTubeClient, YouTubeClient>(http =>
+{
+    http.BaseAddress = YouTubeClient.BaseAddress;
+    http.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddSingleton(services => new RefreshingCache<IReadOnlyList<YouTubeVideo>>(
+    services.GetRequiredService<TimeProvider>(), YouTubeEndpoints.FreshFor, YouTubeEndpoints.RetryAfter));
 
 // Honour X-Forwarded-* from a reverse proxy (the Vite dev proxy locally), so URLs the API
 // generates, like Google's OAuth callback, use the host and scheme the browser sees.
@@ -66,5 +77,6 @@ api.MapAboutEndpoints();
 api.MapFileEndpoints();
 api.MapPlaceEndpoints();
 api.MapLeetCodeEndpoints();
+api.MapYouTubeEndpoints();
 
 app.Run();

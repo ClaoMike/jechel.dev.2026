@@ -54,7 +54,6 @@ describe('AppLayout: tabs', () => {
   it.each([
     ['/', "What's new?", /news and updates/i],
     ['/apps', 'Apps', /apps I build/i],
-    ['/youtube', 'YouTube', /youtube videos/i],
   ])('%s shows the %s placeholder and marks its tab as current', async (url, tab, text) => {
     renderApp(url)
 
@@ -64,6 +63,14 @@ describe('AppLayout: tabs', () => {
     for (const other of TAB_NAMES.filter((name) => name !== tab)) {
       expect(tabs().getByRole('link', { name: other })).not.toHaveAttribute('aria-current')
     }
+  })
+
+  it('/youtube shows the videos and marks its tab as current', async () => {
+    renderApp('/youtube')
+
+    expect(screen.getByRole('heading', { level: 2, name: 'YouTube' })).toBeInTheDocument()
+    expect(await screen.findByText('No videos yet.')).toBeInTheDocument()
+    expect(tabs().getByRole('link', { name: 'YouTube' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('switches sections when a tab is clicked', async () => {

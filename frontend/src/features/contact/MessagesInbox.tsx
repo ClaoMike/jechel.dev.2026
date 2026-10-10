@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router'
 import { DeleteButton } from '../../components/DeleteButton'
+import { Pagination } from '../../components/Pagination'
+import { usePageParam } from '../../components/usePageParam'
 import { api, type ContactMessageSummary, type Page } from '../../services/api'
 import { formatDateTime } from '../../utils/formatDate'
 import { MessageDialog } from './MessageDialog'
@@ -12,19 +13,13 @@ type State = { status: 'loading' } | Result
 
 /** The admin's inbox: messages from the contact form, newest first, 10 per page (?page=N). */
 export function MessagesInbox() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
+  const [page, goToPage] = usePageParam()
   // The last response, and the page it belongs to: while it's for another page, that page is loading.
   const [result, setResult] = useState<Result | null>(null)
   const state: State = result && result.page === page ? result : { status: 'loading' }
   const [open, setOpen] = useState<ContactMessageSummary | null>(null)
   // Bumped after a delete, to load the page again (with the next message moved up, and the new total).
   const [reloads, setReloads] = useState(0)
-
-  const goToPage = useCallback(
-    (next: number) => setSearchParams(next === 1 ? {} : { page: String(next) }),
-    [setSearchParams],
-  )
 
   useEffect(() => {
     const controller = new AbortController()
@@ -123,19 +118,7 @@ export function MessagesInbox() {
             </tbody>
           </table>
 
-          {totalPages > 1 && (
-            <nav className="pagination" aria-label="Pagination">
-              <button type="button" className="button button-secondary" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
-                Previous
-              </button>
-              <span>
-                Page {page} of {totalPages}
-              </span>
-              <button type="button" className="button button-secondary" disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>
-                Next
-              </button>
-            </nav>
-          )}
+          <Pagination page={page} totalPages={totalPages} onPageChange={goToPage} />
         </>
       )}
 

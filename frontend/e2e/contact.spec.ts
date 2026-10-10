@@ -90,17 +90,17 @@ test('the admin sees the inbox instead of the form, and pages through it', async
   await page.getByRole('button', { name: 'Next' }).click()
 
   await expect(page).toHaveURL('/contact?page=2')
-  await expect(page.getByRole('button', { name: 'Sender 15' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sender 15', exact: true })).toBeVisible()
   await expect(page.getByRole('table').getByRole('row')).toHaveCount(6)
 })
 
 test('opening a message shows it in a popup, marks it as read, and copies fields', async ({ page, context, browserName }) => {
   const { messages, marked } = await signInAsAdminWithInbox(page, 2)
   await page.goto('/contact')
-  const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Sender 1' }) })
+  const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Sender 1', exact: true }) })
   await expect(row.getByText('Unread')).toHaveCount(1)
 
-  await page.getByRole('button', { name: 'Sender 1' }).click()
+  await page.getByRole('button', { name: 'Sender 1', exact: true }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Message from Sender 1' })
   await expect(dialog.getByRole('link', { name: 'sender1@example.com' })).toHaveAttribute('href', 'mailto:sender1@example.com')
@@ -129,7 +129,7 @@ test('the message popup is keyboard friendly', async ({ page }) => {
   await page.goto('/contact')
 
   // Opened from the keyboard (WebKit doesn't focus buttons on click, so there'd be nothing to return to).
-  await page.getByRole('button', { name: 'Sender 1' }).focus()
+  await page.getByRole('button', { name: 'Sender 1', exact: true }).focus()
   await page.keyboard.press('Enter')
   const dialog = page.getByRole('dialog', { name: 'Message from Sender 1' })
   await expect(dialog.getByRole('button', { name: 'Copy message' })).toBeVisible()
@@ -141,5 +141,5 @@ test('the message popup is keyboard friendly', async ({ page }) => {
 
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Sender 1' })).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Sender 1', exact: true })).toBeFocused()
 })

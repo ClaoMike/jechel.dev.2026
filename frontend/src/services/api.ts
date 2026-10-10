@@ -95,6 +95,17 @@ export interface Paper {
   fileUrl: string
 }
 
+/** A public video from my channel. */
+export interface YouTubeVideo {
+  id: string
+  title: string
+  description: string
+  thumbnailUrl: string
+  publishedAt: string
+  /** The video on youtube.com. */
+  url: string
+}
+
 export const NEETCODE_LISTS = ['blind75', 'neetcode150', 'neetcode250'] as const
 export type NeetCodeList = (typeof NEETCODE_LISTS)[number]
 
@@ -358,6 +369,13 @@ export const api = {
     async get(signal?: AbortSignal): Promise<LeetCodeStats | null> {
       const response = await http.get<LeetCodeStats>('/api/leetcode', { signal })
       return response.status === 204 ? null : response.data
+    },
+  },
+
+  youtube: {
+    /** Public. Newest first. Rejects with a 503 ApiError when YouTube isn't set up or can't be reached. */
+    listVideos(page = 1, pageSize = 9, signal?: AbortSignal): Promise<Page<YouTubeVideo>> {
+      return get<Page<YouTubeVideo>>('/api/youtube/videos', { params: { page, pageSize }, signal })
     },
   },
 

@@ -11,8 +11,6 @@ public record ContactMessageSummary(int Id, string Name, DateTimeOffset Received
 
 public record ContactMessageDetails(int Id, string Name, string Email, string Message, DateTimeOffset ReceivedAt, DateTimeOffset? ReadAt);
 
-public record PagedResponse<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount);
-
 public static class ContactEndpoints
 {
     public const int DefaultPageSize = 10;

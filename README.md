@@ -213,9 +213,15 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 | --- | --- | --- |
 | What's new? | `/` | placeholder |
 | Apps | `/apps` | placeholder |
-| YouTube | `/youtube` | placeholder |
+| YouTube | `/youtube` | my videos, 9 a page |
 | About Me | `/about` | profile, where I've been (map), problem solving (LeetCode, NeetCode), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
+
+**YouTube** (`src/pages/YouTubePage.tsx`, API in `backend/.../Features/YouTube/`): the channel's public videos, newest first, in a 3 × 3 grid (2 columns on tablets, 1 on phones). Each card shows the thumbnail, title, date and the start of the description (cut after three lines), and opens the video on YouTube in a new tab. More than 9 videos get Previous / Next, with the page in the URL (`?page=2`).
+
+- `GET /api/youtube/videos?page=1&pageSize=9` (public) reads the uploads with the YouTube Data API v3. It needs `YouTube:Channel` (`@handle` or `UC…` id) and `YouTube:ApiKey`; until both are set it answers 503 and the page says the videos can't be loaded.
+- The list is cached in memory for an hour (`RefreshingCache<T>`, a small reusable cache: one fetch at a time, keeps the last list if YouTube fails and retries after 5 minutes). Each refresh costs about 2 units of the free 10,000 a day.
+- **Reusable for Apps:** `src/components/PagedGrid.tsx` (loads a page with a `load(page, pageSize, signal)` function, shows loading / empty / error, and the pagination) and `src/components/MediaCard.tsx` (image, title, meta line, clamped description; the whole card is a link). `Pagination.tsx` and `usePageParam.ts` are shared with the contact inbox.
 
 To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real page. Unknown URLs redirect to `/`.
 
@@ -284,6 +290,8 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Authentication:Google:ClientId` / `ClientSecret` | Google OAuth client (secret; user-secrets or env vars). Google sign-in is disabled when empty |
 | `Auth:AdminEmails`            | Array of Google emails allowed to sign in                    |
 | `Auth:SessionIdleTimeout`     | Admin session idle timeout (default `00:10:00`)              |
+| `YouTube:Channel`             | The channel shown on the YouTube page: `@handle` or `UC…` id  |
+| `YouTube:ApiKey`              | YouTube Data API v3 key (secret; user-secrets or env vars). Videos aren't shown when empty |
 
 Secrets are never committed. Locally, use [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets):
 `dotnet user-secrets set "<Key>" "<value>" --project backend/src/Portfolio.Api`.
