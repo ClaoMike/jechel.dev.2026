@@ -42,6 +42,30 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("about_page", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.AppCategory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("app_categories", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.AppEntry", b =>
                 {
                     b.Property<int>("Id")
@@ -50,6 +74,13 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CategoryIds")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("category_ids")
+                        .HasDefaultValueSql("'[]'::jsonb");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -61,10 +92,24 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("character varying(5000)")
                         .HasColumnName("description");
 
+                    b.Property<string>("Links")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("links")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.Property<string>("Media")
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("media");
+
+                    b.Property<string>("Platforms")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("platforms")
+                        .HasDefaultValueSql("'[]'::jsonb");
 
                     b.Property<string>("Title")
                         .IsRequired()

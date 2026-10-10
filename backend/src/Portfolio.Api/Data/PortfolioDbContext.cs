@@ -12,6 +12,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
     public DbSet<LeetCodeSnapshot> LeetCodeStats => Set<LeetCodeSnapshot>();
     public DbSet<AppEntry> Apps => Set<AppEntry>();
+    public DbSet<AppCategory> AppCategories => Set<AppCategory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -79,11 +80,23 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(a => a.Title).HasColumnName("title").HasMaxLength(Features.Apps.AppRules.TitleMaxLength).IsRequired();
             entity.Property(a => a.Description).HasColumnName("description").HasMaxLength(Features.Apps.AppRules.DescriptionMaxLength).IsRequired();
             entity.Property(a => a.Media).HasColumnName("media").HasColumnType("jsonb").IsRequired();
+            entity.Property(a => a.CategoryIds).HasColumnName("category_ids").HasColumnType("jsonb").IsRequired().HasDefaultValueSql("'[]'::jsonb");
+            entity.Property(a => a.Platforms).HasColumnName("platforms").HasColumnType("jsonb").IsRequired().HasDefaultValueSql("'[]'::jsonb");
+            entity.Property(a => a.Links).HasColumnName("links").HasColumnType("jsonb").IsRequired().HasDefaultValueSql("'[]'::jsonb");
             entity.Property(a => a.CreatedAt).HasColumnName("created_at");
             entity.Property(a => a.UpdatedAt).HasColumnName("updated_at");
 
             // The grid lists newest first.
             entity.HasIndex(a => a.CreatedAt);
+        });
+
+        modelBuilder.Entity<AppCategory>(entity =>
+        {
+            entity.ToTable("app_categories");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Id).HasColumnName("id");
+            entity.Property(c => c.Name).HasColumnName("name").HasMaxLength(Features.Apps.AppRules.CategoryNameMaxLength).IsRequired();
+            entity.Property(c => c.Position).HasColumnName("position");
         });
     }
 }

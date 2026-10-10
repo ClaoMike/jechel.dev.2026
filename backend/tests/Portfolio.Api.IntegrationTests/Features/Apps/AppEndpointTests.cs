@@ -102,4 +102,29 @@ public class AppEndpointTests(PortfolioApiFactory factory)
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
+
+    [Fact]
+    public async Task There_are_three_categories_to_start_with_and_only_the_admin_changes_them()
+    {
+        var categories = await factory.CreateBrowserClient().GetFromJsonAsync<AppCategoryDto[]>("/api/apps/categories");
+        var anonymous = await factory.CreateBrowserClient().PutAsJsonAsync("/api/apps/categories", categories);
+
+        Assert.Equal(["Mobile app", "Website", "Video game"], categories!.Select(c => c.Name).Take(3));
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+    }
+
+    [Fact]
+    public async Task An_app_with_a_category_platforms_and_a_store_link()
+    {
+        var admin = await SignedInClientAsync();
+        var game = (await admin.GetFromJsonAsync<AppCategoryDto[]>("/api/apps/categories"))!.Single(c => c.Name == "Video game");
+
+        var create = await admin.PostAsJsonAsync("/api/apps", new AppRequest("Space game", "", [], [game.Id], ["Windows", "Steam Deck"], [new AppLink("Steam", "https://store.steampowered.com/app/1")]));
+
+        var app = (await create.Content.ReadFromJsonAsync<AppDetails>())!;
+        Assert.Equal([game], app.Categories);
+        Assert.Equal(["Windows", "Steam Deck"], app.Platforms);
+        Assert.Equal("Steam", app.Links[0].Label);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/apps/{app.Id}")).StatusCode);
+    }
 }

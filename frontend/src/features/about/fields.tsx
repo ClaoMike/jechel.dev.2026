@@ -29,9 +29,11 @@ interface TextFieldProps {
   max?: number
   /** Show an "Add link" button that inserts [text](url) at the cursor. */
   allowLinks?: boolean
+  /** Offered while typing; anything else can still be typed. */
+  suggestions?: string[]
 }
 
-export function TextField({ label, value, onChange, error, hint, multiline = false, type = 'text', required, placeholder, min, max, allowLinks = false }: TextFieldProps) {
+export function TextField({ label, value, onChange, error, hint, multiline = false, type = 'text', required, placeholder, min, max, allowLinks = false, suggestions }: TextFieldProps) {
   const id = useId()
   const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
   // Where the cursor or selection was last, for "Add link": the field has lost focus by the time it's clicked.
@@ -56,7 +58,14 @@ export function TextField({ label, value, onChange, error, hint, multiline = fal
       {multiline ? (
         <textarea {...common} rows={3} onChange={(e) => onChange(e.target.value)} />
       ) : (
-        <input {...common} type={type} min={min} max={max} onChange={(e) => onChange(e.target.value)} />
+        <input {...common} type={type} min={min} max={max} list={suggestions ? `${id}-suggestions` : undefined} onChange={(e) => onChange(e.target.value)} />
+      )}
+      {suggestions && (
+        <datalist id={`${id}-suggestions`}>
+          {suggestions.map((suggestion) => (
+            <option key={suggestion} value={suggestion} />
+          ))}
+        </datalist>
       )}
       {hint && (
         <p className="field-hint" id={`${id}-hint`}>

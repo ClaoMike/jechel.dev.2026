@@ -280,18 +280,50 @@ export interface AppMedia {
   kind: AppMediaKind
 }
 
+/** A kind of app the admin defined, e.g. "Mobile app". */
+export interface AppCategory {
+  id: number
+  name: string
+}
+
+/** Where to get an app: shown as "Check it on {label}". */
+export interface AppLink {
+  /** E.g. "App Store", "Google Play", "Steam". */
+  label: string
+  /** An http(s) link. */
+  url: string
+}
+
 /** An app on the Apps page. */
 export interface AppDetails {
   id: number
   title: string
   /** May contain [text](https://…) links. */
   description: string
+  /** Shown as labels under the title, in the categories' order. */
+  categories: AppCategory[]
+  /** What it runs on, e.g. "iOS"; shown in the popup only. */
+  platforms: string[]
+  links: AppLink[]
   /** In the order the admin chose; the tile shows the first image. */
   media: AppMedia[]
   createdAt: string
 }
 
-export type AppRequest = Pick<AppDetails, 'title' | 'description' | 'media'>
+export interface AppRequest {
+  title: string
+  description: string
+  categoryIds: number[]
+  platforms: string[]
+  links: AppLink[]
+  media: AppMedia[]
+}
+
+/** One category in the admin's list; no id means a new one. */
+export interface AppCategoryRequest {
+  id: number | null
+  name: string
+}
 
 /** Field errors of a 400 response, keyed by camelCase field name (ASP.NET Core ValidationProblem). */
 export type ValidationErrors = Record<string, string[]>
@@ -431,6 +463,20 @@ export const api = {
     /** Admin only. */
     async delete(id: number): Promise<void> {
       await http.delete(`/api/apps/${id}`)
+    },
+
+    /** Public. In the admin's order. */
+    listCategories(signal?: AbortSignal): Promise<AppCategory[]> {
+      return get<AppCategory[]>('/api/apps/categories', { signal })
+    },
+
+    /**
+     * Admin only. Replaces the list: ids are kept (renamed, reordered), no id adds one, and those left
+     * out are deleted and taken off every app. Rejects with validationErrors keyed like "[2].name".
+     */
+    async saveCategories(categories: AppCategoryRequest[]): Promise<AppCategory[]> {
+      const response = await http.put<AppCategory[]>('/api/apps/categories', categories)
+      return response.data
     },
   },
 

@@ -19,6 +19,12 @@ async function renderApps({ count = 3, admin = false } = {}) {
 const tiles = () => within(screen.getByRole('list', { name: 'Apps' })).getAllByRole('button')
 const dialog = (name: string | RegExp) => screen.getByRole('dialog', { name })
 
+/** Clicks a remove button, then confirms in the popup it opens. */
+async function removeConfirmed(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(screen.getByRole('button', { name }))
+  await user.click(within(screen.getByRole('dialog', { name: `${name}?` })).getByRole('button', { name: 'Remove' }))
+}
+
 /** Stands in for uploads: jsdom can't send FormData. Videos are any file whose type starts with video/. */
 function stubUploads() {
   let n = 0
@@ -62,6 +68,22 @@ describe('AppsPage for visitors', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('shows categories as labels on the tile and in the popup, with platforms and store links in the popup', async () => {
+    const { user } = await renderApps()
+
+    expect(within(tiles()[0]).getByText('Mobile app')).toBeInTheDocument()
+    expect(within(tiles()[0]).getByText('Video game')).toBeInTheDocument()
+    expect(within(tiles()[0]).queryByText('iOS')).not.toBeInTheDocument()
+
+    await user.click(tiles()[0])
+    const popup = dialog('App 1')
+    expect(within(popup).getByText('Video game')).toBeInTheDocument()
+    expect(within(within(popup).getByRole('list', { name: 'Runs on' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['iOS', 'Android'])
+    const store = within(popup).getByRole('link', { name: 'Check it on App Store' })
+    expect(store).toHaveAttribute('href', 'https://apps.apple.com/app/app1')
+    expect(store).toHaveAttribute('target', '_blank')
+  })
+
   it('says when there are no apps', async () => {
     server.use(...appsApi([]).handlers)
     renderApp('/apps')
@@ -88,7 +110,15 @@ describe('AppsPage for the admin', () => {
     expect(await within(form).findByText('Required.')).toBeInTheDocument()
 
     await user.type(within(form).getByLabelText('Title'), 'Portfolio')
+    await user.click(within(form).getByRole('button', { name: 'Video game' }))
+    await user.click(within(form).getByRole('button', { name: 'Mobile app' }))
     await user.type(within(form).getByLabelText('Description'), 'This site.')
+    await user.click(within(form).getByRole('button', { name: 'Android' }))
+    await user.type(within(form).getByLabelText('Another platform'), 'Meta Quest{Enter}')
+    expect(within(form).getByRole('button', { name: 'Meta Quest' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(within(form).getByRole('button', { name: 'Add a link' }))
+    await user.type(within(form).getByLabelText('Check it on… (link 1)'), 'Google Play')
+    await user.type(within(form).getByLabelText('Address (link 1)'), 'https://play.google.com/store/apps/details?id=x')
     await user.upload(within(form).getByLabelText('Image or video files'), [
       new File(['a'], 'home.png', { type: 'image/png' }),
       new File(['b'], 'demo.mp4', { type: 'video/mp4' }),
@@ -109,6 +139,9 @@ describe('AppsPage for the admin', () => {
       body: {
         title: 'Portfolio',
         description: 'This site.',
+        categoryIds: [1, 3],
+        platforms: ['Android', 'Meta Quest'],
+        links: [{ label: 'Google Play', url: 'https://play.google.com/store/apps/details?id=x' }],
         media: [
           { url: '/api/files/00000000-0000-0000-0000-000000000902/demo.mp4', kind: 'video' },
           { url: '/api/files/00000000-0000-0000-0000-000000000901/home.png', kind: 'image' },
@@ -116,6 +149,36 @@ describe('AppsPage for the admin', () => {
       },
     })
     await waitFor(() => expect(tiles()[1]).toHaveAccessibleName('Portfolio'))
+  })
+
+  it('manages the categories: rename, reorder, add and remove', async () => {
+    const { user, savedCategories } = await renderApps({ admin: true })
+
+    await user.click(screen.getByRole('button', { name: 'Categories' }))
+    const popup = dialog('App categories')
+    await user.clear(within(popup).getByLabelText('Category 3'))
+    await user.type(within(popup).getByLabelText('Category 3'), 'Game')
+    await user.click(within(popup).getByRole('button', { name: 'Move Game up' }))
+    await removeConfirmed(user, 'Remove Website')
+    await user.click(within(popup).getByRole('button', { name: 'Add category' }))
+    await user.click(within(popup).getByRole('button', { name: 'Save' }))
+    expect(await within(popup).findByText('Required.')).toBeInTheDocument()
+    await user.type(within(popup).getByLabelText('Category 3'), 'Desktop app')
+    await user.click(within(popup).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(savedCategories.at(-1)).toEqual([
+      { id: 1, name: 'Mobile app' },
+      { id: 3, name: 'Game' },
+      { id: null, name: 'Desktop app' },
+    ])
+    // The tiles show the new names, and the removed category is gone.
+    await waitFor(() => expect(within(tiles()[1]).getByText('Game')).toBeInTheDocument())
+    expect(screen.queryByText('Website')).not.toBeInTheDocument()
+
+    await user.click(tiles()[2])
+    await user.click(within(dialog('App 2')).getByRole('button', { name: 'Edit' }))
+    expect(within(dialog('Edit App 2')).getAllByRole('button', { pressed: false }).map((b) => b.textContent).slice(0, 3)).toEqual(['Mobile app', 'Game', 'Desktop app'])
   })
 
   it('edits an app in the same popup', async () => {

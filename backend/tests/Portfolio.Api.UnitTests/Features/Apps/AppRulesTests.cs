@@ -33,4 +33,33 @@ public class AppRulesTests
         Assert.Equal(["description", "media", "title"], errors.Keys.Order());
         Assert.Contains("media", AppRules.Validate(new AppRequest("x", "", null)).Keys);
     }
+
+    [Fact]
+    public void Categories_platforms_and_links_are_checked()
+    {
+        var request = new AppRequest("App", "", [],
+            CategoryIds: [1, 1],
+            Platforms: ["iOS", "ios"],
+            Links: [new AppLink("App Store", "https://apps.apple.com/app/x"), new AppLink("", "javascript:alert(1)"), new AppLink("Site", "/relative")]);
+
+        Assert.Equal(["categoryIds", "links[1].label", "links[1].url", "links[2].url", "platforms"], AppRules.Validate(request).Keys.Order());
+    }
+
+    [Fact]
+    public void Categories_must_still_exist()
+    {
+        var request = new AppRequest("App", "", [], CategoryIds: [1, 7]);
+
+        Assert.Empty(AppRules.Validate(request));
+        Assert.Equal(["categoryIds"], AppRules.Validate(request, [1, 2]).Keys);
+    }
+
+    [Fact]
+    public void A_category_list_needs_unique_names_and_known_ids()
+    {
+        AppCategoryRequest?[] categories = [new(1, "Mobile app"), new(null, " mobile APP "), new(null, ""), new(9, "Game")];
+
+        Assert.Equal(["[1].name", "[2].name", "[3].id"], AppRules.ValidateCategories(categories, [1, 2]).Keys.Order());
+        Assert.Empty(AppRules.ValidateCategories([new(2, "Website"), new(null, "Desktop app")], [1, 2]));
+    }
 }

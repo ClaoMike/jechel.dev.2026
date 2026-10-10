@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import type { AboutContent, AppDetails, AppRequest } from '../services/api'
+import type { AboutContent, AppCategory, AppCategoryRequest, AppDetails, AppRequest } from '../services/api'
 
 export const API = 'http://api.test'
 
@@ -139,12 +139,24 @@ export function youtube(videos: ReturnType<typeof makeVideos>) {
   })
 }
 
-/** `count` apps, newest first: app 1 is the newest. Each has an image; app 1 starts with a video. */
+export const TEST_APP_CATEGORIES: AppCategory[] = [
+  { id: 1, name: 'Mobile app' },
+  { id: 2, name: 'Website' },
+  { id: 3, name: 'Video game' },
+]
+
+/**
+ * `count` apps, newest first: app 1 is the newest. Each has an image; app 1 starts with a video,
+ * is a mobile app and a game for iOS and Android, on the App Store. The others are websites.
+ */
 export function makeApps(count: number): AppDetails[] {
   return Array.from({ length: count }, (_, i) => ({
     id: i + 1,
     title: `App ${i + 1}`,
     description: `What app ${i + 1} does, on [GitHub](https://github.com/x/app${i + 1}).`,
+    categories: i === 0 ? [TEST_APP_CATEGORIES[0], TEST_APP_CATEGORIES[2]] : [TEST_APP_CATEGORIES[1]],
+    platforms: i === 0 ? ['iOS', 'Android'] : [],
+    links: i === 0 ? [{ label: 'App Store', url: 'https://apps.apple.com/app/app1' }] : [],
     media: [
       ...(i === 0 ? [{ url: '/api/files/00000000-0000-0000-0000-000000000001/demo.mp4', kind: 'video' as const }] : []),
       { url: `/api/files/00000000-0000-0000-0000-0000000001${String(i).padStart(2, '0')}/image.webp`, kind: 'image' as const },
@@ -158,11 +170,23 @@ export function makeApps(count: number): AppDetails[] {
  * The Apps API over an in-memory list (newest first), which it changes. `sent` records the
  * bodies of creates and updates; a missing title is refused like the API does.
  */
-export function appsApi(apps: AppDetails[]) {
+export function appsApi(apps: AppDetails[], categories: AppCategory[] = [...TEST_APP_CATEGORIES]) {
   const sent: { method: string; body: AppRequest }[] = []
   const deleted: number[] = []
+  const savedCategories: AppCategoryRequest[][] = []
+  const toApp = ({ categoryIds, ...body }: AppRequest) => ({ ...body, categories: categories.filter((c) => categoryIds.includes(c.id)) })
   const invalid = (body: AppRequest) => (body.title.trim() ? null : HttpResponse.json({ status: 400, errors: { title: ['Required.'] } }, { status: 400 }))
   const handlers = [
+    http.get(`${API}/api/apps/categories`, () => HttpResponse.json(categories)),
+    http.put(`${API}/api/apps/categories`, async ({ request }) => {
+      const body = (await request.json()) as AppCategoryRequest[]
+      savedCategories.push(body)
+      if (body.some((c) => !c.name.trim())) return HttpResponse.json({ status: 400, errors: { [`[${body.findIndex((c) => !c.name.trim())}].name`]: ['Required.'] } }, { status: 400 })
+      let next = Math.max(0, ...categories.map((c) => c.id))
+      categories = body.map((c) => ({ id: c.id ?? ++next, name: c.name.trim() }))
+      for (const app of apps) app.categories = categories.filter((c) => app.categories.some((a) => a.id === c.id))
+      return HttpResponse.json(categories)
+    }),
     http.get(`${API}/api/apps`, ({ request }) => {
       const url = new URL(request.url)
       const page = Number(url.searchParams.get('page') ?? 1)
@@ -174,7 +198,7 @@ export function appsApi(apps: AppDetails[]) {
       sent.push({ method: 'POST', body })
       const error = invalid(body)
       if (error) return error
-      const app = { ...body, id: Math.max(0, ...apps.map((a) => a.id)) + 1, createdAt: new Date().toISOString() }
+      const app = { ...toApp(body), id: Math.max(0, ...apps.map((a) => a.id)) + 1, createdAt: new Date().toISOString() }
       apps.unshift(app)
       return HttpResponse.json(app, { status: 201 })
     }),
@@ -184,7 +208,7 @@ export function appsApi(apps: AppDetails[]) {
       const error = invalid(body)
       if (error) return error
       const index = apps.findIndex((a) => a.id === Number(params.id))
-      apps[index] = { ...apps[index], ...body }
+      apps[index] = { ...apps[index], ...toApp(body) }
       return HttpResponse.json(apps[index])
     }),
     http.delete(`${API}/api/apps/:id`, ({ params }) => {
@@ -193,7 +217,7 @@ export function appsApi(apps: AppDetails[]) {
       return new HttpResponse(null, { status: 204 })
     }),
   ]
-  return { handlers, sent, deleted }
+  return { handlers, sent, deleted, savedCategories }
 }
 
 export const TEST_CITIES = [

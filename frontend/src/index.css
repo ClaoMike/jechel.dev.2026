@@ -603,6 +603,126 @@ button.media-card {
   color: var(--text-muted);
 }
 
+.page-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-heading {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Category labels, on the tile and under the popup's title. */
+.app-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.app-category {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.app-platforms {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-platforms-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.app-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-link {
+  text-decoration: none;
+}
+
+.app-field {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.app-inline-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.app-inline-add .field {
+  flex: 1;
+  min-width: 180px;
+}
+
+.app-inline-add .add-button {
+  align-self: flex-end;
+  min-height: 44px;
+}
+
+.app-link-editor {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 2fr auto;
+  align-items: start;
+  gap: 8px;
+}
+
+.app-link-editor > .icon-button {
+  margin-top: 26px;
+}
+
+@media (max-width: 600px) {
+  .app-link-editor {
+    grid-template-columns: 1fr auto;
+  }
+
+  .app-link-editor > .field:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.category-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.category-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.category-row .field {
+  flex: 1;
+}
+
 .app-form {
   display: grid;
   gap: 16px;

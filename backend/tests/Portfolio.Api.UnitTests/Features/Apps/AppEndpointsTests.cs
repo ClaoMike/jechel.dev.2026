@@ -97,4 +97,60 @@ public class AppEndpointsTests
         Assert.NotNull(await Files.GetAsync(FileRules.FileIdIn(media.Url)!.Value, default));
         Assert.NotNull(await Files.GetAsync(photo, default));
     }
+
+    private async Task<IReadOnlyList<AppCategoryDto>> SaveCategoriesAsync(params AppCategoryRequest[] categories)
+    {
+        var result = await AppEndpoints.SaveCategories(categories, _db, default);
+        return Assert.IsType<Ok<IReadOnlyList<AppCategoryDto>>>(result.Result).Value!;
+    }
+
+    [Fact]
+    public async Task An_app_has_categories_platforms_and_links()
+    {
+        var categories = await SaveCategoriesAsync(new AppCategoryRequest(null, "Mobile app"), new AppCategoryRequest(null, "Video game"));
+        var request = new AppRequest(" Game ", "", [], [categories[1].Id, categories[0].Id], [" iOS ", "Android"], [new AppLink(" Steam ", " https://store.steampowered.com/app/1 ")]);
+
+        var created = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(request, _db, Files, _time, default)).Result).Value!;
+
+        // In the categories' order, not the order chosen.
+        Assert.Equal(["Mobile app", "Video game"], created.Categories.Select(c => c.Name));
+        Assert.Equal(["iOS", "Android"], created.Platforms);
+        Assert.Equal([new AppLink("Steam", "https://store.steampowered.com/app/1")], created.Links);
+        Assert.Equal(created.Categories, (await AppEndpoints.ListApps(_db, default)).Value!.Items[0].Categories);
+    }
+
+    [Fact]
+    public async Task An_unknown_category_is_rejected()
+    {
+        var result = await AppEndpoints.CreateApp(new AppRequest("App", "", [], [42]), _db, Files, _time, default);
+
+        Assert.Equal(["categoryIds"], Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task Categories_are_renamed_reordered_added_and_deleted_and_apps_lose_deleted_ones()
+    {
+        var first = await SaveCategoriesAsync(new AppCategoryRequest(null, "Mobile app"), new AppCategoryRequest(null, "Website"), new AppCategoryRequest(null, "Video game"));
+        var (mobile, website, game) = (first[0], first[1], first[2]);
+        var app = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(new AppRequest("App", "", [], [mobile.Id, website.Id]), _db, Files, _time, default)).Result).Value!;
+
+        var saved = await SaveCategoriesAsync(new AppCategoryRequest(game.Id, "Game"), new AppCategoryRequest(mobile.Id, "Mobile app"), new AppCategoryRequest(null, "Desktop app"));
+
+        Assert.Equal(["Game", "Mobile app", "Desktop app"], saved.Select(c => c.Name));
+        Assert.Equal([game.Id, mobile.Id], saved.Take(2).Select(c => c.Id));
+        var listed = (await AppEndpoints.ListApps(_db, default)).Value!.Items.Single(a => a.Id == app.Id);
+        Assert.Equal(["Mobile app"], listed.Categories.Select(c => c.Name));
+        Assert.Equal(saved, (await AppEndpoints.ListCategories(_db, default)).Value);
+    }
+
+    [Fact]
+    public async Task An_invalid_category_list_changes_nothing()
+    {
+        await SaveCategoriesAsync(new AppCategoryRequest(null, "Website"));
+
+        var result = await AppEndpoints.SaveCategories([new AppCategoryRequest(null, "")], _db, default);
+
+        Assert.IsType<ValidationProblem>(result.Result);
+        Assert.Equal(["Website"], (await AppEndpoints.ListCategories(_db, default)).Value!.Select(c => c.Name));
+    }
 }
