@@ -12,6 +12,7 @@ public record AboutContent(
     AboutLinks Links,
     AboutColors Colors,
     IReadOnlyList<Place> Places,
+    ProblemSolving ProblemSolving,
     IReadOnlyList<Skill> Skills,
     IReadOnlyList<ExperienceItem> Experience,
     IReadOnlyList<EducationItem> Education,
@@ -49,6 +50,20 @@ public static class PlaceVisitKinds
     public const string Studied = "studied";
     public const string Visited = "visited";
     public static readonly IReadOnlyList<string> All = [Worked, Studied, Visited];
+}
+
+/// <summary>The "Problem solving" section.</summary>
+/// <param name="LeetCodeUsername">Empty hides the LeetCode stats. They're fetched by the API, see Features/LeetCode.</param>
+/// <param name="NeetCodeLists">Completed lists, from <see cref="NeetCodeListIds"/>.</param>
+public record ProblemSolving(string LeetCodeUsername, IReadOnlyList<string> NeetCodeLists);
+
+/// <summary>NeetCode's problem lists, in the order they're shown.</summary>
+public static class NeetCodeListIds
+{
+    public const string Blind75 = "blind75";
+    public const string NeetCode150 = "neetcode150";
+    public const string NeetCode250 = "neetcode250";
+    public static readonly IReadOnlyList<string> All = [Blind75, NeetCode150, NeetCode250];
 }
 
 /// <param name="Periods">May be empty: skills saved before they had periods are shown without a bar.</param>
@@ -121,6 +136,7 @@ public static class AboutDefaults
                 [new PlaceVisit(PlaceVisitKinds.Studied, "Placeholder: what you studied here."), new PlaceVisit(PlaceVisitKinds.Worked, "Placeholder: where you worked.")]),
             new Place(2643743, "London", "England", "United Kingdom", 51.509, -0.126, [new PlaceVisit(PlaceVisitKinds.Visited, "")]),
         ],
+        ProblemSolving: new ProblemSolving(LeetCodeUsername: "", NeetCodeLists: []),
         Skills:
         [
             new Skill("C#", [new SkillPeriod(new DateOnly(2016, 10, 1), new DateOnly(2019, 6, 1), [SkillUses.Academic]), new SkillPeriod(new DateOnly(2019, 6, 1), null, [SkillUses.Work])]),

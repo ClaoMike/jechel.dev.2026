@@ -10,6 +10,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
     public DbSet<AboutPage> AboutPages => Set<AboutPage>();
     public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
+    public DbSet<LeetCodeSnapshot> LeetCodeStats => Set<LeetCodeSnapshot>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,6 +59,15 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(f => f.ContentType).HasColumnName("content_type").HasMaxLength(100).IsRequired();
             entity.Property(f => f.Content).HasColumnName("content").IsRequired();
             entity.Property(f => f.CreatedAt).HasColumnName("created_at");
+        });
+
+        modelBuilder.Entity<LeetCodeSnapshot>(entity =>
+        {
+            entity.ToTable("leetcode_stats");
+            entity.HasKey(s => s.Username);
+            entity.Property(s => s.Username).HasColumnName("username").HasMaxLength(50);
+            entity.Property(s => s.Stats).HasColumnName("stats").HasColumnType("jsonb").IsRequired();
+            entity.Property(s => s.FetchedAt).HasColumnName("fetched_at");
         });
     }
 }

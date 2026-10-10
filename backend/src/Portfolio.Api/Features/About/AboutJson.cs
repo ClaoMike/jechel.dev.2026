@@ -8,7 +8,7 @@ namespace Portfolio.Api.Features.About;
 /// API, so the shape can change without a data migration:
 /// skills with a 0–100 level get no periods, qualifications that were plain text become a title
 /// without a date, labels that were plain text get a flag guessed from their words, papers that were plain text become a title without a file, a company or institution website becomes a [name](url) link in the name, and
-/// fields added later (statuses, colours, places, languages, licences, hackathons) start empty.
+/// fields added later (statuses, colours, places, problem solving, languages, licences, hackathons) start empty.
 /// </summary>
 public static class AboutJson
 {
@@ -67,6 +67,7 @@ public static class AboutJson
                 WithDefaults(content.Colors?.Places, AboutDefaults.Colors.Places)),
             Statuses = [.. (content.Statuses ?? []).Select(s => s with { Flag = s.Flag ?? "" })],
             Places = content.Places ?? [],
+            ProblemSolving = new ProblemSolving(content.ProblemSolving?.LeetCodeUsername ?? "", content.ProblemSolving?.NeetCodeLists ?? []),
             Papers = [.. (content.Papers ?? []).Select(p => p with { FileUrl = p.FileUrl ?? "" })],
             Languages = content.Languages ?? [],
             Licences = [.. (content.Licences ?? []).Select(l => l with { Code = l.Code ?? "" })],

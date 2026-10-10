@@ -5,6 +5,7 @@ import { LanguagesSection } from '../features/about/LanguagesSection'
 import { LicencesSection } from '../features/about/LicencesSection'
 import { PapersSection } from '../features/about/PapersSection'
 import { PlacesSection } from '../features/about/places/PlacesSection'
+import { ProblemSolvingSection } from '../features/about/ProblemSolvingSection'
 import { ProfileSection } from '../features/about/ProfileSection'
 import { QualificationsSection } from '../features/about/QualificationsSection'
 import { SkillsSection } from '../features/about/SkillsSection'
@@ -14,7 +15,7 @@ import { api, type AboutContent } from '../services/api'
 type State = { status: 'loading' } | { status: 'loaded'; content: AboutContent } | { status: 'error' }
 
 /**
- * About Me: photo and links, where I've been, skills, work experience, education, papers,
+ * About Me: photo and links, where I've been, problem solving (LeetCode, NeetCode), skills, work experience, education, papers,
  * qualifications, languages, licences, hackathons. The admin can edit every section.
  */
 export function AboutPage() {
@@ -64,12 +65,18 @@ export function AboutPage() {
   return (
     <div className="about">
       {heading}
-      <ProfileSection value={{ photoUrl: page.photoUrl, statuses: page.statuses, links: page.links }} canEdit={isAuthenticated} onSave={(profile) => save(profile)} />
+      <ProfileSection
+        value={{ photoUrl: page.photoUrl, statuses: page.statuses, links: page.links }}
+        leetCodeUsername={page.problemSolving.leetCodeUsername}
+        canEdit={isAuthenticated}
+        onSave={(profile) => save(profile)}
+      />
       <PlacesSection
         value={{ places: page.places, colors: page.colors.places }}
         canEdit={isAuthenticated}
         onSave={({ places, colors }) => save({ places, colors: { ...page.colors, places: colors } })}
       />
+      <ProblemSolvingSection value={page.problemSolving} canEdit={isAuthenticated} onSave={(problemSolving) => save({ problemSolving })} />
       <SkillsSection
         value={{ skills: page.skills, colors: page.colors.skills }}
         canEdit={isAuthenticated}

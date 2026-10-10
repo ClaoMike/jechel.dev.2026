@@ -151,6 +151,7 @@ const SECTION_TITLES: Record<string, string> = {
   links: 'Photo and links',
   places: "Where I've been",
   'colors.places': "Where I've been",
+  problemSolving: 'Problem solving',
   skills: 'Skills',
   'colors.skills': 'Skills',
   experience: 'Work experience',

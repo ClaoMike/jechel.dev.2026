@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { DownloadIcon, GitHubIcon, InstagramIcon, LinkedInIcon, PersonIcon } from '../../components/icons'
+import { DownloadIcon, GitHubIcon, InstagramIcon, LeetCodeIcon, LinkedInIcon, PersonIcon } from '../../components/icons'
 import { useId } from 'react'
 import { api, type AboutLinks, type Status } from '../../services/api'
 import { EditableSection } from './EditableSection'
@@ -10,6 +10,7 @@ import { Flag } from './Flag'
 import { FLAG_CHOICES, flagName, guessFlag } from './flags'
 import { AddButton, ItemControls } from './fields'
 import { move, removeAt, replaceAt } from './list'
+import { leetCodeProfileUrl } from './problemSolving'
 import { RichText } from './RichText'
 import { PHOTO_MAX_BYTES, RESUME_MAX_BYTES } from './uploadLimits'
 
@@ -19,8 +20,21 @@ export interface Profile {
   links: AboutLinks
 }
 
-/** The photo, then citizenship / residence labels, then the résumé / GitHub / LinkedIn / Instagram links. */
-export function ProfileSection({ value, canEdit, onSave }: { value: Profile; canEdit: boolean; onSave: (value: Profile) => Promise<void> }) {
+/**
+ * The photo, then citizenship / residence labels, then the résumé / GitHub / LeetCode / LinkedIn /
+ * Instagram links. The LeetCode username is set in the "Problem solving" section.
+ */
+export function ProfileSection({
+  value,
+  leetCodeUsername = '',
+  canEdit,
+  onSave,
+}: {
+  value: Profile
+  leetCodeUsername?: string
+  canEdit: boolean
+  onSave: (value: Profile) => Promise<void>
+}) {
   return (
     <EditableSection title="Photo and links" hideTitle errorKeys={['photoUrl', 'statuses', 'links']} className="profile-card" value={value} canEdit={canEdit} onSave={onSave} editor={ProfileEditor}>
       <div className="profile">
@@ -44,6 +58,9 @@ export function ProfileSection({ value, canEdit, onSave }: { value: Profile; can
           </ProfileLink>
           <ProfileLink href={value.links.gitHubUrl} icon={<GitHubIcon />}>
             GitHub
+          </ProfileLink>
+          <ProfileLink href={leetCodeUsername ? leetCodeProfileUrl(leetCodeUsername) : ''} icon={<LeetCodeIcon />}>
+            LeetCode
           </ProfileLink>
           <ProfileLink href={value.links.linkedInUrl} icon={<LinkedInIcon />}>
             LinkedIn

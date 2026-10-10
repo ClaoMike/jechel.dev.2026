@@ -30,7 +30,7 @@ public class AboutRulesTests
     [Fact]
     public void Empty_sections_and_links_are_allowed()
     {
-        var empty = new AboutContent("", [], new AboutLinks("", "", "", ""), AboutDefaults.Colors, [], [], [], [], [], [], [], [], []);
+        var empty = new AboutContent("", [], new AboutLinks("", "", "", ""), AboutDefaults.Colors, [], new ProblemSolving("", []), [], [], [], [], [], [], [], []);
 
         Assert.Empty(AboutRules.Validate(empty));
     }
@@ -311,5 +311,38 @@ public class AboutRulesTests
         var content = Valid with { Statuses = [new Status("Citizenship", flag)] };
 
         Assert.Equal(valid, !AboutRules.Validate(content).ContainsKey("statuses[0].flag"));
+    }
+
+    [Theory]
+    [InlineData("", true)]
+    [InlineData("neetcode", true)]
+    [InlineData("Claudiu_J-92", true)]
+    [InlineData(" neetcode ", true)]
+    [InlineData("https://leetcode.com/u/neetcode", false)]
+    [InlineData("two words", false)]
+    public void The_leetcode_username_is_just_the_name(string username, bool valid)
+    {
+        var content = Valid with { ProblemSolving = new ProblemSolving(username, []) };
+
+        Assert.Equal(valid, !AboutRules.Validate(content).ContainsKey("problemSolving.leetCodeUsername"));
+    }
+
+    [Fact]
+    public void NeetCode_lists_must_be_known_and_ticked_once()
+    {
+        Assert.Empty(AboutRules.Validate(Valid with { ProblemSolving = new ProblemSolving("", [NeetCodeListIds.NeetCode250, NeetCodeListIds.Blind75]) }));
+        Assert.Contains("problemSolving.neetCodeLists", AboutRules.Validate(Valid with { ProblemSolving = new ProblemSolving("", ["grind169"]) }).Keys);
+        Assert.Contains("problemSolving.neetCodeLists", AboutRules.Validate(Valid with { ProblemSolving = new ProblemSolving("", [NeetCodeListIds.Blind75, NeetCodeListIds.Blind75]) }).Keys);
+    }
+
+    [Fact]
+    public void Normalize_trims_the_username_and_puts_neetcode_lists_in_order()
+    {
+        var content = Valid with { ProblemSolving = new ProblemSolving(" neetcode ", [NeetCodeListIds.NeetCode250, NeetCodeListIds.Blind75]) };
+
+        var normalized = AboutRules.Normalize(content).ProblemSolving;
+
+        Assert.Equal("neetcode", normalized.LeetCodeUsername);
+        Assert.Equal([NeetCodeListIds.Blind75, NeetCodeListIds.NeetCode250], normalized.NeetCodeLists);
     }
 }

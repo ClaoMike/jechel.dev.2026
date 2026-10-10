@@ -21,7 +21,11 @@ public static class AboutEndpoints
     }
 
     /// <summary>Public. The placeholder content until the admin first saves the page.</summary>
-    public static async Task<Ok<AboutContent>> GetAbout(PortfolioDbContext db, CancellationToken cancellationToken)
+    public static async Task<Ok<AboutContent>> GetAbout(PortfolioDbContext db, CancellationToken cancellationToken) =>
+        TypedResults.Ok(await LoadAsync(db, cancellationToken));
+
+    /// <summary>The page as stored, or the placeholder content before the first save.</summary>
+    public static async Task<AboutContent> LoadAsync(PortfolioDbContext db, CancellationToken cancellationToken)
     {
         var json = await db.AboutPages
             .AsNoTracking()
@@ -29,7 +33,7 @@ public static class AboutEndpoints
             .Select(p => p.Content)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return TypedResults.Ok(json is null ? AboutDefaults.Content : AboutJson.Deserialize(json));
+        return json is null ? AboutDefaults.Content : AboutJson.Deserialize(json);
     }
 
     /// <summary>

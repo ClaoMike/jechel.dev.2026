@@ -43,6 +43,7 @@ export function aboutContent(): AboutContent {
         ],
       },
     ],
+    problemSolving: { leetCodeUsername: '', neetCodeLists: [] },
     skills: [
       {
         name: 'C#',
@@ -81,6 +82,7 @@ export const handlers = [
   http.get(`${API}/api/auth/me`, () => new HttpResponse(null, { status: 401 })),
   http.post(`${API}/api/auth/logout`, () => new HttpResponse(null, { status: 200 })),
   http.get(`${API}/api/about`, () => HttpResponse.json(aboutContent())),
+  http.get(`${API}/api/leetcode`, () => HttpResponse.json(LEETCODE_STATS)),
 ]
 
 /**
@@ -104,6 +106,13 @@ export function aboutApi(initial = aboutContent()) {
     }),
   ]
   return { handlers, saved }
+}
+
+export const LEETCODE_STATS = {
+  username: 'NeetCode',
+  solved: { all: 205, easy: 103, medium: 98, hard: 4 },
+  total: { all: 4073, easy: 969, medium: 2124, hard: 980 },
+  fetchedAt: '2026-10-10T09:00:00Z',
 }
 
 export const TEST_CITIES = [

@@ -45,6 +45,8 @@ public class AboutJsonTests
         Assert.Empty(page.Languages);
         Assert.Empty(page.Licences);
         Assert.Empty(page.Hackathons);
+        Assert.Equal(new ProblemSolving("", []), page.ProblemSolving with { NeetCodeLists = [] });
+        Assert.Empty(page.ProblemSolving.NeetCodeLists);
         Assert.Empty(AboutRules.Validate(page));
     }
 

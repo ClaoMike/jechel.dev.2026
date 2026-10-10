@@ -69,6 +69,7 @@ export interface AboutContent {
   links: AboutLinks
   colors: AboutColors
   places: Place[]
+  problemSolving: ProblemSolving
   skills: Skill[]
   /** In the order the admin chose. */
   experience: ExperienceItem[]
@@ -92,6 +93,35 @@ export interface Paper {
   title: string
   /** The uploaded PDF (/api/files/…), or empty: the title isn't a link then. */
   fileUrl: string
+}
+
+export const NEETCODE_LISTS = ['blind75', 'neetcode150', 'neetcode250'] as const
+export type NeetCodeList = (typeof NEETCODE_LISTS)[number]
+
+/** The "Problem solving" section. */
+export interface ProblemSolving {
+  /** Empty hides the LeetCode stats. */
+  leetCodeUsername: string
+  /** Completed lists, in NEETCODE_LISTS order. */
+  neetCodeLists: NeetCodeList[]
+}
+
+/** A number per difficulty; `all` is their sum. */
+export interface DifficultyCounts {
+  all: number
+  easy: number
+  medium: number
+  hard: number
+}
+
+export interface LeetCodeStats {
+  /** As LeetCode spells it. */
+  username: string
+  solved: DifficultyCounts
+  /** Problems on LeetCode. */
+  total: DifficultyCounts
+  /** When the API last got them from LeetCode (it keeps them for a few hours). */
+  fetchedAt: string
 }
 
 export const LANGUAGE_LEVELS = ['native', 'fluent', 'advanced', 'intermediate', 'beginner'] as const
@@ -317,6 +347,17 @@ export const api = {
     /** Admin only. An academic paper, as a PDF up to 200 MB. Rejects with validationErrors.file. */
     uploadPaper(file: File, onProgress?: UploadProgress): Promise<UploadedFile> {
       return upload('/api/files/paper', file, onProgress)
+    },
+  },
+
+  leetcode: {
+    /**
+     * Public. The stats of the LeetCode user set on the About Me page, or null when none is set.
+     * Rejects with an ApiError: 404 when LeetCode has no such user, 503 when it can't be reached.
+     */
+    async get(signal?: AbortSignal): Promise<LeetCodeStats | null> {
+      const response = await http.get<LeetCodeStats>('/api/leetcode', { signal })
+      return response.status === 204 ? null : response.data
     },
   },
 

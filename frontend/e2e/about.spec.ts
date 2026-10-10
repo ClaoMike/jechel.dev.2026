@@ -146,3 +146,28 @@ test('the admin switches on a licence', async ({ page }) => {
   await expect(page.getByRole('region', { name: 'Licences' }).getByRole('list', { name: 'Flying licences' })).toContainText('Private pilot, aeroplanes')
   expect(saved).toHaveLength(1)
 })
+
+test('the admin sets a LeetCode user and a NeetCode list', async ({ page }) => {
+  const saved = await asAdmin(page)
+  // Stands in for the API's call to leetcode.com, so the test doesn't depend on it.
+  await page.route('**/api/leetcode', (route) =>
+    route.fulfill({
+      json: { username: 'NeetCode', solved: { all: 205, easy: 103, medium: 98, hard: 4 }, total: { all: 4073, easy: 969, medium: 2124, hard: 980 }, fetchedAt: new Date().toISOString() },
+    }),
+  )
+  await page.goto('/about')
+
+  await page.getByRole('button', { name: 'Edit Problem solving' }).click()
+  await page.getByLabel('LeetCode username').fill('https://leetcode.com/u/neetcode/')
+  await expect(page.getByLabel('LeetCode username')).toHaveValue('neetcode')
+  // Whatever is saved already, end with Blind 75 ticked.
+  const blind75 = page.getByRole('button', { name: 'Blind 75' })
+  if ((await blind75.getAttribute('aria-pressed')) !== 'true') await blind75.click()
+  await expect(blind75).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  const section = page.getByRole('region', { name: 'Problem solving' })
+  await expect(section.getByRole('list', { name: 'Solved by difficulty' })).toContainText('103 / 969')
+  await expect(section.getByRole('list', { name: 'NeetCode lists completed' })).toContainText('Blind 75')
+  expect(saved).toHaveLength(1)
+})

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { formatMonth } from '../features/about/format'
 import { renderApp } from '../test/render'
 import { ApiError, api } from '../services/api'
-import { aboutApi, aboutContent, API, server, signedIn } from '../test/server'
+import { aboutApi, aboutContent, API, LEETCODE_STATS, server, signedIn } from '../test/server'
 
 const section = (name: string) => screen.getByRole('region', { name })
 
@@ -178,6 +178,58 @@ describe('AboutPage for visitors', () => {
     expect(within(section('Hackathons')).getByText('Built a game')).toBeInTheDocument()
   })
 
+  it('shows the LeetCode stats and the NeetCode lists completed', async () => {
+    const content = { ...aboutContent(), problemSolving: { leetCodeUsername: 'neetcode', neetCodeLists: ['blind75', 'neetcode150'] as const } }
+    server.use(http.get(`${API}/api/about`, () => HttpResponse.json(content)))
+    await renderAbout()
+
+    const problems = section('Problem solving')
+    expect(await within(problems).findByText('205')).toBeInTheDocument()
+    expect(within(problems).getByRole('link', { name: /LeetCode/ })).toHaveAttribute('href', 'https://leetcode.com/u/neetcode/')
+    expect(within(within(problems).getByRole('list', { name: 'Solved by difficulty' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'Easy103 / 969',
+      'Medium98 / 2,124',
+      'Hard4 / 980',
+    ])
+    expect(within(problems).getByRole('list', { name: 'NeetCode lists completed' })).toHaveTextContent('Blind 75NeetCode 150')
+    expect(within(problems).queryByText(/^As of/)).not.toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Links' })).getByRole('link', { name: 'LeetCode' })).toHaveAttribute('href', 'https://leetcode.com/u/neetcode/')
+  })
+
+  it('dates LeetCode stats the API could not refresh, and says when there are none', async () => {
+    const content = { ...aboutContent(), problemSolving: { leetCodeUsername: 'neetcode', neetCodeLists: [] } }
+    server.use(
+      http.get(`${API}/api/about`, () => HttpResponse.json(content)),
+      http.get(`${API}/api/leetcode`, () => HttpResponse.json({ ...LEETCODE_STATS, fetchedAt: '2026-10-01T09:00:00Z' })),
+    )
+    await renderAbout()
+    expect(await within(section('Problem solving')).findByText('As of 1 Oct 2026.')).toBeInTheDocument()
+
+    cleanup()
+    server.use(http.get(`${API}/api/leetcode`, () => HttpResponse.json({ title: 'LeetCode can\'t be reached right now.' }, { status: 503 })))
+    await renderAbout()
+    expect(await within(section('Problem solving')).findByText("LeetCode stats can't be loaded right now.")).toBeInTheDocument()
+  })
+
+  it('hides a LeetCode user that does not exist from visitors, and has no LeetCode link without a username', async () => {
+    const content = { ...aboutContent(), problemSolving: { leetCodeUsername: 'nobody', neetCodeLists: ['neetcode250'] as const } }
+    server.use(
+      http.get(`${API}/api/about`, () => HttpResponse.json(content)),
+      http.get(`${API}/api/leetcode`, () => new HttpResponse(null, { status: 404 })),
+    )
+    await renderAbout()
+
+    await vi.waitFor(() => expect(within(section('Problem solving')).queryByText(/Loading/)).not.toBeInTheDocument())
+    expect(within(section('Problem solving')).queryByText(/LeetCode/)).not.toBeInTheDocument()
+    expect(within(section('Problem solving')).getByText('NeetCode 250')).toBeInTheDocument()
+
+    cleanup()
+    server.resetHandlers()
+    await renderAbout()
+    expect(within(section('Problem solving')).getByText('Nothing here yet.')).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Links' })).queryByRole('link', { name: 'LeetCode' })).not.toBeInTheDocument()
+  })
+
   it('collapses and expands a section, and remembers it', async () => {
     const user = await renderAbout()
 
@@ -234,6 +286,7 @@ describe('AboutPage for the admin', () => {
     expect(screen.getAllByRole('button', { name: /^Edit/ }).map((b) => b.textContent)).toEqual([
       'Edit Photo and links',
       "Edit Where I've been",
+      'Edit Problem solving',
       'Edit Skills',
       'Edit Work experience',
       'Edit Education',
@@ -545,6 +598,28 @@ describe('AboutPage for the admin', () => {
       { category: 'boating', code: 'ICC', name: 'International Certificate of Competence' },
       { category: 'boating', code: '', name: 'Speedboat (DK)' },
     ])
+  })
+
+  it('sets the LeetCode username from a pasted link and ticks NeetCode lists', async () => {
+    const { user, saved } = await renderAsAdmin()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Problem solving' }))
+    fireEvent.change(screen.getByLabelText('LeetCode username'), { target: { value: 'https://leetcode.com/u/neetcode/' } })
+    expect(screen.getByLabelText('LeetCode username')).toHaveValue('neetcode')
+    await user.click(screen.getByRole('button', { name: 'NeetCode 250' }))
+    await user.click(screen.getByRole('button', { name: 'Blind 75' }))
+    expect(screen.getByRole('button', { name: 'Blind 75' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await within(section('Problem solving')).findByText('205')).toBeInTheDocument()
+    expect(saved[0].problemSolving).toEqual({ leetCodeUsername: 'neetcode', neetCodeLists: ['blind75', 'neetcode250'] })
+  })
+
+  it('tells the admin when LeetCode has no such user', async () => {
+    server.use(http.get(`${API}/api/leetcode`, () => new HttpResponse(null, { status: 404 })))
+    await renderAsAdmin({ ...aboutContent(), problemSolving: { leetCodeUsername: 'nobody', neetCodeLists: [] } })
+
+    expect(await within(section('Problem solving')).findByText('LeetCode has no user called nobody. Check the username with Edit.')).toBeInTheDocument()
   })
 
   it('adds a hackathon with a year and bullet points, and sorts by year', async () => {

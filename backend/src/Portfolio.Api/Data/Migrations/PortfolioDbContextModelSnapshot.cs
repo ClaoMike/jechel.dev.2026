@@ -84,6 +84,27 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("contact_messages", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.LeetCodeSnapshot", b =>
+                {
+                    b.Property<string>("Username")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("username");
+
+                    b.Property<DateTimeOffset>("FetchedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fetched_at");
+
+                    b.Property<string>("Stats")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("stats");
+
+                    b.HasKey("Username");
+
+                    b.ToTable("leetcode_stats", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.Profile", b =>
                 {
                     b.Property<int>("Id")

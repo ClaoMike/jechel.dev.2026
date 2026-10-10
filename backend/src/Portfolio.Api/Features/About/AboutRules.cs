@@ -92,6 +92,20 @@ public static partial class AboutRules
             }
         }
 
+        if (content.ProblemSolving is null)
+        {
+            Add("problemSolving", "Required.");
+        }
+        else
+        {
+            if (content.ProblemSolving.LeetCodeUsername is null || !LeetCodeUsername().IsMatch(content.ProblemSolving.LeetCodeUsername.Trim()))
+            {
+                Add("problemSolving.leetCodeUsername", "Just the username, e.g. neetcode: letters, digits, _ and -.");
+            }
+            if (content.ProblemSolving.NeetCodeLists is null) Add("problemSolving.neetCodeLists", "Required (can be empty).");
+            else CheckKinds(content.ProblemSolving.NeetCodeLists, NeetCodeListIds.All, "problemSolving.neetCodeLists", Add);
+        }
+
         if (CheckList(content.Skills, "skills", MaxSkills, Add))
         {
             for (var i = 0; i < content.Skills.Count; i++)
@@ -224,6 +238,7 @@ public static partial class AboutRules
             // Always in legend order, so a city's dot is split the same way everywhere.
             Visits = [.. p.Visits.OrderBy(v => IndexIn(PlaceVisitKinds.All, v.Kind)).Select(v => new PlaceVisit(v.Kind, Trim(v.Note)))],
         })],
+        new ProblemSolving(content.ProblemSolving.LeetCodeUsername.Trim(), [.. content.ProblemSolving.NeetCodeLists.OrderBy(l => IndexIn(NeetCodeListIds.All, l))]),
         [.. content.Skills.Select(s => new Skill(
             s.Name.Trim(),
             [.. s.Periods.Select(p => new SkillPeriod(FirstOfMonth(p.Start), FirstOfMonth(p.End), [.. p.Uses.OrderBy(u => IndexIn(SkillUses.All, u))]))]))],
@@ -314,6 +329,9 @@ public static partial class AboutRules
 
     [GeneratedRegex(@"\[([^\[\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)\)")]
     private static partial Regex MarkdownLink();
+
+    [GeneratedRegex("^[A-Za-z0-9_-]{0,50}$")]
+    private static partial Regex LeetCodeUsername();
 
     [GeneratedRegex("^([A-Za-z]{2})?$")]
     private static partial Regex FlagCode();
