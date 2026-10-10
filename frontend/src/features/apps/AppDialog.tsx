@@ -5,9 +5,8 @@ import { PencilIcon, TrashIcon } from '../../components/icons'
 import { Modal } from '../../components/Modal'
 import { ApiError, api, type AppCategory, type AppDetails, type AppRequest } from '../../services/api'
 import { TextField, type FieldErrors } from '../about/fields'
-import { RichText } from '../about/RichText'
-import { CategoryLabels, CategoryPicker, LinksEditor, PlatformsEditor, StoreLinks } from './AppFields'
-import { MediaCarousel } from './MediaCarousel'
+import { CategoryLabels, CategoryPicker, LinksEditor, PlatformsEditor } from './AppFields'
+import { AppDetailsView } from './AppDetailsView'
 import { MediaListEditor } from './MediaListEditor'
 
 interface AppDialogProps {
@@ -93,28 +92,7 @@ export function AppDialog({ app, categories, canEdit, onClose, onSaved, onDelete
       </header>
 
       {draft === null && app && (
-        <div className="app-details">
-          <MediaCarousel media={app.media} title={app.title} />
-          {app.description && (
-            <p className="app-description">
-              <RichText text={app.description} />
-            </p>
-          )}
-          {app.platforms.length > 0 && (
-            <div className="app-platforms">
-              <span className="app-platforms-label" id={`${titleId}-platforms`}>
-                Runs on
-              </span>
-              <ul className="chips" aria-labelledby={`${titleId}-platforms`}>
-                {app.platforms.map((platform) => (
-                  <li key={platform} className="chip">
-                    {platform}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <StoreLinks links={app.links} />
+        <AppDetailsView app={app}>
           {canEdit && (
             <div className="app-actions">
               <button type="button" className="button button-secondary button-small" onClick={() => setDraft(toRequest(app))}>
@@ -123,7 +101,7 @@ export function AppDialog({ app, categories, canEdit, onClose, onSaved, onDelete
               </button>
             </div>
           )}
-        </div>
+        </AppDetailsView>
       )}
 
       {draft !== null && (

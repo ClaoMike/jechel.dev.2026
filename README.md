@@ -211,11 +211,13 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 
 | Tab | Route | Status |
 | --- | --- | --- |
-| What's new? | `/` | placeholder |
+| What's new? | `/` | the newest app or video, in full |
 | Apps | `/apps` | my apps in a grid, each with a popup; the admin adds and edits them |
 | YouTube | `/youtube` | my videos, 9 a page |
 | About Me | `/about` | profile, where I've been (map), problem solving (LeetCode, NeetCode), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
+
+**What's new?** (`src/pages/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list; if one fails (e.g. YouTube isn't set up), the other is shown.
 
 **Apps** (`src/pages/AppsPage.tsx`, `src/features/apps/`, API in `backend/.../Features/Apps/`):
 
@@ -234,7 +236,7 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 - The list is cached in memory for an hour (`RefreshingCache<T>`, a small reusable cache: one fetch at a time, keeps the last list if YouTube fails and retries after 5 minutes). Each refresh costs about 2 units of the free 10,000 a day.
 - **Reusable for Apps:** `src/components/PagedGrid.tsx` (loads a page with a `load(page, pageSize, signal)` function, shows loading / empty / error, and the pagination) and `src/components/MediaCard.tsx` (image, title, meta line, clamped description; the whole card is a link). `Pagination.tsx` and `usePageParam.ts` are shared with the contact inbox.
 
-To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real page. Unknown URLs redirect to `/`.
+Unknown URLs redirect to `/`.
 
 **Contact** (`src/pages/ContactPage.tsx`, `src/features/contact/`):
 

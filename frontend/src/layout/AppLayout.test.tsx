@@ -51,15 +51,13 @@ describe('AppLayout: tabs', () => {
     expect(tabs().getAllByRole('link').map((link) => link.textContent)).toEqual(TAB_NAMES)
   })
 
-  it.each([
-    ['/', "What's new?", /news and updates/i],
-  ])('%s shows the %s placeholder and marks its tab as current', async (url, tab, text) => {
-    renderApp(url)
+  it("/ shows What's new and marks its tab as current", async () => {
+    renderApp('/')
 
-    expect(screen.getByRole('heading', { level: 2, name: tab })).toBeInTheDocument()
-    expect(screen.getByText(text)).toBeInTheDocument()
-    expect(tabs().getByRole('link', { name: tab })).toHaveAttribute('aria-current', 'page')
-    for (const other of TAB_NAMES.filter((name) => name !== tab)) {
+    expect(screen.getByRole('heading', { level: 2, name: "What's new?" })).toBeInTheDocument()
+    expect(await screen.findByText(/Nothing here yet/)).toBeInTheDocument()
+    expect(tabs().getByRole('link', { name: "What's new?" })).toHaveAttribute('aria-current', 'page')
+    for (const other of TAB_NAMES.filter((name) => name !== "What's new?")) {
       expect(tabs().getByRole('link', { name: other })).not.toHaveAttribute('aria-current')
     }
   })
