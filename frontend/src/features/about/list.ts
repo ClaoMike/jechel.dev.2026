@@ -14,3 +14,12 @@ export function replaceAt<T>(items: T[], index: number, item: T): T[] {
 export function removeAt<T>(items: T[], index: number): T[] {
   return items.filter((_, i) => i !== index)
 }
+
+/**
+ * Newest first by end date: ongoing entries (no end) on top, then the latest end. Entries that
+ * end together go by start, latest first. Stable, so ties keep their order.
+ */
+export function sortByEndDate<T extends { start: string; end: string | null }>(items: T[]): T[] {
+  const end = (item: T) => item.end ?? '9999-12-01'
+  return [...items].sort((a, b) => end(b).localeCompare(end(a)) || b.start.localeCompare(a.start))
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { currentMonth, formatMonth, formatPeriod, isSafeUrl, isUpcoming, skillLevelName } from './format'
+import { currentMonth, formatMonth, formatPeriod, isSafeUrl, isUpcoming, fileNameOf } from './format'
 
 const NOW = new Date(2026, 9, 8) // 8 Oct 2026, local time
 
@@ -49,14 +49,12 @@ describe('isSafeUrl', () => {
   })
 })
 
-describe('skillLevelName', () => {
+describe('fileNameOf', () => {
   it.each([
-    [90, 'Expert'],
-    [85, 'Expert'],
-    [70, 'Advanced'],
-    [50, 'Intermediate'],
-    [10, 'Beginner'],
-  ])('%i → %s', (level, name) => {
-    expect(skillLevelName(level)).toBe(name)
+    ['/api/files/22222222-2222-2222-2222-222222222222/My%20CV.pdf', 'My CV.pdf'],
+    ['/resume.pdf', 'resume.pdf'],
+    ['/api/files/x/bad%E0%A4%A', 'bad%E0%A4%A'],
+  ])('%s → %s', (url, name) => {
+    expect(fileNameOf(url)).toBe(name)
   })
 })

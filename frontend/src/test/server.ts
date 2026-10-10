@@ -21,17 +21,41 @@ export function aboutContent(): AboutContent {
       linkedInUrl: 'https://www.linkedin.com/in/claudiu',
       instagramUrl: '',
     },
+    colors: {
+      skills: { work: '#188038', academic: '#1a73e8', personal: '#e8710a' },
+      places: { worked: '#188038', studied: '#1a73e8', visited: '#e8710a' },
+    },
+    places: [
+      {
+        id: 2643123,
+        name: 'Manchester',
+        region: 'England',
+        country: 'United Kingdom',
+        latitude: 53.481,
+        longitude: -2.237,
+        visits: [
+          { kind: 'studied', note: 'BSc at [The University of Manchester](https://www.manchester.ac.uk)' },
+          { kind: 'visited', note: '' },
+        ],
+      },
+    ],
     skills: [
-      { name: 'C#', level: 90 },
-      { name: 'Python', level: 70 },
+      {
+        name: 'C#',
+        periods: [
+          { start: '2016-10-01', end: '2019-06-01', uses: ['academic'] },
+          { start: '2019-06-01', end: null, uses: ['work', 'personal'] },
+        ],
+      },
+      { name: 'Python', periods: [{ start: '2015-10-01', end: '2020-12-01', uses: ['academic'] }] },
     ],
     experience: [
-      { title: 'Senior Engineer', company: 'Acme', location: 'Remote', start: '2023-01-01', end: null, bullets: ['Built the platform', 'Led the team'] },
-      { title: 'Engineer', company: 'Globex', location: '', start: '2019-06-01', end: '2022-12-01', bullets: [] },
+      { title: 'Senior Engineer', company: 'Acme', companyUrl: 'https://acme.example', location: 'Remote', start: '2023-01-01', end: null, bullets: ['Built the platform', 'Led the team'] },
+      { title: 'Engineer', company: 'Globex', companyUrl: '', location: '', start: '2019-06-01', end: '2022-12-01', bullets: [] },
     ],
-    education: [{ title: 'BSc Computer Science', institution: 'Uni', location: 'Bucharest', start: '2015-10-01', end: '2019-06-01' }],
+    education: [{ title: 'BSc Computer Science', institution: 'Uni', institutionUrl: '', location: 'Bucharest', start: '2015-10-01', end: '2019-06-01' }],
     papers: ['A paper about things (2020)'],
-    qualifications: ['Azure Developer Associate'],
+    qualifications: [{ title: 'Azure Developer Associate', issuer: 'Microsoft', obtained: '2024-03-01', grade: '' }],
   }
 }
 
@@ -44,8 +68,9 @@ export const handlers = [
 ]
 
 /**
- * The About Me API for the signed-in admin: PUT stores the body (as the real API would, minus
- * sorting) and GET returns it. `saved` records every PUT body.
+ * The About Me API for the signed-in admin: PUT stores the body and GET returns it. `saved`
+ * records every PUT body. Also answers the city search. (Uploads can't go through MSW: jsdom's
+ * XHR can't send FormData, so tests stub `api.files` instead.)
  */
 export function aboutApi(initial = aboutContent()) {
   let current = initial
@@ -57,9 +82,19 @@ export function aboutApi(initial = aboutContent()) {
       saved.push(current)
       return HttpResponse.json(current)
     }),
+    http.get(`${API}/api/places/search`, ({ request }) => {
+      const q = new URL(request.url).searchParams.get('q')?.toLowerCase() ?? ''
+      return HttpResponse.json(TEST_CITIES.filter((c) => c.name.toLowerCase().startsWith(q)))
+    }),
   ]
   return { handlers, saved }
 }
+
+export const TEST_CITIES = [
+  { id: 2643743, name: 'London', region: 'England', country: 'United Kingdom', latitude: 51.509, longitude: -0.126, population: 8961989 },
+  { id: 6058560, name: 'London', region: 'Ontario', country: 'Canada', latitude: 42.984, longitude: -81.233, population: 422324 },
+  { id: 2643123, name: 'Manchester', region: 'England', country: 'United Kingdom', latitude: 53.481, longitude: -2.237, population: 568996 },
+]
 
 export const signedIn = () => http.get(`${API}/api/auth/me`, () => HttpResponse.json(TEST_USER))
 

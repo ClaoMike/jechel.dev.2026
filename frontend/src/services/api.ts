@@ -60,36 +60,81 @@ export interface Page<T> {
   totalCount: number
 }
 
+/** Free text in the About Me page may contain links written as [text](https://…); see features/about/textLinks. */
 export interface AboutContent {
-  /** Empty: show a placeholder. */
+  /** Empty: show a placeholder. An uploaded photo is a /api/files/… path. */
   photoUrl: string
   links: AboutLinks
+  colors: AboutColors
+  places: Place[]
   skills: Skill[]
-  /** Newest first (the API sorts on save). */
+  /** In the order the admin chose. */
   experience: ExperienceItem[]
-  /** Newest first (the API sorts on save). */
+  /** In the order the admin chose. */
   education: EducationItem[]
   papers: string[]
-  qualifications: string[]
+  qualifications: Qualification[]
 }
 
 /** Empty strings hide the link. */
 export interface AboutLinks {
+  /** An uploaded résumé is a /api/files/… path. */
   resumeUrl: string
   gitHubUrl: string
   linkedInUrl: string
   instagramUrl: string
 }
 
+export const SKILL_USES = ['work', 'academic', 'personal'] as const
+export type SkillUse = (typeof SKILL_USES)[number]
+
+export const VISIT_KINDS = ['worked', 'studied', 'visited'] as const
+export type VisitKind = (typeof VISIT_KINDS)[number]
+
+/** Legend colours, "#rrggbb". */
+export interface AboutColors {
+  skills: Record<SkillUse, string>
+  places: Record<VisitKind, string>
+}
+
 export interface Skill {
   name: string
-  /** 0 to 100. */
-  level: number
+  periods: SkillPeriod[]
+}
+
+export interface SkillPeriod {
+  /** First of a month, "YYYY-MM-01". */
+  start: string
+  /** First of a month, or null while still in use. */
+  end: string | null
+  /** At least one; the API stores them in SKILL_USES order. */
+  uses: SkillUse[]
+}
+
+/** A city on the "Where I've been" map. */
+export interface Place {
+  /** GeoNames id, from the city search. */
+  id: number
+  name: string
+  region: string
+  country: string
+  latitude: number
+  longitude: number
+  /** At least one; the API stores them in VISIT_KINDS order. */
+  visits: PlaceVisit[]
+}
+
+export interface PlaceVisit {
+  kind: VisitKind
+  /** Optional, may contain links: "BSc at [Uni](https://…)". */
+  note: string
 }
 
 export interface ExperienceItem {
   title: string
   company: string
+  /** The company's website, or empty. */
+  companyUrl: string
   location: string
   /** First of a month, "YYYY-MM-01". May be in the future. */
   start: string
@@ -102,9 +147,38 @@ export interface EducationItem {
   /** The degree or course. */
   title: string
   institution: string
+  /** The institution's website, or empty. */
+  institutionUrl: string
   location: string
   start: string
   end: string | null
+}
+
+export interface Qualification {
+  title: string
+  /** Optional. */
+  issuer: string
+  /** First of a month. Null only in pages saved before qualifications had dates. */
+  obtained: string | null
+  /** Optional, e.g. "First Class". */
+  grade: string
+}
+
+/** A place from the city search. */
+export interface City {
+  id: number
+  name: string
+  region: string
+  country: string
+  latitude: number
+  longitude: number
+  population: number
+}
+
+export interface UploadedFile {
+  /** Where the file is served from: put it in photoUrl or links.resumeUrl. */
+  url: string
+  fileName: string
 }
 
 /** Field errors of a 400 response, keyed by camelCase field name (ASP.NET Core ValidationProblem). */
@@ -155,6 +229,12 @@ async function post<T = void>(path: string, body?: unknown, config?: AxiosReques
   return response.data
 }
 
+function upload(path: string, file: File): Promise<UploadedFile> {
+  const form = new FormData()
+  form.append('file', file)
+  return post<UploadedFile>(path, form)
+}
+
 // ---------- Endpoints ----------
 
 export const api = {
@@ -165,12 +245,31 @@ export const api = {
     },
 
     /**
-     * Admin only. Replaces the whole page; resolves with it as stored (trimmed, sorted).
+     * Admin only. Replaces the whole page; resolves with it as stored (trimmed).
      * Rejects with an ApiError whose `validationErrors` are keyed by path, e.g. "experience[0].title".
      */
     async update(content: AboutContent): Promise<AboutContent> {
       const response = await http.put<AboutContent>('/api/about', content)
       return response.data
+    },
+  },
+
+  files: {
+    /** Admin only. Any common image; stored as a small WebP without metadata. Rejects with validationErrors.file. */
+    uploadPhoto(file: File): Promise<UploadedFile> {
+      return upload('/api/files/photo', file)
+    },
+
+    /** Admin only. A PDF. Rejects with validationErrors.file. */
+    uploadResume(file: File): Promise<UploadedFile> {
+      return upload('/api/files/resume', file)
+    },
+  },
+
+  places: {
+    /** Admin only. Cities whose name starts with the query, largest first. "manchester, england" narrows by region or country. */
+    searchCities(query: string, signal?: AbortSignal): Promise<City[]> {
+      return get<City[]>('/api/places/search', { params: { q: query }, signal })
     },
   },
 

@@ -214,7 +214,7 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 | What's new? | `/` | placeholder |
 | Apps | `/apps` | placeholder |
 | YouTube | `/youtube` | placeholder |
-| About Me | `/about` | profile, skills chart, experience, education, papers, qualifications; editable by the admin |
+| About Me | `/about` | profile, where I've been (map), skills timeline, experience, education, papers, qualifications; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
 
 To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real page. Unknown URLs redirect to `/`.
@@ -229,10 +229,33 @@ To fill a section, replace its `<PlaceholderPage>` in `src/App.tsx` with a real 
 **About Me** (`src/pages/AboutPage.tsx`, `src/features/about/`, API in `backend/.../Features/About/`):
 
 - The page is **one JSON document** (`AboutContent`), stored in the `about_page` table (`jsonb`, one row). It's always read and saved whole, so changing its shape means changing `AboutContent.cs` and the matching types in `api.ts`, with no new migration. Until the first save, `GET` returns `AboutDefaults` (placeholders).
-- **Sections:** photo and links (résumé download, GitHub, LinkedIn, Instagram; an empty link is hidden), skills (a 0–100 bar chart, in the order you set), work experience (title, company, optional location, start month, which may be in the future, an end month or *ongoing*, and bullet points), education (the same, without bullet points), academic papers, and qualifications (both bullet lists).
-- **Editing:** when signed in, each section has an **Edit** button that turns it into a form; **Save** sends the whole page with that section changed. The API validates everything (`AboutRules.cs`), trims text, drops empty bullets, and sorts experience and education **newest first** (for the same start, ongoing first). The page then shows what the API stored. Field errors come back keyed by path and show under the matching input.
-- **Links** must be `http(s)://…` or a path on this site (`/resume.pdf`), checked by the API and again before rendering, so a stored value can never become a `javascript:` link. Photo and résumé are URLs for now; there's no file upload yet.
+- **Sections:**
+  - **Photo and links:** an uploaded photo (or a placeholder icon), an uploaded résumé (download button), and GitHub, LinkedIn and Instagram in their brand colours. An empty link is hidden.
+  - **Where I've been:** a dotted world map with a pin per city. Each city is marked *worked*, *studied* and/or *visited*, each with an optional note. A pin with several marks is split into equal slices, one colour each. Hovering, focusing or tapping a pin shows its notes. Zoom with the buttons, a pinch, or Ctrl/⌘ + scroll; drag to move.
+  - **Skills:** a timeline. Each skill has one or more periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once.
+  - **Work experience:** title, company (and optional website, which makes its name a link), optional location, start month (may be in the future), an end month or *ongoing*, and bullet points.
+  - **Education:** the same, without bullet points.
+  - **Academic papers:** a list.
+  - **Qualifications:** a title, optional issuer, the month obtained, and an optional grade.
+- **Colours:** the admin picks the legend colours (skill uses, map marks) with colour pickers. They're stored in the page (`colors`).
+- **Editing:** when signed in, each section has an **Edit** button that turns it into a form; **Save** sends the whole page with that section changed. The API validates everything (`AboutRules.cs`), trims text and drops empty bullets. The page then shows what the API stored. Field errors come back keyed by path and show under the matching input.
+- **Order:** every list is shown in the order the admin set, with the arrow buttons. Experience and education also have **Sort by end date** (ongoing first, then the latest end): it only reorders the form, so Save keeps it and Cancel undoes it.
+- **Links in text:** any text field can hold `[text](https://…)` links. The **Add link** button under a field writes one at the cursor. Only http(s) links and paths on this site become links (`textLinks.ts`, and `AboutRules.LinksIn` on the API).
+- **Older pages:** `AboutJson.cs` upgrades a page saved in an older shape when it's read (e.g. 0–100 skill levels, qualifications as plain text), so changing the shape needs no data migration.
+- **Links** must be `http(s)://…` or a path on this site (`/resume.pdf`), checked by the API and again before rendering, so a stored value can never become a `javascript:` link.
 - Dates are months, stored as the 1st (`2023-01-01`). The month picker is a select plus a year box, because desktop Safari and Firefox don't support `<input type="month">`.
+
+**Uploaded files** (`backend/.../Features/Files/`):
+
+- `POST /api/files/photo` and `POST /api/files/resume` (admin, multipart field `file`) return `{ url, fileName }`. The editor puts the URL in the page; it's used once the section is saved.
+- Photos (any common image, up to 15 MB) are turned upright, scaled to fit 800×800 and stored as WebP **without metadata**, so a phone photo's GPS position never reaches the site. Résumés must be PDFs (up to 10 MB) and keep their file name.
+- Files are served publicly from `GET /api/files/{id}/{name}`. Saving the page deletes uploads it no longer uses once they're a day old (a replaced photo, or one uploaded and never saved).
+- Storage is behind `IFileStorage`. `DatabaseFileStorage` keeps files in the `stored_files` table, which suits a photo and a PDF. Moving to object storage (Cloudflare R2, S3) means a new implementation and one line in `Program.cs`. There's no HTTP caching yet; adding a CDN later only needs cache headers, since a file's URL never changes.
+- Image processing uses SixLabors.ImageSharp 3.1 (Six Labors Split License: free for open source and for individuals or companies under $1M revenue; version 4 needs a license key).
+
+**City search** (`backend/.../Features/Places/`): `GET /api/places/search?q=manch` (admin) searches every place with 1,000+ people (~170k, from [GeoNames](https://www.geonames.org), CC BY 4.0) by the start of its name, largest first, ignoring accents. Text after a comma narrows by region or country (`manchester, new hampshire`). The list is `cities.tsv.gz`, embedded in the API and built by `python3 scripts/build_cities.py`.
+
+**The map's dots** are generated once by `node scripts/build-world-dots.ts` (in `frontend/`) from Natural Earth land shapes into `src/features/about/places/worldDots.ts`. Pins use the same projection (`projection.ts`), so they line up.
 
 ## Configuration
 
@@ -298,6 +321,10 @@ dotnet test tests/Portfolio.Api.IntegrationTests       # integration only
 | `npm run test:e2e:ui`   | Playwright UI mode                                                  |
 | `npm run lint`          | oxlint                                                              |
 | `npm run typecheck`     | `tsc -b`                                                            |
+
+To run the E2E tests while your usual dev servers keep running, give them other ports and a separate database, e.g.
+`API_PORT=5205 WEB_PORT=5273 ConnectionStrings__Default="Host=localhost;Port=5433;Database=portfolio_e2e;Username=portfolio;Password=portfolio" npm run test:e2e`.
+Vite also reads `WEB_PORT` and `API_URL` (where to proxy `/api`).
 
 - **Unit/component tests** live next to the code as `*.test.ts(x)`, run in jsdom, and mock HTTP with MSW. The default handlers in `src/test/server.ts` cover the happy path for an **anonymous** visitor; use `server.use(signedIn())` for a signed-in admin, or `server.use(...)` for other overrides. Unhandled requests fail the test. `renderApp(url)` in `src/test/render.tsx` renders the full app (router + auth) at a URL.
 - The real Google round-trip isn't automated. E2E tests cover the `/admin` page and fake a signed-in session with `page.route('**/api/auth/me', ...)`. The admin inbox E2E tests (`e2e/contact.spec.ts`) fake the inbox endpoints the same way. The visitor tests send real messages, so the local database collects a few `E2E visitor ...` rows.

@@ -1,6 +1,7 @@
 import { AddButton, ItemControls, TextField } from './fields'
 import { EditableSection } from './EditableSection'
 import { move, removeAt, replaceAt } from './list'
+import { RichText } from './RichText'
 
 interface BulletsSectionProps {
   title: string
@@ -30,7 +31,9 @@ export function BulletsSection({ title, errorKey, itemName, value, canEdit, onSa
       ) : (
         <ul className="bullets">
           {value.map((text, i) => (
-            <li key={i}>{text}</li>
+            <li key={i}>
+              <RichText text={text} />
+            </li>
           ))}
         </ul>
       )}
@@ -54,7 +57,7 @@ export function BulletsEditor({ itemName, value, onChange, errorFor, listError, 
     <div className="editor-list">
       {value.map((text, i) => (
         <div key={i} className="editor-bullet">
-          <TextField label={`${label} ${i + 1}`} value={text} multiline={multiline} onChange={(next) => onChange(replaceAt(value, i, next))} error={errorFor(i)} />
+          <TextField label={`${label} ${i + 1}`} value={text} multiline={multiline} onChange={(next) => onChange(replaceAt(value, i, next))} error={errorFor(i)} allowLinks />
           <ItemControls name={`${itemName} ${i + 1}`} index={i} count={value.length} onMove={(from, to) => onChange(move(value, from, to))} onRemove={() => onChange(removeAt(value, i))} />
         </div>
       ))}

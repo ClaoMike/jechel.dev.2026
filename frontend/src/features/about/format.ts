@@ -38,10 +38,12 @@ export function isSafeUrl(url: string): boolean {
   }
 }
 
-/** A word for a 0–100 skill level, shown in the chart's tooltip. */
-export function skillLevelName(level: number): string {
-  if (level >= 85) return 'Expert'
-  if (level >= 70) return 'Advanced'
-  if (level >= 50) return 'Intermediate'
-  return 'Beginner'
+/** "/api/files/…/My%20CV.pdf" → "My CV.pdf"; any other link is shown as it is. */
+export function fileNameOf(url: string): string {
+  const last = url.split('/').at(-1) ?? url
+  try {
+    return decodeURIComponent(last) || url
+  } catch {
+    return last
+  }
 }

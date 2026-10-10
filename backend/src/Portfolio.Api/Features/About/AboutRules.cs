@@ -186,7 +186,7 @@ public static partial class AboutRules
         return Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
     }
 
-    /// <summary>The URLs of the [text](url) links in a piece of text. Same syntax as the frontend's richText.ts.</summary>
+    /// <summary>The URLs of the [text](url) links in a piece of text. Same syntax as the frontend's textLinks.ts.</summary>
     public static IEnumerable<string> LinksIn(string text) => MarkdownLink().Matches(text).Select(m => m.Groups[2].Value);
 
     private static void CheckUrl(string? value, string key, Action<string, string> add)

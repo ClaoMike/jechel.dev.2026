@@ -17,6 +17,10 @@ interface EditableSectionProps<T> {
   onSave: (value: T) => Promise<void>
   /** The read-only view. */
   children: ReactNode
+  /**
+   * The edit form. Called as a plain function, not mounted as a component, so it must not use
+   * hooks itself: return a component that does, e.g. `(props) => <MyEditor {...props} />`.
+   */
   editor: (props: EditorProps<T>) => ReactNode
 }
 
@@ -63,6 +67,7 @@ export function EditableSection<T>({ title, hideTitle = false, editLabel, classN
           {editor({
             value: status.draft as T,
             onChange: (draft) => setStatus({ ...status, draft }),
+            update: (change) => setStatus((current) => (current.state === 'viewing' ? current : { ...current, draft: change(current.draft as T) })),
             errors: status.errors,
           })}
           {status.message && (
