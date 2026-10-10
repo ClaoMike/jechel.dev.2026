@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.HttpResults;
 using SixLabors.ImageSharp;
 
@@ -12,11 +13,12 @@ public static class FileEndpoints
     {
         var files = app.MapGroup("/files");
 
-        // Admin only. Antiforgery tokens are off for these form posts like for the rest of the
-        // API: the session cookie is SameSite=Lax, so another site can't post with it.
-        files.MapPost("/photo", UploadPhoto).WithName("UploadPhoto").RequireAuthorization().DisableAntiforgery();
-        files.MapPost("/resume", UploadResume).WithName("UploadResume").RequireAuthorization().DisableAntiforgery();
-        files.MapPost("/paper", UploadPaper).WithName("UploadPaper").RequireAuthorization().DisableAntiforgery();
+        // Admin only. Each reads its own form (multipart field "file"), so it can allow its own size;
+        // like the rest of the API there are no antiforgery tokens: the session cookie is
+        // SameSite=Lax, so another site can't post with it.
+        files.MapPost("/photo", UploadPhoto).WithName("UploadPhoto").RequireAuthorization();
+        files.MapPost("/resume", UploadResume).WithName("UploadResume").RequireAuthorization();
+        files.MapPost("/paper", UploadPaper).WithName("UploadPaper").RequireAuthorization();
 
         // Public. The name in the URL is only for the browser; the id finds the file.
         files.MapGet("/{id:guid}/{fileName}", GetFile).WithName("GetFile");
@@ -25,9 +27,10 @@ public static class FileEndpoints
     }
 
     /// <summary>Any common image format; stored as a WebP of at most 800×800 without metadata.</summary>
-    public static async Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadPhoto(IFormFile? file, IFileStorage storage, CancellationToken cancellationToken)
+    public static async Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadPhoto(HttpRequest request, IFileStorage storage, CancellationToken cancellationToken)
     {
-        if (CheckSize(file, FileRules.PhotoMaxBytes) is { } error) return error;
+        var (file, error) = await ReadUploadAsync(request, FileRules.PhotoMaxBytes, cancellationToken);
+        if (error is not null) return error;
 
         byte[] photo;
         try
@@ -46,20 +49,24 @@ public static class FileEndpoints
     }
 
     /// <summary>A PDF, kept as it is and downloaded under the name it was uploaded with.</summary>
-    public static Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadResume(IFormFile? file, IFileStorage storage, CancellationToken cancellationToken) =>
-        UploadPdf(file, "Resume", "The résumé must be a PDF.", storage, cancellationToken);
+    public static Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadResume(HttpRequest request, IFileStorage storage, CancellationToken cancellationToken) =>
+        UploadPdf(request, FileRules.ResumeMaxBytes, "Resume", "The résumé must be a PDF.", storage, cancellationToken);
 
-    /// <summary>An academic paper: a PDF, like the résumé.</summary>
-    public static Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadPaper(IFormFile? file, IFileStorage storage, CancellationToken cancellationToken) =>
-        UploadPdf(file, "Paper", "The paper must be a PDF.", storage, cancellationToken);
+    /// <summary>An academic paper: a PDF like the résumé, but it may be much bigger.</summary>
+    public static Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadPaper(HttpRequest request, IFileStorage storage, CancellationToken cancellationToken) =>
+        UploadPdf(request, FileRules.PaperMaxBytes, "Paper", "The paper must be a PDF.", storage, cancellationToken);
 
-    private static async Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadPdf(IFormFile? file, string fallbackName, string notPdf, IFileStorage storage, CancellationToken cancellationToken)
+    private static async Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadPdf(HttpRequest request, long maxBytes, string fallbackName, string notPdf, IFileStorage storage, CancellationToken cancellationToken)
     {
-        if (CheckSize(file, FileRules.PdfMaxBytes) is { } error) return error;
+        var (file, error) = await ReadUploadAsync(request, maxBytes, cancellationToken);
+        if (error is not null) return error;
 
-        using var buffer = new MemoryStream();
-        await file!.CopyToAsync(buffer, cancellationToken);
-        var bytes = buffer.ToArray();
+        // One copy in memory: the form has already buffered the upload to disk.
+        var bytes = new byte[file!.Length];
+        await using (var stream = file.OpenReadStream())
+        {
+            await stream.ReadExactlyAsync(bytes, cancellationToken);
+        }
         if (!FileRules.LooksLikePdf(bytes)) return Invalid(notPdf);
 
         var name = FileRules.CleanFileName(file.FileName, fallbackName, ".pdf");
@@ -78,11 +85,37 @@ public static class FileEndpoints
         return TypedResults.File(file.Content, file.ContentType);
     }
 
-    private static ValidationProblem? CheckSize(IFormFile? file, long maxBytes)
+    /// <summary>
+    /// Reads the "file" field of a multipart form of at most <paramref name="maxBytes"/>. Raises the
+    /// server's request size limit (Kestrel's default is 30 MB) for this request only, before
+    /// anything is read; bigger requests are cut off early.
+    /// </summary>
+    private static async Task<(IFormFile? File, ValidationProblem? Error)> ReadUploadAsync(HttpRequest request, long maxBytes, CancellationToken cancellationToken)
     {
-        if (file is null || file.Length == 0) return Invalid("Choose a file to upload.");
-        if (file.Length > maxBytes) return Invalid($"The file must be at most {maxBytes / 1024 / 1024} MB.");
-        return null;
+        const long formOverhead = 1024 * 1024;
+        var tooBig = Invalid($"The file must be at most {maxBytes / 1024 / 1024} MB.");
+        if (request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } sizeLimit)
+        {
+            sizeLimit.MaxRequestBodySize = maxBytes + formOverhead;
+        }
+        if (request.ContentLength > maxBytes + formOverhead) return (null, tooBig);
+        if (!request.HasFormContentType) return (null, Invalid("Choose a file to upload."));
+
+        request.HttpContext.Features.Set<IFormFeature>(new FormFeature(request, new FormOptions { MultipartBodyLengthLimit = maxBytes + formOverhead }));
+        IFormCollection form;
+        try
+        {
+            form = await request.ReadFormAsync(cancellationToken);
+        }
+        catch (Exception e) when (e is InvalidDataException or BadHttpRequestException)
+        {
+            return (null, tooBig);
+        }
+
+        var file = form.Files.GetFile("file");
+        if (file is null || file.Length == 0) return (null, Invalid("Choose a file to upload."));
+        if (file.Length > maxBytes) return (null, tooBig);
+        return (file, null);
     }
 
     private static ValidationProblem Invalid(string message) => TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["file"] = [message] });

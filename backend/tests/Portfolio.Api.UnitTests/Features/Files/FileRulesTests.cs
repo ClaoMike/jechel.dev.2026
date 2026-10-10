@@ -58,6 +58,28 @@ public class FileRulesTests
             FileRules.PreparePhotoAsync(new MemoryStream("%PDF-1.7 not an image"u8.ToArray()), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Only_jpeg_png_webp_and_gif_are_read()
+    {
+        using var image = new Image<Rgb24>(10, 10);
+        var tiff = new MemoryStream();
+        image.SaveAsTiff(tiff);
+        tiff.Position = 0;
+
+        await Assert.ThrowsAnyAsync<ImageFormatException>(() => FileRules.PreparePhotoAsync(tiff, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_png_is_read()
+    {
+        using var image = new Image<Rgb24>(10, 10);
+        var png = new MemoryStream();
+        image.SaveAsPng(png);
+        png.Position = 0;
+
+        Assert.NotEmpty(await FileRules.PreparePhotoAsync(png, CancellationToken.None));
+    }
+
     [Theory]
     [InlineData("%PDF-1.7\n...", true)]
     [InlineData("<html>", false)]

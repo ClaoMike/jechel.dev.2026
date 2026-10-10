@@ -70,4 +70,21 @@ public class AboutJsonTests
         Assert.Equal("[Uni](https://uni.example)", page.Education[0].Institution);
         Assert.Empty(AboutRules.Validate(page));
     }
+
+    [Fact]
+    public void Plain_text_labels_get_a_flag_guessed_from_their_words()
+    {
+        const string json = """
+            {
+              "photoUrl": "", "statuses": ["Romanian citizenship", "EU citizenship", "UK Settled Status", "Permanent resident"],
+              "links": { "resumeUrl": "", "gitHubUrl": "", "linkedInUrl": "", "instagramUrl": "" },
+              "skills": [], "experience": [], "education": [], "papers": [], "qualifications": []
+            }
+            """;
+
+        var page = AboutJson.Deserialize(json);
+
+        Assert.Equal(["RO", "EU", "GB", ""], page.Statuses.Select(s => s.Flag));
+        Assert.Equal("UK Settled Status", page.Statuses[2].Text);
+    }
 }

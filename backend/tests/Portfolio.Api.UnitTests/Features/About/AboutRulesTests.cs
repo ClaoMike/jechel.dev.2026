@@ -256,7 +256,7 @@ public class AboutRulesTests
             PhotoUrl = " /me.jpg ",
             Experience = [new ExperienceItem(" Dev ", " [Co](https://co.example) ", " City ", new DateOnly(2020, 5, 17), new DateOnly(2021, 2, 9), [" Did things ", "", "   "])],
             Papers = [new Paper(" A paper ", " /api/files/x/p.pdf ")],
-            Statuses = [" EU citizenship ", " "],
+            Statuses = [new Status(" EU citizenship ", "eu")],
             Licences = [new Licence("driving", " B ", " Car ")],
             Hackathons = [new Hackathon(" Hack ", 2024, [" Won ", ""])],
             Qualifications = [new Qualification(" Cert ", " Issuer ", new DateOnly(2024, 3, 15), " A ")],
@@ -270,7 +270,7 @@ public class AboutRulesTests
         Assert.Equal((new DateOnly(2020, 5, 1), new DateOnly(2021, 2, 1)), (job.Start, job.End));
         Assert.Equal(["Did things"], job.Bullets);
         Assert.Equal([new Paper("A paper", "/api/files/x/p.pdf")], normalized.Papers);
-        Assert.Equal(["EU citizenship"], normalized.Statuses);
+        Assert.Equal([new Status("EU citizenship", "EU")], normalized.Statuses);
         Assert.Equal(new Licence("driving", "B", "Car"), normalized.Licences[0]);
         Assert.Equal(("Hack", 2024), (normalized.Hackathons[0].Name, normalized.Hackathons[0].Year));
         Assert.Equal(["Won"], normalized.Hackathons[0].Bullets);
@@ -298,5 +298,18 @@ public class AboutRulesTests
         Assert.Equal(
             ["hackathons[1].name", "hackathons[1].year", "languages[1].level", "languages[1].name", "licences[1].category", "licences[1].name"],
             AboutRules.Validate(content).Keys.Order());
+    }
+
+    [Theory]
+    [InlineData("RO", true)]
+    [InlineData("EU", true)]
+    [InlineData("", true)]
+    [InlineData("ROU", false)]
+    [InlineData("1A", false)]
+    public void A_label_flag_is_a_country_code_eu_or_nothing(string flag, bool valid)
+    {
+        var content = Valid with { Statuses = [new Status("Citizenship", flag)] };
+
+        Assert.Equal(valid, !AboutRules.Validate(content).ContainsKey("statuses[0].flag"));
     }
 }

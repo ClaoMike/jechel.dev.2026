@@ -33,7 +33,16 @@ public static partial class AboutRules
         }
 
         CheckUrl(content.PhotoUrl, "photoUrl", Add);
-        CheckBullets(content.Statuses, "statuses", MaxStatuses, ShortTextMaxLength, Add);
+        if (CheckList(content.Statuses, "statuses", MaxStatuses, Add))
+        {
+            for (var i = 0; i < content.Statuses.Count; i++)
+            {
+                var status = content.Statuses[i];
+                if (status is null) { Add($"statuses[{i}]", "Label is required."); continue; }
+                CheckText(status.Text, $"statuses[{i}].text", ShortTextMaxLength, Add);
+                if (status.Flag is null || !FlagCode().IsMatch(status.Flag)) Add($"statuses[{i}].flag", "Must be a two-letter country code, EU, or empty.");
+            }
+        }
         if (content.Links is null)
         {
             Add("links", "Links are required.");
@@ -204,7 +213,7 @@ public static partial class AboutRules
     /// </summary>
     public static AboutContent Normalize(AboutContent content) => new(
         Trim(content.PhotoUrl),
-        CleanBullets(content.Statuses),
+        [.. content.Statuses.Select(s => new Status(s.Text.Trim(), s.Flag.ToUpperInvariant()))],
         new AboutLinks(Trim(content.Links.ResumeUrl), Trim(content.Links.GitHubUrl), Trim(content.Links.LinkedInUrl), Trim(content.Links.InstagramUrl)),
         new AboutColors(NormalizeColors(content.Colors.Skills, SkillUses.All), NormalizeColors(content.Colors.Places, PlaceVisitKinds.All)),
         [.. content.Places.Select(p => p with
@@ -305,6 +314,9 @@ public static partial class AboutRules
 
     [GeneratedRegex(@"\[([^\[\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)\)")]
     private static partial Regex MarkdownLink();
+
+    [GeneratedRegex("^([A-Za-z]{2})?$")]
+    private static partial Regex FlagCode();
 
     [GeneratedRegex("^#[0-9a-fA-F]{6}$")]
     private static partial Regex HexColor();

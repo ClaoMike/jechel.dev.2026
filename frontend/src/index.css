@@ -1039,6 +1039,43 @@ h2 {
   justify-content: center;
 }
 
+.flag {
+  flex: none;
+  width: 20px;
+  height: 15px;
+  border-radius: 2px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+
+.status-editor {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 1fr auto;
+  align-items: start;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .status-editor {
+    grid-template-columns: 1fr auto;
+  }
+
+  .status-editor > .field:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.status-flag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-flag .select {
+  flex: 1;
+  min-width: 0;
+}
+
 .chip {
   display: inline-flex;
   align-items: center;

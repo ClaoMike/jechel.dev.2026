@@ -15,7 +15,10 @@ export const TEST_USER = {
 export function aboutContent(): AboutContent {
   return {
     photoUrl: '',
-    statuses: ['Romanian citizenship', 'UK Settled Status'],
+    statuses: [
+      { text: 'Romanian citizenship', flag: 'RO' },
+      { text: 'UK Settled Status', flag: 'GB' },
+    ],
     links: {
       resumeUrl: '/resume.pdf',
       gitHubUrl: 'https://github.com/claudiu',

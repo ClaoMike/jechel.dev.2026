@@ -2,6 +2,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
+using SixLabors.ImageSharp.Formats.Gif;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.Processing;
 
@@ -11,8 +14,10 @@ namespace Portfolio.Api.Features.Files;
 public static partial class FileRules
 {
     public const long PhotoMaxBytes = 15 * 1024 * 1024;
-    /// <summary>Résumés and papers.</summary>
-    public const long PdfMaxBytes = 20 * 1024 * 1024;
+    public const long ResumeMaxBytes = 20 * 1024 * 1024;
+
+    /// <summary>Papers and theses can be big. Files live in the database and are read whole, so there is still a cap.</summary>
+    public const long PaperMaxBytes = 200 * 1024 * 1024;
 
     /// <summary>Photos are scaled down to fit this many pixels on each side.</summary>
     public const int PhotoMaxPixels = 800;
@@ -30,14 +35,20 @@ public static partial class FileRules
         url is not null && FileUrl().Match(url) is { Success: true } match ? Guid.Parse(match.Groups[1].Value) : null;
 
     /// <summary>
-    /// Re-encodes any image ImageSharp can read as a WebP of at most <see cref="PhotoMaxPixels"/>
+    /// The only formats a photo is read from. Leaving out TIFF, BMP and the rest keeps their
+    /// decoders, where ImageSharp 3's open advisories are, out of reach.
+    /// </summary>
+    private static readonly Configuration PhotoFormats = new(new JpegConfigurationModule(), new PngConfigurationModule(), new WebpConfigurationModule(), new GifConfigurationModule());
+
+    /// <summary>
+    /// Re-encodes a JPEG, PNG, WebP or GIF as a WebP of at most <see cref="PhotoMaxPixels"/>
     /// per side. Turns it upright first, then drops the metadata: phone photos carry the GPS
     /// position they were taken at. Throws <see cref="ImageFormatException"/> (or
     /// <see cref="UnknownImageFormatException"/>) when the bytes aren't an image.
     /// </summary>
     public static async Task<byte[]> PreparePhotoAsync(Stream input, CancellationToken cancellationToken)
     {
-        using var image = await Image.LoadAsync(new DecoderOptions { MaxFrames = 1 }, input, cancellationToken);
+        using var image = await Image.LoadAsync(new DecoderOptions { Configuration = PhotoFormats, MaxFrames = 1 }, input, cancellationToken);
         image.Mutate(x =>
         {
             x.AutoOrient();

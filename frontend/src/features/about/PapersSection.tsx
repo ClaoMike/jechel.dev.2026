@@ -7,6 +7,7 @@ import { fileNameOf, isSafeUrl } from './format'
 import { move, removeAt, replaceAt } from './list'
 import { RichText } from './RichText'
 import { plainText } from './textLinks'
+import { PAPER_MAX_BYTES } from './uploadLimits'
 
 /** Academic papers: each title downloads its PDF, when one was uploaded. */
 export function PapersSection({ value, canEdit, onSave }: { value: Paper[]; canEdit: boolean; onSave: (value: Paper[]) => Promise<void> }) {
@@ -53,7 +54,8 @@ function PapersEditor({ value, onChange, update, errors }: EditorProps<Paper[]>)
               label="PDF"
               context={`for paper ${i + 1}`}
               accept="application/pdf,.pdf"
-              hint="Up to 20 MB. With a PDF, the title becomes its download link."
+              maxBytes={PAPER_MAX_BYTES}
+              hint="Up to 200 MB. With a PDF, the title becomes its download link."
               upload={api.files.uploadPaper}
               onUploaded={(file) => setFile(file.url)}
               onRemove={paper.fileUrl ? () => setFile('') : undefined}

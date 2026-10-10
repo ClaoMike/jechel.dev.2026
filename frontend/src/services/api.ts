@@ -64,8 +64,8 @@ export interface Page<T> {
 export interface AboutContent {
   /** Empty: show a placeholder. An uploaded photo is a /api/files/… path. */
   photoUrl: string
-  /** Shown under the photo, e.g. "Romanian citizenship". */
-  statuses: string[]
+  /** Labels shown under the photo, e.g. "Romanian citizenship" with the Romanian flag. */
+  statuses: Status[]
   links: AboutLinks
   colors: AboutColors
   places: Place[]
@@ -79,6 +79,13 @@ export interface AboutContent {
   languages: Language[]
   licences: Licence[]
   hackathons: Hackathon[]
+}
+
+/** A citizenship or residence label. */
+export interface Status {
+  text: string
+  /** ISO 3166 country code ("RO", "GB"), "EU", or empty for no flag. */
+  flag: string
 }
 
 export interface Paper {
@@ -266,10 +273,15 @@ async function post<T = void>(path: string, body?: unknown, config?: AxiosReques
   return response.data
 }
 
-function upload(path: string, file: File): Promise<UploadedFile> {
+/** Called as an upload goes, with the share sent so far, 0 to 1. */
+export type UploadProgress = (fraction: number) => void
+
+function upload(path: string, file: File, onProgress?: UploadProgress): Promise<UploadedFile> {
   const form = new FormData()
   form.append('file', file)
-  return post<UploadedFile>(path, form)
+  return post<UploadedFile>(path, form, {
+    onUploadProgress: onProgress && ((event) => event.total && onProgress(event.loaded / event.total)),
+  })
 }
 
 // ---------- Endpoints ----------
@@ -292,19 +304,19 @@ export const api = {
   },
 
   files: {
-    /** Admin only. Any common image; stored as a small WebP without metadata. Rejects with validationErrors.file. */
-    uploadPhoto(file: File): Promise<UploadedFile> {
-      return upload('/api/files/photo', file)
+    /** Admin only. A JPEG, PNG, WebP or GIF up to 15 MB; stored as a small WebP without metadata. Rejects with validationErrors.file. */
+    uploadPhoto(file: File, onProgress?: UploadProgress): Promise<UploadedFile> {
+      return upload('/api/files/photo', file, onProgress)
     },
 
-    /** Admin only. A PDF. Rejects with validationErrors.file. */
-    uploadResume(file: File): Promise<UploadedFile> {
-      return upload('/api/files/resume', file)
+    /** Admin only. A PDF up to 20 MB. Rejects with validationErrors.file. */
+    uploadResume(file: File, onProgress?: UploadProgress): Promise<UploadedFile> {
+      return upload('/api/files/resume', file, onProgress)
     },
 
-    /** Admin only. An academic paper, as a PDF. Rejects with validationErrors.file. */
-    uploadPaper(file: File): Promise<UploadedFile> {
-      return upload('/api/files/paper', file)
+    /** Admin only. An academic paper, as a PDF up to 200 MB. Rejects with validationErrors.file. */
+    uploadPaper(file: File, onProgress?: UploadProgress): Promise<UploadedFile> {
+      return upload('/api/files/paper', file, onProgress)
     },
   },
 

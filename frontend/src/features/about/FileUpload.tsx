@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { TrashIcon, UploadIcon } from '../../components/icons'
-import { ApiError, type UploadedFile } from '../../services/api'
+import { ApiError, type UploadedFile, type UploadProgress } from '../../services/api'
 
 interface FileUploadProps {
   /** What the file is, e.g. "Photo": the legend, and the buttons' "Upload photo". */
@@ -8,8 +8,10 @@ interface FileUploadProps {
   /** Hidden words added to the buttons, to tell several uploads apart: "for paper 2". */
   context?: string
   accept: string
+  /** Bigger files are refused here, before they're sent. Same limit as the API's. */
+  maxBytes: number
   hint: string
-  upload: (file: File) => Promise<UploadedFile>
+  upload: (file: File, onProgress: UploadProgress) => Promise<UploadedFile>
   onUploaded: (file: UploadedFile) => void
   /** Absent when there's nothing to remove. */
   onRemove?: () => void
@@ -22,22 +24,27 @@ interface FileUploadProps {
  * Upload / Replace and Remove buttons for one file. The file is uploaded straight away, but
  * the page only uses it once the section is saved.
  */
-export function FileUpload({ label, context, accept, hint, upload, onUploaded, onRemove, error, children }: FileUploadProps) {
+export function FileUpload({ label, context, accept, maxBytes, hint, upload, onUploaded, onRemove, error, children }: FileUploadProps) {
   const id = useId()
   const input = useRef<HTMLInputElement>(null)
-  const [status, setStatus] = useState<{ state: 'idle' } | { state: 'uploading' } | { state: 'failed'; message: string }>({ state: 'idle' })
+  const [status, setStatus] = useState<{ state: 'idle' } | { state: 'uploading'; percent: number } | { state: 'failed'; message: string }>({ state: 'idle' })
   const message = status.state === 'failed' ? status.message : error
   // "Photo" → "photo", but an acronym like "PDF" stays as it is.
   const noun = label === label.toUpperCase() ? label : label.toLowerCase()
-  const action = status.state === 'uploading' ? 'Uploading…' : onRemove ? `Replace ${noun}` : `Upload ${noun}`
+  const action = status.state === 'uploading' ? `Uploading… ${status.percent}%` : onRemove ? `Replace ${noun}` : `Upload ${noun}`
   // With several uploads on one form, the buttons' names say which one: "Remove PDF for paper 2".
   const named = (text: string) => (context ? `${text} ${context}` : undefined)
 
   async function handleFile(file: File | undefined) {
     if (!file) return
-    setStatus({ state: 'uploading' })
+    if (file.size > maxBytes) {
+      setStatus({ state: 'failed', message: `That file is ${formatMegabytes(file.size)}. The limit is ${formatMegabytes(maxBytes)}.` })
+      if (input.current) input.current.value = ''
+      return
+    }
+    setStatus({ state: 'uploading', percent: 0 })
     try {
-      onUploaded(await upload(file))
+      onUploaded(await upload(file, (fraction) => setStatus({ state: 'uploading', percent: Math.floor(fraction * 100) })))
       setStatus({ state: 'idle' })
     } catch (e) {
       const reason = e instanceof ApiError && e.validationErrors?.file?.[0]
@@ -75,4 +82,10 @@ export function FileUpload({ label, context, accept, hint, upload, onUploaded, o
       )}
     </fieldset>
   )
+}
+
+/** 20971520 → "20 MB", 25500000 → "24.3 MB". */
+function formatMegabytes(bytes: number): string {
+  const megabytes = bytes / 1024 / 1024
+  return `${Number.isInteger(megabytes) ? megabytes : megabytes.toFixed(1)} MB`
 }

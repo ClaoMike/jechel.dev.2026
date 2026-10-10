@@ -7,7 +7,7 @@ namespace Portfolio.Api.Features.About;
 /// Reads and writes the stored page. Reading also upgrades pages saved by older versions of the
 /// API, so the shape can change without a data migration:
 /// skills with a 0–100 level get no periods, qualifications that were plain text become a title
-/// without a date, papers that were plain text become a title without a file, a company or institution website becomes a [name](url) link in the name, and
+/// without a date, labels that were plain text get a flag guessed from their words, papers that were plain text become a title without a file, a company or institution website becomes a [name](url) link in the name, and
 /// fields added later (statuses, colours, places, languages, licences, hackathons) start empty.
 /// </summary>
 public static class AboutJson
@@ -48,6 +48,14 @@ public static class AboutJson
             }
         }
 
+        if (node["statuses"] is JsonArray statuses)
+        {
+            for (var i = 0; i < statuses.Count; i++)
+            {
+                if (statuses[i] is JsonValue text && text.TryGetValue<string>(out var label)) statuses[i] = new JsonObject { ["text"] = label, ["flag"] = GuessFlag(label) };
+            }
+        }
+
         LinkNameToWebsite(node["experience"], "company", "companyUrl");
         LinkNameToWebsite(node["education"], "institution", "institutionUrl");
 
@@ -57,7 +65,7 @@ public static class AboutJson
             Colors = new AboutColors(
                 WithDefaults(content.Colors?.Skills, AboutDefaults.Colors.Skills),
                 WithDefaults(content.Colors?.Places, AboutDefaults.Colors.Places)),
-            Statuses = content.Statuses ?? [],
+            Statuses = [.. (content.Statuses ?? []).Select(s => s with { Flag = s.Flag ?? "" })],
             Places = content.Places ?? [],
             Papers = [.. (content.Papers ?? []).Select(p => p with { FileUrl = p.FileUrl ?? "" })],
             Languages = content.Languages ?? [],
@@ -68,6 +76,26 @@ public static class AboutJson
             Qualifications = [.. (content.Qualifications ?? []).Select(q => q with { Issuer = q.Issuer ?? "", Grade = q.Grade ?? "" })],
         };
     }
+
+    /// <summary>"Romanian citizenship" → "RO", "EU citizenship" → "EU", "UK Settled Status" → "GB"; otherwise no flag.</summary>
+    public static string GuessFlag(string label)
+    {
+        var words = label.ToLowerInvariant().Split([' ', ',', '.', '(', ')', '-', '/'], StringSplitOptions.RemoveEmptyEntries);
+        foreach (var (flag, names) in FlagWords)
+        {
+            if (words.Any(names.Contains)) return flag;
+        }
+        return "";
+    }
+
+    private static readonly (string Flag, string[] Words)[] FlagWords =
+    [
+        ("EU", ["eu", "european"]),
+        ("GB", ["uk", "british", "britain", "england", "english"]),
+        ("RO", ["romania", "romanian"]),
+        ("DK", ["denmark", "danish"]),
+        ("US", ["us", "usa", "american"]),
+    ];
 
     /// <summary>"company": "Acme", "companyUrl": "https://acme.example" → "company": "[Acme](https://acme.example)".</summary>
     private static void LinkNameToWebsite(JsonNode? items, string nameKey, string urlKey)

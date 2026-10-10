@@ -254,7 +254,7 @@ describe('AboutPage for the admin', () => {
     await user.upload(screen.getByLabelText('Photo file'), new File(['img'], 'me.png', { type: 'image/png' }))
     await user.upload(screen.getByLabelText('Résumé file'), new File(['%PDF-'], 'My CV.pdf', { type: 'application/pdf' }))
     expect(await screen.findByRole('link', { name: 'My CV.pdf' })).toBeInTheDocument()
-    expect(uploadPhoto).toHaveBeenCalledWith(expect.objectContaining({ name: 'me.png' }))
+    expect(uploadPhoto).toHaveBeenCalledWith(expect.objectContaining({ name: 'me.png' }), expect.any(Function))
     await user.type(screen.getByLabelText('Instagram URL'), 'https://instagram.com/claudiu')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -278,6 +278,35 @@ describe('AboutPage for the admin', () => {
     expect(await screen.findByRole('img', { name: 'Photo placeholder' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Download résumé' })).not.toBeInTheDocument()
     expect(saved[0]).toMatchObject({ photoUrl: '', links: { resumeUrl: '' } })
+  })
+
+  it("refuses a file over the limit without sending it", async () => {
+    const { user } = await renderAsAdmin()
+    const upload = vi.spyOn(api.files, 'uploadResume')
+
+    await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
+    const big = new File(['%PDF-'], 'big.pdf', { type: 'application/pdf' })
+    Object.defineProperty(big, 'size', { value: 25 * 1024 * 1024 })
+    await user.upload(screen.getByLabelText('Résumé file'), big)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('That file is 25 MB. The limit is 20 MB.')
+    expect(upload).not.toHaveBeenCalled()
+  })
+
+  it('shows how far an upload has got', async () => {
+    const { user } = await renderAsAdmin()
+    let finish: (file: { url: string; fileName: string }) => void = () => {}
+    vi.spyOn(api.files, 'uploadPaper').mockImplementation((_file, onProgress) => {
+      onProgress?.(0.42)
+      return new Promise((resolve) => (finish = resolve))
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Edit Academic papers' }))
+    await user.upload(screen.getByLabelText('PDF file for paper 1'), new File(['%PDF-'], 'p.pdf', { type: 'application/pdf' }))
+
+    expect(await screen.findByRole('button', { name: 'Uploading… 42% for paper 1' })).toBeDisabled()
+    finish({ url: '/api/files/x/p.pdf', fileName: 'p.pdf' })
+    expect(await screen.findByRole('button', { name: 'Replace PDF for paper 1' })).toBeEnabled()
   })
 
   it('says why an upload was refused', async () => {
@@ -428,11 +457,11 @@ describe('AboutPage for the admin', () => {
     expect(screen.getByText('No citizenship or residence labels yet. Use Edit to add them.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
     await user.click(screen.getByRole('button', { name: 'Add label' }))
-    await user.type(screen.getByLabelText('Label 1'), 'EU citizenship')
+    await user.type(within(screen.getByRole('group', { name: 'Label 1' })).getByLabelText('Label'), 'EU citizenship')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('list', { name: 'Citizenship and residence' })).toHaveTextContent('EU citizenship')
-    expect(saved[0].statuses).toEqual(['EU citizenship'])
+    expect(saved[0].statuses).toEqual([{ text: 'EU citizenship', flag: 'EU' }])
   })
 
   it('opens a collapsed section to edit it', async () => {
@@ -449,15 +478,24 @@ describe('AboutPage for the admin', () => {
   it('edits the citizenship and residence labels under the photo', async () => {
     const { user, saved } = await renderAsAdmin()
 
-    expect(within(screen.getByRole('list', { name: 'Citizenship and residence' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Romanian citizenship', 'UK Settled Status'])
+    const labels = within(screen.getByRole('list', { name: 'Citizenship and residence' })).getAllByRole('listitem')
+    expect(labels.map((li) => li.textContent)).toEqual(['Romanian citizenship', 'UK Settled Status'])
+    expect(labels.map((li) => li.querySelector('img')?.getAttribute('title'))).toEqual(['Romania', 'United Kingdom'])
     await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
     await user.click(screen.getByRole('button', { name: 'Add label' }))
-    await user.type(screen.getByLabelText('Label 3'), 'EU citizenship')
+    const added = within(screen.getByRole('group', { name: 'Label 3' }))
+    await user.type(added.getByLabelText('Label'), 'EU citizenship')
+    expect(added.getByLabelText('Flag')).toHaveValue('EU') // guessed from the words
+    await user.selectOptions(within(screen.getByRole('group', { name: 'Label 2' })).getByLabelText('Flag'), 'Denmark')
     await user.click(screen.getByRole('button', { name: 'Move label 3 up' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     await within(screen.getByRole('list', { name: 'Citizenship and residence' })).findByText('EU citizenship')
-    expect(saved[0].statuses).toEqual(['Romanian citizenship', 'EU citizenship', 'UK Settled Status'])
+    expect(saved[0].statuses).toEqual([
+      { text: 'Romanian citizenship', flag: 'RO' },
+      { text: 'EU citizenship', flag: 'EU' },
+      { text: 'UK Settled Status', flag: 'DK' },
+    ])
   })
 
   it('adds languages with a level', async () => {

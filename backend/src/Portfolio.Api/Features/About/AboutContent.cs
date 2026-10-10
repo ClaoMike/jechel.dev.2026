@@ -5,10 +5,10 @@ namespace Portfolio.Api.Features.About;
 /// Dates have month precision: the day is always 1. Lists are shown in the order stored.
 /// Free text may contain links written as [text](https://…).
 /// </summary>
-/// <param name="Statuses">Shown under the photo, e.g. "Romanian citizenship", "UK Settled Status".</param>
+/// <param name="Statuses">Labels shown under the photo, each with a flag, e.g. 🇬🇧 "UK Settled Status".</param>
 public record AboutContent(
     string PhotoUrl,
-    IReadOnlyList<string> Statuses,
+    IReadOnlyList<Status> Statuses,
     AboutLinks Links,
     AboutColors Colors,
     IReadOnlyList<Place> Places,
@@ -20,6 +20,10 @@ public record AboutContent(
     IReadOnlyList<Language> Languages,
     IReadOnlyList<Licence> Licences,
     IReadOnlyList<Hackathon> Hackathons);
+
+/// <summary>A citizenship or residence label.</summary>
+/// <param name="Flag">ISO 3166 country code ("RO", "GB"), "EU", or empty for no flag.</param>
+public record Status(string Text, string Flag);
 
 /// <summary>Empty strings hide the link.</summary>
 public record AboutLinks(string ResumeUrl, string GitHubUrl, string LinkedInUrl, string InstagramUrl);
@@ -108,7 +112,7 @@ public static class AboutDefaults
 
     public static readonly AboutContent Content = new(
         PhotoUrl: "",
-        Statuses: ["Placeholder: a citizenship", "Placeholder: a residence status"],
+        Statuses: [new Status("Placeholder: a citizenship", "EU"), new Status("Placeholder: a residence status", "")],
         Links: new AboutLinks(ResumeUrl: "", GitHubUrl: "https://github.com/", LinkedInUrl: "https://www.linkedin.com/", InstagramUrl: "https://www.instagram.com/"),
         Colors: Colors,
         Places:
