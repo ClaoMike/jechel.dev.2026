@@ -527,6 +527,37 @@ h2 {
   font-size: 20px;
 }
 
+.about-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.collapse-button svg {
+  transition: transform 0.15s;
+}
+
+.collapse-button[aria-expanded='false'] svg {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapse-button svg {
+    transition: none;
+  }
+}
+
+/* A collapsed section is just its header. */
+.about-section-collapsed .about-section-header {
+  margin-bottom: 0;
+}
+
+.profile-statuses-empty {
+  margin: 0;
+  font-size: 13px;
+}
+
 /* The profile card has no visible heading: its Edit button sits in the corner. */
 .about-section-header-floating {
   justify-content: flex-end;

@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -176,6 +176,41 @@ describe('AboutPage for visitors', () => {
     expect(within(section('Licences')).getByRole('list', { name: 'Other licences' })).toHaveTextContent('Forklift')
     expect(within(section('Hackathons')).getByRole('heading', { name: 'HackMCR' })).toBeInTheDocument()
     expect(within(section('Hackathons')).getByText('Built a game')).toBeInTheDocument()
+  })
+
+  it('collapses and expands a section, and remembers it', async () => {
+    const user = await renderAbout()
+
+    const skills = section('Skills')
+    await user.click(within(skills).getByRole('button', { name: 'Collapse Skills' }))
+
+    expect(within(skills).queryByRole('list', { name: /^Skills/ })).not.toBeInTheDocument()
+    expect(within(skills).getByRole('button', { name: 'Expand Skills' })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(section('Languages')).getByRole('list')).toBeVisible() // the others stay open
+
+    cleanup()
+    renderApp('/about')
+    const again = await screen.findByRole('region', { name: 'Skills' })
+    await user.click(within(again).getByRole('button', { name: 'Expand Skills' }))
+    expect(within(again).getByRole('list', { name: /^Skills/ })).toBeVisible()
+  })
+
+  it('shows the photo card heading when it is collapsed', async () => {
+    const user = await renderAbout()
+
+    expect(screen.getByRole('heading', { name: 'Photo and links' })).toHaveClass('visually-hidden')
+    await user.click(screen.getByRole('button', { name: 'Collapse Photo and links' }))
+
+    expect(screen.getByRole('heading', { name: 'Photo and links' })).not.toHaveClass('visually-hidden')
+    expect(screen.queryByRole('list', { name: 'Links' })).not.toBeInTheDocument()
+  })
+
+  it("doesn't show visitors an empty row of labels", async () => {
+    server.use(http.get(`${API}/api/about`, () => HttpResponse.json({ ...aboutContent(), statuses: [] })))
+    await renderAbout()
+
+    expect(screen.queryByRole('list', { name: 'Citizenship and residence' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/No citizenship or residence labels/)).not.toBeInTheDocument()
   })
 
   it('has no edit buttons', async () => {
@@ -385,6 +420,30 @@ describe('AboutPage for the admin', () => {
 
     await within(section('Skills')).findByText('Long', { selector: '.skill-name' })
     expect(saved[0].skills.map((s) => s.name)).toEqual(['Long', 'Short', 'Undated'])
+  })
+
+  it('tells the admin where the citizenship labels go when there are none', async () => {
+    const { user, saved } = await renderAsAdmin({ ...aboutContent(), statuses: [] })
+
+    expect(screen.getByText('No citizenship or residence labels yet. Use Edit to add them.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
+    await user.click(screen.getByRole('button', { name: 'Add label' }))
+    await user.type(screen.getByLabelText('Label 1'), 'EU citizenship')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('list', { name: 'Citizenship and residence' })).toHaveTextContent('EU citizenship')
+    expect(saved[0].statuses).toEqual(['EU citizenship'])
+  })
+
+  it('opens a collapsed section to edit it', async () => {
+    const { user } = await renderAsAdmin()
+
+    await user.click(screen.getByRole('button', { name: 'Collapse Languages' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Languages' }))
+
+    expect(screen.getByRole('form', { name: 'Edit Languages' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('button', { name: 'Expand Languages' })).toBeInTheDocument()
   })
 
   it('edits the citizenship and residence labels under the photo', async () => {

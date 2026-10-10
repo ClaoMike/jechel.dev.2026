@@ -20,7 +20,7 @@ export function ProfileSection({ value, canEdit, onSave }: { value: Profile; can
     <EditableSection title="Photo and links" hideTitle errorKeys={['photoUrl', 'statuses', 'links']} className="profile-card" value={value} canEdit={canEdit} onSave={onSave} editor={ProfileEditor}>
       <div className="profile">
         <ProfilePhoto url={value.photoUrl} />
-        {value.statuses.length > 0 && (
+        {value.statuses.length > 0 ? (
           <ul className="chips profile-statuses" aria-label="Citizenship and residence">
             {value.statuses.map((status, i) => (
               <li key={i} className="chip">
@@ -28,6 +28,9 @@ export function ProfileSection({ value, canEdit, onSave }: { value: Profile; can
               </li>
             ))}
           </ul>
+        ) : (
+          // Visitors see nothing; the admin sees where the labels go.
+          canEdit && <p className="muted profile-statuses-empty">No citizenship or residence labels yet. Use Edit to add them.</p>
         )}
         <ul className="profile-links" aria-label="Links">
           <ProfileLink href={value.links.resumeUrl} icon={<DownloadIcon />} download>

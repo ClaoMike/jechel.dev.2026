@@ -1,11 +1,11 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
-import { PencilIcon } from '../../components/icons'
+import { ArrowDownIcon, PencilIcon } from '../../components/icons'
 import { ApiError } from '../../services/api'
 import type { EditorProps, FieldErrors } from './fields'
 
 interface EditableSectionProps<T> {
   title: string
-  /** Visually hide the heading (it stays for screen readers), e.g. for the profile card. */
+  /** Visually hide the heading while the section is open (it stays for screen readers), e.g. for the profile card. */
   hideTitle?: boolean
   /** Shown on the Edit button: "Edit {editLabel}". Defaults to the title. */
   editLabel?: string
@@ -32,11 +32,18 @@ interface EditableSectionProps<T> {
 
 type Status = { state: 'viewing' } | { state: 'editing' | 'saving'; draft: unknown; errors: FieldErrors; message: string | null }
 
-/** A section of the About Me page that the admin can switch into an edit form, then save or cancel. */
+/**
+ * A section of the About Me page. Anyone can collapse it (remembered in this browser); the admin
+ * can switch it into an edit form, then save or cancel.
+ */
 export function EditableSection<T>({ title, hideTitle = false, editLabel, className = '', errorKeys, value, canEdit, onSave, children, editor }: EditableSectionProps<T>) {
   const headingId = useId()
+  const bodyId = useId()
   const [status, setStatus] = useState<Status>({ state: 'viewing' })
+  const [collapsed, setCollapsed] = useCollapsed(title)
   const editing = status.state !== 'viewing' && canEdit
+  // An open form is always shown.
+  const open = !collapsed || editing
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -51,50 +58,90 @@ export function EditableSection<T>({ title, hideTitle = false, editLabel, classN
   }
 
   return (
-    <section className={`card about-section ${className}`} aria-labelledby={headingId}>
-      <div className={hideTitle ? 'about-section-header about-section-header-floating' : 'about-section-header'}>
-        <h2 id={headingId} className={hideTitle ? 'visually-hidden' : undefined}>
+    <section className={`card about-section ${open ? '' : 'about-section-collapsed'} ${className}`} aria-labelledby={headingId}>
+      <div className={hideTitle && open ? 'about-section-header about-section-header-floating' : 'about-section-header'}>
+        <h2 id={headingId} className={hideTitle && open ? 'visually-hidden' : undefined}>
           {title}
         </h2>
-        {canEdit && !editing && (
-          <button
-            type="button"
-            className="button button-secondary button-small"
-            onClick={() => setStatus({ state: 'editing', draft: structuredClone(value), errors: {}, message: null })}
-          >
-            <PencilIcon size={16} />
-            Edit <span className="visually-hidden">{editLabel ?? title}</span>
-          </button>
+        <div className="about-section-actions">
+          {canEdit && !editing && (
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              onClick={() => setStatus({ state: 'editing', draft: structuredClone(value), errors: {}, message: null })}
+            >
+              <PencilIcon size={16} />
+              Edit <span className="visually-hidden">{editLabel ?? title}</span>
+            </button>
+          )}
+          {!editing && (
+            <button
+              type="button"
+              className="icon-button collapse-button"
+              aria-expanded={open}
+              aria-controls={bodyId}
+              aria-label={`${open ? 'Collapse' : 'Expand'} ${title}`}
+              title={open ? 'Collapse' : 'Expand'}
+              onClick={() => setCollapsed(open)}
+            >
+              <ArrowDownIcon />
+            </button>
+          )}
+        </div>
+      </div>
+      <div id={bodyId} hidden={!open}>
+        {editing ? (
+          <form className="about-editor" noValidate onSubmit={(event) => void handleSubmit(event)} aria-label={`Edit ${editLabel ?? title}`}>
+            {editor({
+              value: status.draft as T,
+              onChange: (draft) => setStatus({ ...status, draft }),
+              update: (change) => setStatus((current) => (current.state === 'viewing' ? current : { ...current, draft: change(current.draft as T) })),
+              errors: status.errors,
+            })}
+            {status.message && (
+              <p role="alert" className="form-error">
+                {status.message}
+              </p>
+            )}
+            <div className="about-editor-actions">
+              <button type="submit" className="button" disabled={status.state === 'saving'}>
+                {status.state === 'saving' ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" className="button button-secondary" disabled={status.state === 'saving'} onClick={() => setStatus({ state: 'viewing' })}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          children
         )}
       </div>
-
-      {editing ? (
-        <form className="about-editor" noValidate onSubmit={(event) => void handleSubmit(event)} aria-label={`Edit ${editLabel ?? title}`}>
-          {editor({
-            value: status.draft as T,
-            onChange: (draft) => setStatus({ ...status, draft }),
-            update: (change) => setStatus((current) => (current.state === 'viewing' ? current : { ...current, draft: change(current.draft as T) })),
-            errors: status.errors,
-          })}
-          {status.message && (
-            <p role="alert" className="form-error">
-              {status.message}
-            </p>
-          )}
-          <div className="about-editor-actions">
-            <button type="submit" className="button" disabled={status.state === 'saving'}>
-              {status.state === 'saving' ? 'Saving…' : 'Save'}
-            </button>
-            <button type="button" className="button button-secondary" disabled={status.state === 'saving'} onClick={() => setStatus({ state: 'viewing' })}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      ) : (
-        children
-      )}
     </section>
   )
+}
+
+/** Whether a section is collapsed, remembered per section in this browser. Storage may be unavailable (private mode): then it isn't remembered. */
+function useCollapsed(title: string): [boolean, (collapsed: boolean) => void] {
+  const key = `about.collapsed.${title}`
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(key) === '1'
+    } catch {
+      return false
+    }
+  })
+  return [
+    collapsed,
+    (next) => {
+      setCollapsed(next)
+      try {
+        if (next) localStorage.setItem(key, '1')
+        else localStorage.removeItem(key)
+      } catch {
+        // Not remembered, but still collapsed for now.
+      }
+    },
+  ]
 }
 
 /** Section titles by the first part of an API error key, for errors raised by another section. */
