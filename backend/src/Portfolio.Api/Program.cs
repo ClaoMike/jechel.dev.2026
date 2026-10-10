@@ -4,6 +4,8 @@ using Portfolio.Api.Data;
 using Portfolio.Api.Features.About;
 using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.Contact;
+using Portfolio.Api.Features.Files;
+using Portfolio.Api.Features.Places;
 using Portfolio.Api.Features.Profile;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +18,9 @@ builder.Services.AddDbContext<PortfolioDbContext>(options =>
 builder.Services.AddHealthChecks().AddDbContextCheck<PortfolioDbContext>();
 
 builder.AddPortfolioAuth();
+
+builder.Services.AddScoped<IFileStorage, DatabaseFileStorage>();
+builder.Services.AddSingleton<CityIndex>();
 
 // Honour X-Forwarded-* from a reverse proxy (the Vite dev proxy locally), so URLs the API
 // generates, like Google's OAuth callback, use the host and scheme the browser sees.
@@ -47,5 +52,7 @@ api.MapProfileEndpoints();
 api.MapAuthEndpoints();
 api.MapContactEndpoints();
 api.MapAboutEndpoints();
+api.MapFileEndpoints();
+api.MapPlaceEndpoints();
 
 app.Run();

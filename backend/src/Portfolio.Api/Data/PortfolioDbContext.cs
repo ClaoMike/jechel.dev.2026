@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api.Features.Contact;
+using Portfolio.Api.Features.Files;
 
 namespace Portfolio.Api.Data;
 
@@ -8,6 +9,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
     public DbSet<AboutPage> AboutPages => Set<AboutPage>();
+    public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,6 +47,17 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(p => p.Content).HasColumnName("content").HasColumnType("jsonb").IsRequired();
             entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<StoredFile>(entity =>
+        {
+            entity.ToTable("stored_files");
+            entity.HasKey(f => f.Id);
+            entity.Property(f => f.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(f => f.FileName).HasColumnName("file_name").HasMaxLength(FileRules.FileNameMaxLength).IsRequired();
+            entity.Property(f => f.ContentType).HasColumnName("content_type").HasMaxLength(100).IsRequired();
+            entity.Property(f => f.Content).HasColumnName("content").IsRequired();
+            entity.Property(f => f.CreatedAt).HasColumnName("created_at");
         });
     }
 }

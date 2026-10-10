@@ -35,7 +35,7 @@ public class AboutEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
-    public async Task The_admin_saves_the_page_and_everyone_sees_it_in_order()
+    public async Task The_admin_saves_the_page_and_everyone_sees_it_in_the_order_saved()
     {
         var admin = await SignedInClientAsync();
         var marker = $"Engineer {Guid.NewGuid():N}";
@@ -43,8 +43,8 @@ public class AboutEndpointTests(PortfolioApiFactory factory)
         {
             Experience =
             [
-                new ExperienceItem("Older", "Co", "", new DateOnly(2010, 1, 1), new DateOnly(2012, 1, 1), ["Did a thing"]),
-                new ExperienceItem(marker, "Co", "Remote", new DateOnly(2031, 2, 1), null, []),
+                new ExperienceItem("Older", "Co", "https://co.example", "", new DateOnly(2010, 1, 1), new DateOnly(2012, 1, 1), ["Did a thing"]),
+                new ExperienceItem(marker, "Co", "", "Remote", new DateOnly(2031, 2, 1), null, []),
             ],
         };
 
@@ -52,9 +52,12 @@ public class AboutEndpointTests(PortfolioApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
 
         var page = await factory.CreateBrowserClient().GetFromJsonAsync<AboutContent>("/api/about");
-        Assert.Equal([marker, "Older"], page!.Experience.Select(e => e.Title));
-        Assert.Null(page.Experience[0].End);
-        Assert.Equal(["Did a thing"], page.Experience[1].Bullets);
+        Assert.Equal(["Older", marker], page!.Experience.Select(e => e.Title));
+        Assert.Null(page.Experience[1].End);
+        Assert.Equal(["Did a thing"], page.Experience[0].Bullets);
+        Assert.Equal("https://co.example", page.Experience[0].CompanyUrl);
+        Assert.Equal(AboutDefaults.Content.Places.Select(p => p.Name), page.Places.Select(p => p.Name));
+        Assert.Equal(AboutDefaults.Colors.Skills, page.Colors.Skills);
     }
 
     [Fact]
@@ -62,10 +65,10 @@ public class AboutEndpointTests(PortfolioApiFactory factory)
     {
         var admin = await SignedInClientAsync();
 
-        var response = await admin.PutAsJsonAsync("/api/about", AboutDefaults.Content with { Skills = [new Skill("", 150)] });
+        var response = await admin.PutAsJsonAsync("/api/about", AboutDefaults.Content with { Skills = [new Skill("", [new SkillPeriod(new DateOnly(2020, 1, 1), null, ["hobby"])])] });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        Assert.Equal(["skills[0].level", "skills[0].name"], problem!.Errors.Keys.Order());
+        Assert.Equal(["skills[0].name", "skills[0].periods[0].uses"], problem!.Errors.Keys.Order());
     }
 }
