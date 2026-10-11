@@ -8,5 +8,6 @@ afterEach(() => {
   server.resetHandlers()
   cleanup()
   localStorage.clear()
+  delete document.documentElement.dataset.theme
 })
 afterAll(() => server.close())

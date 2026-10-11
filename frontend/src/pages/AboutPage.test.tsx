@@ -55,6 +55,12 @@ describe('AboutPage for visitors', () => {
     expect(links.queryByRole('link', { name: 'Instagram' })).not.toBeInTheDocument() // empty → hidden
   })
 
+  it('shows the full name under the photo', async () => {
+    await renderAbout()
+
+    expect(screen.getByText('Claudiu Mihai Jechel')).toBeInTheDocument()
+  })
+
   it('shows the photo when one is set', async () => {
     server.use(http.get(`${API}/api/about`, () => HttpResponse.json({ ...aboutContent(), photoUrl: '/me.jpg' })))
     await renderAbout()

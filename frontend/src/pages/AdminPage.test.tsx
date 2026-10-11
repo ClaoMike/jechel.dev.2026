@@ -25,7 +25,7 @@ describe('AdminPage', () => {
     server.use(signedIn())
     renderApp('/admin')
 
-    expect(await screen.findByRole('heading', { name: "Hi, I'm Claudiu" })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'jechel.dev' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /sign in with google/i })).not.toBeInTheDocument()
   })
 })

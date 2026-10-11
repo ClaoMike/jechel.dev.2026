@@ -1,55 +1,61 @@
-import { useEffect, useState } from 'react'
-import { Outlet } from 'react-router'
+import { useCallback, useState } from 'react'
+import { Link } from 'react-router'
 import { SignedIn, useAuth } from '../auth'
-import { api } from '../services/api'
+import { RivieraBackground } from './background/RivieraBackground'
+import { ContentToggle } from './ContentToggle'
+import { PageTransition } from './PageTransition'
 import { TabNav } from './TabNav'
+import { ThemeSwitch } from './ThemeSwitch'
+import { useTheme } from './theme'
 
-type Greeting =
-  | { status: 'loading' }
-  | { status: 'success'; firstName: string }
-  | { status: 'error' }
-
-/** The site frame: greeting, the admin's session bar, the tabs, and the current tab's page. */
+/** The site frame: the site name, the admin's session bar, the theme switch, the tabs, and the current tab's page. */
 export function AppLayout() {
   const { signOut } = useAuth()
-  const [greeting, setGreeting] = useState<Greeting>({ status: 'loading' })
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    api.profile
-      .getFirstName(controller.signal)
-      .then((firstName) => setGreeting({ status: 'success', firstName }))
-      .catch(() => {
-        if (!controller.signal.aborted) setGreeting({ status: 'error' })
-      })
-
-    return () => controller.abort()
-  }, [])
+  const theme = useTheme()
+  // R* can hide the page to show off the scene; leaving R* always brings the page back.
+  const [hideContent, setHideContent] = useState(false)
+  const contentHidden = theme === 'rstar' && hideContent
+  if (theme !== 'rstar' && hideContent) setHideContent(false)
+  const toggleContent = useCallback(() => setHideContent((hidden) => !hidden), [])
 
   return (
-    <div className="app">
-      <header className="site-header">
+    <div className="app" data-content-hidden={contentHidden || undefined}>
+      {theme === 'rstar' && <RivieraBackground />}
+      <header className="site-header" inert={contentHidden}>
         <div className="site-header-top">
-          {greeting.status === 'loading' && <p className="greeting-placeholder">Loading…</p>}
-          {greeting.status === 'error' && <p role="alert">Something went wrong. Please try again later.</p>}
-          {greeting.status === 'success' && <h1>Hi, I'm {greeting.firstName}</h1>}
-          <SignedIn>
-            {(user) => (
-              <div className="session-bar">
-                <span>Signed in as {user.email}</span>
-                <button type="button" className="button button-secondary" onClick={() => void signOut()}>
-                  Sign out
-                </button>
-              </div>
-            )}
-          </SignedIn>
+          <h1 className="brand">
+            {/* In R* it's written in neon (glass.css): a still shadow layer under the moving colours. */}
+            <Link to="/" className="brand-link">
+              <span className="brand-text">
+                <span className="brand-shadow" aria-hidden="true">
+                  jechel<span className="brand-dot">.</span>dev
+                </span>
+                <span className="brand-fill">
+                  jechel<span className="brand-dot">.</span>dev
+                </span>
+              </span>
+            </Link>
+          </h1>
+          <div className="header-actions">
+            <SignedIn>
+              {(user) => (
+                <div className="session-bar">
+                  <span>Signed in as {user.email}</span>
+                  <button type="button" className="button button-secondary" onClick={() => void signOut()}>
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </SignedIn>
+            <ThemeSwitch />
+          </div>
         </div>
         <TabNav />
       </header>
-      <main className="page">
-        <Outlet />
+      <main className="page" inert={contentHidden}>
+        <PageTransition />
       </main>
+      {theme === 'rstar' && <ContentToggle hidden={contentHidden} onToggle={toggleContent} />}
     </div>
   )
 }

@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test'
 
-test('home page greets with the first name from the database', async ({ page }) => {
+test('home page shows the site name', async ({ page }) => {
   await page.goto('/')
 
-  await expect(page.getByRole('heading', { name: "Hi, I'm Claudiu" })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'jechel.dev' })).toBeVisible()
 })
 
 test('the tabs switch between sections', async ({ page }) => {

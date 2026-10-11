@@ -31,5 +31,5 @@ test('a signed-in admin is sent from /admin to the home page', async ({ page }) 
 
   await expect(page).toHaveURL('/')
   await expect(page.getByText('Signed in as admin@example.com')).toBeVisible()
-  await expect(page.getByRole('heading', { name: "Hi, I'm Claudiu" })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'jechel.dev' })).toBeVisible()
 })
