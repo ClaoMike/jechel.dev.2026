@@ -1,0 +1,850 @@
+/*
+ * Liquid glass (experiment): an iOS-style glass layer over index.css.
+ * Every surface becomes a translucent, blurred pane with a lit top edge.
+ * Themes come from <html data-theme> (layout/theme.ts): dark (default), light, and R*
+ * (dark for now). Each theme only sets the tokens below; the rules after them are shared.
+ * Remove the import in main.tsx to switch it all off.
+ */
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --radius: 24px;
+  --glass-blur: blur(24px) saturate(180%);
+}
+
+/* ---------- Dark (and R*, until it gets its own look) ---------- */
+
+:root,
+:root[data-theme='dark'],
+:root[data-theme='rstar'] {
+  color-scheme: dark;
+
+  --background: #000;
+  --text: #f5f5f7;
+  --text-muted: rgb(235 235 245 / 0.6);
+  --accent: #0a84ff;
+  --accent-text: #fff;
+  --error: #ff453a;
+  --success: #30d158;
+  --link: #64b5ff;
+
+  --surface: rgb(255 255 255 / 0.06);
+  --surface-muted: rgb(255 255 255 / 0.1);
+  --border: rgb(255 255 255 / 0.14);
+  --solid-surface: #1c1c1e; /* for things that can't be see-through, like <option> */
+
+  /* Panes: fill, specular edges, drop shadow, and the lit rim. */
+  --glass-fill: linear-gradient(160deg, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0.03) 55%, rgb(255 255 255 / 0.06));
+  --glass-shine:
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 -1px 0 rgb(255 255 255 / 0.06),
+    inset 0 0 24px rgb(255 255 255 / 0.03);
+  --glass-shadow: 0 10px 40px rgb(0 0 0 / 0.55);
+  --glass-hover-shadow: 0 16px 48px rgb(0 0 0 / 0.6);
+  --glass-rim: linear-gradient(150deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.06) 35%, rgb(255 255 255 / 0.02) 65%, rgb(255 255 255 / 0.25));
+  --glass-edge: rgb(255 255 255 / 0.08); /* hairline around panes and rows */
+  --glass-highlight: rgb(255 255 255 / 0.22); /* lit top edge of small pieces */
+  --modal-fill: linear-gradient(160deg, rgb(44 44 46 / 0.72), rgb(28 28 30 / 0.6));
+  --modal-backdrop: rgb(0 0 0 / 0.5);
+  --header-fill: rgb(0 0 0 / 0.55);
+  --tooltip-fill: rgb(44 44 46 / 0.85);
+
+  /* Smaller pieces: wells (inputs, editor boxes), raised pills (buttons), the selected tab. */
+  --well: rgb(255 255 255 / 0.04);
+  --well-shade: inset 0 1px 2px rgb(0 0 0 / 0.35);
+  --raised: rgb(255 255 255 / 0.1);
+  --raised-hover: rgb(255 255 255 / 0.16);
+  --selected: rgb(255 255 255 / 0.16);
+  --selected-shadow: 0 2px 10px rgb(0 0 0 / 0.4);
+  --tint: rgb(10 132 255 / 0.18);
+  --tint-text: #64b5ff;
+  --track: rgb(255 255 255 / 0.1);
+  --dot: rgb(255 255 255 / 0.25);
+  --dot-on: #fff;
+  --map-land: rgb(255 255 255 / 0.25);
+  --map-pin-outline: #000;
+}
+
+/* R*: dark glass, but more frosted and less see-through: it sits on the animated Riviera scene. */
+:root[data-theme='rstar'] {
+  --glass-blur: blur(28px) saturate(160%);
+  --glass-fill: linear-gradient(160deg, rgb(30 26 44 / 0.62), rgb(14 12 24 / 0.5) 55%, rgb(22 18 34 / 0.58));
+  --glass-shadow: 0 10px 40px rgb(0 0 0 / 0.35);
+  --modal-fill: linear-gradient(160deg, rgb(36 32 50 / 0.82), rgb(18 16 28 / 0.76));
+  --modal-backdrop: rgb(0 0 0 / 0.35);
+  --header-fill: rgb(12 10 22 / 0.45);
+  --well: rgb(0 0 0 / 0.22);
+  --raised: rgb(255 255 255 / 0.13);
+  --raised-hover: rgb(255 255 255 / 0.2);
+}
+
+/* ---------- Light ---------- */
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --background: #f5f5f7;
+  --text: #1d1d1f;
+  --text-muted: rgb(60 60 67 / 0.65);
+  --accent: #007aff;
+  --accent-text: #fff;
+  --error: #ff3b30;
+  --success: #248a3d;
+  --link: #0062cc;
+
+  --surface: rgb(255 255 255 / 0.7);
+  --surface-muted: rgb(0 0 0 / 0.04);
+  --border: rgb(0 0 0 / 0.1);
+  --solid-surface: #fff;
+
+  --glass-fill: linear-gradient(160deg, rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.6) 55%, rgb(255 255 255 / 0.75));
+  --glass-shine:
+    inset 0 1px 0 rgb(255 255 255 / 1),
+    inset 0 -1px 0 rgb(0 0 0 / 0.03),
+    inset 0 0 24px rgb(255 255 255 / 0.5);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.04);
+  --glass-hover-shadow: 0 16px 40px rgb(0 0 0 / 0.12);
+  --glass-rim: linear-gradient(150deg, rgb(255 255 255 / 1), rgb(255 255 255 / 0.4) 35%, rgb(0 0 0 / 0.05) 65%, rgb(255 255 255 / 0.9));
+  --glass-edge: rgb(0 0 0 / 0.07);
+  --glass-highlight: rgb(255 255 255 / 0.95);
+  --modal-fill: linear-gradient(160deg, rgb(255 255 255 / 0.88), rgb(250 250 252 / 0.78));
+  --modal-backdrop: rgb(0 0 0 / 0.2);
+  --header-fill: rgb(245 245 247 / 0.72);
+  --tooltip-fill: rgb(255 255 255 / 0.9);
+
+  --well: rgb(0 0 0 / 0.035);
+  --well-shade: inset 0 1px 2px rgb(0 0 0 / 0.06);
+  --raised: rgb(255 255 255 / 0.75);
+  --raised-hover: #fff;
+  --selected: #fff;
+  --selected-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  --tint: rgb(0 122 255 / 0.12);
+  --tint-text: #0062cc;
+  --track: rgb(0 0 0 / 0.08);
+  --dot: rgb(0 0 0 / 0.2);
+  --dot-on: #1d1d1f;
+  --map-land: rgb(0 0 0 / 0.22);
+  --map-pin-outline: #fff;
+}
+
+body {
+  background: var(--background);
+  -webkit-font-smoothing: antialiased;
+  transition:
+    background-color 0.3s,
+    color 0.3s;
+}
+
+a {
+  color: var(--link);
+}
+
+/* ---------- The R* backdrop (layout/background) ---------- */
+
+.scene-background {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: #000;
+}
+
+.scene-background canvas,
+.scene-background img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 42% 50%;
+}
+
+.scene-background canvas {
+  opacity: 0;
+  transition: opacity 0.8s;
+}
+
+.scene-background[data-state='ready'] canvas {
+  opacity: 1;
+}
+
+/* Headings that sit straight on the picture. */
+:root[data-theme='rstar'] .page-title {
+  text-shadow: 0 2px 12px rgb(0 0 0 / 0.6);
+}
+
+/* ---------- Neon: the Vice City look (the R★ mark always; the site name in R*) ---------- */
+
+/*
+ * A sunset gradient (pink, orange, gold, magenta, violet, blue) that slowly flows through the
+ * letters like a Miami Beach hotel sign, over Rockstar's hard purple drop shadow and a pink glow.
+ * The colour list repeats once and the image is twice as wide, so sliding it by half loops seamlessly.
+ *
+ * Cheap to run: the shadow and glow are a separate, still layer, and the colours only step 8 times
+ * a second. Each step re-blurs the frosted header behind them, so in R* they don't animate on their
+ * own at all: the Riviera scene's frame loop moves them (--neon-shift on the header) on the frames
+ * it draws anyway.
+ */
+.neon-text,
+.neon-fill,
+:root[data-theme='rstar'] .brand-fill {
+  background-image: linear-gradient(
+    90deg,
+    #ff3ea5,
+    #ff8a5c,
+    #ffd36e,
+    #ff5fc4,
+    #9b5cff,
+    #4fa3ff,
+    #ff3ea5,
+    #ff8a5c,
+    #ffd36e,
+    #ff5fc4,
+    #9b5cff,
+    #4fa3ff,
+    #ff3ea5
+  );
+  background-size: 200% 100%;
+  animation: neon-flow 16s steps(128) infinite;
+}
+
+:root[data-theme='rstar'] .neon-text,
+:root[data-theme='rstar'] .neon-fill,
+:root[data-theme='rstar'] .brand-fill {
+  animation: none;
+  background-position: var(--neon-shift, 0%) 50%;
+}
+
+.neon-text,
+:root[data-theme='rstar'] .brand-fill {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+@keyframes neon-flow {
+  from {
+    background-position: 0% 50%;
+  }
+
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+/* The site name: plain text, or in R* the neon script over its shadow layer. */
+.brand-text {
+  position: relative;
+}
+
+.brand-shadow {
+  display: none;
+}
+
+:root[data-theme='rstar'] .brand-text {
+  font-family: 'Mr Dafoe', cursive;
+  font-size: 46px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+:root[data-theme='rstar'] .brand-shadow,
+:root[data-theme='rstar'] .brand-fill {
+  display: inline-block;
+  /* room for the script's swashes, which would otherwise fall outside the gradient */
+  padding: 0.04em 0.18em 0.1em 0.06em;
+}
+
+:root[data-theme='rstar'] .brand-shadow {
+  position: absolute;
+  inset: 0;
+  color: #3d1468;
+  transform: translate(3px, 3px);
+  text-shadow: -3px -3px 14px rgb(255 62 165 / 0.6);
+}
+
+:root[data-theme='rstar'] .brand-fill {
+  position: relative;
+}
+
+:root[data-theme='rstar'] .brand-dot {
+  /* the script's full stop is tiny and tucks under the d's swash */
+  margin: 0 0.14em 0 0.04em;
+  font-size: 1.25em;
+}
+
+:root[data-theme='rstar'] .site-header-top h1 {
+  margin: -6px 0 -4px;
+}
+
+.rstar-mark {
+  display: inline-grid;
+}
+
+.rstar-layer {
+  display: inline-flex;
+  grid-area: 1 / 1;
+  align-items: flex-start;
+}
+
+.rstar-shadow {
+  color: #3d1468;
+  transform: translate(1px, 1px);
+  filter: drop-shadow(-1px -1px 3px rgb(255 62 165 / 0.6));
+}
+
+.rstar-shadow .rstar-star {
+  background: #3d1468;
+}
+
+.rstar-r {
+  padding: 0 1px 2px 2px;
+  font-family: 'Mr Dafoe', cursive;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.rstar-star {
+  width: 10px;
+  height: 10px;
+  margin: 1px 0 0 -1px;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5l3.1 6.6 7.2.9-5.3 5 1.4 7.1L12 17.6l-6.4 3.5L7 14l-5.3-5 7.2-.9z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5l3.1 6.6 7.2.9-5.3 5 1.4 7.1L12 17.6l-6.4 3.5L7 14l-5.3-5 7.2-.9z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ---------- Page transitions (layout/PageTransition): pages slide toward the tab picked ---------- */
+
+/*
+ * Always keep the scrollbar's space. Otherwise a page shorter than the window (Contact) drops the
+ * scrollbar, the window gets wider, and everything jumps sideways, the R* scene included.
+ */
+html {
+  scrollbar-gutter: stable;
+}
+
+.app {
+  overflow-x: clip; /* pages slide past the screen's edges without a sideways scrollbar */
+}
+
+.page-stage {
+  position: relative;
+}
+
+.page-leave {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+}
+
+.page-enter.page-to-left {
+  animation: page-in-from-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.page-enter.page-to-right {
+  animation: page-in-from-left 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.page-leave.page-to-left {
+  animation: page-out-to-left 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.page-leave.page-to-right {
+  animation: page-out-to-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/*
+ * The page column is centred, so half the window plus half the page takes it just past the
+ * screen's edge, however wide the screen. Movement only: fading (opacity) would cut the glass off
+ * from the scene it blurs.
+ */
+@keyframes page-in-from-right {
+  from {
+    transform: translateX(calc(50vw + 50%));
+  }
+}
+
+@keyframes page-in-from-left {
+  from {
+    transform: translateX(calc(-50vw - 50%));
+  }
+}
+
+@keyframes page-out-to-left {
+  to {
+    transform: translateX(calc(-50vw - 50%));
+  }
+}
+
+@keyframes page-out-to-right {
+  to {
+    transform: translateX(calc(50vw + 50%));
+  }
+}
+
+/* ---------- R*: hide the page to watch the scene (layout/ContentToggle) ---------- */
+
+/* The header flies up and the page drops away (moving, not fading, so the glass keeps its blur). */
+.site-header,
+.page {
+  transition:
+    transform 0.6s cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s;
+}
+
+.app[data-content-hidden] .site-header {
+  transform: translateY(-105%);
+}
+
+.app[data-content-hidden] .page {
+  transform: translateY(100vh);
+}
+
+.app[data-content-hidden] .site-header,
+.app[data-content-hidden] .page {
+  visibility: hidden;
+  transition:
+    transform 0.6s cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s 0.6s;
+}
+
+/* Nothing to scroll while the page is away (the scrollbar's space stays, so nothing shifts). */
+:root.content-hidden {
+  overflow: hidden;
+}
+
+.content-toggle {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 6;
+  transition: opacity 0.5s;
+}
+
+.content-toggle-idle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Watching the scene: the cursor goes with the button. */
+:root.scene-idle,
+:root.scene-idle * {
+  cursor: none;
+}
+
+/* ---------- Glass panes ---------- */
+
+.card,
+.media-card,
+.modal,
+.login-card,
+.world-map-card,
+.world-map-controls,
+.place-popup {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shine), var(--glass-shadow);
+}
+
+/*
+ * Only the big panes blur what's behind them. Pieces inside them (buttons, map panels, tooltips)
+ * sit on glass that's already blurred, and each extra blur layer has to be redrawn on every frame
+ * of the R* animation.
+ */
+.card,
+.media-card,
+.modal,
+.login-card {
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+/* A light rim that's brightest at the top-left and bottom-right corners, like a lit glass edge. */
+.card,
+.modal,
+.login-card,
+.media-card {
+  position: relative;
+}
+
+.card::before,
+.modal::before,
+.login-card::before,
+.media-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--glass-rim);
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.modal {
+  border-radius: 28px;
+  background: var(--modal-fill);
+}
+
+.modal-backdrop {
+  background: var(--modal-backdrop);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.media-card:hover {
+  box-shadow:
+    var(--glass-shine),
+    var(--glass-hover-shadow),
+    0 0 0 1px var(--glass-edge);
+  transform: translateY(-3px) scale(1.01);
+}
+
+.add-tile {
+  border: 2px dashed var(--border);
+  background: var(--well);
+}
+
+.add-tile::before {
+  display: none;
+}
+
+.add-tile:hover {
+  background: var(--raised);
+}
+
+/* ---------- Header: a floating glass bar with a pill tab switcher ---------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--header-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-edge);
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.tabs {
+  width: fit-content;
+  max-width: min(848px, calc(100% - 32px));
+  margin: 0 auto 12px;
+  padding: 4px;
+  gap: 2px;
+  border-radius: 999px;
+  background: var(--glass-fill);
+  box-shadow: var(--glass-shine), 0 0 0 1px var(--glass-edge);
+}
+
+.tab {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
+}
+
+.tab[aria-current='page'] {
+  background: var(--selected);
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--selected-shadow);
+}
+
+@media (max-width: 520px) {
+  .tabs {
+    padding: 3px;
+  }
+
+  .tab {
+    padding: 7px 10px;
+  }
+}
+
+/* ---------- Theme slider: three stops, with a glass thumb that slides to the chosen one ---------- */
+
+.theme-switch {
+  --stop: 36px;
+  position: relative;
+  display: inline-flex;
+  margin: 0;
+  padding: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--glass-fill);
+  box-shadow: var(--glass-shine), 0 0 0 1px var(--glass-edge);
+}
+
+.theme-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: var(--stop);
+  height: 30px;
+  border-radius: 999px;
+  background: var(--selected);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--selected-shadow);
+  transform: translateX(calc(var(--theme-index, 0) * var(--stop)));
+  transition: transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.theme-switch-option {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--stop);
+  height: 30px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.theme-switch-option:hover,
+.theme-switch-option:has(input:checked) {
+  color: var(--text);
+}
+
+.theme-switch-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---------- Buttons ---------- */
+
+.button {
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(64 156 255 / 0.95), rgb(10 132 255 / 0.88));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    inset 0 -1px 0 rgb(0 0 0 / 0.15),
+    0 4px 16px rgb(10 132 255 / 0.3);
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.button-secondary,
+.google-button,
+.licence-toggle {
+  border: 0;
+  background: var(--raised);
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 0 0 1px var(--glass-edge);
+}
+
+.button-secondary:not(:disabled):hover,
+.google-button:hover,
+.licence-toggle:hover {
+  background: var(--raised-hover);
+}
+
+.button-danger {
+  background: linear-gradient(180deg, rgb(255 105 97 / 0.95), rgb(255 69 58 / 0.88));
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    0 4px 16px rgb(255 69 58 / 0.3);
+}
+
+.licence-toggle[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 0 0 1px var(--accent);
+}
+
+.icon-button:not(:disabled):hover {
+  background: var(--raised);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+/* ---------- Inputs ---------- */
+
+.field input,
+.field textarea,
+.select,
+.year-input,
+.month-field select,
+.month-field input {
+  border: 1px solid var(--glass-edge);
+  border-radius: 12px;
+  background: var(--well);
+  box-shadow: var(--well-shade);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.field input:focus,
+.field textarea:focus,
+.select:focus,
+.year-input:focus,
+.month-field select:focus,
+.month-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow:
+    var(--well-shade),
+    0 0 0 4px var(--tint);
+}
+
+.select option,
+.month-field option {
+  background: var(--solid-surface);
+}
+
+/* ---------- Smaller glass pieces ---------- */
+
+.chip {
+  border: 0;
+  background: var(--raised);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 0 0 1px var(--glass-edge);
+}
+
+.app-category,
+.tag {
+  background: var(--tint);
+  color: var(--tint-text);
+}
+
+.editor-item,
+.upload,
+.media-list-item,
+.city-search-results {
+  border-color: var(--glass-edge);
+  border-radius: 16px;
+  background: var(--well);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+.editor-subitem,
+.editor-status {
+  border-radius: 12px;
+  background: var(--well);
+}
+
+.world-map {
+  border-radius: 18px;
+  background: var(--well);
+}
+
+.world-map-land {
+  stroke: var(--map-land);
+}
+
+.world-map-pin-outline {
+  stroke: var(--map-pin-outline);
+}
+
+.world-map-card,
+.place-popup {
+  border-radius: 16px;
+}
+
+.world-map-controls {
+  border-radius: 14px;
+}
+
+.skill-tooltip {
+  background: var(--tooltip-fill);
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--glass-shadow);
+}
+
+.carousel-track,
+.video-player {
+  box-shadow: 0 0 0 1px var(--glass-edge);
+}
+
+.carousel-dot {
+  background: var(--dot);
+}
+
+.carousel-dot[aria-current='true'] {
+  background: var(--dot-on);
+}
+
+.message-row:hover {
+  background: var(--well);
+}
+
+.messages-table th,
+.messages-table td,
+.detail-row,
+.places-list li {
+  border-color: var(--glass-edge);
+}
+
+.leetcode-ring-track {
+  stroke: var(--track);
+}
+
+.leetcode-bar,
+.language-step {
+  background: var(--track);
+}
+
+.language-step-on {
+  background: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .tab,
+  .button,
+  .theme-switch-thumb,
+  .theme-switch-option,
+  .scene-background canvas {
+    transition: none;
+  }
+
+  .neon-text,
+  .neon-fill,
+  :root[data-theme='rstar'] .brand-fill {
+    animation: none;
+  }
+
+  .site-header,
+  .page,
+  .app[data-content-hidden] .site-header,
+  .app[data-content-hidden] .page,
+  .content-toggle {
+    transition: none;
+  }
+
+  .media-card:hover,
+  .button:not(:disabled):active {
+    transform: none;
+  }
+}

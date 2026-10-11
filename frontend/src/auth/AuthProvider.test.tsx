@@ -55,7 +55,7 @@ describe('AuthProvider session handling', () => {
   it('does not ping the API on activity when signed out', async () => {
     signedIn = false
     renderApp('/')
-    await screen.findByRole('heading', { name: "Hi, I'm Claudiu" })
+    await screen.findByRole('heading', { name: 'jechel.dev' })
 
     await act(() => vi.advanceTimersByTimeAsync(ACTIVITY_REFRESH_MS))
     fireEvent.keyDown(window)

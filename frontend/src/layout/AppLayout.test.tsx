@@ -1,32 +1,24 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { renderApp } from '../test/render'
-import { API, server, signedIn } from '../test/server'
+import { server, signedIn } from '../test/server'
 
 const TAB_NAMES = ["What's new?", 'Apps', 'YouTube', 'About Me', 'Contact']
 
-describe('AppLayout: greeting and session bar', () => {
-  it('shows a loading state, then greets with the first name', async () => {
-    renderApp('/')
+describe('AppLayout: site name and session bar', () => {
+  it('shows the site name, linking home', async () => {
+    renderApp('/apps')
 
-    expect(screen.getAllByText(/loading/i).length).toBeGreaterThan(0)
-    expect(await screen.findByRole('heading', { level: 1, name: "Hi, I'm Claudiu" })).toBeInTheDocument()
-  })
-
-  it('shows an error message when the API fails', async () => {
-    server.use(http.get(`${API}/api/firstname`, () => new HttpResponse(null, { status: 500 })))
-
-    renderApp('/')
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(/something went wrong/i)
+    const name = screen.getByRole('heading', { level: 1, name: 'jechel.dev' })
+    expect(within(name).getByRole('link')).toHaveAttribute('href', '/')
+    await screen.findByRole('heading', { name: 'Apps' })
   })
 
   it('does not show the session bar to anonymous visitors', async () => {
     renderApp('/')
 
-    await screen.findByRole('heading', { name: "Hi, I'm Claudiu" })
+    await screen.findByRole('heading', { name: 'jechel.dev' })
     expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
   })
 
@@ -93,5 +85,29 @@ describe('AppLayout: tabs', () => {
     renderApp('/no-such-page')
 
     expect(screen.getByRole('heading', { level: 2, name: "What's new?" })).toBeInTheDocument()
+  })
+})
+
+describe('AppLayout: R* backdrop', () => {
+  const backdrop = () => document.querySelector('.scene-background')
+
+  it('shows the Riviera scene by default, and only in the R* theme', async () => {
+    renderApp('/')
+    await screen.findByRole('heading', { name: 'jechel.dev' })
+    expect(backdrop()).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Light mode' }))
+    expect(backdrop()).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: 'R* mode' }))
+    expect(backdrop()).toBeInTheDocument()
+  })
+
+  it('falls back to the still picture without WebGL 2', async () => {
+    renderApp('/')
+    await screen.findByRole('heading', { name: 'jechel.dev' })
+
+    expect(backdrop()?.querySelector('img')).toBeInTheDocument()
+    expect(backdrop()?.querySelector('canvas')).not.toBeInTheDocument()
   })
 })

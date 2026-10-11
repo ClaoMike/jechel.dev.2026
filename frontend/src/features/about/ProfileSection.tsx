@@ -39,6 +39,7 @@ export function ProfileSection({
     <EditableSection title="Photo and links" hideTitle errorKeys={['photoUrl', 'statuses', 'links']} className="profile-card" value={value} canEdit={canEdit} onSave={onSave} editor={ProfileEditor}>
       <div className="profile">
         <ProfilePhoto url={value.photoUrl} />
+        <p className="profile-name">Claudiu Mihai Jechel</p>
         {value.statuses.length > 0 ? (
           <ul className="chips profile-statuses" aria-label="Citizenship and residence">
             {value.statuses.map((status, i) => (

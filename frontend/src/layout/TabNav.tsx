@@ -1,14 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router'
-
-/** The site's sections, in tab order. Each is a route rendered inside <AppLayout>. */
-const TABS = [
-  { to: '/', label: "What's new?" },
-  { to: '/apps', label: 'Apps' },
-  { to: '/youtube', label: 'YouTube' },
-  { to: '/about', label: 'About Me' },
-  { to: '/contact', label: 'Contact' },
-] as const
+import { TABS } from './tabs'
 
 /** Links styled as tabs; the current one gets aria-current="page" (from NavLink). */
 export function TabNav() {

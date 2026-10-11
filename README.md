@@ -292,6 +292,46 @@ Only one refresh runs at a time (`RefreshLock`), so visitors arriving together c
 
 **The map's dots** are generated once by `node scripts/build-world-dots.ts` (in `frontend/`) from Natural Earth land shapes into `src/features/about/places/worldDots.ts`. Pins use the same projection (`projection.ts`), so they line up.
 
+## Roadmap: ideas to review
+
+Suggestions from a review of the site for its three audiences (tech employers, recruiters, people
+who want to do business), most impact first. Nothing here is decided: review, then pick, reshape
+or drop. Suggested first: 1, 2 and 5 (small changes, biggest effect on a first visit).
+
+1. **Say who you are in the first five seconds.** The home page opens on the latest app with no
+   statement of who this is or what he does. Add an intro: name, a one-line headline (e.g.
+   "Full-stack engineer · .NET, React, Postgres · Manchester"), availability (open to roles /
+   freelance), and two buttons: *Download CV* and *Get in touch*.
+2. **Reorder About for its readers.** Today: photo → travel map → LeetCode → skills → experience.
+   Recruiters look for experience first: summary → work experience (with numbers: "cut API latency
+   40%", "shipped to 50k users") → skills → projects → education / qualifications → papers,
+   hackathons, languages, licences. Keep the map and LeetCode lower down as personality.
+3. **Engineering case studies.** Apps shows games (personality, not the day job). Add 2–3 write-ups:
+   the problem, your role, the architecture (diagram), the stack, the hard part, the result. Start
+   with **this site**: the WebGL scene built from one image, the 4K upscale and masks, the 66% → 18%
+   GPU optimisation, the glass theme system, the test suite. A "How this site works" page.
+4. **A "Work with me" page.** What you can be hired for (web apps, APIs, MVPs), how you work,
+   typical timelines (optionally "projects from £X"), a booking link for a call, response time.
+   Today a would-be client only has the contact form.
+5. **Link previews and search.** `index.html` has only a `<title>`. Add a meta description, an Open
+   Graph / Twitter image (a crop of the Riviera art), `Person` structured data, and a sitemap, so
+   links pasted into Slack and LinkedIn look professional.
+6. **Proof from other people.** 2–3 short testimonials (from LinkedIn recommendations), logos of
+   companies worked with, GitHub activity / open-source contributions.
+7. **Light writing.** A few short technical posts (e.g. how the R* background was built): shows
+   how you think and gives people a reason to come back.
+
+Flags to decide on:
+
+- **The pistol in the R* artwork.** It's on his thigh in the main picture, and R* is the default
+  theme, so it's the first thing every visitor sees. Fine for a GTA tribute; could read badly to a
+  corporate recruiter or client. It can be painted out of the art (the same way the birds were
+  removed; see `frontend/scripts/riviera/`).
+- **The R★ name and mark.** Close to Rockstar's trademark. Fine as a playful touch; as the
+  professional front door, a name of its own ("Vice mode", "Sunset mode") avoids brand confusion.
+- **R* as the default for everyone.** It's ~1.5 MB and runs on the GPU continuously. Consider
+  falling back to dark on low-powered devices or when the browser asks to save data.
+
 ## Configuration
 
 Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can be overridden with environment variables (`__` as separator, e.g. `ConnectionStrings__Default`).

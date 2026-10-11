@@ -75,10 +75,13 @@ h2 {
   font-size: 28px;
 }
 
-.greeting-placeholder {
-  margin: 0;
-  line-height: 35px; /* the h1's height, so the header doesn't jump when it loads */
-  color: var(--text-muted);
+.brand-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand-text {
+  display: inline-block;
 }
 
 .session-bar {
@@ -1197,6 +1200,14 @@ button.media-card {
   align-items: center;
   gap: 16px;
   text-align: center;
+}
+
+.profile-name {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 .profile-photo {
