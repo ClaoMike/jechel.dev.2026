@@ -4,11 +4,15 @@ public static class AppMediaKinds
 {
     public const string Image = "image";
     public const string Video = "video";
-    public static readonly IReadOnlyList<string> All = [Image, Video];
+
+    /// <summary>A YouTube video (e.g. a trailer), played with YouTube's player.</summary>
+    public const string YouTube = "youtube";
+
+    public static readonly IReadOnlyList<string> All = [Image, Video, YouTube];
 }
 
 /// <summary>An image or video of an app.</summary>
-/// <param name="Url">An upload (a /api/files/… path).</param>
+/// <param name="Url">An upload (a /api/files/… path) or an http(s) link to an image or video elsewhere; for YouTube, the video's watch link.</param>
 /// <param name="Kind">One of <see cref="AppMediaKinds"/>.</param>
 public record AppMedia(string Url, string Kind);
 

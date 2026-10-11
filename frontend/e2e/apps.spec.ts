@@ -73,3 +73,37 @@ test('the admin adds an app, uploading an image as a multipart form', async ({ p
   await expect(page.getByRole('dialog', { name: 'Chess clock' }).getByText('Mobile app')).toBeVisible()
   expect(created).toEqual([{ title: 'Chess clock', description: '', categoryIds: [1], platforms: [], links: [], media: [{ url: pixel, kind: 'image' }] }])
 })
+
+test('the admin reorders images by dragging them', async ({ page }) => {
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({ json: { email: 'admin@example.com', name: 'Admin', pictureUrl: null, sessionExpiresInSeconds: 600 } }),
+  )
+  const svg = (color: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><rect width="160" height="90" fill="${color}"/></svg>`)}`
+  const media = ['red', 'green', 'blue'].map((color) => ({ url: svg(color), kind: 'image' }))
+  const app = { id: 1, title: 'Colours', description: '', categories: [], platforms: [], links: [], media, createdAt: '2026-10-01T00:00:00Z' }
+  let saved: { media: { url: string }[] } | null = null
+  await page.route('**/api/apps/categories', (route) => route.fulfill({ json: [] }))
+  await page.route('**/api/apps?*', (route) => route.fulfill({ json: { items: [app], page: 1, pageSize: 8, totalCount: 1 } }))
+  await page.route('**/api/apps/1', (route) => {
+    saved = route.request().postDataJSON()
+    return route.fulfill({ json: { ...app, ...saved } })
+  })
+  await page.goto('/apps')
+  await page.getByRole('button', { name: 'Colours' }).click()
+  await page.getByRole('button', { name: 'Edit' }).click()
+
+  // Drag the third tile (blue) onto the first.
+  const tiles = page.getByRole('list', { name: 'Images and videos' }).getByRole('listitem')
+  await tiles.last().scrollIntoViewIfNeeded()
+  const from = (await tiles.nth(2).boundingBox())!
+  const to = (await tiles.nth(0).boundingBox())!
+  await page.mouse.move(from.x + from.width / 2, from.y + 30)
+  await page.mouse.down()
+  await page.mouse.move(from.x + from.width / 2 - 20, from.y + 30, { steps: 5 })
+  await page.mouse.move(to.x + to.width / 2, to.y + 30, { steps: 15 })
+  await page.mouse.up()
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  await expect(page.getByRole('dialog', { name: 'Colours' })).toBeVisible()
+  expect(saved!.media.map((m) => decodeURIComponent(m.url).match(/fill="(\w+)"/)![1])).toEqual(['blue', 'red', 'green'])
+})

@@ -153,4 +153,14 @@ public class AppEndpointsTests
         Assert.IsType<ValidationProblem>(result.Result);
         Assert.Equal(["Website"], (await AppEndpoints.ListCategories(_db, default)).Value!.Select(c => c.Name));
     }
+
+    [Fact]
+    public async Task A_youtube_link_is_stored_as_its_watch_link_and_other_links_as_they_are()
+    {
+        var request = new AppRequest("App", "", [new AppMedia("https://youtu.be/dQw4w9WgXcQ?si=x", AppMediaKinds.YouTube), new AppMedia(" https://cdn.example.com/a.png ", AppMediaKinds.Image)]);
+
+        var created = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(request, _db, Files, _time, default)).Result).Value!;
+
+        Assert.Equal(["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://cdn.example.com/a.png"], created.Media.Select(m => m.Url));
+    }
 }

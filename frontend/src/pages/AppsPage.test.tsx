@@ -128,7 +128,11 @@ describe('AppsPage for the admin', () => {
     await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(3))
     expect(uploads).toHaveBeenCalledTimes(3)
 
-    await user.click(within(form).getByRole('button', { name: 'Move image 1 right' }))
+    // Reordering by keyboard, on the tile's drag handle (dragging itself is tested in the browser, e2e).
+    within(form).getByRole('button', { name: 'Reorder image 1' }).focus()
+    await user.keyboard('{ArrowRight}')
+    expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1. Video', '2. Image', '3. Image'])
+    expect(screen.getByText('Moved to position 2 of 3.')).toBeInTheDocument()
     await user.click(within(form).getByRole('button', { name: 'Remove image 3' }))
     await user.click(within(dialog('Remove image 3?')).getByRole('button', { name: 'Remove' }))
     await user.click(within(form).getByRole('button', { name: 'Add app' }))
@@ -190,13 +194,47 @@ describe('AppsPage for the admin', () => {
     expect(within(form).getByLabelText('Title')).toHaveValue('App 2')
     await user.clear(within(form).getByLabelText('Title'))
     await user.type(within(form).getByLabelText('Title'), 'Renamed')
-    await user.click(within(form).getByRole('button', { name: 'Move image 2 left' }))
+    within(form).getByRole('button', { name: 'Reorder image 2' }).focus()
+    await user.keyboard('{ArrowLeft}')
     await user.click(within(form).getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('dialog', { name: 'Renamed' })).toBeInTheDocument()
     expect(sent[0].method).toBe('PUT')
     expect(sent[0].body.media.map((m) => m.url)).toEqual(makeApps(2)[1].media.map((m) => m.url).reverse())
     await waitFor(() => expect(screen.getByRole('button', { name: 'Renamed' })).toBeInTheDocument())
+  })
+
+  it('adds a YouTube trailer and an image from links, and plays the trailer in the slider', async () => {
+    const { user, sent } = await renderApps({ admin: true })
+
+    await user.click(screen.getByRole('button', { name: 'Add an app' }))
+    const form = dialog('Add an app')
+    await user.type(within(form).getByLabelText('Title'), 'Space game')
+    await user.click(within(form).getByRole('button', { name: 'Add link' }))
+    expect(within(form).getByText('Paste a link first.')).toBeInTheDocument()
+    await user.type(within(form).getByLabelText('Or add from a link'), 'javascript:alert(1){Enter}')
+    expect(within(form).getByText('That should be a link starting with https://.')).toBeInTheDocument()
+    await user.clear(within(form).getByLabelText('Or add from a link'))
+    await user.type(within(form).getByLabelText('Or add from a link'), 'https://youtu.be/dQw4w9WgXcQ?si=x{Enter}')
+    await user.type(within(form).getByLabelText('Or add from a link'), 'https://cdn.example.com/shot.png')
+    await user.click(within(form).getByRole('button', { name: 'Add link' }))
+    expect(within(within(form).getByRole('list', { name: 'Images and videos' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1. YouTube', '2. Image'])
+    await user.click(within(form).getByRole('button', { name: 'Add app' }))
+
+    const popup = await screen.findByRole('dialog', { name: 'Space game' })
+    expect(sent[0].body.media).toEqual([
+      { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', kind: 'youtube' },
+      { url: 'https://cdn.example.com/shot.png', kind: 'image' },
+    ])
+    expect(within(popup).getByTitle('Space game, video 1 of 2')).toHaveAttribute('src', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ')
+    await user.click(within(popup).getByRole('button', { name: 'Next' }))
+    // Off its slide, the player is gone (so it stops), and a thumbnail takes its place.
+    expect(within(popup).queryByTitle('Space game, video 1 of 2')).not.toBeInTheDocument()
+    await user.click(within(popup).getByRole('button', { name: 'Show Space game, video 1 of 2' }))
+    expect(within(popup).getByTitle('Space game, video 1 of 2')).toBeInTheDocument()
+    // The tile shows the first image, even after a YouTube video.
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: 'Space game' }).querySelector('img')).toHaveAttribute('src', 'https://cdn.example.com/shot.png')
   })
 
   it('deletes an app once confirmed', async () => {

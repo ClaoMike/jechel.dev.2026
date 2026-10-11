@@ -20,7 +20,7 @@ public class AppRulesTests
         var request = new AppRequest(
             " ",
             "[Click](javascript:alert(1))",
-            [new AppMedia("https://elsewhere.example/x.png", "image"), new AppMedia(Upload, "audio"), null]);
+            [new AppMedia("/not/an/upload.png", "image"), new AppMedia(Upload, "audio"), null]);
 
         Assert.Equal(["description", "media[0].url", "media[1].kind", "media[2].url", "title"], AppRules.Validate(request).Keys.Order());
     }
@@ -61,5 +61,19 @@ public class AppRulesTests
 
         Assert.Equal(["[1].name", "[2].name", "[3].id"], AppRules.ValidateCategories(categories, [1, 2]).Keys.Order());
         Assert.Empty(AppRules.ValidateCategories([new(2, "Website"), new(null, "Desktop app")], [1, 2]));
+    }
+
+    [Fact]
+    public void Media_can_be_links_to_images_videos_elsewhere_or_youtube()
+    {
+        var request = new AppRequest("App", "", [
+            new AppMedia("https://cdn.example.com/shot.png", "image"),
+            new AppMedia("https://cdn.example.com/trailer.mp4", "video"),
+            new AppMedia("https://youtu.be/dQw4w9WgXcQ", "youtube"),
+            new AppMedia("https://cdn.example.com/trailer.mp4", "youtube"),
+            new AppMedia("javascript:alert(1)", "image"),
+        ]);
+
+        Assert.Equal(["media[3].url", "media[4].url"], AppRules.Validate(request).Keys.Order());
     }
 }

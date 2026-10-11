@@ -168,7 +168,9 @@ public static class AppEndpoints
     {
         entry.Title = request.Title!.Trim();
         entry.Description = request.Description?.Trim() ?? "";
-        entry.Media = JsonSerializer.Serialize(request.Media!.Select(m => new AppMedia(m!.Url.Trim(), m.Kind)), Json);
+        entry.Media = JsonSerializer.Serialize(request.Media!.Select(m => new AppMedia(
+            m!.Kind == AppMediaKinds.YouTube ? YouTubeLinks.WatchUrl(YouTubeLinks.VideoIdIn(m.Url)!) : m.Url.Trim(),
+            m.Kind)), Json);
         entry.CategoryIds = JsonSerializer.Serialize(request.CategoryIds ?? [], Json);
         entry.Platforms = JsonSerializer.Serialize((request.Platforms ?? []).Select(p => p!.Trim()), Json);
         entry.Links = JsonSerializer.Serialize((request.Links ?? []).Select(l => new AppLink(l!.Label.Trim(), l.Url.Trim())), Json);

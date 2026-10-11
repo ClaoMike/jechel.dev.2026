@@ -43,8 +43,12 @@ public static class AppRules
             for (var i = 0; i < request.Media.Count; i++)
             {
                 var media = request.Media[i];
-                if (media is null || FileRules.FileIdIn(media.Url) is null) Add($"media[{i}].url", "Must be an uploaded file.");
-                else if (!AppMediaKinds.All.Contains(media.Kind)) Add($"media[{i}].kind", "Must be image or video.");
+                if (media is null) { Add($"media[{i}].url", "Required."); continue; }
+                if (!AppMediaKinds.All.Contains(media.Kind)) Add($"media[{i}].kind", "Must be image, video or youtube.");
+                else if (media.Kind == AppMediaKinds.YouTube ? YouTubeLinks.VideoIdIn(media.Url) is null : !IsMediaUrl(media.Url))
+                {
+                    Add($"media[{i}].url", media.Kind == AppMediaKinds.YouTube ? "Must be a YouTube video link." : "Must be an uploaded file or an http(s) link.");
+                }
             }
         }
 
@@ -75,6 +79,11 @@ public static class AppRules
 
         return errors;
     }
+
+    /// <summary>An upload of ours, or an absolute http(s) link.</summary>
+    private static bool IsMediaUrl(string? url) =>
+        FileRules.FileIdIn(url) is not null
+        || (url is not null && url.Length <= AboutRules.UrlMaxLength && !url.Trim().StartsWith('/') && AboutRules.IsSafeUrl(url) && url.Trim().Length > 0);
 
     /// <summary>The admin's list of categories, in order. <paramref name="existingIds"/> are those in the database.</summary>
     public static Dictionary<string, string[]> ValidateCategories(IReadOnlyList<AppCategoryRequest?>? categories, IReadOnlyCollection<int> existingIds)

@@ -1,6 +1,7 @@
 import { ExternalLinkIcon } from '../../components/icons'
 import { LinkifiedText } from '../../components/LinkifiedText'
 import type { YouTubeVideo } from '../../services/api'
+import { youTubeEmbedUrl } from '../apps/media'
 
 /**
  * A video to watch here: YouTube's player (the privacy-enhanced one, which sets no cookies
@@ -11,7 +12,7 @@ export function VideoDetailsView({ video }: { video: YouTubeVideo }) {
     <div className="video-details">
       <div className="video-player">
         <iframe
-          src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.id)}`}
+          src={youTubeEmbedUrl(video.id)}
           title={video.title}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           referrerPolicy="strict-origin-when-cross-origin"

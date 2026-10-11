@@ -266,16 +266,17 @@ export interface UploadedFile {
   fileName: string
 }
 
-export const APP_MEDIA_KINDS = ['image', 'video'] as const
+/** An uploaded or linked image or video, or a YouTube video (e.g. a trailer). */
+export const APP_MEDIA_KINDS = ['image', 'video', 'youtube'] as const
 export type AppMediaKind = (typeof APP_MEDIA_KINDS)[number]
 
 export interface UploadedMedia extends UploadedFile {
-  kind: AppMediaKind
+  kind: 'image' | 'video'
 }
 
 /** An image or video of an app. */
 export interface AppMedia {
-  /** An upload (/api/files/…). */
+  /** An upload (/api/files/…), an http(s) link elsewhere, or for YouTube the video's watch link. */
   url: string
   kind: AppMediaKind
 }

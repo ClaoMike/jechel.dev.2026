@@ -7,6 +7,7 @@ import { plainText } from '../features/about/textLinks'
 import { CategoryLabels } from '../features/apps/AppFields'
 import { AppDialog } from '../features/apps/AppDialog'
 import { CategoriesDialog } from '../features/apps/CategoriesDialog'
+import { tileImage } from '../features/apps/media'
 import { api, type AppCategory, type AppDetails } from '../services/api'
 
 /**
@@ -65,7 +66,7 @@ export function AppsPage() {
         renderItem={(app) => (
           <MediaCard
             onClick={() => setOpen(app)}
-            imageUrl={app.media.find((m) => m.kind === 'image')?.url}
+            imageUrl={tileImage(app)}
             title={app.title}
             meta={app.categories.length > 0 && <CategoryLabels categories={app.categories} />}
             description={plainText(app.description)}

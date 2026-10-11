@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ArrowLeftIcon, ArrowRightIcon } from '../../components/icons'
+import { PlayIcon } from '../../components/icons'
 import type { AppMedia } from '../../services/api'
+import { youTubeEmbedUrl, youTubeIdIn, youTubeThumbnail } from './media'
 
 /**
  * Images and videos side by side, one at a time: swipe or scroll sideways, use the arrows or
- * dots, or the arrow keys. Moving away from a video pauses it.
+ * dots, or the arrow keys. Moving away from a video pauses it; a YouTube video's player is only
+ * loaded on its own slide (elsewhere it's a thumbnail), so moving away stops it too.
  */
 export function MediaCarousel({ media, title }: { media: AppMedia[]; title: string }) {
   const track = useRef<HTMLDivElement>(null)
@@ -43,11 +46,7 @@ export function MediaCarousel({ media, title }: { media: AppMedia[]; title: stri
       <div ref={track} className="carousel-track" onScroll={onScroll} onKeyDown={onKeyDown} tabIndex={0} aria-label="Use the arrow keys to move between slides">
         {media.map((item, i) => (
           <div key={`${item.url}-${i}`} className="carousel-slide" role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${media.length}`}>
-            {item.kind === 'video' ? (
-              <video src={item.url} data-index={i} controls preload="metadata" playsInline aria-label={`${title}, video ${i + 1} of ${media.length}`} />
-            ) : (
-              <img src={item.url} alt={`${title}, image ${i + 1} of ${media.length}`} loading={i === 0 ? 'eager' : 'lazy'} />
-            )}
+            <Slide item={item} index={i} active={i === index} label={`${title}, ${item.kind === 'image' ? 'image' : 'video'} ${i + 1} of ${media.length}`} onShow={() => goTo(i)} />
           </div>
         ))}
       </div>
@@ -70,5 +69,27 @@ export function MediaCarousel({ media, title }: { media: AppMedia[]; title: stri
         </div>
       )}
     </section>
+  )
+}
+
+function Slide({ item, index, active, label, onShow }: { item: AppMedia; index: number; active: boolean; label: string; onShow: () => void }) {
+  if (item.kind === 'image') return <img src={item.url} alt={label} loading={index === 0 ? 'eager' : 'lazy'} />
+  if (item.kind === 'video') return <video src={item.url} data-index={index} controls preload="metadata" playsInline aria-label={label} />
+
+  const id = youTubeIdIn(item.url)
+  if (!id) return null
+  return active ? (
+    <iframe
+      src={youTubeEmbedUrl(id)}
+      title={label}
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerPolicy="strict-origin-when-cross-origin"
+      allowFullScreen
+    />
+  ) : (
+    <button type="button" className="carousel-youtube-thumb" aria-label={`Show ${label}`} onClick={onShow}>
+      <img src={youTubeThumbnail(id)} alt="" loading="lazy" />
+      <PlayIcon size={40} />
+    </button>
   )
 }

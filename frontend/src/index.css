@@ -553,11 +553,41 @@ button.media-card {
 }
 
 .carousel-slide img,
-.carousel-slide video {
+.carousel-slide video,
+.carousel-slide iframe {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.carousel-slide iframe {
+  border: 0;
+}
+
+/* A YouTube slide that isn't shown: its thumbnail, until it's moved to. */
+.carousel-youtube-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: #000;
+  color: #fff;
+  cursor: pointer;
+}
+
+.carousel-youtube-thumb img {
+  position: absolute;
+  inset: 0;
+  object-fit: cover;
+}
+
+.carousel-youtube-thumb svg {
+  position: relative;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.6));
 }
 
 .carousel-controls {
@@ -801,6 +831,39 @@ button.media-card {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-muted);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The tile being dragged: it moves through the list as it's dragged over the others. */
+.media-list-item[data-dragging] {
+  border-style: dashed;
+  border-color: var(--accent);
+  opacity: 0.6;
+}
+
+.media-list-dragging,
+.media-list-dragging .media-list-item {
+  cursor: grabbing;
+}
+
+.media-list-footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.media-list-footer .media-list-label {
+  flex: 1;
+}
+
+.media-list-handle {
+  width: 32px;
+  height: 32px;
+  cursor: grab;
+  /* A touch on the handle drags; elsewhere it scrolls the page. */
+  touch-action: none;
 }
 
 .media-list-thumb {
@@ -820,7 +883,8 @@ button.media-card {
   color: #fff;
 }
 
-.media-list-video video {
+.media-list-video video,
+.media-list-video img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -837,12 +901,7 @@ button.media-card {
   font-size: 13px;
 }
 
-.media-list-controls {
-  display: flex;
-  justify-content: space-between;
-}
-
-.media-list-controls .icon-button {
+.media-list-footer > .icon-button {
   width: 32px;
   height: 32px;
 }
