@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { DeleteButton } from '../../components/DeleteButton'
+import { FittedImage } from '../../components/FittedImage'
 import { GripIcon, PlayIcon, UploadIcon } from '../../components/icons'
 import { useDragSort } from '../../components/useDragSort'
 import { AddButton, TextField } from '../about/fields'
@@ -137,7 +138,7 @@ export function MediaListEditor({ value, update, error }: { value: AppMedia[]; u
 }
 
 function MediaThumbnail({ item }: { item: AppMedia }) {
-  if (item.kind === 'image') return <img className="media-list-thumb" src={item.url} alt="" draggable={false} />
+  if (item.kind === 'image') return <FittedImage className="media-list-thumb" src={item.url} alt="" />
   const youTube = item.kind === 'youtube' ? youTubeIdIn(item.url) : null
   return (
     <span className="media-list-thumb media-list-video">

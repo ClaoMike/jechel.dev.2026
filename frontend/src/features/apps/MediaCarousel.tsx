@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ArrowLeftIcon, ArrowRightIcon } from '../../components/icons'
+import { FittedImage } from '../../components/FittedImage'
 import { PlayIcon } from '../../components/icons'
 import type { AppMedia } from '../../services/api'
 import { youTubeEmbedUrl, youTubeIdIn, youTubeThumbnail } from './media'
@@ -73,7 +74,7 @@ export function MediaCarousel({ media, title }: { media: AppMedia[]; title: stri
 }
 
 function Slide({ item, index, active, label, onShow }: { item: AppMedia; index: number; active: boolean; label: string; onShow: () => void }) {
-  if (item.kind === 'image') return <img src={item.url} alt={label} loading={index === 0 ? 'eager' : 'lazy'} />
+  if (item.kind === 'image') return <FittedImage src={item.url} alt={label} loading={index === 0 ? 'eager' : 'lazy'} />
   if (item.kind === 'video') return <video src={item.url} data-index={index} controls preload="metadata" playsInline aria-label={label} />
 
   const id = youTubeIdIn(item.url)

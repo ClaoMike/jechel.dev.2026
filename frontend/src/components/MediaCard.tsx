@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from 'react'
+import { FittedImage } from './FittedImage'
 import { ImageIcon } from './icons'
 
 export interface MediaCardProps {
@@ -23,7 +24,7 @@ export function MediaCard({ href, onClick, imageUrl, title, description, meta, n
   const content = (
     <>
       {imageUrl ? (
-        <img className="media-card-image" src={imageUrl} alt="" loading="lazy" />
+        <FittedImage className="media-card-image" src={imageUrl} alt="" />
       ) : (
         <span className="media-card-image media-card-placeholder" aria-hidden="true">
           <ImageIcon size={40} />
