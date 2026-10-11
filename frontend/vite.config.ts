@@ -1,17 +1,21 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
+// WEB_PORT and API_URL run a second copy next to the usual one (e.g. for E2E tests); see playwright.config.ts.
+const webPort = Number(process.env.WEB_PORT ?? 5173)
+const apiUrl = process.env.API_URL ?? 'http://localhost:5105'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
+    port: webPort,
     strictPort: true,
     // Same-origin API calls: keeps the auth cookie first-party and needs no CORS.
     // xfwd sends X-Forwarded-Host/Proto so the API builds Google's callback URL
     // as http://localhost:5173/api/auth/signin-google (the URL the browser sees).
     proxy: {
-      '/api': { target: 'http://localhost:5105', xfwd: true },
+      '/api': { target: apiUrl, xfwd: true },
     },
   },
   test: {

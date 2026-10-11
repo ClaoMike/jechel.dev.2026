@@ -16,17 +16,19 @@ export function AdminPage() {
   if (isAuthenticated) return <Navigate to="/" replace />
 
   return (
-    <main className="login-card">
-      <h1>Admin sign in</h1>
-      {error && (
-        <p role="alert" className="login-error">
-          {ERROR_MESSAGES[error] ?? 'Something went wrong. Please try again.'}
-        </p>
-      )}
-      <a className="google-button" href={api.auth.googleLoginUrl('/')}>
-        <GoogleLogo />
-        Sign in with Google
-      </a>
+    <main className="login-page">
+      <div className="login-card">
+        <h1>Admin sign in</h1>
+        {error && (
+          <p role="alert" className="login-error">
+            {ERROR_MESSAGES[error] ?? 'Something went wrong. Please try again.'}
+          </p>
+        )}
+        <a className="google-button" href={api.auth.googleLoginUrl('/')}>
+          <GoogleLogo />
+          Sign in with Google
+        </a>
+      </div>
     </main>
   )
 }

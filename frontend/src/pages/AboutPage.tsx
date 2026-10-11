@@ -1,0 +1,94 @@
+import { useCallback, useEffect, useState } from 'react'
+import { useAuth } from '../auth'
+import { HackathonsSection } from '../features/about/HackathonsSection'
+import { LanguagesSection } from '../features/about/LanguagesSection'
+import { LicencesSection } from '../features/about/LicencesSection'
+import { PapersSection } from '../features/about/PapersSection'
+import { PlacesSection } from '../features/about/places/PlacesSection'
+import { ProblemSolvingSection } from '../features/about/ProblemSolvingSection'
+import { ProfileSection } from '../features/about/ProfileSection'
+import { QualificationsSection } from '../features/about/QualificationsSection'
+import { SkillsSection } from '../features/about/SkillsSection'
+import { EducationSection, ExperienceSection } from '../features/about/TimelineSection'
+import { api, type AboutContent } from '../services/api'
+
+type State = { status: 'loading' } | { status: 'loaded'; content: AboutContent } | { status: 'error' }
+
+/**
+ * About Me: photo and links, where I've been, problem solving (LeetCode, NeetCode), skills, work experience, education, papers,
+ * qualifications, languages, licences, hackathons. The admin can edit every section.
+ */
+export function AboutPage() {
+  const { isAuthenticated } = useAuth()
+  const [state, setState] = useState<State>({ status: 'loading' })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    api.about
+      .get(controller.signal)
+      .then((content) => setState({ status: 'loaded', content }))
+      .catch(() => {
+        if (!controller.signal.aborted) setState({ status: 'error' })
+      })
+    return () => controller.abort()
+  }, [])
+
+  const content = state.status === 'loaded' ? state.content : null
+
+  // Saves one section by sending the whole page with that section changed; shows the page as the API stored it.
+  const save = useCallback(
+    async (patch: Partial<AboutContent>) => {
+      if (!content) return
+      const saved = await api.about.update({ ...content, ...patch })
+      setState({ status: 'loaded', content: saved })
+    },
+    [content],
+  )
+
+  const heading = <h2 className="visually-hidden">About Me</h2>
+  if (state.status === 'loading')
+    return (
+      <>
+        {heading}
+        <p>Loading…</p>
+      </>
+    )
+  if (state.status === 'error')
+    return (
+      <>
+        {heading}
+        <p role="alert">This page couldn't be loaded. Please try again later.</p>
+      </>
+    )
+
+  const { content: page } = state
+  return (
+    <div className="about">
+      {heading}
+      <ProfileSection
+        value={{ photoUrl: page.photoUrl, statuses: page.statuses, links: page.links }}
+        leetCodeUsername={page.problemSolving.leetCodeUsername}
+        canEdit={isAuthenticated}
+        onSave={(profile) => save(profile)}
+      />
+      <PlacesSection
+        value={{ places: page.places, colors: page.colors.places }}
+        canEdit={isAuthenticated}
+        onSave={({ places, colors }) => save({ places, colors: { ...page.colors, places: colors } })}
+      />
+      <ProblemSolvingSection value={page.problemSolving} canEdit={isAuthenticated} onSave={(problemSolving) => save({ problemSolving })} />
+      <SkillsSection
+        value={{ skills: page.skills, colors: page.colors.skills }}
+        canEdit={isAuthenticated}
+        onSave={({ skills, colors }) => save({ skills, colors: { ...page.colors, skills: colors } })}
+      />
+      <ExperienceSection value={page.experience} canEdit={isAuthenticated} onSave={(experience) => save({ experience })} />
+      <EducationSection value={page.education} canEdit={isAuthenticated} onSave={(education) => save({ education })} />
+      <PapersSection value={page.papers} canEdit={isAuthenticated} onSave={(papers) => save({ papers })} />
+      <QualificationsSection value={page.qualifications} canEdit={isAuthenticated} onSave={(qualifications) => save({ qualifications })} />
+      <LanguagesSection value={page.languages} canEdit={isAuthenticated} onSave={(languages) => save({ languages })} />
+      <LicencesSection value={page.licences} canEdit={isAuthenticated} onSave={(licences) => save({ licences })} />
+      <HackathonsSection value={page.hackathons} canEdit={isAuthenticated} onSave={(hackathons) => save({ hackathons })} />
+    </div>
+  )
+}

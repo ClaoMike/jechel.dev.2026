@@ -1,8 +1,16 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Portfolio.Api;
 using Portfolio.Api.Data;
+using Portfolio.Api.Features.About;
+using Portfolio.Api.Features.Apps;
 using Portfolio.Api.Features.Auth;
+using Portfolio.Api.Features.Contact;
+using Portfolio.Api.Features.Files;
+using Portfolio.Api.Features.LeetCode;
+using Portfolio.Api.Features.Places;
 using Portfolio.Api.Features.Profile;
+using Portfolio.Api.Features.YouTube;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +22,28 @@ builder.Services.AddDbContext<PortfolioDbContext>(options =>
 builder.Services.AddHealthChecks().AddDbContextCheck<PortfolioDbContext>();
 
 builder.AddPortfolioAuth();
+
+builder.Services.AddScoped<IFileStorage, DatabaseFileStorage>();
+builder.Services.AddSingleton<CityIndex>();
+
+builder.Services.AddHttpClient<ILeetCodeClient, LeetCodeClient>(http =>
+{
+    http.BaseAddress = LeetCodeClient.BaseAddress;
+    http.Timeout = TimeSpan.FromSeconds(10);
+    http.DefaultRequestHeaders.Referrer = LeetCodeClient.BaseAddress;
+    http.DefaultRequestHeaders.UserAgent.ParseAdd("jechel.dev-portfolio/1.0");
+});
+builder.Services.AddSingleton<LeetCodeMemoryCache>();
+builder.Services.AddScoped<LeetCodeStatsService>();
+
+builder.Services.Configure<YouTubeOptions>(builder.Configuration.GetSection(YouTubeOptions.Section));
+builder.Services.AddHttpClient<IYouTubeClient, YouTubeClient>(http =>
+{
+    http.BaseAddress = YouTubeClient.BaseAddress;
+    http.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddSingleton(services => new RefreshingCache<IReadOnlyList<YouTubeVideo>>(
+    services.GetRequiredService<TimeProvider>(), YouTubeEndpoints.FreshFor, YouTubeEndpoints.RetryAfter));
 
 // Honour X-Forwarded-* from a reverse proxy (the Vite dev proxy locally), so URLs the API
 // generates, like Google's OAuth callback, use the host and scheme the browser sees.
@@ -43,5 +73,12 @@ var api = app.MapGroup("/api");
 api.MapHealthChecks("/health");
 api.MapProfileEndpoints();
 api.MapAuthEndpoints();
+api.MapContactEndpoints();
+api.MapAboutEndpoints();
+api.MapFileEndpoints();
+api.MapPlaceEndpoints();
+api.MapLeetCodeEndpoints();
+api.MapYouTubeEndpoints();
+api.MapAppEndpoints();
 
 app.Run();

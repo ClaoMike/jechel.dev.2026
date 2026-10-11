@@ -28,7 +28,10 @@ Personal portfolio website of Claudiu Jechel.
 │   ├── src/
 │   │   ├── services/api.ts                # the single API service: every backend call goes through `api`
 │   │   ├── auth/                          # AuthProvider, useAuth, <SignedIn>/<SignedOut>
+│   │   ├── layout/                        # site frame: greeting, session bar, section tabs
 │   │   ├── pages/                         # one component per route
+│   │   ├── features/<feature>/            # a feature's components and rules (e.g. contact form + inbox)
+│   │   ├── components/                    # shared UI: Modal, CopyButton, icons
 │   │   └── test/                          # Vitest setup, MSW mock server, render helpers
 │   ├── e2e/                               # Playwright specs
 │   └── playwright.config.ts
@@ -103,6 +106,12 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/auth/signin-google`   | public  | OAuth callback, handled by ASP.NET Core; don't call directly |
 | GET    | `/api/auth/me`              | cookie  | Current user `{ email, name, pictureUrl, sessionExpiresInSeconds }`, or **401** |
 | POST   | `/api/auth/logout`          | public  | Clears the cookie; when signed in, also ends the session everywhere |
+| POST   | `/api/contact`              | public  | Contact form `{ name, email, message }`: **201**, or **400** with field errors (`ValidationProblem`) |
+| GET    | `/api/contact/messages?page=&pageSize=` | cookie | Inbox page, newest first: `{ items: [{ id, name, receivedAt, isRead }], page, pageSize, totalCount }` (pageSize 1–50, default 10) |
+| GET    | `/api/contact/messages/{id}` | cookie | One message `{ id, name, email, message, receivedAt, readAt }`, or **404**. Doesn't mark it read |
+| POST   | `/api/contact/messages/{id}/read` | cookie | Marks it read (keeps the first read time): **204**, or **404** |
+| GET    | `/api/about`                | public  | The About Me page (photo, links, skills, experience, education, papers, qualifications); placeholders until the first save |
+| PUT    | `/api/about`                | cookie  | Replaces the whole page: **200** with it as stored (trimmed, experience/education sorted newest first), or **400** with field errors keyed by path (`experience[0].title`) |
 
 ## Authentication (Google, admin only)
 
@@ -117,7 +126,7 @@ Only the site owner signs in, to reach the future admin area. There are no publi
    - allowed: the API starts a new database session (see below), issues the `portfolio.auth` cookie (HttpOnly, SameSite=Lax, Secure outside Development) and redirects to `returnUrl` (the home page)
    - not allowed: no cookie; redirects to `/admin?error=not_authorized`
    - cancelled or failed on Google: redirects to `/admin?error=login_failed`
-5. The frontend `AuthProvider` calls `/api/auth/me` on load. Signed in, the home page shows "Signed in as ... · Sign out", and `/admin` redirects to `/`.
+5. The frontend `AuthProvider` calls `/api/auth/me` on load. Signed in, the header shows "Signed in as ... · Sign out", the Contact tab shows the inbox instead of the form, and `/admin` redirects to `/`.
 
 ### Sessions (stored in the database)
 
@@ -196,6 +205,93 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 - It stays up to date on its own: it signs out in the UI when the session expires, and after `signOut()`.
 - This is for **display only**. The API enforces access (`.RequireAuthorization()`); hiding a button is never the security boundary.
 
+## Site sections and the contact feature
+
+The site is a header (greeting, plus the session bar when signed in) above five tabs, each a route rendered inside `src/layout/AppLayout.tsx`:
+
+| Tab | Route | Status |
+| --- | --- | --- |
+| What's new? | `/` | the newest app or video, in full |
+| Apps | `/apps` | my apps in a grid, each with a popup; the admin adds and edits them |
+| YouTube | `/youtube` | my videos, 9 a page |
+| About Me | `/about` | profile, where I've been (map), problem solving (LeetCode, NeetCode), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
+| Contact | `/contact` | contact form / admin inbox |
+
+**What's new?** (`src/pages/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list; if one fails (e.g. YouTube isn't set up), the other is shown.
+
+**Apps** (`src/pages/AppsPage.tsx`, `src/features/apps/`, API in `backend/.../Features/Apps/`):
+
+- The same paged 3 × 3 grid as YouTube, newest first. A tile shows the app's first image (whatever comes before it), its title and the start of its description. Clicking it opens a popup with every image and video in a sideways slider (swipe, arrows, dots or the arrow keys; moving on pauses a video; a YouTube video gets YouTube's privacy-enhanced player on its own slide and a thumbnail elsewhere, so moving on stops it too). The tile uses the first image, or else a YouTube video's thumbnail and the full description, which may hold `[text](url)` links.
+- **The admin** gets an **Add an app** tile first (the first page then holds 8 apps, so it stays 3 × 3), and an **Edit** button in each popup that turns it into the form used for adding: title, description, and the images and videos, which can be uploaded several at once, added from a link (a YouTube video such as a trailer, or an image or video file elsewhere), dragged to reorder and removed. Dragging uses pointer events (`components/useDragSort.ts`): a mouse drags a whole tile, a finger its handle (so the popup still scrolls), and the handle also takes the arrow keys. Closing with unsaved changes asks first. **Delete app** asks too.
+- **Categories** (e.g. Mobile app, Website, Video game, the three it starts with) are the admin's own list, edited with **Categories** next to the heading: rename, reorder, add, remove (which takes it off every app). An app can have several; they show as labels under its title, on the tile and in the popup, in the list's order.
+- **Runs on:** platforms (iOS, Android, … with one click, or typed in), shown in the popup only.
+- **Where to get it:** links shown in the popup as **Check it on {name}** buttons, e.g. App Store, Google Play, Steam (suggested while typing; anything else works).
+- `GET /api/apps` (public), `POST /api/apps`, `PUT /api/apps/{id}`, `DELETE /api/apps/{id}` (admin), stored in the `apps` table (media, category ids, platforms and links as `jsonb`). `GET /api/apps/categories` (public) and `PUT /api/apps/categories` (admin, the whole ordered list) use `app_categories`. `POST /api/files/app-media` takes one file: images (JPEG, PNG, WebP, GIF up to 15 MB) become a WebP of at most 1920 px without metadata; videos (MP4, MOV, WebM up to 200 MB, recognised by their first bytes) are kept as they are. Files are served with range requests, so videos can start before they're fully downloaded (Safari needs this).
+- Saving About Me or an app deletes uploads that **nothing** uses any more, once a day old (`FileCleanup.cs`).
+- Videos live in the database like every other upload and are read whole for each request. That's fine for a few short clips; for many or long videos, move `IFileStorage` to object storage (R2, S3) or link YouTube videos instead.
+
+**YouTube** (`src/pages/YouTubePage.tsx`, API in `backend/.../Features/YouTube/`): the channel's public videos, newest first, in a 3 × 3 grid (2 columns on tablets, 1 on phones). Each card shows the thumbnail, title, date and the start of the description (cut after three lines), and opens the video on YouTube in a new tab. More than 9 videos get Previous / Next, with the page in the URL (`?page=2`).
+
+- `GET /api/youtube/videos?page=1&pageSize=9` (public) reads the uploads with the YouTube Data API v3. It needs `YouTube:Channel` (`@handle` or `UC…` id) and `YouTube:ApiKey`; until both are set it answers 503 and the page says the videos can't be loaded.
+- The list is cached in memory for an hour (`RefreshingCache<T>`, a small reusable cache: one fetch at a time, keeps the last list if YouTube fails and retries after 5 minutes). Each refresh costs about 2 units of the free 10,000 a day.
+- **Reusable for Apps:** `src/components/PagedGrid.tsx` (loads a page with a `load(page, pageSize, signal)` function, shows loading / empty / error, and the pagination) and `src/components/MediaCard.tsx` (image, title, meta line, clamped description; the whole card is a link). `Pagination.tsx` and `usePageParam.ts` are shared with the contact inbox.
+
+Unknown URLs redirect to `/`.
+
+**Contact** (`src/pages/ContactPage.tsx`, `src/features/contact/`):
+
+- **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. Errors appear after the first submit and then update as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields.
+- **The admin** (`<SignedIn>`) gets the inbox: a table of name and date received, 10 per page (the page is in the URL, `?page=2`). Unread messages are bold, with a blue dot. Clicking a row opens a popup with every field and a **Copy** button for each, and marks the message as read.
+- Each detail has a copy-to-clipboard icon button (`src/components/CopyButton.tsx`); the icons are in `src/components/icons.tsx`.
+- **Deleting:** each row has a trash button, and the popup a **Delete** button (`DELETE /api/contact/messages/{id}`, admin only). Both ask first.
+- The popup is `src/components/Modal.tsx`: it keeps focus inside (Tab wraps), closes with Escape, the × button or a click on the backdrop, and returns focus to the row's button. Keys and clicks inside a dialog stay inside it, so a dialog opened from another (or from a table row) behaves: Escape closes only the top one.
+- **Confirming:** `src/components/DeleteButton.tsx` is the one delete button for the whole site: it opens `ConfirmDialog` ("Delete …?" with Cancel focused) and only then runs `onDelete`. If that is async, the popup waits and says so when it fails. About Me uses it with `action="Remove"` for every remove button, explaining that nothing is lost until the section is saved.
+
+**About Me** (`src/pages/AboutPage.tsx`, `src/features/about/`, API in `backend/.../Features/About/`):
+
+- The page is **one JSON document** (`AboutContent`), stored in the `about_page` table (`jsonb`, one row). It's always read and saved whole, so changing its shape means changing `AboutContent.cs` and the matching types in `api.ts`, with no new migration. Until the first save, `GET` returns `AboutDefaults` (placeholders).
+- **Sections:**
+  - **Photo and links:** an uploaded photo (or a placeholder icon) on top, then citizenship and residence labels (`statuses`: text and a flag each, e.g. 🇬🇧 "UK Settled Status"; the editor guesses the flag from the words; with none, only the admin sees a hint where they go), then an uploaded résumé (download button) and GitHub, LeetCode (when a username is set under Problem solving), LinkedIn and Instagram in their brand colours. An empty link is hidden.
+  - **Where I've been:** a dotted world map with a pin per city. Each city is marked *worked*, *studied* and/or *visited*, each with an optional note. A pin with several marks is split into equal slices, one colour each. Hovering, focusing or tapping a pin shows its notes. Zoom with the buttons, a pinch, or Ctrl/⌘ + scroll; drag to move.
+  - **Problem solving:** LeetCode stats (solved problems, split into Easy, Medium and Hard, out of all on LeetCode) for the username the admin sets (pasting the profile link works too), and the NeetCode lists completed (Blind 75, NeetCode 150, NeetCode 250), switched on and off like licences and shown as labels. NeetCode has no public API, so those are ticked by hand.
+  - **Skills:** a timeline. Each skill has periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once. A skill without periods is listed without a bar. **Sort by experience** orders them by total time (applies on Save, like the sort below).
+  - **Work experience:** title, company, optional location, start month (may be in the future), an end month or *ongoing*, and bullet points.
+  - **Education:** the same, without bullet points.
+  - **Academic papers:** a title and an uploaded PDF each. With a PDF, the title is a download link with a download icon.
+  - **Qualifications:** a title, and optionally the issuer, the month obtained and a grade.
+  - **Languages:** a name and a level (native, fluent, advanced, intermediate, beginner), shown as a word and five steps.
+  - **Licences:** driving, flying and boating licences, shown as rounded labels grouped by kind. The admin clicks the ones they have from a built-in list (`licences.ts`: EU/UK driving categories, drone and pilot licences, boating certificates) and can add others by hand.
+  - **Hackathons:** name, year and bullet points; reorderable, with **Sort by year**.
+- **Colours:** the admin picks the legend colours (skill uses, map marks) with colour pickers. They're stored in the page (`colors`).
+- **Collapsing:** every section has a chevron that folds it down to its heading. It's for visitors too, and is remembered per section in that browser (`localStorage`). Editing a collapsed section opens it.
+- **Editing:** when signed in, each section has an **Edit** button that turns it into a form; **Save** sends the whole page with that section changed. The API validates everything (`AboutRules.cs`), trims text and drops empty bullets. The page then shows what the API stored. Field errors come back keyed by path and show under the matching input. Since the whole page is sent, a problem in another section also blocks the save: the message then names that section and item (`errorKeys` on `EditableSection` says which keys a section shows itself).
+- **Order:** every list is shown in the order the admin set, with the arrow buttons. Experience and education also have **Sort by end date** (ongoing first, then the latest end): it only reorders the form, so Save keeps it and Cancel undoes it.
+- **Links in text:** any text field can hold `[text](https://…)` links, e.g. a company written as `[Acme](https://acme.example)`. The **Add link** button under a field writes one at the cursor. Only http(s) links and paths on this site become links (`textLinks.ts`, and `AboutRules.LinksIn` on the API).
+- **Older pages:** `AboutJson.cs` upgrades a page saved in an older shape when it's read (0–100 skill levels are dropped, qualifications as plain text get no date, a company or institution website becomes a link in its name), so changing the shape needs no data migration. Whatever it produces must pass `AboutRules`, or no section could be saved.
+- **Links** must be `http(s)://…` or a path on this site (`/resume.pdf`), checked by the API and again before rendering, so a stored value can never become a `javascript:` link.
+- Dates are months, stored as the 1st (`2023-01-01`). The month picker is a select plus a year box, because desktop Safari and Firefox don't support `<input type="month">`.
+
+**Uploaded files** (`backend/.../Features/Files/`):
+
+- `POST /api/files/photo`, `POST /api/files/resume` and `POST /api/files/paper` (admin, multipart field `file`) return `{ url, fileName }`. The editor puts the URL in the page; it's used once the section is saved.
+- Photos (JPEG, PNG, WebP or GIF, up to 15 MB) are turned upright, scaled to fit 800×800 and stored as WebP **without metadata**, so a phone photo's GPS position never reaches the site. Résumés (up to 20 MB) and papers (up to 200 MB) must be PDFs and keep their file name.
+- Each upload endpoint reads its own form and raises the server's request limit (Kestrel's default is 30 MB) for that request only. The editor checks the size before sending and shows the upload's progress. Limits are in `FileRules.cs` and `uploadLimits.ts`.
+- Files are served publicly from `GET /api/files/{id}/{name}`. Saving the page or an app deletes uploads nothing uses any more once they're a day old (a replaced photo, or one uploaded and never saved).
+- Storage is behind `IFileStorage`. `DatabaseFileStorage` keeps files in the `stored_files` table, which suits a photo and a PDF. Moving to object storage (Cloudflare R2, S3) means a new implementation and one line in `Program.cs`. There's no HTTP caching yet; adding a CDN later only needs cache headers, since a file's URL never changes.
+- Image processing uses SixLabors.ImageSharp 3.1 (Six Labors Split License: free for open source and for individuals or companies under $1M revenue; version 4 needs a license key). Advisories published in October 2026 (fixed only in 4.1.2+) affect TIFF, ICC-profile and histogram code: photos are only read as JPEG, PNG, WebP or GIF, and only the admin can upload. Moving to ImageSharp 4 (with a license key) or to SkiaSharp would clear them.
+- Flags come from the `flag-icons` package (MIT), as separate SVG files loaded when shown (`features/about/flags.ts`).
+
+**LeetCode stats** (`backend/.../Features/LeetCode/`): `GET /api/leetcode` (public) returns the stats of the username saved on the page, and only that one, so the API can't be used to look anyone up. It returns 204 when no username is set, 404 when LeetCode has no such user, and 503 when LeetCode can't be reached and nothing was saved yet. The numbers come from LeetCode's GraphQL endpoint (`https://leetcode.com/graphql`), the one its own profile page uses: it needs no key, but it isn't an official API and may change. They're **cached** so visitors don't each trigger a call:
+
+1. **In memory** (`LeetCodeMemoryCache`, a singleton): answers instantly for 24 hours. Lost on restart.
+2. **In PostgreSQL** (`leetcode_stats`, one row per username): survives restarts and is the fallback. If LeetCode fails, the last saved numbers are shown (the page adds "As of <date>" once they're over 48 hours old) and LeetCode is tried again after 15 minutes.
+
+Only one refresh runs at a time (`RefreshLock`), so visitors arriving together cause a single call. The times are in `LeetCodeStatsService.cs`. Tests replace `ILeetCodeClient` with a fake, so they never call leetcode.com.
+
+**City search** (`backend/.../Features/Places/`): `GET /api/places/search?q=manch` (admin) searches every place with 1,000+ people (~170k, from [GeoNames](https://www.geonames.org), CC BY 4.0) by the start of its name, largest first, ignoring accents. Text after a comma narrows by region or country (`manchester, new hampshire`). The list is `cities.tsv.gz`, embedded in the API and built by `python3 scripts/build_cities.py`.
+
+**The map's dots** are generated once by `node scripts/build-world-dots.ts` (in `frontend/`) from Natural Earth land shapes into `src/features/about/places/worldDots.ts`. Pins use the same projection (`projection.ts`), so they line up.
+
 ## Configuration
 
 Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can be overridden with environment variables (`__` as separator, e.g. `ConnectionStrings__Default`).
@@ -207,6 +303,8 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Authentication:Google:ClientId` / `ClientSecret` | Google OAuth client (secret; user-secrets or env vars). Google sign-in is disabled when empty |
 | `Auth:AdminEmails`            | Array of Google emails allowed to sign in                    |
 | `Auth:SessionIdleTimeout`     | Admin session idle timeout (default `00:10:00`)              |
+| `YouTube:Channel`             | The channel shown on the YouTube page: `@handle` or `UC…` id  |
+| `YouTube:ApiKey`              | YouTube Data API v3 key (secret; user-secrets or env vars). Videos aren't shown when empty |
 
 Secrets are never committed. Locally, use [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets):
 `dotnet user-secrets set "<Key>" "<value>" --project backend/src/Portfolio.Api`.
@@ -261,8 +359,13 @@ dotnet test tests/Portfolio.Api.IntegrationTests       # integration only
 | `npm run lint`          | oxlint                                                              |
 | `npm run typecheck`     | `tsc -b`                                                            |
 
+To run the E2E tests while your usual dev servers keep running, give them other ports and a separate database, e.g.
+`API_PORT=5205 WEB_PORT=5273 ConnectionStrings__Default="Host=localhost;Port=5433;Database=portfolio_e2e;Username=portfolio;Password=portfolio" npm run test:e2e`.
+Vite also reads `WEB_PORT` and `API_URL` (where to proxy `/api`).
+
 - **Unit/component tests** live next to the code as `*.test.ts(x)`, run in jsdom, and mock HTTP with MSW. The default handlers in `src/test/server.ts` cover the happy path for an **anonymous** visitor; use `server.use(signedIn())` for a signed-in admin, or `server.use(...)` for other overrides. Unhandled requests fail the test. `renderApp(url)` in `src/test/render.tsx` renders the full app (router + auth) at a URL.
-- The real Google round-trip isn't automated. E2E tests cover the `/admin` page and fake a signed-in session with `page.route('**/api/auth/me', ...)`.
+- The real Google round-trip isn't automated. E2E tests cover the `/admin` page and fake a signed-in session with `page.route('**/api/auth/me', ...)`. The admin inbox E2E tests (`e2e/contact.spec.ts`) fake the inbox endpoints the same way. The visitor tests send real messages, so the local database collects a few `E2E visitor ...` rows.
+- For the inbox in component tests, `inbox(makeMessages(n))` in `src/test/server.ts` gives MSW handlers over an in-memory list that supports paging and marking messages as read.
 - **E2E tests** live in `e2e/`. Playwright starts the real API and the Vite dev server itself (or reuses ones already running locally). The database must be running (`docker compose up -d --wait`). First run: `npx playwright install`.
 - Browsers: Chromium and WebKit locally. **Firefox runs only in CI** because Playwright's Firefox build currently fails to launch on macOS 27 ("Could not find profile folder"). Try removing the `process.env.CI` guard in `playwright.config.ts` after a Playwright upgrade.
 

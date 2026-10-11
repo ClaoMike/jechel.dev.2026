@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using Portfolio.Api.Features.Auth;
+using Portfolio.Api.Features.LeetCode;
+using Portfolio.Api.Features.YouTube;
 using Testcontainers.PostgreSql;
 
 namespace Portfolio.Api.IntegrationTests;
@@ -36,13 +38,20 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         builder.UseSetting("Authentication:Google:ClientId", "test-client-id");
         builder.UseSetting("Authentication:Google:ClientSecret", "test-client-secret");
         builder.UseSetting("Auth:AdminEmails:0", AdminEmail);
+        builder.UseSetting("YouTube:Channel", "@test");
+        builder.UseSetting("YouTube:ApiKey", "test-key");
 
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<TimeProvider>(Time);
+            services.AddSingleton<ILeetCodeClient>(LeetCode);
+            services.AddSingleton<IYouTubeClient>(new FakeYouTubeClient());
             services.AddSingleton<IStartupFilter, TestSignInStartupFilter>();
         });
     }
+
+    /// <summary>Stands in for leetcode.com, so tests never call it.</summary>
+    public FakeLeetCodeClient LeetCode { get; } = new();
 
     /// <summary>Client that keeps cookies (like a browser) and doesn't follow redirects.</summary>
     public HttpClient CreateBrowserClient() =>
@@ -83,4 +92,21 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
             next(app);
         };
     }
+}
+
+/// <summary>Knows one user, "neetcode" (any case); everyone else doesn't exist.</summary>
+public sealed class FakeLeetCodeClient : ILeetCodeClient
+{
+    public static readonly LeetCodeStats NeetCode = new("NeetCode", new DifficultyCounts(205, 103, 98, 4), new DifficultyCounts(4073, 969, 2124, 980), default);
+
+    public Task<LeetCodeStats?> FetchAsync(string username, CancellationToken cancellationToken) =>
+        Task.FromResult(username.Equals("neetcode", StringComparison.OrdinalIgnoreCase) ? NeetCode : null);
+}
+
+/// <summary>A channel with 11 videos, v1 the newest.</summary>
+public sealed class FakeYouTubeClient : IYouTubeClient
+{
+    public Task<IReadOnlyList<YouTubeVideo>> FetchVideosAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<YouTubeVideo>>(
+            [.. Enumerable.Range(1, 11).Select(n => new YouTubeVideo($"v{n}", $"Video {n}", "About it", $"https://i.ytimg.com/vi/v{n}/hqdefault.jpg", DateTimeOffset.UnixEpoch.AddDays(100 - n)))]);
 }
