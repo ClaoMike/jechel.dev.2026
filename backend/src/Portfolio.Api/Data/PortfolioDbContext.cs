@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Portfolio.Api.Features.Analytics;
 using Portfolio.Api.Features.Contact;
 using Portfolio.Api.Features.Files;
 
@@ -14,6 +15,8 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<LeetCodeSnapshot> LeetCodeStats => Set<LeetCodeSnapshot>();
     public DbSet<AppEntry> Apps => Set<AppEntry>();
     public DbSet<AppCategory> AppCategories => Set<AppCategory>();
+    public DbSet<VisitSession> VisitSessions => Set<VisitSession>();
+    public DbSet<VisitEvent> VisitEvents => Set<VisitEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -107,6 +110,61 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(c => c.Id).HasColumnName("id");
             entity.Property(c => c.Name).HasColumnName("name").HasMaxLength(Features.Apps.AppRules.CategoryNameMaxLength).IsRequired();
             entity.Property(c => c.Position).HasColumnName("position");
+        });
+
+        modelBuilder.Entity<VisitSession>(entity =>
+        {
+            entity.ToTable("visit_sessions");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(s => s.VisitorHash).HasColumnName("visitor_hash").HasMaxLength(64).IsRequired();
+            entity.Property(s => s.StartedAt).HasColumnName("started_at");
+            entity.Property(s => s.LastSeenAt).HasColumnName("last_seen_at");
+            entity.Property(s => s.EntryPath).HasColumnName("entry_path").HasMaxLength(AnalyticsRules.PathMaxLength).IsRequired();
+            entity.Property(s => s.Referrer).HasColumnName("referrer").HasMaxLength(AnalyticsRules.PathMaxLength);
+            entity.Property(s => s.ReferrerHost).HasColumnName("referrer_host").HasMaxLength(AnalyticsRules.ShortTextMaxLength);
+            entity.Property(s => s.UtmSource).HasColumnName("utm_source").HasMaxLength(AnalyticsRules.ShortTextMaxLength);
+            entity.Property(s => s.UtmMedium).HasColumnName("utm_medium").HasMaxLength(AnalyticsRules.ShortTextMaxLength);
+            entity.Property(s => s.UtmCampaign).HasColumnName("utm_campaign").HasMaxLength(AnalyticsRules.ShortTextMaxLength);
+            entity.Property(s => s.UserAgent).HasColumnName("user_agent").HasMaxLength(AnalyticsRules.UserAgentMaxLength).IsRequired();
+            entity.Property(s => s.Device).HasColumnName("device").HasMaxLength(20).IsRequired();
+            entity.Property(s => s.Browser).HasColumnName("browser").HasMaxLength(40).IsRequired();
+            entity.Property(s => s.OperatingSystem).HasColumnName("operating_system").HasMaxLength(40).IsRequired();
+            entity.Property(s => s.Country).HasColumnName("country").HasMaxLength(2);
+            entity.Property(s => s.Language).HasColumnName("language").HasMaxLength(35);
+            entity.Property(s => s.TimeZone).HasColumnName("time_zone").HasMaxLength(64);
+            entity.Property(s => s.ScreenWidth).HasColumnName("screen_width");
+            entity.Property(s => s.ScreenHeight).HasColumnName("screen_height");
+            entity.Property(s => s.ViewportWidth).HasColumnName("viewport_width");
+            entity.Property(s => s.ViewportHeight).HasColumnName("viewport_height");
+            entity.Property(s => s.Theme).HasColumnName("theme").HasMaxLength(20);
+            entity.Property(s => s.LastTheme).HasColumnName("last_theme").HasMaxLength(20);
+            entity.Property(s => s.PageViews).HasColumnName("page_views");
+            entity.Property(s => s.InteractionCount).HasColumnName("interaction_count");
+            entity.Property(s => s.EventCount).HasColumnName("event_count");
+            entity.Property(s => s.ErrorCount).HasColumnName("error_count");
+
+            // The dashboard reads by date, newest first.
+            entity.HasIndex(s => s.StartedAt);
+            entity.HasMany(s => s.Events).WithOne().HasForeignKey(e => e.SessionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VisitEvent>(entity =>
+        {
+            entity.ToTable("visit_events");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.SessionId).HasColumnName("session_id");
+            entity.Property(e => e.Sequence).HasColumnName("sequence");
+            entity.Property(e => e.OccurredAt).HasColumnName("occurred_at");
+            entity.Property(e => e.Type).HasColumnName("type").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Path).HasColumnName("path").HasMaxLength(AnalyticsRules.PathMaxLength).IsRequired();
+            entity.Property(e => e.Label).HasColumnName("label").HasMaxLength(AnalyticsRules.LabelMaxLength);
+            entity.Property(e => e.Detail).HasColumnName("detail").HasColumnType("jsonb");
+
+            // One row per sequence number: a batch sent twice isn't stored twice.
+            entity.HasIndex(e => new { e.SessionId, e.Sequence }).IsUnique();
+            entity.HasIndex(e => e.OccurredAt);
         });
     }
 }

@@ -1,5 +1,6 @@
 import { useId, useState, type FormEvent } from 'react'
 import { api, ApiError, type SendMessageRequest } from '../../services/api'
+import { trackEvent } from '../analytics'
 import {
   EMAIL_MAX_LENGTH,
   MESSAGE_MAX_LENGTH,
@@ -37,6 +38,8 @@ export function ContactForm() {
     const found = validateContact(values)
     setErrors(found)
     if (Object.keys(found).length > 0) {
+      // Which fields stop people (the values are never recorded).
+      trackEvent('Contact form invalid', { fields: Object.keys(found).join(', ') })
       const firstInvalid = (['name', 'email', 'message'] as const).find((field) => found[field])
       document.getElementById(`${id}-${firstInvalid}`)?.focus()
       return
@@ -46,6 +49,7 @@ export function ContactForm() {
     try {
       await api.contact.send({ name: values.name.trim(), email: values.email.trim(), message: values.message.trim() })
       setStatus('sent')
+      trackEvent('Message sent')
     } catch (error) {
       const apiErrors = error instanceof ApiError && error.validationErrors ? fromApiErrors(error.validationErrors) : {}
       if (Object.keys(apiErrors).length > 0) {
