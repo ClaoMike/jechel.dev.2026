@@ -20,7 +20,7 @@ describe('The footer', () => {
     const user = userEvent.setup()
     renderApp('/')
 
-    await user.click(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Terms and Conditions' }))
+    await user.click(within(await screen.findByRole('contentinfo')).getByRole('button', { name: 'Terms and Conditions' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Terms and Conditions' })
     expect(within(dialog).getByText('Please read these terms.')).toBeInTheDocument()

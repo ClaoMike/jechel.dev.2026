@@ -29,12 +29,14 @@ export function TermsProvider({ children }: { children: ReactNode }) {
 
   const openTerms = useCallback(() => setDialogOpen(true), [])
   const replaceTerms = useCallback((terms: TermsDocument) => setState({ status: 'loaded', terms }), [])
-  const value = useMemo<TermsContextValue>(() => ({ state, openTerms, replaceTerms }), [state, openTerms, replaceTerms])
-
   const version = termsVersion(state.status === 'loaded' ? state.terms : null)
   // If the terms can't be loaded, only those who never accepted any version are asked.
   const mustAccept =
     authStatus === 'anonymous' && (state.status === 'loaded' ? accepted !== version : state.status === 'error' && accepted === null)
+
+  const welcomeOpen = mustAccept || authStatus === 'loading' || state.status === 'loading'
+
+  const value = useMemo<TermsContextValue>(() => ({ state, welcomeOpen, openTerms, replaceTerms }), [state, welcomeOpen, openTerms, replaceTerms])
 
   function accept() {
     rememberAcceptance(version)

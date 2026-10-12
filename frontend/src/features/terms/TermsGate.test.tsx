@@ -27,8 +27,10 @@ describe('The welcome popup', () => {
     await user.click(boxes[2])
     expect(continueButton).toBeEnabled()
 
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument()
     await user.click(continueButton)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument()
     expect(acceptedVersion()).toBe('default')
   })
 
