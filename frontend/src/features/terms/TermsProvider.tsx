@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useAuth } from '../../auth'
 import { api, type TermsDocument } from '../../services/api'
+import { trackEvent } from '../analytics'
 import { acceptedVersion, rememberAcceptance, termsVersion } from './acceptance'
 import { TermsContext, type TermsContextValue, type TermsState } from './termsContext'
 import { TermsDialog } from './TermsDialog'
@@ -41,6 +42,7 @@ export function TermsProvider({ children }: { children: ReactNode }) {
   function accept() {
     rememberAcceptance(version)
     setAccepted(version)
+    trackEvent('Terms accepted')
   }
 
   return (

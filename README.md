@@ -1,6 +1,6 @@
 # jechel.dev.2026
 
-Personal portfolio website of Claudiu Jechel.
+Personal portfolio website of Claudiu Mihai Jechel.
 
 | Layer    | Stack                                                           |
 | -------- | --------------------------------------------------------------- |
@@ -36,6 +36,7 @@ Personal portfolio website of Claudiu Jechel.
 │   ├── e2e/                               # Playwright specs
 │   └── playwright.config.ts
 ├── scripts/dev_launcher.py                # GUI launcher for common dev tasks (macOS)
+├── scripts/build_brand_j.py               # draws the "j": the Vice title's first letter and the tab icon
 ├── docker-compose.yml                     # local PostgreSQL
 └── .github/workflows/ci.yml
 ```
@@ -114,6 +115,24 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | PUT    | `/api/about`                | cookie  | Replaces the whole page: **200** with it as stored (trimmed, experience/education sorted newest first), or **400** with field errors keyed by path (`experience[0].title`) |
 | GET    | `/api/terms`                | public  | The terms and conditions `{ title, intro, sections: [{ heading, blocks: [{ kind: paragraph\|bullets, text, items }] }], updatedAt }`; defaults with `updatedAt: null` until the first save |
 | PUT    | `/api/terms`                | cookie  | Replaces the terms: **200** with them as stored (trimmed, new `updatedAt`), or **400** with field errors keyed by path (`sections[0].blocks[1].items[2]`) |
+| POST   | `/api/analytics/events`     | public  | A batch of a visit's events `{ sessionId, session, events }`: always **204** (the admin, bots and repeats aren't stored), **400** without `sessionId` |
+| GET    | `/api/analytics/summary?range=` | cookie | Totals, the chart's columns (`series`, sized by `bucketSize`) and top-10 lists for `range`: `1h`, `24h`, `7d`, `30d` (default), `90d`, `1y`, `5y` or `all` |
+| GET    | `/api/analytics/sessions?page=&pageSize=&errorsOnly=` | cookie | Visits, newest first (pageSize 1–50, default 20) |
+| GET    | `/api/analytics/sessions/{id}` | cookie | One visit with every event in order, or **404** |
+| DELETE | `/api/analytics/sessions/{id}` | cookie | Deletes the visit and its events: **204**, or **404** |
+
+## The "j" (Vice title and tab icon)
+
+Mr Dafoe's own j has a long, thin tail loop that closes up when small (in a browser tab it looked like a
+banana), so the site draws its own: `scripts/build_brand_j.py` traces a brush stroke (thick going down,
+thin going up, with a wide, open loop) in the font's units and writes two weights of it:
+
+- `frontend/src/assets/brand-j.svg`: the Vice title's j. `glass.css` (`.brand-j::before`) masks the neon gradient and the purple shadow layer with it, where the font's j would be; the letter stays in the page (at size 0) and the title link is named "jechel.dev", so screen readers still read the name. Other themes show the plain j.
+- `frontend/public/favicon.svg`: the tab icon, a bolder j on a dark tile. `favicon.ico` (16, 32, 48 px, for Safari and old browsers) and `apple-touch-icon.png` (180 px) are renders of it.
+
+After changing the drawing, re-run the script, re-render the PNG copies (e.g. a Playwright screenshot of
+favicon.svg), update the bounds in `.brand-j::before` if the script prints new ones, and bump the `?v=`
+on the icon links in `index.html` (browsers keep tab icons cached).
 
 ## Terms and conditions
 
@@ -121,6 +140,31 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 - **Reading them:** the footer on every page, and the welcome popup, have a **Terms and Conditions** link that opens them in a popup above anything else that's open.
 - **Editing them:** the admin's last tab, **Terms**, shows them as a page with an **Edit** button: title, introduction, and numbered sections of paragraphs and bullet lists (add, reorder, remove). Text may contain `[text](https://…)` links.
 - **E2E:** the `setup` project (`e2e/terms.setup.ts`) accepts the terms once and the other projects start from that browser state; tests of the popup itself use a fresh state.
+
+## Engagement (visitor analytics)
+
+The site records how it's used itself: no third parties, no cookies. The admin reads it in the **Engagement** tab.
+
+**Recording** (`src/features/analytics/tracker.ts`, mounted by `<AnalyticsTracker>` in `App.tsx`):
+
+- **What:** pages opened (with the query), clicks on buttons, links and fields (the label the visitor saw, plus a link's address; **never what was typed**), Escape, the site's own events (`trackEvent('Message sent')`, `'Terms accepted'`, `'Contact form invalid'` with the field names), leaving the tab, and every **error**: script errors with file, line and stack, unhandled promise rejections, React crashes with the component stack (`createRoot` callbacks in `main.tsx`), requests that fail with 5xx or no answer (`onRequestFailed` in `api.ts`; 4xx answers are expected and skipped), and images or files that didn't load.
+- **A visit** is a browser tab: a random id in `sessionStorage`, so it survives reloads and ends with the tab. It starts with the page, the referring site (host and path; no query), `utm_*` tags, language, time zone, screen and window size, and theme.
+- **Theme:** a visit keeps the theme it started in (Vice for first-time visitors, their earlier choice for those coming back) and the one it ended in: every batch says the theme on show, and the last is sent as the tab closes. Each switch is a `Theme changed` event with `from` and `to`.
+- **Who isn't recorded:** the signed-in admin (the tracker waits for the sign-in check, and the API ignores requests with the admin cookie), and bots and headless browsers (by User-Agent, which includes the Playwright runs).
+- **Sending:** batches every 5 seconds, and `sendBeacon` when the tab is hidden or closed. Limits: 1,000 events per page load, the same error 5 times, and the API stops a visit at 2,000.
+- **Unique visitors without cookies:** the API hashes IP + User-Agent with a random salt that changes every UTC day and is never stored (`VisitorHasher`), like Plausible. The same person counts once a day, can't be followed across days, and no IP is stored. A restart picks a new salt, so someone may count twice that day.
+
+**Storage:** `visit_sessions` (one row per visit, with counters) and `visit_events` (one row per event, `detail` as `jsonb`; unique on visit + sequence number, so a batch sent twice is stored once). Deleting a visit deletes its events. There is no automatic clean-up yet.
+
+**The tab** (`src/pages/EngagementPage.tsx`, `src/features/analytics/`): a period of 1 hour, 1 day, 7 / 30 / 90 days, 1 year, 5 years or all time, with
+- counters: visitors, visits, page views, average visit, bounce rate (one page and no clicks), errors
+- visitors, page views or errors as a column chart, one column per 5 minutes (1 hour), hour (1 day), day (7 to 90 days), month (1 and 5 years; all time) or year (all time beyond 6 years). Columns are aligned in UTC (`AnalyticsRange.cs`); "1 hour" and "1 day" are rolling. Visits count when they started, page views and errors when they happened. Hover a column for its number; a hidden table gives screen readers the same
+- top pages, where visitors come from, most clicked, errors, **preferred theme** (the one visits ended in), **theme switches** ("vice → dark"), devices, browsers, time zones
+- every visit (optionally only those with errors). One opens its timeline: what it ran on, then each step with its time, errors with their stack. **Copy steps to reproduce** gives it all as text, for an issue or an AI. Visits can be deleted.
+
+Summaries are worked out in memory from the period's rows: plenty for a personal site; move the grouping into SQL if traffic grows a lot.
+
+**Privacy:** the terms (Terms tab) should say what's recorded. Cookieless counting of totals is generally treated as low-risk under UK PECR/GDPR, but the visit id in `sessionStorage` and the replay of clicks are worth stating.
 
 ## Authentication (Google, admin only)
 
@@ -216,7 +260,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
 ## Site sections and the contact feature
 
-The site is a header (greeting, plus the session bar when signed in) above five tabs, each a route rendered inside `src/layout/AppLayout.tsx`:
+The site is a header (greeting, plus the session bar when signed in) above five tabs (seven for the signed-in admin), each a route rendered inside `src/layout/AppLayout.tsx`:
 
 | Tab | Route | Status |
 | --- | --- | --- |
@@ -225,6 +269,8 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 | YouTube | `/youtube` | my videos, 9 a page |
 | About Me | `/about` | profile, where I've been (map), problem solving (LeetCode, NeetCode), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
+| Engagement | `/engagement` | admin only: how visitors use the site, and every visit replayable to reproduce errors (see [Engagement](#engagement-visitor-analytics)); visitors who open the URL go to `/` |
+| Terms | `/terms` | admin only: the terms and conditions, editable (see [Terms and conditions](#terms-and-conditions)) |
 
 **What's new?** (`src/pages/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list; if one fails (e.g. YouTube isn't set up), the other is shown.
 

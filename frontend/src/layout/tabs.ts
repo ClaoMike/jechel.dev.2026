@@ -12,6 +12,7 @@ export const TABS: readonly Tab[] = [
   { to: '/youtube', label: 'YouTube' },
   { to: '/about', label: 'About Me' },
   { to: '/contact', label: 'Contact' },
+  { to: '/engagement', label: 'Engagement', adminOnly: true },
   { to: '/terms', label: 'Terms', adminOnly: true },
 ]
 

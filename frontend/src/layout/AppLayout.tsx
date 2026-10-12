@@ -25,14 +25,17 @@ export function AppLayout() {
       <header className="site-header" inert={contentHidden}>
         <div className="site-header-top">
           <h1 className="brand">
-            {/* In Vice it's written in neon (glass.css): a still shadow layer under the moving colours. */}
-            <Link to="/" className="brand-link">
+            {/* In Vice it's written in neon (glass.css): a still shadow layer under the moving colours, and a drawn j (BrandJ). */}
+            {/* Named outright: in Vice the drawn j is its own box, which screen readers would read apart ("j echel.dev"). */}
+            <Link to="/" className="brand-link" aria-label="jechel.dev">
               <span className="brand-text">
                 <span className="brand-shadow" aria-hidden="true">
-                  jechel<span className="brand-dot">.</span>dev
+                  <BrandJ />
+                  echel<span className="brand-dot">.</span>dev
                 </span>
                 <span className="brand-fill">
-                  jechel<span className="brand-dot">.</span>dev
+                  <BrandJ />
+                  echel<span className="brand-dot">.</span>dev
                 </span>
               </span>
             </Link>
@@ -59,5 +62,17 @@ export function AppLayout() {
       <SiteFooter inert={contentHidden} />
       {theme === 'vice' && <ContentToggle hidden={contentHidden} onToggle={toggleContent} />}
     </div>
+  )
+}
+
+/**
+ * The title's "j". In Vice, glass.css draws it (scripts/build_brand_j.py: Mr Dafoe's own j closes its
+ * loop up) and shrinks the letter to nothing; the letter stays, so the heading still reads "jechel.dev".
+ */
+function BrandJ() {
+  return (
+    <span className="brand-j">
+      <span className="brand-j-letter">j</span>
+    </span>
   )
 }

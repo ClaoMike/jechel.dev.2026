@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import type { AboutContent, AppCategory, AppCategoryRequest, AppDetails, AppRequest, TermsContent, TermsDocument } from '../services/api'
+import type { AboutContent, AnalyticsRange, AnalyticsSummary, BucketSize, AppCategory, AppCategoryRequest, AppDetails, AppRequest, TermsContent, TermsDocument, VisitDetails, VisitSummary } from '../services/api'
 
 export const API = 'http://api.test'
 
@@ -125,6 +125,8 @@ export const handlers = [
   http.get(`${API}/api/leetcode`, () => HttpResponse.json(LEETCODE_STATS)),
   http.get(`${API}/api/youtube/videos`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),
   http.get(`${API}/api/apps`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),
+  // The visitor tracker (features/analytics) sends here; its own tests look at what it sends.
+  http.post(`${API}/api/analytics/events`, () => new HttpResponse(null, { status: 204 })),
 ]
 
 /**
@@ -330,4 +332,160 @@ export function inbox(messages: TestMessage[]) {
     }),
   ]
   return { handlers, calls }
+}
+
+/** The columns each period has, as the API makes them (see AnalyticsRange.cs). */
+const TEST_RANGES: Record<AnalyticsRange, [BucketSize, number]> = {
+  '1h': ['5m', 12],
+  '24h': ['hour', 24],
+  '7d': ['day', 7],
+  '30d': ['day', 30],
+  '90d': ['day', 90],
+  '1y': ['month', 12],
+  '5y': ['month', 60],
+  all: ['month', 3],
+}
+
+/** A few visits up to 12 Oct 2026, 14:00 UTC; the last column has the iPhone visit that hit an error. */
+export function analyticsSummary(range: AnalyticsRange = '30d'): AnalyticsSummary {
+  const [bucketSize, count] = TEST_RANGES[range]
+  const step = (i: number) => {
+    const back = count - 1 - i
+    if (bucketSize === '5m') return Date.UTC(2026, 9, 12, 14, -5 * back)
+    if (bucketSize === 'hour') return Date.UTC(2026, 9, 12, 14 - back)
+    if (bucketSize === 'day') return Date.UTC(2026, 9, 12 - back)
+    return Date.UTC(2026, 9 - back, 1)
+  }
+  const series = Array.from({ length: count }, (_, i) => {
+    const last = i === count - 1
+    return { start: new Date(step(i)).toISOString(), visitors: last ? 3 : i % 3, sessions: last ? 4 : i % 3, pageViews: last ? 9 : (i % 3) * 2, errors: last ? 1 : 0 }
+  })
+  return {
+    range,
+    bucketSize,
+    from: series[0].start,
+    totals: { visitors: 12, sessions: 15, pageViews: 40, averageSessionSeconds: 95, bounceRate: 0.4, errors: 1 },
+    series,
+    topPages: [
+      { name: '/', count: 20 },
+      { name: '/apps', count: 12 },
+    ],
+    referrers: [
+      { name: 'Direct', count: 9 },
+      { name: 'linkedin.com', count: 6 },
+    ],
+    devices: [{ name: 'desktop', count: 10 }],
+    browsers: [{ name: 'Chrome', count: 10 }],
+    timeZones: [{ name: 'Europe/London', count: 10 }],
+    topClicks: [{ name: 'Check it on App Store', count: 4 }],
+    topErrors: [{ name: 'TypeError: boom', count: 1 }],
+    themes: [
+      { name: 'vice', count: 8 },
+      { name: 'dark', count: 5 },
+    ],
+    themeSwitches: [{ name: 'vice → dark', count: 3 }],
+  }
+}
+
+export const TEST_VISITS: VisitSummary[] = [
+  {
+    id: 'visit-error',
+    startedAt: '2026-10-12T10:00:00Z',
+    durationSeconds: 9,
+    pageViews: 2,
+    eventCount: 4,
+    errorCount: 1,
+    entryPath: '/',
+    referrerHost: 'linkedin.com',
+    device: 'mobile',
+    browser: 'Safari',
+    operatingSystem: 'iOS',
+    timeZone: 'Europe/London',
+    theme: 'vice',
+    lastTheme: 'dark',
+  },
+  {
+    id: 'visit-fine',
+    startedAt: '2026-10-11T09:00:00Z',
+    durationSeconds: 65,
+    pageViews: 1,
+    eventCount: 1,
+    errorCount: 0,
+    entryPath: '/about',
+    referrerHost: null,
+    device: 'desktop',
+    browser: 'Chrome',
+    operatingSystem: 'macOS',
+    timeZone: 'Europe/Bucharest',
+    theme: 'light',
+    lastTheme: 'light',
+  },
+]
+
+export function visitDetails(summary: VisitSummary): VisitDetails {
+  return {
+    id: summary.id,
+    startedAt: summary.startedAt,
+    lastSeenAt: new Date(Date.parse(summary.startedAt) + summary.durationSeconds * 1000).toISOString(),
+    entryPath: summary.entryPath,
+    referrer: summary.referrerHost && `www.${summary.referrerHost}/feed`,
+    utmSource: null,
+    utmMedium: null,
+    utmCampaign: null,
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)',
+    device: summary.device,
+    browser: summary.browser,
+    operatingSystem: summary.operatingSystem,
+    country: null,
+    language: 'en-GB',
+    timeZone: summary.timeZone,
+    screenWidth: 393,
+    screenHeight: 852,
+    viewportWidth: 393,
+    viewportHeight: 660,
+    theme: summary.theme,
+    lastTheme: summary.lastTheme,
+    events: [
+      { seq: 1, occurredAt: summary.startedAt, type: 'pageview', path: '/', label: null, detail: null },
+      { seq: 2, occurredAt: '2026-10-12T10:00:04Z', type: 'click', path: '/', label: 'Apps', detail: { element: 'a', href: '/apps' } },
+      { seq: 3, occurredAt: '2026-10-12T10:00:05Z', type: 'pageview', path: '/apps', label: null, detail: null },
+      {
+        seq: 4,
+        occurredAt: '2026-10-12T10:00:09Z',
+        type: 'error',
+        path: '/apps',
+        label: 'TypeError: boom',
+        detail: { kind: 'script', stack: 'TypeError: boom\n    at AppsPage (AppsPage.tsx:12:5)' },
+      },
+    ],
+  }
+}
+
+/** The admin's analytics endpoints over `visits`; `requests` records the list queries, `deleted` the ids deleted. */
+export function analyticsApi(visits: VisitSummary[] = TEST_VISITS) {
+  let current = [...visits]
+  const requests: URLSearchParams[] = []
+  const deleted: string[] = []
+  return {
+    requests,
+    deleted,
+    handlers: [
+      http.get(`${API}/api/analytics/summary`, ({ request }) => HttpResponse.json(analyticsSummary((new URL(request.url).searchParams.get('range') ?? '30d') as AnalyticsRange))),
+      http.get(`${API}/api/analytics/sessions`, ({ request }) => {
+        const params = new URL(request.url).searchParams
+        requests.push(params)
+        const items = params.get('errorsOnly') === 'true' ? current.filter((v) => v.errorCount > 0) : current
+        return HttpResponse.json({ items, page: Number(params.get('page')), pageSize: Number(params.get('pageSize')), totalCount: items.length })
+      }),
+      http.get(`${API}/api/analytics/sessions/:id`, ({ params }) => {
+        const visit = current.find((v) => v.id === params.id)
+        return visit ? HttpResponse.json(visitDetails(visit)) : new HttpResponse(null, { status: 404 })
+      }),
+      http.delete(`${API}/api/analytics/sessions/:id`, ({ params }) => {
+        deleted.push(String(params.id))
+        current = current.filter((v) => v.id !== params.id)
+        return new HttpResponse(null, { status: 204 })
+      }),
+    ],
+  }
 }

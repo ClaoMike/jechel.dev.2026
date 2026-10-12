@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Portfolio.Api;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.About;
+using Portfolio.Api.Features.Analytics;
 using Portfolio.Api.Features.Apps;
 using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.Contact;
@@ -26,6 +27,7 @@ builder.AddPortfolioAuth();
 
 builder.Services.AddScoped<IFileStorage, DatabaseFileStorage>();
 builder.Services.AddSingleton<CityIndex>();
+builder.Services.AddSingleton<VisitorHasher>();
 
 builder.Services.AddHttpClient<ILeetCodeClient, LeetCodeClient>(http =>
 {
@@ -82,5 +84,6 @@ api.MapLeetCodeEndpoints();
 api.MapYouTubeEndpoints();
 api.MapAppEndpoints();
 api.MapTermsEndpoints();
+api.MapAnalyticsEndpoints();
 
 app.Run();

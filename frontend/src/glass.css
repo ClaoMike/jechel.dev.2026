@@ -185,7 +185,8 @@ a {
  */
 .neon-text,
 .neon-fill,
-:root[data-theme='vice'] .brand-fill {
+:root[data-theme='vice'] .brand-fill,
+:root[data-theme='vice'] .brand-fill .brand-j::before {
   background-image: linear-gradient(
     90deg,
     #ff3ea5,
@@ -208,7 +209,8 @@ a {
 
 :root[data-theme='vice'] .neon-text,
 :root[data-theme='vice'] .neon-fill,
-:root[data-theme='vice'] .brand-fill {
+:root[data-theme='vice'] .brand-fill,
+:root[data-theme='vice'] .brand-fill .brand-j::before {
   animation: none;
   background-position: var(--neon-shift, 0%) 50%;
 }
@@ -270,6 +272,44 @@ a {
   /* the script's full stop is tiny and tucks under the d's swash */
   margin: 0 0.14em 0 0.04em;
   font-size: 1.25em;
+}
+
+/*
+ * The j, drawn (scripts/build_brand_j.py): a wide, open loop where Mr Dafoe's closes up. It takes the
+ * font's j's place (its advance, 160 of 1000 units), and the letter itself shrinks to nothing but stays
+ * for screen readers. The numbers are the drawing's bounds in font units, as the script prints them.
+ */
+:root[data-theme='vice'] .brand-j {
+  position: relative;
+  display: inline-block;
+  width: 0.16em;
+  height: 0;
+}
+
+:root[data-theme='vice'] .brand-j-letter {
+  /* out of the flow too: with no line of its own, the j's box sits exactly on the baseline */
+  position: absolute;
+  font-size: 0;
+}
+
+:root[data-theme='vice'] .brand-j::before {
+  content: '';
+  position: absolute;
+  left: -0.426em;
+  top: -0.528em;
+  width: 0.801em;
+  height: 0.956em;
+  -webkit-mask: url('./assets/brand-j.svg') no-repeat 0 0 / 100% 100%;
+  mask: url('./assets/brand-j.svg') no-repeat 0 0 / 100% 100%;
+}
+
+:root[data-theme='vice'] .brand-shadow .brand-j {
+  /* the layer's glow is a text-shadow, which a drawing doesn't get */
+  filter: drop-shadow(-3px -3px 14px rgb(255 62 165 / 0.6));
+}
+
+:root[data-theme='vice'] .brand-shadow .brand-j::before {
+  background: #3d1468;
 }
 
 :root[data-theme='vice'] .site-header-top h1 {
@@ -848,7 +888,8 @@ html {
 
   .neon-text,
   .neon-fill,
-  :root[data-theme='vice'] .brand-fill {
+  :root[data-theme='vice'] .brand-fill,
+  :root[data-theme='vice'] .brand-fill .brand-j::before {
     animation: none;
   }
 
