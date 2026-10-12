@@ -12,8 +12,7 @@ python3 scripts/riviera/prep1.py $W   # find the birds and the plane on the sky
 python3 scripts/riviera/prep2.py $W   # paint the sky over them (4K)
 python3 scripts/riviera/prep3.py $W   # cut the plane + blank banner out as a sprite
 python3 scripts/riviera/prep4.py $W   # masks: water, foam, smoke / sky, palm sway, flag+boat / exact sky
-python3 scripts/riviera/prep5.py $W   # paint out the pistol and holster on his thigh
-python3 scripts/riviera/prep6.py $W src/assets/riviera   # export the WebP files
+python3 scripts/riviera/prep5.py $W src/assets/riviera   # export the WebP files
 ```
 
 Each step writes a `*-view.png` preview next to its output for checking. Positions in the scripts

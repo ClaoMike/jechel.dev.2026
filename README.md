@@ -332,6 +332,10 @@ or drop. Suggested first: 1, 2 and 5 (small changes, biggest effect on a first v
 
 Flags to decide on:
 
+- **The pistol in the Vice artwork.** It's on his thigh in the main picture, and Vice is the default
+  theme, so it's the first thing every visitor sees. Fine for a GTA tribute; could read badly to a
+  corporate recruiter or client. It can be painted out of the art (the same way the birds were
+  removed; see `frontend/scripts/riviera/`).
 - **Vice as the default for everyone.** It's ~1.5 MB and runs on the GPU continuously. Consider
   falling back to dark on low-powered devices or when the browser asks to save data.
 
