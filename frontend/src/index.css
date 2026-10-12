@@ -3004,7 +3004,7 @@ button.media-card {
   list-style: none;
 }
 
-.timeline-item {
+.visit-step {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
   gap: 8px;
@@ -3012,61 +3012,61 @@ button.media-card {
   border-left: 3px solid var(--border);
 }
 
-.timeline-pageview {
+.visit-step-pageview {
   border-left-color: var(--accent);
   font-weight: 600;
 }
 
-.timeline-error {
+.visit-step-error {
   border-left-color: var(--error);
   background: color-mix(in srgb, var(--error) 10%, transparent);
 }
 
-.timeline-error .timeline-text {
+.visit-step-error .visit-step-text {
   color: var(--error);
 }
 
-.timeline-time {
+.visit-step-time {
   color: var(--text-muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   line-height: 1.75;
 }
 
-.timeline-body {
+.visit-step-body {
   display: grid;
   min-width: 0;
 }
 
-.timeline-text {
+.visit-step-text {
   overflow-wrap: anywhere;
 }
 
-.timeline-path {
+.visit-step-path {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 400;
 }
 
-.timeline-detail summary {
+.visit-step-detail summary {
   font-size: 13px;
   cursor: pointer;
 }
 
-.timeline-detail dl {
+.visit-step-detail dl {
   margin: 4px 0 0;
 }
 
-.timeline-detail dt {
+.visit-step-detail dt {
   color: var(--text-muted);
   font-size: 12px;
 }
 
-.timeline-detail dd {
+.visit-step-detail dd {
   margin: 0 0 6px;
 }
 
-.timeline-detail pre {
+.visit-step-detail pre {
   margin: 0;
   max-height: 240px;
   overflow: auto;

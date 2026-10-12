@@ -121,7 +121,7 @@ describe('EngagementPage', () => {
 
     const dialog = await screen.findByRole('dialog', { name: /^Visit on/ })
     const steps = within(await within(dialog).findByRole('list', { name: 'What happened' })).getAllByRole('listitem')
-    expect(steps.map((step) => step.querySelector('.timeline-text')?.textContent)).toEqual(['Opened /', 'Clicked “Apps” (/apps)', 'Opened /apps', 'ERROR: TypeError: boom'])
+    expect(steps.map((step) => step.querySelector('.visit-step-text')?.textContent)).toEqual(['Opened /', 'Clicked “Apps” (/apps)', 'Opened /apps', 'ERROR: TypeError: boom'])
     expect(steps[3]).toHaveTextContent('+0:09')
     expect(within(dialog).getByText('mobile · Safari · iOS')).toBeInTheDocument()
     expect(within(dialog).getByText('vice → dark')).toBeInTheDocument()

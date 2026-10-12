@@ -70,15 +70,15 @@ function VisitView({ visit, onDelete }: { visit: VisitDetails; onDelete: () => P
 
       <ol className="visit-timeline" aria-label="What happened">
         {visit.events.map((event) => (
-          <li key={event.seq} className={`timeline-item timeline-${event.type}`}>
-            <time className="timeline-time" dateTime={event.occurredAt}>
+          <li key={event.seq} className={`visit-step visit-step-${event.type}`}>
+            <time className="visit-step-time" dateTime={event.occurredAt}>
               {formatOffset(visit.startedAt, event.occurredAt)}
             </time>
-            <div className="timeline-body">
-              <span className="timeline-text">{describeEvent(event)}</span>
-              {event.type !== 'pageview' && <span className="timeline-path">{event.path}</span>}
+            <div className="visit-step-body">
+              <span className="visit-step-text">{describeEvent(event)}</span>
+              {event.type !== 'pageview' && <span className="visit-step-path">{event.path}</span>}
               {event.type === 'error' && event.detail && (
-                <details className="timeline-detail">
+                <details className="visit-step-detail">
                   <summary>Details</summary>
                   <dl>
                     {Object.entries(event.detail).map(([key, value]) => (
