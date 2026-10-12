@@ -327,18 +327,12 @@ or drop. Suggested first: 1, 2 and 5 (small changes, biggest effect on a first v
    links pasted into Slack and LinkedIn look professional.
 6. **Proof from other people.** 2–3 short testimonials (from LinkedIn recommendations), logos of
    companies worked with, GitHub activity / open-source contributions.
-7. **Light writing.** A few short technical posts (e.g. how the R* background was built): shows
+7. **Light writing.** A few short technical posts (e.g. how the Vice background was built): shows
    how you think and gives people a reason to come back.
 
 Flags to decide on:
 
-- **The pistol in the R* artwork.** It's on his thigh in the main picture, and R* is the default
-  theme, so it's the first thing every visitor sees. Fine for a GTA tribute; could read badly to a
-  corporate recruiter or client. It can be painted out of the art (the same way the birds were
-  removed; see `frontend/scripts/riviera/`).
-- **The R★ name and mark.** Close to Rockstar's trademark. Fine as a playful touch; as the
-  professional front door, a name of its own ("Vice mode", "Sunset mode") avoids brand confusion.
-- **R* as the default for everyone.** It's ~1.5 MB and runs on the GPU continuously. Consider
+- **Vice as the default for everyone.** It's ~1.5 MB and runs on the GPU continuously. Consider
   falling back to dark on low-powered devices or when the browser asks to save data.
 
 ## Configuration

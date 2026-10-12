@@ -5,7 +5,7 @@ import { plate1920Url, startRiviera } from './riviera'
 const BANNER_TEXT = ['JECHEL.DEV', 'Thanks for stopping by!'] as const
 
 /**
- * The R* theme's backdrop: the Riviera picture, animated (palms, sea, clouds, birds, the banner
+ * The Vice theme's backdrop: the Riviera picture, animated (palms, sea, clouds, birds, the banner
  * plane and the bike's exhaust). A still picture where WebGL 2 isn't available. Decorative.
  */
 export function RivieraBackground() {

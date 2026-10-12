@@ -1,7 +1,7 @@
 /*
  * Liquid glass (experiment): an iOS-style glass layer over index.css.
  * Every surface becomes a translucent, blurred pane with a lit top edge.
- * Themes come from <html data-theme> (layout/theme.ts): dark (default), light, and R*
+ * Themes come from <html data-theme> (layout/theme.ts): dark (default), light, and Vice
  * (dark for now). Each theme only sets the tokens below; the rules after them are shared.
  * Remove the import in main.tsx to switch it all off.
  */
@@ -12,11 +12,11 @@
   --glass-blur: blur(24px) saturate(180%);
 }
 
-/* ---------- Dark (and R*, until it gets its own look) ---------- */
+/* ---------- Dark (and Vice, until it gets its own look) ---------- */
 
 :root,
 :root[data-theme='dark'],
-:root[data-theme='rstar'] {
+:root[data-theme='vice'] {
   color-scheme: dark;
 
   --background: #000;
@@ -65,8 +65,8 @@
   --map-pin-outline: #000;
 }
 
-/* R*: dark glass, but more frosted and less see-through: it sits on the animated Riviera scene. */
-:root[data-theme='rstar'] {
+/* Vice: dark glass, but more frosted and less see-through: it sits on the animated Riviera scene. */
+:root[data-theme='vice'] {
   --glass-blur: blur(28px) saturate(160%);
   --glass-fill: linear-gradient(160deg, rgb(30 26 44 / 0.62), rgb(14 12 24 / 0.5) 55%, rgb(22 18 34 / 0.58));
   --glass-shadow: 0 10px 40px rgb(0 0 0 / 0.35);
@@ -139,7 +139,7 @@ a {
   color: var(--link);
 }
 
-/* ---------- The R* backdrop (layout/background) ---------- */
+/* ---------- The Vice backdrop (layout/background) ---------- */
 
 .scene-background {
   position: fixed;
@@ -167,25 +167,25 @@ a {
 }
 
 /* Headings that sit straight on the picture. */
-:root[data-theme='rstar'] .page-title {
+:root[data-theme='vice'] .page-title {
   text-shadow: 0 2px 12px rgb(0 0 0 / 0.6);
 }
 
-/* ---------- Neon: the Vice City look (the R★ mark always; the site name in R*) ---------- */
+/* ---------- Neon: the Vice look (the Vice mark always; the site name in Vice) ---------- */
 
 /*
  * A sunset gradient (pink, orange, gold, magenta, violet, blue) that slowly flows through the
- * letters like a Miami Beach hotel sign, over Rockstar's hard purple drop shadow and a pink glow.
+ * letters like a Miami Beach hotel sign, over a hard purple drop shadow and a pink glow.
  * The colour list repeats once and the image is twice as wide, so sliding it by half loops seamlessly.
  *
  * Cheap to run: the shadow and glow are a separate, still layer, and the colours only step 8 times
- * a second. Each step re-blurs the frosted header behind them, so in R* they don't animate on their
+ * a second. Each step re-blurs the frosted header behind them, so in Vice they don't animate on their
  * own at all: the Riviera scene's frame loop moves them (--neon-shift on the header) on the frames
  * it draws anyway.
  */
 .neon-text,
 .neon-fill,
-:root[data-theme='rstar'] .brand-fill {
+:root[data-theme='vice'] .brand-fill {
   background-image: linear-gradient(
     90deg,
     #ff3ea5,
@@ -206,15 +206,15 @@ a {
   animation: neon-flow 16s steps(128) infinite;
 }
 
-:root[data-theme='rstar'] .neon-text,
-:root[data-theme='rstar'] .neon-fill,
-:root[data-theme='rstar'] .brand-fill {
+:root[data-theme='vice'] .neon-text,
+:root[data-theme='vice'] .neon-fill,
+:root[data-theme='vice'] .brand-fill {
   animation: none;
   background-position: var(--neon-shift, 0%) 50%;
 }
 
 .neon-text,
-:root[data-theme='rstar'] .brand-fill {
+:root[data-theme='vice'] .brand-fill {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -231,7 +231,7 @@ a {
   }
 }
 
-/* The site name: plain text, or in R* the neon script over its shadow layer. */
+/* The site name: plain text, or in Vice the neon script over its shadow layer. */
 .brand-text {
   position: relative;
 }
@@ -240,21 +240,21 @@ a {
   display: none;
 }
 
-:root[data-theme='rstar'] .brand-text {
+:root[data-theme='vice'] .brand-text {
   font-family: 'Mr Dafoe', cursive;
   font-size: 46px;
   font-weight: 400;
   line-height: 1;
 }
 
-:root[data-theme='rstar'] .brand-shadow,
-:root[data-theme='rstar'] .brand-fill {
+:root[data-theme='vice'] .brand-shadow,
+:root[data-theme='vice'] .brand-fill {
   display: inline-block;
   /* room for the script's swashes, which would otherwise fall outside the gradient */
   padding: 0.04em 0.18em 0.1em 0.06em;
 }
 
-:root[data-theme='rstar'] .brand-shadow {
+:root[data-theme='vice'] .brand-shadow {
   position: absolute;
   inset: 0;
   color: #3d1468;
@@ -262,60 +262,45 @@ a {
   text-shadow: -3px -3px 14px rgb(255 62 165 / 0.6);
 }
 
-:root[data-theme='rstar'] .brand-fill {
+:root[data-theme='vice'] .brand-fill {
   position: relative;
 }
 
-:root[data-theme='rstar'] .brand-dot {
+:root[data-theme='vice'] .brand-dot {
   /* the script's full stop is tiny and tucks under the d's swash */
   margin: 0 0.14em 0 0.04em;
   font-size: 1.25em;
 }
 
-:root[data-theme='rstar'] .site-header-top h1 {
+:root[data-theme='vice'] .site-header-top h1 {
   margin: -6px 0 -4px;
 }
 
-.rstar-mark {
+.vice-mark {
   display: inline-grid;
 }
 
-.rstar-layer {
-  display: inline-flex;
+.vice-layer {
   grid-area: 1 / 1;
-  align-items: flex-start;
+  /* room for the script's swashes, which would otherwise fall outside the gradient */
+  padding: 1px 3px 3px 2px;
+  font-family: 'Mr Dafoe', cursive;
+  font-size: 15px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.rstar-shadow {
+.vice-shadow {
   color: #3d1468;
   transform: translate(1px, 1px);
   filter: drop-shadow(-1px -1px 3px rgb(255 62 165 / 0.6));
-}
-
-.rstar-shadow .rstar-star {
-  background: #3d1468;
-}
-
-.rstar-r {
-  padding: 0 1px 2px 2px;
-  font-family: 'Mr Dafoe', cursive;
-  font-size: 22px;
-  line-height: 1;
-}
-
-.rstar-star {
-  width: 10px;
-  height: 10px;
-  margin: 1px 0 0 -1px;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5l3.1 6.6 7.2.9-5.3 5 1.4 7.1L12 17.6l-6.4 3.5L7 14l-5.3-5 7.2-.9z'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5l3.1 6.6 7.2.9-5.3 5 1.4 7.1L12 17.6l-6.4 3.5L7 14l-5.3-5 7.2-.9z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 /* ---------- Page transitions (layout/PageTransition): pages slide toward the tab picked ---------- */
 
 /*
  * Always keep the scrollbar's space. Otherwise a page shorter than the window (Contact) drops the
- * scrollbar, the window gets wider, and everything jumps sideways, the R* scene included.
+ * scrollbar, the window gets wider, and everything jumps sideways, the Vice scene included.
  */
 html {
   scrollbar-gutter: stable;
@@ -380,7 +365,7 @@ html {
   }
 }
 
-/* ---------- R*: hide the page to watch the scene (layout/ContentToggle) ---------- */
+/* ---------- Vice: hide the page to watch the scene (layout/ContentToggle) ---------- */
 
 /* The header flies up and the page drops away (moving, not fading, so the glass keeps its blur). */
 .site-header,
@@ -450,7 +435,7 @@ html {
 /*
  * Only the big panes blur what's behind them. Pieces inside them (buttons, map panels, tooltips)
  * sit on glass that's already blurred, and each extra blur layer has to be redrawn on every frame
- * of the R* animation.
+ * of the Vice animation.
  */
 .card,
 .media-card,
@@ -863,7 +848,7 @@ html {
 
   .neon-text,
   .neon-fill,
-  :root[data-theme='rstar'] .brand-fill {
+  :root[data-theme='vice'] .brand-fill {
     animation: none;
   }
 

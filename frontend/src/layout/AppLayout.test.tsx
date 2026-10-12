@@ -88,10 +88,10 @@ describe('AppLayout: tabs', () => {
   })
 })
 
-describe('AppLayout: R* backdrop', () => {
+describe('AppLayout: Vice backdrop', () => {
   const backdrop = () => document.querySelector('.scene-background')
 
-  it('shows the Riviera scene by default, and only in the R* theme', async () => {
+  it('shows the Riviera scene by default, and only in the Vice theme', async () => {
     renderApp('/')
     await screen.findByRole('heading', { name: 'jechel.dev' })
     expect(backdrop()).toBeInTheDocument()
@@ -99,7 +99,7 @@ describe('AppLayout: R* backdrop', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'Light mode' }))
     expect(backdrop()).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('radio', { name: 'R* mode' }))
+    await userEvent.click(screen.getByRole('radio', { name: 'Vice mode' }))
     expect(backdrop()).toBeInTheDocument()
   })
 

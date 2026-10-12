@@ -7,7 +7,7 @@ import { ContentToggle, IDLE_MS } from './ContentToggle'
 afterEach(() => vi.useRealTimers())
 
 describe('ContentToggle in the layout', () => {
-  it('is only offered in the R* theme', async () => {
+  it('is only offered in the Vice theme', async () => {
     renderApp('/')
     expect(screen.getByRole('button', { name: 'Hide page' })).toBeInTheDocument()
 

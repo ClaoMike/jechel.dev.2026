@@ -165,7 +165,7 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
     gl.uniform2f(uOffset, (w - IMG_W * scale) * FOCUS_X, (h - IMG_H * scale) * 0.5)
   }
 
-  // The neon site name and R★ (glass.css) move with the scene's frames, so the frosted header behind
+  // The neon site name and Vice (glass.css) move with the scene's frames, so the frosted header behind
   // them is only re-blurred on frames that are drawn anyway.
   const header = document.querySelector<HTMLElement>('.site-header')
 
