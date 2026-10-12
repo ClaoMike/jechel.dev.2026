@@ -1,6 +1,6 @@
 # Riviera background assets
 
-Builds `src/assets/riviera/*` (the R* theme's animated backdrop) from the original artwork
+Builds `src/assets/riviera/*` (the Vice theme's animated backdrop) from the original artwork
 (1672×941). Needs Python 3 with OpenCV and NumPy, `cwebp`, and
 [Real-ESRGAN ncnn](https://github.com/xinntao/Real-ESRGAN/releases) for the upscale.
 
@@ -17,3 +17,8 @@ python3 scripts/riviera/prep5.py $W src/assets/riviera   # export the WebP files
 
 Each step writes a `*-view.png` preview next to its output for checking. Positions in the scripts
 and in `src/layout/background/rivieraShader.ts` are in the original artwork's pixels.
+
+The shipped plates have the pistol and holster on his thigh removed. That was done after step 5,
+with an image model's edit of the original artwork: only the thigh area of the edit was pasted onto
+the 4K plate (scaled up, tone-matched, feathered, his hand kept), so the rest of the plate and the
+masks are unchanged. Rebuilding from the original artwork brings the pistol back.

@@ -7,7 +7,7 @@ export const IDLE_MS = 5000
 const ACTIVITY = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart'] as const
 
 /**
- * R* only: hides the page so just the Riviera scene shows. While it's hidden, the button (and the
+ * Vice only: hides the page so just the Riviera scene shows. While it's hidden, the button (and the
  * cursor) fade out after a few seconds of stillness and come back on any movement; Escape brings
  * the page back too.
  */

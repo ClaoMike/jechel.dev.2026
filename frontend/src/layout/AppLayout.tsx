@@ -4,27 +4,28 @@ import { SignedIn, useAuth } from '../auth'
 import { RivieraBackground } from './background/RivieraBackground'
 import { ContentToggle } from './ContentToggle'
 import { PageTransition } from './PageTransition'
+import { SiteFooter } from './SiteFooter'
 import { TabNav } from './TabNav'
 import { ThemeSwitch } from './ThemeSwitch'
 import { useTheme } from './theme'
 
-/** The site frame: the site name, the admin's session bar, the theme switch, the tabs, and the current tab's page. */
+/** The site frame: the site name, the admin's session bar, the theme switch, the tabs, the current tab's page, and the footer. */
 export function AppLayout() {
   const { signOut } = useAuth()
   const theme = useTheme()
-  // R* can hide the page to show off the scene; leaving R* always brings the page back.
+  // Vice can hide the page to show off the scene; leaving Vice always brings the page back.
   const [hideContent, setHideContent] = useState(false)
-  const contentHidden = theme === 'rstar' && hideContent
-  if (theme !== 'rstar' && hideContent) setHideContent(false)
+  const contentHidden = theme === 'vice' && hideContent
+  if (theme !== 'vice' && hideContent) setHideContent(false)
   const toggleContent = useCallback(() => setHideContent((hidden) => !hidden), [])
 
   return (
     <div className="app" data-content-hidden={contentHidden || undefined}>
-      {theme === 'rstar' && <RivieraBackground />}
+      {theme === 'vice' && <RivieraBackground />}
       <header className="site-header" inert={contentHidden}>
         <div className="site-header-top">
           <h1 className="brand">
-            {/* In R* it's written in neon (glass.css): a still shadow layer under the moving colours. */}
+            {/* In Vice it's written in neon (glass.css): a still shadow layer under the moving colours. */}
             <Link to="/" className="brand-link">
               <span className="brand-text">
                 <span className="brand-shadow" aria-hidden="true">
@@ -55,7 +56,8 @@ export function AppLayout() {
       <main className="page" inert={contentHidden}>
         <PageTransition />
       </main>
-      {theme === 'rstar' && <ContentToggle hidden={contentHidden} onToggle={toggleContent} />}
+      <SiteFooter inert={contentHidden} />
+      {theme === 'vice' && <ContentToggle hidden={contentHidden} onToggle={toggleContent} />}
     </div>
   )
 }

@@ -1,18 +1,18 @@
 import { useId, type CSSProperties, type ReactNode } from 'react'
 import { MoonIcon, SunIcon } from '../components/icons'
-import { RStarMark } from '../components/RStarMark'
+import { ViceMark } from '../components/ViceMark'
 import { THEMES, setTheme, useTheme, type Theme } from './theme'
 
-const LABELS: Record<Theme, string> = { dark: 'Dark mode', light: 'Light mode', rstar: 'R* mode' }
+const LABELS: Record<Theme, string> = { dark: 'Dark mode', light: 'Light mode', vice: 'Vice mode' }
 
 const ICONS: Record<Theme, ReactNode> = {
   dark: <MoonIcon size={16} />,
   light: <SunIcon size={16} />,
-  rstar: <RStarMark />,
+  vice: <ViceMark />,
 }
 
 /**
- * A three-way slider for the colour theme: dark, light and R*. Radio buttons underneath, so the
+ * A three-way slider for the colour theme: dark, light and Vice. Radio buttons underneath, so the
  * arrow keys move between them; the glass thumb slides to the chosen one.
  */
 export function ThemeSwitch() {

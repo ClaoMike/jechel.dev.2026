@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import type { AboutContent, AppCategory, AppCategoryRequest, AppDetails, AppRequest } from '../services/api'
+import type { AboutContent, AppCategory, AppCategoryRequest, AppDetails, AppRequest, TermsContent, TermsDocument } from '../services/api'
 
 export const API = 'http://api.test'
 
@@ -76,12 +76,52 @@ export function aboutContent(): AboutContent {
   }
 }
 
+/** The terms used by default: never saved (no date), so their version is "default". A fresh copy each call. */
+export function termsDocument(): TermsDocument {
+  return {
+    title: 'Terms and Conditions',
+    intro: 'Please read these terms.',
+    sections: [
+      {
+        heading: 'Using the website',
+        blocks: [
+          { kind: 'paragraph', text: 'You may browse the website.', items: [] },
+          { kind: 'bullets', text: '', items: ['Be kind', 'No spam'] },
+        ],
+      },
+      { heading: 'Changes', blocks: [{ kind: 'paragraph', text: 'These terms may change.', items: [] }] },
+    ],
+    updatedAt: null,
+  }
+}
+
+/**
+ * The terms API for the signed-in admin: PUT stores the body with a new date and GET returns it.
+ * `saved` records every PUT body; a missing title is refused like the API does.
+ */
+export function termsApi(initial = termsDocument()) {
+  let current = initial
+  const saved: TermsContent[] = []
+  const handlers = [
+    http.get(`${API}/api/terms`, () => HttpResponse.json(current)),
+    http.put(`${API}/api/terms`, async ({ request }) => {
+      const body = (await request.json()) as TermsContent
+      saved.push(body)
+      if (!body.title.trim()) return HttpResponse.json({ status: 400, errors: { title: ['Required.'] } }, { status: 400 })
+      current = { ...body, updatedAt: '2026-10-12T12:00:00Z' }
+      return HttpResponse.json(current)
+    }),
+  ]
+  return { handlers, saved }
+}
+
 // Default handlers: anonymous visitor, happy path. Override per test with server.use(...)
 export const handlers = [
   http.get(`${API}/api/firstname`, () => HttpResponse.json({ firstName: 'Claudiu' })),
   http.get(`${API}/api/auth/me`, () => new HttpResponse(null, { status: 401 })),
   http.post(`${API}/api/auth/logout`, () => new HttpResponse(null, { status: 200 })),
   http.get(`${API}/api/about`, () => HttpResponse.json(aboutContent())),
+  http.get(`${API}/api/terms`, () => HttpResponse.json(termsDocument())),
   http.get(`${API}/api/leetcode`, () => HttpResponse.json(LEETCODE_STATS)),
   http.get(`${API}/api/youtube/videos`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),
   http.get(`${API}/api/apps`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),

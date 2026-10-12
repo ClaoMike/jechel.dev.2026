@@ -10,6 +10,7 @@ using Portfolio.Api.Features.Files;
 using Portfolio.Api.Features.LeetCode;
 using Portfolio.Api.Features.Places;
 using Portfolio.Api.Features.Profile;
+using Portfolio.Api.Features.Terms;
 using Portfolio.Api.Features.YouTube;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -80,5 +81,6 @@ api.MapPlaceEndpoints();
 api.MapLeetCodeEndpoints();
 api.MapYouTubeEndpoints();
 api.MapAppEndpoints();
+api.MapTermsEndpoints();
 
 app.Run();
