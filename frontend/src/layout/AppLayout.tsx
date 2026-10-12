@@ -4,11 +4,12 @@ import { SignedIn, useAuth } from '../auth'
 import { RivieraBackground } from './background/RivieraBackground'
 import { ContentToggle } from './ContentToggle'
 import { PageTransition } from './PageTransition'
+import { SiteFooter } from './SiteFooter'
 import { TabNav } from './TabNav'
 import { ThemeSwitch } from './ThemeSwitch'
 import { useTheme } from './theme'
 
-/** The site frame: the site name, the admin's session bar, the theme switch, the tabs, and the current tab's page. */
+/** The site frame: the site name, the admin's session bar, the theme switch, the tabs, the current tab's page, and the footer. */
 export function AppLayout() {
   const { signOut } = useAuth()
   const theme = useTheme()
@@ -55,6 +56,7 @@ export function AppLayout() {
       <main className="page" inert={contentHidden}>
         <PageTransition />
       </main>
+      <SiteFooter inert={contentHidden} />
       {theme === 'rstar' && <ContentToggle hidden={contentHidden} onToggle={toggleContent} />}
     </div>
   )

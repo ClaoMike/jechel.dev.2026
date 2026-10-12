@@ -384,7 +384,8 @@ html {
 
 /* The header flies up and the page drops away (moving, not fading, so the glass keeps its blur). */
 .site-header,
-.page {
+.page,
+.site-footer {
   transition:
     transform 0.6s cubic-bezier(0.32, 0.72, 0, 1),
     visibility 0s;
@@ -394,12 +395,14 @@ html {
   transform: translateY(-105%);
 }
 
-.app[data-content-hidden] .page {
+.app[data-content-hidden] .page,
+.app[data-content-hidden] .site-footer {
   transform: translateY(100vh);
 }
 
 .app[data-content-hidden] .site-header,
-.app[data-content-hidden] .page {
+.app[data-content-hidden] .page,
+.app[data-content-hidden] .site-footer {
   visibility: hidden;
   transition:
     transform 0.6s cubic-bezier(0.32, 0.72, 0, 1),
@@ -564,6 +567,35 @@ html {
   box-shadow:
     inset 0 1px 0 var(--glass-highlight),
     var(--selected-shadow);
+}
+
+/* ---------- Footer: a small glass pill, like the tab switcher ---------- */
+
+.site-footer-bar {
+  border: 0;
+  background: var(--glass-fill);
+  box-shadow: var(--glass-shine), 0 0 0 1px var(--glass-edge);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+/* The consents are wells in the glass, lit when ticked. */
+.terms-consent {
+  border-color: var(--glass-edge);
+  background: var(--well);
+  box-shadow: var(--well-shade);
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.terms-consent:has(input:checked) {
+  border-color: transparent;
+  background: var(--tint);
+}
+
+.terms-section {
+  border-top-color: var(--glass-edge);
 }
 
 @media (max-width: 520px) {
@@ -837,8 +869,11 @@ html {
 
   .site-header,
   .page,
+  .site-footer,
+  .terms-consent,
   .app[data-content-hidden] .site-header,
   .app[data-content-hidden] .page,
+  .app[data-content-hidden] .site-footer,
   .content-toggle {
     transition: none;
   }

@@ -258,6 +258,26 @@ namespace Portfolio.Api.Data.Migrations
 
                     b.ToTable("stored_files", (string)null);
                 });
+
+            modelBuilder.Entity("Portfolio.Api.Data.TermsPage", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("terms_page", (string)null);
+                });
 #pragma warning restore 612, 618
         }
     }

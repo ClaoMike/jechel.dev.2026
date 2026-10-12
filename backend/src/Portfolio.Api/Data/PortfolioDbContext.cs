@@ -9,6 +9,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
     public DbSet<AboutPage> AboutPages => Set<AboutPage>();
+    public DbSet<TermsPage> TermsPages => Set<TermsPage>();
     public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
     public DbSet<LeetCodeSnapshot> LeetCodeStats => Set<LeetCodeSnapshot>();
     public DbSet<AppEntry> Apps => Set<AppEntry>();
@@ -46,6 +47,15 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
         modelBuilder.Entity<AboutPage>(entity =>
         {
             entity.ToTable("about_page");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(p => p.Content).HasColumnName("content").HasColumnType("jsonb").IsRequired();
+            entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<TermsPage>(entity =>
+        {
+            entity.ToTable("terms_page");
             entity.HasKey(p => p.Id);
             entity.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(p => p.Content).HasColumnName("content").HasColumnType("jsonb").IsRequired();

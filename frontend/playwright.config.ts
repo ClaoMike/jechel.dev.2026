@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { TERMS_ACCEPTED } from './e2e/termsState.ts'
 
 // Override to test on other ports while the usual dev servers keep running, e.g.
 // API_PORT=5205 WEB_PORT=5273 ConnectionStrings__Default=… npx playwright test
@@ -22,10 +23,12 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    // Accepts the terms in the welcome popup once; every other test starts with them accepted.
+    { name: 'setup', testMatch: /\.setup\.ts$/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', dependencies: ['setup'], use: { ...devices['Desktop Chrome'], storageState: TERMS_ACCEPTED } },
+    { name: 'webkit', dependencies: ['setup'], use: { ...devices['Desktop Safari'], storageState: TERMS_ACCEPTED } },
     // Playwright's Firefox build currently fails to launch on macOS 27, so it only runs in CI (Linux).
-    ...(process.env.CI ? [{ name: 'firefox', use: { ...devices['Desktop Firefox'] } }] : []),
+    ...(process.env.CI ? [{ name: 'firefox', dependencies: ['setup'], use: { ...devices['Desktop Firefox'], storageState: TERMS_ACCEPTED } }] : []),
   ],
   webServer: [
     {
