@@ -2,13 +2,19 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import type { Subscriber } from '../services/api'
+import type { Announcement, Subscriber } from '../services/api'
 import { renderApp } from '../test/render'
 import { API, server, signedIn } from '../test/server'
 
 const page = <T,>(items: T[]) => ({ items, page: 1, pageSize: 20, totalCount: items.length })
 
+const decisions: string[] = []
+
 function communityApi() {
+  let announcements: Announcement[] = [
+    { id: 1, kind: 'video', title: 'Devlog 1', status: 'sent', createdAt: '2026-10-03T10:00:00Z', sentAt: '2026-10-03T10:00:00Z', recipientCount: 1 },
+    { id: 2, kind: 'app', title: 'Space Game', status: 'pending', createdAt: '2026-10-05T10:00:00Z', sentAt: null, recipientCount: 0 },
+  ]
   let subscribers: Subscriber[] = [
     { id: 1, email: 'ada@example.com', createdAt: '2026-10-01T10:00:00Z', confirmedAt: '2026-10-01T10:05:00Z' },
     { id: 2, email: 'bob@example.com', createdAt: '2026-10-02T10:00:00Z', confirmedAt: null },
@@ -19,12 +25,15 @@ function communityApi() {
       subscribers = subscribers.filter((s) => s.id !== Number(params.id))
       return new HttpResponse(null, { status: 204 })
     }),
-    http.get(`${API}/api/updates/announcements`, () =>
-      HttpResponse.json(page([{ id: 1, kind: 'video', title: 'Devlog 1', sentAt: '2026-10-03T10:00:00Z', recipientCount: 1 }])),
-    ),
+    http.get(`${API}/api/updates/announcements`, () => HttpResponse.json(page(announcements))),
+    http.post(`${API}/api/updates/announcements/:id/:decision`, ({ params }) => {
+      decisions.push(`${params.id} ${params.decision}`)
+      announcements = announcements.map((a) => (a.id === Number(params.id) ? { ...a, status: params.decision === 'send' ? 'approved' : 'ignored' } : a))
+      return HttpResponse.json({ status: 'approved' })
+    }),
     http.get(`${API}/api/support/donations`, () =>
       HttpResponse.json(
-        page([{ id: 1, type: 'Donation', fromName: 'Jo', message: 'Great site', amount: '3.00', currency: 'GBP', email: null, isPublic: true, receivedAt: '2026-10-04T10:00:00Z' }]),
+        page([{ id: 1, type: 'donation.created', fromName: 'Jo', message: 'Great site', amount: '3.00', currency: 'GBP', email: null, receivedAt: '2026-10-04T10:00:00Z' }]),
       ),
     ),
   ]
@@ -54,5 +63,19 @@ describe('CommunityPage', () => {
 
     expect(await screen.findByText('1 in all')).toBeInTheDocument()
     expect(screen.queryByText('bob@example.com')).not.toBeInTheDocument()
+  })
+
+  it('sends a new app to the subscribers when told to', async () => {
+    server.use(signedIn(), ...communityApi())
+    const user = userEvent.setup()
+    renderApp('/community')
+
+    await screen.findByText('Space Game')
+    expect(screen.getByText('Waiting for you')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Send email' }))
+
+    expect(await screen.findByText('Sending…')).toBeInTheDocument()
+    expect(decisions).toContain('2 send')
+    expect(screen.queryByRole('button', { name: 'Send email' })).not.toBeInTheDocument()
   })
 })

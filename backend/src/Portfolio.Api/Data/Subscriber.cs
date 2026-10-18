@@ -23,7 +23,10 @@ public class Subscriber
     public DateTimeOffset? ConfirmedAt { get; set; }
 }
 
-/// <summary>Something new that was emailed to the subscribers. Unique on kind + key, so nothing is announced twice.</summary>
+/// <summary>
+/// Something new to email the subscribers about. A new app waits for the admin (an alert asks: send
+/// or ignore); a new video is approved at once. Unique on kind + key, so nothing is announced twice.
+/// </summary>
 public class Announcement
 {
     public int Id { get; set; }
@@ -35,7 +38,17 @@ public class Announcement
     public required string ItemKey { get; set; }
 
     public required string Title { get; set; }
-    public DateTimeOffset SentAt { get; set; }
+
+    /// <summary>One of <see cref="Features.Updates.AnnouncementStatus"/>.</summary>
+    public required string Status { get; set; }
+
+    /// <summary>SHA-256 (hex) of the token in the alert's Send / Ignore buttons; null once decided.</summary>
+    public string? DecisionTokenHash { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>When the emails went out; null until then.</summary>
+    public DateTimeOffset? SentAt { get; set; }
 
     /// <summary>How many emails went out.</summary>
     public int RecipientCount { get; set; }

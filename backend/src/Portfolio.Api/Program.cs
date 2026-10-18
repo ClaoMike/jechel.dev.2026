@@ -14,6 +14,7 @@ using Portfolio.Api.Features.LeetCode;
 using Portfolio.Api.Features.Places;
 using Portfolio.Api.Features.Profile;
 using Portfolio.Api.Features.Resume;
+using Portfolio.Api.Features.Settings;
 using Portfolio.Api.Features.Support;
 using Portfolio.Api.Features.Terms;
 using Portfolio.Api.Features.Updates;
@@ -44,7 +45,9 @@ builder.Services.AddHttpClient<ILeetCodeClient, LeetCodeClient>(http =>
 builder.Services.AddSingleton<LeetCodeMemoryCache>();
 builder.Services.AddScoped<LeetCodeStatsService>();
 
-builder.Services.Configure<YouTubeOptions>(builder.Configuration.GetSection(YouTubeOptions.Section));
+// Connection settings: the configuration, overridden by what the admin saves in the Settings tab.
+builder.Services.AddSingleton<SettingsStore>();
+builder.Services.BindWithSettings<YouTubeOptions>(builder.Configuration, YouTubeOptions.Section);
 builder.Services.AddHttpClient<IYouTubeClient, YouTubeClient>(http =>
 {
     http.BaseAddress = YouTubeClient.BaseAddress;
@@ -56,30 +59,27 @@ builder.Services.AddSingleton(services => new RefreshingCache<IReadOnlyList<YouT
 builder.Services.Configure<SiteOptions>(builder.Configuration.GetSection(SiteOptions.Section));
 
 // Phone alerts (ntfy): queued by any request, sent in the background.
-builder.Services.Configure<AlertOptions>(builder.Configuration.GetSection(AlertOptions.Section));
+builder.Services.BindWithSettings<AlertOptions>(builder.Configuration, AlertOptions.Section);
 builder.Services.AddSingleton<PhoneAlerts>();
 builder.Services.AddSingleton<IPhoneAlerts>(services => services.GetRequiredService<PhoneAlerts>());
-builder.Services.AddHttpClient(AlertWorker.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient(NtfySender.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<NtfySender>();
 builder.Services.AddHostedService<AlertWorker>();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<CrashAlertHandler>();
 
-builder.Services.Configure<SupportOptions>(builder.Configuration.GetSection(SupportOptions.Section));
+builder.Services.BindWithSettings<SupportOptions>(builder.Configuration, SupportOptions.Section);
 
-// Email updates: Resend when a key is set, otherwise emails are only logged.
-builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.Section));
-if (builder.Configuration.GetSection(EmailOptions.Section).Get<EmailOptions>()?.IsConfigured == true)
+// Email updates: Resend while a key is set, otherwise emails are only logged.
+builder.Services.BindWithSettings<EmailOptions>(builder.Configuration, EmailOptions.Section);
+builder.Services.AddHttpClient<ResendEmailSender>(http =>
 {
-    builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>(http =>
-    {
-        http.BaseAddress = ResendEmailSender.BaseAddress;
-        http.Timeout = TimeSpan.FromSeconds(15);
-    });
-}
-else
-{
-    builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
-}
+    http.BaseAddress = ResendEmailSender.BaseAddress;
+    http.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddSingleton<LogEmailSender>();
+builder.Services.AddTransient<IEmailSender, SwitchingEmailSender>();
+builder.Services.AddSingleton<UpdatesTrigger>();
 builder.Services.AddScoped<UpdatesAnnouncer>();
 builder.Services.AddHostedService<UpdatesWorker>();
 
@@ -105,6 +105,12 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
     using var scope = app.Services.CreateScope();
     scope.ServiceProvider.GetRequiredService<PortfolioDbContext>().Database.Migrate();
+}
+
+// The settings saved in the Settings tab, before anything reads them.
+using (var scope = app.Services.CreateScope())
+{
+    await app.Services.GetRequiredService<SettingsStore>().ReloadAsync(scope.ServiceProvider.GetRequiredService<PortfolioDbContext>(), CancellationToken.None);
 }
 
 app.UseForwardedHeaders();
@@ -135,5 +141,6 @@ api.MapAnalyticsEndpoints();
 api.MapSupportEndpoints();
 api.MapUpdatesEndpoints();
 api.MapResumeEndpoints();
+api.MapSettingsEndpoints();
 
 app.Run();

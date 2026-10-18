@@ -121,19 +121,24 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/analytics/sessions/{id}` | cookie | One visit with every event in order, or **404** |
 | DELETE | `/api/analytics/sessions/{id}` | cookie | Deletes the visit and its events: **204**, or **404** |
 | GET    | `/api/support`              | public  | `{ url }`: where the header's **Buy me a coffee** goes (`Support:Url`); `""` hides it |
-| POST   | `/api/support/kofi`         | Ko-fi token | Ko-fi's webhook (form field `data`): stores the payment once, alerts the phone. **401** for a wrong token, **503** until `Support:KoFiVerificationToken` is set |
+| POST   | `/api/support/buymeacoffee` | signature | Buy Me a Coffee's webhook (HMAC-SHA256 of the body in `X-Signature-Sha256` or `X-Bmc-Signature`): stores the payment once, alerts the phone. **401** for a bad signature, **503** until the webhook secret is set |
 | GET    | `/api/support/donations?page=&pageSize=` | cookie | Donations, newest first |
 | POST   | `/api/updates/subscribe`    | public  | `{ email }`: emails a confirmation link. Always **202** for a valid address (never says who's subscribed), **400** field error, **429** after 5 tries per IP in 10 minutes |
 | POST   | `/api/updates/confirm?token=` | public | Confirms: **200** `{ email }`, or **404** |
 | POST   | `/api/updates/unsubscribe?token=` | public | Deletes the subscriber: always **204** (also what mail apps' one-click Unsubscribe posts) |
 | GET    | `/api/updates/subscribers?page=&pageSize=` | cookie | Subscribers, newest first, with `confirmedAt` |
 | DELETE | `/api/updates/subscribers/{id}` | cookie | **204**, or **404** |
-| GET    | `/api/updates/announcements?page=&pageSize=` | cookie | What was emailed, newest first |
+| GET    | `/api/updates/announcements?page=&pageSize=` | cookie | Update emails, newest first, with their `status` (`pending`, `approved`, `sent`, `ignored`) |
+| POST   | `/api/updates/announcements/{id}/send?token=` | cookie or token | Approves a pending one (emailed at once): **200** `{ status }`. The phone alert's button sends the token |
+| POST   | `/api/updates/announcements/{id}/ignore?token=` | cookie or token | Ignores a pending one |
 | GET    | `/api/resume?inline=`       | public  | The last generated résumé **without** the phone number (PDF), or **404** |
 | GET    | `/api/resume/private?inline=` | cookie | The same **with** the phone number |
 | GET    | `/api/resume/settings`      | cookie  | `{ phone, email, headline, location, summary, sections, generatedAt }` |
 | PUT    | `/api/resume/settings`      | cookie  | Saves them without generating: **200**, or **400** with field errors |
 | POST   | `/api/resume/generate`      | cookie  | Saves them, makes both PDFs, and points About Me's résumé link at the public one: **200**, or **400** |
+| GET    | `/api/settings`             | cookie  | The connection settings (secrets only as set/not set and their last 4 characters), how Google sign-in is set up, and the site's address |
+| PUT    | `/api/settings/{key}`       | cookie  | `{ value }`: saves one (encrypted if secret) and applies it at once; `""` clears it. **400** for a bad value, **404** for an unknown key |
+| POST   | `/api/settings/test/{service}` | cookie | `ntfy` (test alert), `email` (test email to you) or `youtube` (lists the videos): **200** `{ ok, message }` |
 
 ## The "j" (Vice title and tab icon)
 
@@ -274,7 +279,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
 ## Site sections and the contact feature
 
-The site is a header (the name, **Buy me a coffee**, **Get updates**, the session bar when signed in, the theme switch) above five tabs (eight for the signed-in admin), each a route rendered inside `src/layout/AppLayout.tsx`:
+The site is a header (the name, **Buy me a coffee**, **Get updates**, the session bar when signed in, the theme switch) above five tabs (nine for the signed-in admin), each a route rendered inside `src/layout/AppLayout.tsx`:
 
 | Tab | Route | Status |
 | --- | --- | --- |
@@ -284,8 +289,9 @@ The site is a header (the name, **Buy me a coffee**, **Get updates**, the sessio
 | About Me | `/about` | profile, where I've been (map), problem solving (LeetCode, NeetCode), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
 | Engagement | `/engagement` | admin only: how visitors use the site, and every visit replayable to reproduce errors (see [Engagement](#engagement-visitor-analytics)); visitors who open the URL go to `/` |
-| Community | `/community` | admin only: email subscribers, the emails sent to them, and donations (see [Email updates](#email-updates) and [Buy me a coffee](#buy-me-a-coffee-donations)) |
+| Community | `/community` | admin only: email subscribers, the update emails (new apps wait here to be sent or ignored), and coffees (see [Email updates](#email-updates) and [Buy me a coffee](#buy-me-a-coffee-donations)) |
 | Terms | `/terms` | admin only: the terms and conditions, editable (see [Terms and conditions](#terms-and-conditions)) |
+| Settings | `/settings` | admin only: the services the site connects to, their links and keys, with test buttons (see [Settings](#settings-connections)) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
 **What's new?** (`src/pages/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list; if one fails (e.g. YouTube isn't set up), the other is shown.
@@ -365,19 +371,18 @@ Only one refresh runs at a time (`RefreshLock`), so visitors arriving together c
 
 ## Buy me a coffee (donations)
 
-The header's amber **Buy me a coffee** button links to the page in `Support:Url` (hidden while it's empty). It works with any
-page; the site is set up for **[Ko-fi](https://ko-fi.com)**, because Ko-fi's free plan takes no platform fee on one-off donations
-(as of October 2026; only PayPal's or Stripe's own processing fee; check its pricing page) and documents a simple webhook. Buy Me a
-Coffee works the same for the button (it keeps 5%), but its webhook isn't wired up.
+The header's amber **Buy me a coffee** button links to the page in `Support:Url` (Settings tab), hidden while it's empty. The site
+uses **[Buy Me a Coffee](https://buymeacoffee.com/claomike)** (it keeps 5% of each coffee, plus the payment processor's fee).
 
-Setting up Ko-fi:
+**Coffee alerts** come from its webhook (`Features/Support/SupportEndpoints.cs`): in the Buy Me a Coffee dashboard add a webhook to
+`https://<your-domain>/api/support/buymeacoffee`, and paste its secret into Settings. Each request must be signed (HMAC-SHA256 of the
+body with the secret, in hex, in `X-Signature-Sha256`, or `X-Bmc-Signature` as older webhooks did). Payments are stored once (unique on
+their id, or a hash of the body) and alert the phone.
 
-1. Create a Ko-fi page and connect PayPal and/or Stripe. Set `Support:Url` to it, e.g. `https://ko-fi.com/<you>`.
-2. Ko-fi → **Settings → More → API → Webhooks**: URL `https://<your-domain>/api/support/kofi`; copy the **verification token**
-   into `Support:KoFiVerificationToken` (a secret). **Send single donation test** should show up in the Community tab and on the phone.
-
-The webhook (`Features/Support/SupportEndpoints.cs`) stores each payment once (unique on Ko-fi's transaction id, since Ko-fi
-retries until it gets a 200), and alerts the phone. The supporter's email, when Ko-fi sends one, is only shown to the admin.
+Buy Me a Coffee doesn't document its webhook's JSON well, so the API reads the common field names (`supporter_name`, `amount`,
+`currency`, `support_note`, `supporter_email`, under `data` or `response`) and keeps the whole body in `donations.payload`. **To do:**
+after the first real (or "Send test") webhook, check that payload and tighten the parsing. Locally, the webhook can't be reached from
+Buy Me a Coffee: it needs the site to be online.
 
 ## Email updates
 
@@ -391,14 +396,18 @@ require of bulk senders).
   already subscribed. Unsubscribing deletes the row.
 - **The links** open pages on the site (`/updates/confirm`, `/updates/unsubscribe`, in `pages/UpdatesPages.tsx`) that call the
   API, rather than API URLs, so mail scanners that open every link don't confirm anyone.
-- **Announcing** (`UpdatesAnnouncer.cs`, run every 10 minutes by `UpdatesWorker`): emails confirmed subscribers about apps added
-  at least **30 minutes** ago (time to finish the images, or delete it) and videos YouTube lists. The first run only records when
-  announcing started, so what was posted before isn't sent. Each item is recorded in `announcements` *before* the emails go out:
-  a crash halfway means some miss it, never that anyone gets it twice. At most 3 items per run; 600 ms between emails.
-- **Sending** (`Email.cs`): [Resend](https://resend.com) (free for 3,000 emails a month). Without `Email:ResendApiKey`, emails are
-  written to the API's log instead, which is how it runs locally: the confirm link is in the log.
-- **Setting up Resend:** create an account, add and verify your domain (DNS records for SPF/DKIM), create an API key, set
-  `Email:ResendApiKey` (a secret) and `Email:From` (e.g. `jechel.dev <updates@jechel.dev>`), and `Site:PublicUrl` to the site's address.
+- **A new app asks first:** adding an app records it as `pending` and sends a phone alert with **Send email** and **Ignore** buttons
+  (`AnnouncementDecisions.cs`). The buttons post to the API with a one-time token in the link, since the phone isn't signed in (so
+  they only work once the site is online; locally, decide in the Community tab, which has the same two buttons).
+- **New videos don't ask:** one published after announcing started is approved by itself.
+- **Sending** (`UpdatesAnnouncer.cs`, run every 10 minutes by `UpdatesWorker`, and at once after an approval): emails what's approved,
+  reading the app as it is then (edits since are included; a deleted one is skipped). Each item is marked sent *before* the emails go
+  out: a crash halfway means some miss it, never that anyone gets it twice. At most 3 items per run; 600 ms between emails.
+- **Email service** (`Email.cs`): [Resend](https://resend.com) (free for 3,000 emails a month), while an API key is set (Settings, or
+  `Email:ResendApiKey`); otherwise emails are written to the API's log, confirm links included. A sending-only key is enough.
+- **Setting up Resend:** add and verify your domain in Resend (its DNS records for SPF/DKIM), then set the **Sender** in Settings (e.g.
+  `jechel.dev <updates@jechel.dev>`) and press **Send me a test email**. Until a domain is verified, Resend only sends from
+  `onboarding@resend.dev`, and only to your own address; the test shows Resend's own reason when it refuses.
 - **Privacy:** the terms should say what's stored (the address and when it was confirmed) and that unsubscribing deletes it.
 
 ## Résumé generator
@@ -407,7 +416,10 @@ Signed in, About Me starts with a **Résumé generator** panel (`features/resume
 
 - What the page doesn't have: **phone (private)**, email, headline, location and a short summary, plus which **sections** to
   include (ticked by default: profile, citizenship, links, experience, skills, education, qualifications, papers, hackathons,
-  languages; not ticked: problem solving, licences, places). Sections print in a fixed order recruiters expect.
+  languages; not ticked: problem solving, licences, places) and which **skills** (all until unticked; stored as the ones left out,
+  so new skills are in). Sections print in a fixed order recruiters expect.
+- The name, contact line and links are on the **first page only**. Links show as words: the site's name, **GitHub**, **LinkedIn**.
+  Skills are a plain list, without years.
 - **Generate résumés** makes two A4 PDFs from the page as it is now (`Features/Resume/ResumeDocument.cs`, with
   [QuestPDF](https://www.questpdf.com), free under its Community licence for individuals and companies under $1M revenue):
   - **public**, without the phone number: stored, and served to everyone at `/api/resume`. The page's **Download résumé** button
@@ -416,23 +428,39 @@ Signed in, About Me starts with a **Résumé generator** panel (`features/resume
   Then **Download with phone**, **Download public copy** and **Preview** in the panel.
 - The phone number lives in its own table (`resume`), never in the About Me JSON, so it can't leak through `/api/about`. Tests check
   it's in the private PDF's text and not in the public one's.
-- `[text](url)` links on the page become real links in the PDF. Skills show their years like the page does.
+- `[text](url)` links on the page become real links in the PDF.
 
 ## Phone alerts
 
-The API pushes a notification to the admin's phone for a **new message**, a **donation**, a **new subscriber**, each **update
-email sent**, and **crashes**: errors visitors' browsers hit (from the Engagement recorder) and exceptions the API didn't catch
-(`CrashAlertHandler`, which still answers with a 500 problem). Crashes are throttled: the same error once an hour, and at most 10
-error alerts an hour in all. Tapping an alert opens the matching page on the site.
+The API pushes a notification to the admin's phone for a **new message**, a **coffee**, a **new subscriber**, a **new app** (with
+**Send email** / **Ignore** buttons), each **update email sent**, and **crashes**: errors visitors' browsers hit (from the Engagement
+recorder) and exceptions the API didn't catch (`CrashAlertHandler`, which still answers with a 500 problem). Crashes are throttled:
+the same error once an hour, and at most 10 error alerts an hour in all. Tapping an alert opens the matching page on the site.
 
-They're sent with **[ntfy](https://ntfy.sh)** (free, open source, iOS and Android apps). Alerts are queued and sent in the background
-(`PhoneAlerts`, `AlertWorker`), so a slow or broken ntfy never slows a request down; failures are logged. Until a topic is set,
-alerts only go to the log.
+They're sent with **[ntfy](https://ntfy.sh)** (free, open source, iOS and Android apps), queued and sent in the background
+(`PhoneAlerts`, `AlertWorker`, `NtfySender`), so a slow or broken ntfy never slows a request down. Until a topic is set, alerts only go
+to the log. Setting it up (Settings tab, ntfy card):
 
-1. Install the ntfy app and subscribe to a topic with a long random name (on the public server, anyone who knows a topic can read
-   it), e.g. `jechel-` plus `openssl rand -hex 16`.
-2. Set `Alerts:NtfyTopic` to it (a secret). Optionally reserve the topic with an ntfy account and set `Alerts:NtfyToken`, or run your
-   own server and set `Alerts:NtfyServer`.
+1. Press **Generate** for a long random topic name, and **Save**. (On the public server anyone who knows a topic can read it.)
+2. In the ntfy app tap **+**, type the same topic, keep the server `ntfy.sh`, and **Subscribe**.
+3. Press **Send a test alert**.
+
+Optionally reserve the topic with an ntfy account (access token), or use your own server, under "Your own ntfy server".
+
+## Settings (connections)
+
+The admin's **Settings** tab (`pages/SettingsPage.tsx`, API in `Features/Settings/`) lists every service the site connects to, with
+links to their dashboards, the keys, the URLs to paste into them (webhook, OAuth callback), and a test button: Buy Me a Coffee,
+Google sign-in, YouTube Data API, Resend, ntfy, and (later) hosting.
+
+- **Storage:** the `site_settings` table, one row per key. Secrets are encrypted with ASP.NET Core Data Protection (the same keys as
+  the session cookie; persist them in production, or saved secrets can't be read after a deploy and have to be entered again).
+- **Never back to the browser:** a secret is shown as set/not set and its last 4 characters; the box only takes a new one.
+- **Applies at once:** a saved value overrides the same key in the configuration (`SettingsStore`, bound into the options with
+  `BindWithSettings<T>`; code reads them through `IOptionsMonitor<T>`). **Remove** goes back to the configuration's value.
+- **Google sign-in** is shown, not editable: it's read when the API starts, and a wrong secret saved from a page that needs it to
+  sign in would lock you out. Change it in user secrets or environment variables.
+- Which keys can be set is a fixed list (`SettingsCatalog.cs`); each is checked (links, sender address, topic characters).
 
 ## Roadmap: ideas to review
 
@@ -482,14 +510,15 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `YouTube:Channel`             | The channel shown on the YouTube page: `@handle` or `UC…` id  |
 | `YouTube:ApiKey`              | YouTube Data API v3 key (secret; user-secrets or env vars). Videos aren't shown when empty |
 | `Site:PublicUrl`              | The site's address, for links in emails, alerts and the résumé (default `http://localhost:5173`) |
-| `Support:Url`                 | The **Buy me a coffee** page, e.g. `https://ko-fi.com/<you>`. Empty hides the button |
-| `Support:KoFiVerificationToken` | Ko-fi's webhook token (secret). The webhook answers 503 until it's set |
+| `Support:Url`                 | The **Buy me a coffee** page, e.g. `https://buymeacoffee.com/claomike`. Empty hides the button |
+| `Support:BuyMeACoffeeWebhookSecret` | Buy Me a Coffee's webhook secret. The webhook answers 503 until it's set |
 | `Email:ResendApiKey`          | Resend API key (secret). Empty: emails are written to the log |
 | `Email:From`                  | The sender, on a domain verified in Resend (default `jechel.dev <updates@jechel.dev>`) |
 | `Updates:SubscribeLimitPer10Minutes` | Subscribe attempts per IP per 10 minutes (default 5) |
 | `Alerts:NtfyTopic`            | The ntfy topic phone alerts go to (secret). Empty: alerts are written to the log |
 | `Alerts:NtfyToken` / `Alerts:NtfyServer` | Optional ntfy access token, and server (default `https://ntfy.sh`) |
 
+Every key above from `Support`, `YouTube`, `Email` and `Alerts` can also be set in the **Settings** tab, which overrides these.
 Secrets are never committed. Locally, use [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets):
 `dotnet user-secrets set "<Key>" "<value>" --project backend/src/Portfolio.Api`.
 

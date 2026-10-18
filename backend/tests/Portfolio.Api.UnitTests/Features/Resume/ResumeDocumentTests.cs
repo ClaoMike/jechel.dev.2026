@@ -52,7 +52,7 @@ public class ResumeDocumentTests
         Assert.DoesNotContain("](", text);
         Assert.Contains("Jan 2023 – Present", text);
         Assert.Contains("UK Settled Status", text);
-        Assert.Contains("github.com/cjechel", text);
+        Assert.Contains("GitHub", text);
         Assert.Contains("205 problems solved", text);
     }
 
@@ -66,32 +66,44 @@ public class ResumeDocumentTests
         Assert.DoesNotContain("LeetCode", text);
         Assert.DoesNotContain("PLACES", text);
         Assert.DoesNotContain("UK Settled Status", text);
-        Assert.DoesNotContain("github.com", text);
+        Assert.DoesNotContain("GitHub", text);
         Assert.DoesNotContain("I build web apps.", text);
         // The contact line isn't a section: it's always there.
         Assert.Contains("7700", text);
     }
 
     [Fact]
-    public void MonthsUsed_counts_overlaps_once_and_not_the_future()
+    public void Skills_have_no_dates_and_can_be_left_out()
     {
-        var skill = new Skill("C#",
-        [
-            new SkillPeriod(new DateOnly(2020, 1, 1), new DateOnly(2020, 12, 1), ["work"]),
-            new SkillPeriod(new DateOnly(2020, 6, 1), new DateOnly(2021, 5, 1), ["personal"]),
-            new SkillPeriod(new DateOnly(2027, 1, 1), null, ["work"]),
-        ]);
+        var skills = new List<Skill> { new("C#", [new SkillPeriod(new DateOnly(2020, 1, 1), null, ["work"])]), new("[Go](https://go.dev)", []), new("Cobol", []) };
 
-        Assert.Equal(17, ResumeDocument.MonthsUsed(skill, Today));
-        Assert.Equal("C# (1 year), Go", ResumeDocument.SkillsLine([skill, new Skill("Go", [])], Today));
+        Assert.Equal("C#, Go", ResumeDocument.SkillsLine(skills, ["cobol"]));
     }
 
-    [Theory]
-    [InlineData(1, "1 month")]
-    [InlineData(11, "11 months")]
-    [InlineData(18, "2 years")]
-    [InlineData(17, "1 year")]
-    public void Experience_reads_like_the_page(int months, string expected) => Assert.Equal(expected, ResumeDocument.Experience(months));
+    [Fact]
+    public void Links_are_named_not_spelled_out()
+    {
+        var links = ResumeDocument.Links(Input(Settings(), includePhone: false)).ToList();
+
+        Assert.Equal([("jechel.dev", "https://jechel.dev"), ("GitHub", "https://github.com/cjechel"), ("LinkedIn", "https://www.linkedin.com/in/cjechel")], links);
+        var text = TextOf(ResumeDocument.Build(Input(Settings(), includePhone: false)));
+        Assert.DoesNotContain("github.com", text);
+    }
+
+    [Fact]
+    public void Only_the_first_page_has_the_header()
+    {
+        var experience = Enumerable.Range(1, 30).Select(i => new ExperienceItem($"Role {i}", "Company", "", new DateOnly(2000 + i % 20, 1, 1), null, ["Did a lot of things.", "Did more things."])).ToList();
+        var input = Input(Settings(), includePhone: true) with { About = About with { Experience = experience } };
+
+        using var document = PdfDocument.Open(ResumeDocument.Build(input));
+        var pages = document.GetPages().Select(p => p.Text).ToList();
+
+        Assert.True(pages.Count > 1);
+        Assert.Contains(ResumeDocument.Name, pages[0]);
+        Assert.All(pages.Skip(1), page => Assert.DoesNotContain("Claudiu", page));
+        Assert.All(pages.Skip(1), page => Assert.DoesNotContain("7700", page));
+    }
 
     [Fact]
     public void Licences_and_places_become_lines()

@@ -567,7 +567,8 @@ html {
 
 .tabs {
   width: fit-content;
-  max-width: min(848px, calc(100% - 32px));
+  /* Wider than the page (880px) so the admin's nine tabs fit; phones scroll it sideways. */
+  max-width: min(1000px, calc(100% - 32px));
   margin: 0 auto 12px;
   padding: 4px;
   gap: 2px;

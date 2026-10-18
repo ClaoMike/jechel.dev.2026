@@ -22,6 +22,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<UpdatesState> UpdatesStates => Set<UpdatesState>();
     public DbSet<ResumeSettings> ResumeSettings => Set<ResumeSettings>();
+    public DbSet<SiteSetting> SiteSettings => Set<SiteSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -184,10 +185,10 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(d => d.Amount).HasColumnName("amount").HasMaxLength(20).IsRequired();
             entity.Property(d => d.Currency).HasColumnName("currency").HasMaxLength(10).IsRequired();
             entity.Property(d => d.Email).HasColumnName("email").HasMaxLength(320);
-            entity.Property(d => d.IsPublic).HasColumnName("is_public");
+            entity.Property(d => d.Payload).HasColumnName("payload").HasColumnType("jsonb");
             entity.Property(d => d.ReceivedAt).HasColumnName("received_at");
 
-            // Ko-fi retries a webhook until it gets a 200: one row per payment.
+            // A webhook is retried until it gets a 200: one row per payment.
             entity.HasIndex(d => d.TransactionId).IsUnique();
             entity.HasIndex(d => d.ReceivedAt);
         });
@@ -215,6 +216,9 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(a => a.Kind).HasColumnName("kind").HasMaxLength(20).IsRequired();
             entity.Property(a => a.ItemKey).HasColumnName("item_key").HasMaxLength(100).IsRequired();
             entity.Property(a => a.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+            entity.Property(a => a.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(a => a.DecisionTokenHash).HasColumnName("decision_token_hash").HasMaxLength(64);
+            entity.Property(a => a.CreatedAt).HasColumnName("created_at");
             entity.Property(a => a.SentAt).HasColumnName("sent_at");
             entity.Property(a => a.RecipientCount).HasColumnName("recipient_count");
 
@@ -241,9 +245,20 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(r => r.Location).HasColumnName("location").HasMaxLength(Features.Resume.ResumeRules.LocationMaxLength).IsRequired();
             entity.Property(r => r.Summary).HasColumnName("summary").HasMaxLength(Features.Resume.ResumeRules.SummaryMaxLength).IsRequired();
             entity.Property(r => r.Sections).HasColumnName("sections").HasColumnType("jsonb").IsRequired();
+            entity.Property(r => r.ExcludedSkills).HasColumnName("excluded_skills").HasColumnType("jsonb").IsRequired().HasDefaultValueSql("'[]'::jsonb");
             entity.Property(r => r.PublicPdf).HasColumnName("public_pdf");
             entity.Property(r => r.PrivatePdf).HasColumnName("private_pdf");
             entity.Property(r => r.GeneratedAt).HasColumnName("generated_at");
+        });
+
+        modelBuilder.Entity<SiteSetting>(entity =>
+        {
+            entity.ToTable("site_settings");
+            entity.HasKey(s => s.Key);
+            entity.Property(s => s.Key).HasColumnName("key").HasMaxLength(100);
+            entity.Property(s => s.Value).HasColumnName("value").IsRequired();
+            entity.Property(s => s.IsEncrypted).HasColumnName("is_encrypted");
+            entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
         });
     }
 }

@@ -9,15 +9,16 @@ using Portfolio.Api.Features.YouTube;
 namespace Portfolio.Api.Features.Updates;
 
 /// <summary>
-/// Emails the confirmed subscribers about apps and videos posted since the last time. Run by
-/// <see cref="UpdatesWorker"/> every few minutes. Each item is announced at most once: it's
-/// recorded before the emails go out, so a crash halfway means some miss it, never that some get it twice.
+/// Emails the confirmed subscribers. Run by <see cref="UpdatesWorker"/> every few minutes, and at once
+/// when the admin approves an email. New YouTube videos are approved by themselves; a new app waits
+/// for the admin (<see cref="AnnouncementDecisions"/>). An item is marked sent before the emails go
+/// out, so a crash halfway means some miss it, never that some get it twice.
 /// </summary>
 public class UpdatesAnnouncer(
     PortfolioDbContext db,
     IEmailSender emails,
     IOptions<SiteOptions> site,
-    IOptions<YouTubeOptions> youTubeOptions,
+    IOptionsMonitor<YouTubeOptions> youTubeOptions,
     IYouTubeClient youTube,
     RefreshingCache<IReadOnlyList<YouTubeVideo>> videoCache,
     IPhoneAlerts alerts,
@@ -27,43 +28,37 @@ public class UpdatesAnnouncer(
     public const string AppKind = "app";
     public const string VideoKind = "video";
 
-    /// <summary>
-    /// A new app is only announced once it's this old: time to finish its images and description,
-    /// or to delete it, before anyone's emailed.
-    /// </summary>
-    public static readonly TimeSpan AppGracePeriod = TimeSpan.FromMinutes(30);
-
     /// <summary>At most this many items per run, in case lots were posted at once; the rest go next time.</summary>
     public const int MaxItemsPerRun = 3;
 
     /// <summary>Between two emails, to stay under the email service's rate limit.</summary>
     public static TimeSpan DelayBetweenEmails { get; set; } = TimeSpan.FromMilliseconds(600);
 
-    private record Item(string Kind, string Key, string Title, string Summary, string Url, string? ImageUrl, DateTimeOffset PostedAt);
+    private record Item(string Title, string Summary, string Url, string? ImageUrl);
 
-    /// <summary>Returns how many items were announced.</summary>
+    /// <summary>Returns how many items were emailed.</summary>
     public async Task<int> AnnounceNewAsync(CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
         var state = await db.UpdatesStates.FindAsync([UpdatesState.SingletonId], cancellationToken);
         if (state is null)
         {
-            // The first run only marks the start: what's already posted isn't news.
+            // The first run only marks the start: videos already posted aren't news.
             db.UpdatesStates.Add(new UpdatesState { Id = UpdatesState.SingletonId, AnnounceAfter = now });
             await db.SaveChangesAsync(cancellationToken);
-            return 0;
+        }
+        else
+        {
+            await ApproveNewVideosAsync(state.AnnounceAfter, now, cancellationToken);
         }
 
-        var announced = (await db.Announcements.AsNoTracking().Select(a => new { a.Kind, a.ItemKey }).ToListAsync(cancellationToken))
-            .Select(a => (a.Kind, a.ItemKey))
-            .ToHashSet();
-        var items = (await NewAppsAsync(state.AnnounceAfter, now, cancellationToken))
-            .Concat(await NewVideosAsync(state.AnnounceAfter, cancellationToken))
-            .Where(i => !announced.Contains((i.Kind, i.Key)))
-            .OrderBy(i => i.PostedAt)
+        var approved = await db.Announcements
+            .Where(a => a.Status == AnnouncementStatus.Approved)
+            .OrderBy(a => a.CreatedAt)
+            .ThenBy(a => a.Id)
             .Take(MaxItemsPerRun)
-            .ToList();
-        if (items.Count == 0) return 0;
+            .ToListAsync(cancellationToken);
+        if (approved.Count == 0) return 0;
 
         var subscribers = await db.Subscribers.AsNoTracking()
             .Where(s => s.ConfirmedAt != null)
@@ -71,10 +66,20 @@ public class UpdatesAnnouncer(
             .Select(s => new { s.Email, s.Token })
             .ToListAsync(cancellationToken);
 
-        foreach (var item in items)
+        var sent = 0;
+        foreach (var announcement in approved)
         {
-            var announcement = new Announcement { Kind = item.Kind, ItemKey = item.Key, Title = Cut(item.Title, 200), SentAt = now };
-            db.Announcements.Add(announcement);
+            var item = await ItemAsync(announcement, cancellationToken);
+            if (item is null)
+            {
+                // Deleted (the app) or gone from YouTube since.
+                announcement.Status = AnnouncementStatus.Ignored;
+                await db.SaveChangesAsync(cancellationToken);
+                continue;
+            }
+
+            announcement.Status = AnnouncementStatus.Sent;
+            announcement.SentAt = now;
             await db.SaveChangesAsync(cancellationToken);
 
             foreach (var subscriber in subscribers)
@@ -82,52 +87,74 @@ public class UpdatesAnnouncer(
                 var unsubscribe = site.Value.UrlFor($"/updates/unsubscribe?token={subscriber.Token}");
                 try
                 {
-                    await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, item.Kind, item.Title, item.Summary, item.Url, item.ImageUrl, unsubscribe), cancellationToken);
+                    await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item.Title, item.Summary, item.Url, item.ImageUrl, unsubscribe), cancellationToken);
                     announcement.RecipientCount++;
                 }
                 catch (Exception e) when (!cancellationToken.IsCancellationRequested)
                 {
-                    logger.LogWarning(e, "Couldn't email {Kind} {Key} to a subscriber.", item.Kind, item.Key);
+                    logger.LogWarning(e, "Couldn't email {Kind} {Key} to a subscriber.", announcement.Kind, announcement.ItemKey);
                 }
                 if (DelayBetweenEmails > TimeSpan.Zero) await Task.Delay(DelayBetweenEmails, time, cancellationToken);
             }
             await db.SaveChangesAsync(CancellationToken.None);
+            sent++;
 
             alerts.Send(new PhoneAlert(
                 $"Emailed: {item.Title}",
-                $"The new {item.Kind} went to {announcement.RecipientCount} of {subscribers.Count} subscribers.",
+                $"The new {announcement.Kind} went to {announcement.RecipientCount} of {subscribers.Count} subscribers.",
                 "/community",
                 AlertPriority.Low,
                 "mailbox_with_mail"));
         }
-        return items.Count;
+        return sent;
     }
 
-    private async Task<IEnumerable<Item>> NewAppsAsync(DateTimeOffset after, DateTimeOffset now, CancellationToken cancellationToken)
+    /// <summary>Videos published since announcing started, not seen before: approved, so they go out this run.</summary>
+    private async Task ApproveNewVideosAsync(DateTimeOffset after, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var settledBefore = now - AppGracePeriod;
-        var apps = await db.Apps.AsNoTracking()
-            .Where(a => a.CreatedAt > after && a.CreatedAt <= settledBefore)
-            .ToListAsync(cancellationToken);
+        var videos = await VideosAsync(cancellationToken);
+        if (videos.Count == 0) return;
 
-        return apps.Select(a =>
+        var known = (await db.Announcements.AsNoTracking().Where(a => a.Kind == VideoKind).Select(a => a.ItemKey).ToListAsync(cancellationToken)).ToHashSet();
+        foreach (var video in videos.Where(v => v.PublishedAt > after && !known.Contains(v.Id)).OrderBy(v => v.PublishedAt))
         {
-            var media = JsonSerializer.Deserialize<AppMedia[]>(a.Media, JsonSerializerOptions.Web) ?? [];
+            db.Announcements.Add(new Announcement
+            {
+                Kind = VideoKind,
+                ItemKey = video.Id,
+                Title = video.Title.Length <= 200 ? video.Title : video.Title[..200],
+                Status = AnnouncementStatus.Approved,
+                CreatedAt = now,
+            });
+        }
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>What the email shows, read now (an app may have been edited since); null when it's gone.</summary>
+    private async Task<Item?> ItemAsync(Announcement announcement, CancellationToken cancellationToken)
+    {
+        if (announcement.Kind == AppKind)
+        {
+            if (!int.TryParse(announcement.ItemKey, out var id)) return null;
+            var app = await db.Apps.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+            if (app is null) return null;
+
+            var media = JsonSerializer.Deserialize<AppMedia[]>(app.Media, JsonSerializerOptions.Web) ?? [];
             var image = media.FirstOrDefault(m => m.Kind == AppMediaKinds.Image)?.Url;
             // "What's new?" shows the newest app in full.
-            return new Item(AppKind, a.Id.ToString(), a.Title, UpdateEmails.Summary(a.Description), site.Value.UrlFor("/"), Absolute(image), a.CreatedAt);
-        });
+            return new Item(app.Title, UpdateEmails.Summary(app.Description), site.Value.UrlFor("/"), Absolute(image));
+        }
+
+        var video = (await VideosAsync(cancellationToken)).FirstOrDefault(v => v.Id == announcement.ItemKey);
+        return video is null ? null : new Item(video.Title, UpdateEmails.Summary(video.Description), video.Url, video.ThumbnailUrl);
     }
 
-    private async Task<IEnumerable<Item>> NewVideosAsync(DateTimeOffset after, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<YouTubeVideo>> VideosAsync(CancellationToken cancellationToken)
     {
-        if (!youTubeOptions.Value.IsConfigured) return [];
+        if (!youTubeOptions.CurrentValue.IsConfigured) return [];
         try
         {
-            var videos = await videoCache.GetAsync(youTube.FetchVideosAsync, cancellationToken);
-            return videos
-                .Where(v => v.PublishedAt > after)
-                .Select(v => new Item(VideoKind, v.Id, v.Title, UpdateEmails.Summary(v.Description), v.Url, v.ThumbnailUrl, v.PublishedAt));
+            return await videoCache.GetAsync(youTube.FetchVideosAsync, cancellationToken);
         }
         catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
@@ -142,21 +169,18 @@ public class UpdatesAnnouncer(
         _ when url.StartsWith('/') => site.Value.UrlFor(url),
         _ => url,
     };
-
-    private static string Cut(string text, int max) => text.Length <= max ? text : text[..max];
 }
 
-/// <summary>Runs <see cref="UpdatesAnnouncer"/> every <see cref="Interval"/>.</summary>
-public class UpdatesWorker(IServiceScopeFactory scopes, TimeProvider time, ILogger<UpdatesWorker> logger) : BackgroundService
+/// <summary>Runs <see cref="UpdatesAnnouncer"/> every <see cref="Interval"/>, and at once when <see cref="UpdatesTrigger"/> is poked.</summary>
+public class UpdatesWorker(IServiceScopeFactory scopes, UpdatesTrigger trigger, ILogger<UpdatesWorker> logger) : BackgroundService
 {
     public static readonly TimeSpan Interval = TimeSpan.FromMinutes(10);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Let the app finish starting (and migrating) first.
-        await Task.Delay(TimeSpan.FromMinutes(1), time, stoppingToken);
-        using var timer = new PeriodicTimer(Interval, time);
-        do
+        await trigger.WaitAsync(TimeSpan.FromSeconds(30), stoppingToken);
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
@@ -167,7 +191,7 @@ public class UpdatesWorker(IServiceScopeFactory scopes, TimeProvider time, ILogg
             {
                 logger.LogError(e, "Announcing new apps and videos failed.");
             }
+            await trigger.WaitAsync(Interval, stoppingToken);
         }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 }

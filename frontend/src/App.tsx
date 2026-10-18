@@ -8,6 +8,7 @@ import { AdminPage } from './pages/AdminPage'
 import { CommunityPage } from './pages/CommunityPage'
 import { ContactPage } from './pages/ContactPage'
 import { EngagementPage } from './pages/EngagementPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { TermsPage } from './pages/TermsPage'
 import { ConfirmSubscriptionPage, UnsubscribePage } from './pages/UpdatesPages'
 import { WhatsNewPage } from './pages/WhatsNewPage'
@@ -27,6 +28,7 @@ function App() {
           <Route path="engagement" element={<EngagementPage />} />
           <Route path="community" element={<CommunityPage />} />
           <Route path="terms" element={<TermsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="updates/confirm" element={<ConfirmSubscriptionPage />} />
           <Route path="updates/unsubscribe" element={<UnsubscribePage />} />
         </Route>

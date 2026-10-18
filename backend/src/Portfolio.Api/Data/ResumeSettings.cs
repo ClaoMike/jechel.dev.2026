@@ -28,6 +28,9 @@ public class ResumeSettings
     /// <summary>The sections to include, as a JSON array of <see cref="Features.Resume.ResumeSections"/> ids.</summary>
     public string Sections { get; set; } = "[]";
 
+    /// <summary>The About Me skills left out, as a JSON array of their names.</summary>
+    public string ExcludedSkills { get; set; } = "[]";
+
     /// <summary>Without the phone number: what visitors download.</summary>
     public byte[]? PublicPdf { get; set; }
 

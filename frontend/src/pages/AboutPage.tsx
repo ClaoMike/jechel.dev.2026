@@ -11,6 +11,7 @@ import { QualificationsSection } from '../features/about/QualificationsSection'
 import { SkillsSection } from '../features/about/SkillsSection'
 import { EducationSection, ExperienceSection } from '../features/about/TimelineSection'
 import { ResumePanel } from '../features/resume/ResumePanel'
+import { plainText } from '../features/about/textLinks'
 import { api, type AboutContent } from '../services/api'
 
 type State = { status: 'loading' } | { status: 'loaded'; content: AboutContent } | { status: 'error' }
@@ -69,7 +70,7 @@ export function AboutPage() {
   return (
     <div className="about">
       {heading}
-      {isAuthenticated && <ResumePanel onGenerated={reload} />}
+      {isAuthenticated && <ResumePanel skills={page.skills.map((skill) => plainText(skill.name))} onGenerated={reload} />}
       <ProfileSection
         value={{ photoUrl: page.photoUrl, statuses: page.statuses, links: page.links }}
         leetCodeUsername={page.problemSolving.leetCodeUsername}

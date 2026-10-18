@@ -5,7 +5,11 @@ namespace Portfolio.Api.Features.Alerts;
 
 /// <summary>A push notification to the admin's phone.</summary>
 /// <param name="Path">Where tapping it goes on the site, e.g. "/contact". Optional.</param>
-public record PhoneAlert(string Title, string Message, string? Path = null, AlertPriority Priority = AlertPriority.Default, string Tag = "");
+/// <param name="Actions">Buttons on the notification. Optional.</param>
+public record PhoneAlert(string Title, string Message, string? Path = null, AlertPriority Priority = AlertPriority.Default, string Tag = "", IReadOnlyList<AlertAction>? Actions = null);
+
+/// <summary>A button on an alert: tapping it makes the phone POST to <paramref name="Url"/> (which must carry its own authorization, e.g. a token).</summary>
+public record AlertAction(string Label, string Url);
 
 /// <summary>ntfy's priorities: 1 (min) to 5 (max). High and above vibrate and pop up.</summary>
 public enum AlertPriority

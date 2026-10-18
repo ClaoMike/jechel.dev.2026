@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -10,122 +10,153 @@ using Portfolio.Api.Features.Alerts;
 
 namespace Portfolio.Api.Features.Support;
 
-/// <summary>The "Support" configuration section: the header's "Buy me a coffee" button and the Ko-fi webhook.</summary>
+/// <summary>The "Support" configuration section (also editable in the Settings tab): the header's "Buy me a coffee" button and its webhook.</summary>
 public class SupportOptions
 {
     public const string Section = "Support";
 
-    /// <summary>Where the button goes, e.g. "https://ko-fi.com/jechel" (or a Buy Me a Coffee page). Empty hides it.</summary>
+    /// <summary>Where the button goes, e.g. "https://buymeacoffee.com/claomike". Empty hides it.</summary>
     public string Url { get; set; } = "";
 
-    /// <summary>The token on Ko-fi's webhook page (a secret). Until it's set the webhook answers 503.</summary>
-    public string KoFiVerificationToken { get; set; } = "";
+    /// <summary>The secret Buy Me a Coffee shows for the webhook. Until it's set the webhook answers 503.</summary>
+    public string BuyMeACoffeeWebhookSecret { get; set; } = "";
 }
 
 /// <param name="Url">Empty when the button should be hidden.</param>
 public record SupportInfo(string Url);
 
-public record DonationDto(int Id, string Type, string FromName, string? Message, string Amount, string Currency, string? Email, bool IsPublic, DateTimeOffset ReceivedAt);
+public record DonationDto(int Id, string Type, string FromName, string? Message, string Amount, string Currency, string? Email, DateTimeOffset ReceivedAt);
 
-/// <summary>What Ko-fi posts (the JSON in the form's "data" field). Only the fields the site keeps.</summary>
-public record KoFiPayment(
-    [property: JsonPropertyName("verification_token")] string? VerificationToken,
-    [property: JsonPropertyName("type")] string? Type,
-    [property: JsonPropertyName("from_name")] string? FromName,
-    [property: JsonPropertyName("message")] string? Message,
-    [property: JsonPropertyName("amount")] string? Amount,
-    [property: JsonPropertyName("currency")] string? Currency,
-    [property: JsonPropertyName("email")] string? Email,
-    [property: JsonPropertyName("is_public")] bool IsPublic,
-    [property: JsonPropertyName("kofi_transaction_id")] string? TransactionId);
+/// <summary>What the site reads from a webhook's JSON.</summary>
+public record ParsedDonation(string? Id, string? Type, string? FromName, string? Message, string? Amount, string? Currency, string? Email);
 
 public static class SupportEndpoints
 {
     public const int DefaultPageSize = 20;
     public const int MaxPageSize = 50;
+    public const int MaxPayloadBytes = 64 * 1024;
 
     public static IEndpointRouteBuilder MapSupportEndpoints(this IEndpointRouteBuilder app)
     {
         var support = app.MapGroup("/support");
 
         support.MapGet("/", GetInfo).WithName("GetSupportInfo");
-        // Called by Ko-fi, not the browser; checked with the verification token.
-        support.MapPost("/kofi", KoFiWebhook).WithName("KoFiWebhook").DisableAntiforgery();
+        // Called by Buy Me a Coffee, not the browser; checked with the webhook's signature.
+        support.MapPost("/buymeacoffee", BuyMeACoffeeWebhook).WithName("BuyMeACoffeeWebhook");
         support.MapGet("/donations", ListDonations).WithName("ListDonations").RequireAuthorization();
 
         return app;
     }
 
     /// <summary>Public. Where the "Buy me a coffee" button goes, or "" to hide it.</summary>
-    public static Ok<SupportInfo> GetInfo(IOptions<SupportOptions> options) =>
-        TypedResults.Ok(new SupportInfo(About.AboutRules.IsSafeUrl(options.Value.Url) && !options.Value.Url.Trim().StartsWith('/') ? options.Value.Url.Trim() : ""));
+    public static Ok<SupportInfo> GetInfo(IOptionsMonitor<SupportOptions> options)
+    {
+        var url = options.CurrentValue.Url.Trim();
+        return TypedResults.Ok(new SupportInfo(Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http" ? url : ""));
+    }
 
     /// <summary>
-    /// Ko-fi's webhook: a form with one field, "data", holding the payment as JSON. Stores it once
-    /// (Ko-fi retries until it gets a 200) and alerts the phone. 401 for a wrong token.
+    /// Buy Me a Coffee's webhook. The body is signed: an HMAC-SHA256 of it with the webhook's secret,
+    /// in hex, in X-Signature-Sha256 (or X-Bmc-Signature, as older webhooks did). Stores each payment
+    /// once and alerts the phone. Its JSON isn't well documented, so the common field names are read
+    /// and the whole body is kept (the Community tab shows it).
     /// </summary>
-    public static async Task<Results<Ok, BadRequest, UnauthorizedHttpResult, ProblemHttpResult>> KoFiWebhook(
+    public static async Task<Results<Ok, BadRequest, UnauthorizedHttpResult, ProblemHttpResult>> BuyMeACoffeeWebhook(
         HttpRequest request,
         PortfolioDbContext db,
-        IOptions<SupportOptions> options,
+        IOptionsMonitor<SupportOptions> options,
         IPhoneAlerts alerts,
         TimeProvider time,
         CancellationToken cancellationToken)
     {
-        var expected = options.Value.KoFiVerificationToken.Trim();
-        if (expected.Length == 0) return TypedResults.Problem("Ko-fi isn't set up: set Support:KoFiVerificationToken.", statusCode: StatusCodes.Status503ServiceUnavailable);
-        if (!request.HasFormContentType) return TypedResults.BadRequest();
+        var secret = options.CurrentValue.BuyMeACoffeeWebhookSecret.Trim();
+        if (secret.Length == 0) return TypedResults.Problem("Buy Me a Coffee isn't set up: set its webhook secret in Settings.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        if (request.ContentLength > MaxPayloadBytes) return TypedResults.BadRequest();
 
-        var form = await request.ReadFormAsync(cancellationToken);
-        var payment = ParseKoFi(form["data"].ToString());
-        if (payment is null) return TypedResults.BadRequest();
-        if (!TokensMatch(payment.VerificationToken, expected)) return TypedResults.Unauthorized();
-        if (string.IsNullOrWhiteSpace(payment.TransactionId)) return TypedResults.BadRequest();
+        using var buffer = new MemoryStream();
+        await request.Body.CopyToAsync(buffer, cancellationToken);
+        if (buffer.Length > MaxPayloadBytes) return TypedResults.BadRequest();
+        var body = buffer.ToArray();
 
-        var transactionId = Cut(payment.TransactionId.Trim(), 100)!;
+        var signature = request.Headers["X-Signature-Sha256"].FirstOrDefault() ?? request.Headers["X-Bmc-Signature"].FirstOrDefault();
+        if (!SignatureMatches(body, signature, secret)) return TypedResults.Unauthorized();
+
+        var json = Encoding.UTF8.GetString(body);
+        var parsed = ParseBuyMeACoffee(json, request.Headers["X-Bmc-Event"].FirstOrDefault());
+        if (parsed is null) return TypedResults.BadRequest();
+
+        var transactionId = Cut(parsed.Id, 100) ?? Convert.ToHexStringLower(SHA256.HashData(body));
         if (await db.Donations.AnyAsync(d => d.TransactionId == transactionId, cancellationToken)) return TypedResults.Ok();
 
         var donation = new Donation
         {
             TransactionId = transactionId,
-            Type = Cut(payment.Type, 40) ?? "Donation",
-            FromName = Cut(payment.FromName, 200) ?? "Someone",
-            Message = Cut(payment.Message, 2000),
-            Amount = Cut(payment.Amount, 20) ?? "",
-            Currency = Cut(payment.Currency, 10) ?? "",
-            Email = Cut(payment.Email, 320),
-            IsPublic = payment.IsPublic,
+            Type = Cut(parsed.Type, 40) ?? "donation",
+            FromName = Cut(parsed.FromName, 200) ?? "Someone",
+            Message = Cut(parsed.Message, 2000),
+            Amount = Cut(parsed.Amount, 20) ?? "",
+            Currency = Cut(parsed.Currency, 10) ?? "",
+            Email = Cut(parsed.Email, 320),
+            Payload = json.Length <= 20_000 ? json : json[..20_000],
             ReceivedAt = time.GetUtcNow(),
         };
         db.Donations.Add(donation);
         await db.SaveChangesAsync(cancellationToken);
 
+        var amount = $"{donation.Amount} {donation.Currency}".Trim();
         alerts.Send(new PhoneAlert(
-            $"☕ {donation.Amount} {donation.Currency} from {donation.FromName}",
-            donation.Message ?? $"A new {donation.Type.ToLowerInvariant()} on Ko-fi.",
+            amount.Length > 0 ? $"☕ {amount} from {donation.FromName}" : $"☕ {donation.FromName} bought you a coffee",
+            donation.Message ?? $"New on Buy Me a Coffee: {donation.Type}.",
             "/community",
             AlertPriority.High,
             "coffee"));
         return TypedResults.Ok();
     }
 
-    /// <summary>Null when it isn't Ko-fi's JSON.</summary>
-    public static KoFiPayment? ParseKoFi(string? json)
+    /// <summary>The HMAC-SHA256 of the body with the secret, as hex (any case), compared in constant time.</summary>
+    public static bool SignatureMatches(byte[] body, string? signature, string secret)
     {
-        if (string.IsNullOrWhiteSpace(json)) return null;
+        if (string.IsNullOrWhiteSpace(signature)) return false;
+        var expected = Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), body));
+        var given = signature.Trim().ToLowerInvariant();
+        if (given.StartsWith("sha256=")) given = given[7..];
+        return CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(expected), Encoding.ASCII.GetBytes(given));
+    }
+
+    /// <summary>
+    /// Reads a webhook body. Newer ones look like { "type": "donation.created", "data": { … } }, older
+    /// ones { "response": { … } } with the event in the X-Bmc-Event header. Null when it isn't a JSON object.
+    /// </summary>
+    public static ParsedDonation? ParseBuyMeACoffee(string json, string? eventHeader = null)
+    {
+        JsonObject? root;
         try
         {
-            return JsonSerializer.Deserialize<KoFiPayment>(json);
+            root = JsonNode.Parse(json) as JsonObject;
         }
         catch (JsonException)
         {
             return null;
         }
+        if (root is null) return null;
+
+        var data = root["data"] as JsonObject ?? root["response"] as JsonObject ?? root;
+        string? Read(params string[] names) => names.Select(n => Text(data[n]) ?? Text(root[n])).FirstOrDefault(v => v is { Length: > 0 });
+
+        return new ParsedDonation(
+            Read("id", "support_id", "transaction_id", "event_id"),
+            Text(root["type"]) ?? eventHeader,
+            Read("supporter_name", "payer_name", "name"),
+            Read("support_note", "note", "message"),
+            Read("amount", "total_amount", "support_coffee_price"),
+            Read("currency", "support_currency"),
+            Read("supporter_email", "payer_email", "email"));
     }
 
-    /// <summary>Compared in constant time, so the token can't be guessed a character at a time.</summary>
-    public static bool TokensMatch(string? given, string expected) =>
-        given is not null && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(given.Trim()), Encoding.UTF8.GetBytes(expected));
+    /// <summary>A string or a number as text; null for anything else.</summary>
+    private static string? Text(JsonNode? node) => node is JsonValue value
+        ? value.TryGetValue<string>(out var s) ? s.Trim() : value.TryGetValue<decimal>(out var d) ? d.ToString(System.Globalization.CultureInfo.InvariantCulture) : null
+        : null;
 
     /// <summary>Admin only. Newest first.</summary>
     public static async Task<Ok<PagedResponse<DonationDto>>> ListDonations(
@@ -144,7 +175,7 @@ public static class SupportEndpoints
             .ThenByDescending(d => d.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(d => new DonationDto(d.Id, d.Type, d.FromName, d.Message, d.Amount, d.Currency, d.Email, d.IsPublic, d.ReceivedAt))
+            .Select(d => new DonationDto(d.Id, d.Type, d.FromName, d.Message, d.Amount, d.Currency, d.Email, d.ReceivedAt))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new PagedResponse<DonationDto>(items, page, pageSize, totalCount));

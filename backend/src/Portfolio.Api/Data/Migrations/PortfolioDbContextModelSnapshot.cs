@@ -51,6 +51,15 @@ namespace Portfolio.Api.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DecisionTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("decision_token_hash");
+
                     b.Property<string>("ItemKey")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -67,9 +76,15 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("recipient_count");
 
-                    b.Property<DateTimeOffset>("SentAt")
+                    b.Property<DateTimeOffset?>("SentAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -245,14 +260,14 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("from_name");
 
-                    b.Property<bool>("IsPublic")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_public");
-
                     b.Property<string>("Message")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("message");
+
+                    b.Property<string>("Payload")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
 
                     b.Property<DateTimeOffset>("ReceivedAt")
                         .HasColumnType("timestamp with time zone")
@@ -349,6 +364,13 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("character varying(254)")
                         .HasColumnName("email");
 
+                    b.Property<string>("ExcludedSkills")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("excluded_skills")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.Property<DateTimeOffset?>("GeneratedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("generated_at");
@@ -393,6 +415,31 @@ namespace Portfolio.Api.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("resume", (string)null);
+                });
+
+            modelBuilder.Entity("Portfolio.Api.Data.SiteSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<bool>("IsEncrypted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_encrypted");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("value");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("site_settings", (string)null);
                 });
 
             modelBuilder.Entity("Portfolio.Api.Data.StoredFile", b =>

@@ -124,6 +124,7 @@ export function resumeSettings(): ResumeSettingsDetails {
     location: '',
     summary: '',
     sections: ['summary', 'statuses', 'links', 'experience', 'skills', 'education', 'qualifications', 'papers', 'hackathons', 'languages'],
+    excludedSkills: [],
     generatedAt: null,
   }
 }

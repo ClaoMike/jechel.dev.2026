@@ -54,7 +54,7 @@ public class PhoneAlertsTests
     [Fact]
     public void NtfyMessage_links_to_the_site_and_cuts_long_text()
     {
-        var body = AlertWorker.NtfyMessage(
+        var body = NtfySender.NtfyMessage(
             new PhoneAlert("New message", new string('m', 5000), "/contact", AlertPriority.High, "envelope"),
             "my-topic",
             new SiteOptions { PublicUrl = "https://jechel.dev/" });
@@ -64,5 +64,21 @@ public class PhoneAlertsTests
         Assert.Equal("https://jechel.dev/contact", body["click"]);
         Assert.Equal(new[] { "envelope" }, body["tags"]);
         Assert.Equal(1000, ((string)body["message"]).Length);
+    }
+
+    [Fact]
+    public void NtfyMessage_turns_actions_into_buttons_that_post()
+    {
+        var body = NtfySender.NtfyMessage(
+            new PhoneAlert("New app", "Send it?", Actions: [new AlertAction("Send email", "https://jechel.dev/send?token=t")]),
+            "my-topic",
+            new SiteOptions());
+
+        var action = Assert.Single((Dictionary<string, object>[])body["actions"]);
+        Assert.Equal("http", action["action"]);
+        Assert.Equal("Send email", action["label"]);
+        Assert.Equal("https://jechel.dev/send?token=t", action["url"]);
+        Assert.Equal("POST", action["method"]);
+        Assert.Equal(true, action["clear"]);
     }
 }

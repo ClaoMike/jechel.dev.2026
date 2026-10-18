@@ -15,7 +15,10 @@ public record ConfirmedSubscription(string Email);
 /// <param name="ConfirmedAt">Null while they haven't clicked the confirmation link.</param>
 public record SubscriberDto(int Id, string Email, DateTimeOffset CreatedAt, DateTimeOffset? ConfirmedAt);
 
-public record AnnouncementDto(int Id, string Kind, string Title, DateTimeOffset SentAt, int RecipientCount);
+/// <param name="Status">One of <see cref="AnnouncementStatus"/>.</param>
+public record AnnouncementDto(int Id, string Kind, string Title, string Status, DateTimeOffset CreatedAt, DateTimeOffset? SentAt, int RecipientCount);
+
+public record DecisionResult(string Status);
 
 /// <summary>Email updates: visitors subscribe (double opt-in), <see cref="UpdatesAnnouncer"/> emails them what's new.</summary>
 public static class UpdatesEndpoints
@@ -42,6 +45,11 @@ public static class UpdatesEndpoints
         updates.MapGet("/subscribers", ListSubscribers).WithName("ListSubscribers").RequireAuthorization();
         updates.MapDelete("/subscribers/{id:int}", DeleteSubscriber).WithName("DeleteSubscriber").RequireAuthorization();
         updates.MapGet("/announcements", ListAnnouncements).WithName("ListAnnouncements").RequireAuthorization();
+        // The admin (signed in), or the phone alert's buttons (with the announcement's token).
+        updates.MapPost("/announcements/{id:int}/send", (int id, string? token, HttpContext http, PortfolioDbContext db, UpdatesTrigger trigger, CancellationToken ct) =>
+            Decide(id, token, AnnouncementStatus.Approved, http, db, trigger, ct)).WithName("SendAnnouncement");
+        updates.MapPost("/announcements/{id:int}/ignore", (int id, string? token, HttpContext http, PortfolioDbContext db, UpdatesTrigger trigger, CancellationToken ct) =>
+            Decide(id, token, AnnouncementStatus.Ignored, http, db, trigger, ct)).WithName("IgnoreAnnouncement");
 
         return app;
     }
@@ -181,14 +189,41 @@ public static class UpdatesEndpoints
         var totalCount = await db.Announcements.CountAsync(cancellationToken);
         var items = await db.Announcements
             .AsNoTracking()
-            .OrderByDescending(a => a.SentAt)
+            .OrderByDescending(a => a.CreatedAt)
             .ThenByDescending(a => a.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(a => new AnnouncementDto(a.Id, a.Kind, a.Title, a.SentAt, a.RecipientCount))
+            .Select(a => new AnnouncementDto(a.Id, a.Kind, a.Title, a.Status, a.CreatedAt, a.SentAt, a.RecipientCount))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new PagedResponse<AnnouncementDto>(items, page, pageSize, totalCount));
+    }
+
+    /// <summary>
+    /// Sends (<see cref="AnnouncementStatus.Approved"/>) or ignores a pending announcement. Allowed for the
+    /// signed-in admin, or with the token from its alert. Deciding again answers with how it was decided.
+    /// </summary>
+    public static async Task<Results<Ok<DecisionResult>, NotFound, UnauthorizedHttpResult>> Decide(
+        int id,
+        string? token,
+        string decision,
+        HttpContext http,
+        PortfolioDbContext db,
+        UpdatesTrigger trigger,
+        CancellationToken cancellationToken)
+    {
+        var announcement = await db.Announcements.FindAsync([id], cancellationToken);
+        if (announcement is null) return TypedResults.NotFound();
+
+        var isAdmin = http.User.Identity?.IsAuthenticated == true;
+        if (!isAdmin && !AnnouncementDecisions.TokenMatches(announcement, token)) return TypedResults.Unauthorized();
+        if (announcement.Status != AnnouncementStatus.Pending) return TypedResults.Ok(new DecisionResult(announcement.Status));
+
+        announcement.Status = decision;
+        announcement.DecisionTokenHash = null;
+        await db.SaveChangesAsync(cancellationToken);
+        if (decision == AnnouncementStatus.Approved) trigger.Poke();
+        return TypedResults.Ok(new DecisionResult(decision));
     }
 
     /// <summary>256 random bits, URL-safe.</summary>

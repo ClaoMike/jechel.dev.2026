@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using Microsoft.Extensions.Hosting;
+using Portfolio.Api.Features.Alerts;
 using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.LeetCode;
 using Portfolio.Api.Features.Updates;
@@ -27,7 +28,7 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
 {
     public const string AdminEmail = "admin@example.com";
     public const string SignInPath = "/test/sign-in";
-    public const string KoFiToken = "test-kofi-token";
+    public const string BuyMeACoffeeSecret = "test-bmc-secret";
 
     private readonly PostgreSqlContainer _db = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
@@ -43,8 +44,8 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         builder.UseSetting("Auth:AdminEmails:0", AdminEmail);
         builder.UseSetting("YouTube:Channel", "@test");
         builder.UseSetting("YouTube:ApiKey", "test-key");
-        builder.UseSetting("Support:Url", "https://ko-fi.com/test");
-        builder.UseSetting("Support:KoFiVerificationToken", KoFiToken);
+        builder.UseSetting("Support:Url", "https://buymeacoffee.com/test");
+        builder.UseSetting("Support:BuyMeACoffeeWebhookSecret", BuyMeACoffeeSecret);
         builder.UseSetting("Site:PublicUrl", "https://jechel.test");
         // Every test client comes from the same (unknown) address.
         builder.UseSetting("Updates:SubscribeLimitPer10Minutes", "1000");
@@ -56,11 +57,15 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
             services.AddSingleton<IYouTubeClient>(new FakeYouTubeClient());
             services.AddSingleton<IStartupFilter, TestSignInStartupFilter>();
             services.AddSingleton<IEmailSender>(Emails);
+            services.AddSingleton<IPhoneAlerts>(Alerts);
             // Announcing runs on a timer; tests that need it call UpdatesAnnouncer themselves.
             var worker = services.Single(s => s.ImplementationType == typeof(UpdatesWorker));
             services.Remove(worker);
         });
     }
+
+    /// <summary>Every phone alert the API raised.</summary>
+    public RecordingPhoneAlerts Alerts { get; } = new();
 
     /// <summary>Every email the API sent.</summary>
     public RecordingEmailSender Emails { get; } = new();
@@ -138,4 +143,16 @@ public sealed class RecordingEmailSender : IEmailSender
         _sent.Enqueue(message);
         return Task.CompletedTask;
     }
+}
+
+/// <summary>Keeps every phone alert instead of sending it.</summary>
+public sealed class RecordingPhoneAlerts : IPhoneAlerts
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<PhoneAlert> _sent = new();
+
+    public IReadOnlyList<PhoneAlert> All => [.. _sent];
+
+    public void Send(PhoneAlert alert) => _sent.Enqueue(alert);
+
+    public void SendThrottled(string key, PhoneAlert alert) => _sent.Enqueue(alert);
 }

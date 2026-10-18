@@ -15,6 +15,7 @@ export const TABS: readonly Tab[] = [
   { to: '/engagement', label: 'Engagement', adminOnly: true },
   { to: '/community', label: 'Community', adminOnly: true },
   { to: '/terms', label: 'Terms', adminOnly: true },
+  { to: '/settings', label: 'Settings', adminOnly: true },
 ]
 
 /** Where a path sits in the tab order, or -1 when it isn't a tab (page transitions slide by this). */

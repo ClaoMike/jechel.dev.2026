@@ -65,4 +65,25 @@ describe('Résumé generator', () => {
     expect(await panel.findByText('Use digits.')).toBeInTheDocument()
     expect(panel.getByRole('status')).toHaveTextContent('Fix the fields marked below.')
   })
+
+  it('leaves out the skills that are unticked', async () => {
+    const sent: ResumeSettings[] = []
+    server.use(
+      signedIn(),
+      http.post(`${API}/api/resume/generate`, async ({ request }) => {
+        const body = (await request.json()) as ResumeSettings
+        sent.push(body)
+        return HttpResponse.json({ ...body, generatedAt: '2026-10-18T12:00:00Z' })
+      }),
+    )
+    const { user, panel } = await openPanel()
+
+    const skills = within(panel.getByRole('group', { name: 'Skills to show' }))
+    expect(skills.getByLabelText('C#')).toBeChecked()
+    await user.click(skills.getByLabelText('Python'))
+    await user.click(panel.getByRole('button', { name: 'Generate résumés' }))
+
+    await panel.findByText(/Both résumés are ready/)
+    expect(sent[0].excludedSkills).toEqual(['Python'])
+  })
 })

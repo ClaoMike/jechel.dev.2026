@@ -5,9 +5,9 @@ using Microsoft.Extensions.Options;
 namespace Portfolio.Api.Features.Alerts;
 
 /// <summary>
-/// The "Alerts" configuration section: where phone alerts go. They're sent with
-/// <see href="https://ntfy.sh">ntfy</see>: install the ntfy app, subscribe to the topic, done.
-/// Until <see cref="NtfyTopic"/> is set, alerts are only written to the log.
+/// The "Alerts" configuration section (also editable in the Settings tab): where phone alerts go.
+/// They're sent with <see href="https://ntfy.sh">ntfy</see>: install the ntfy app, subscribe to the
+/// topic, done. Until <see cref="NtfyTopic"/> is set, alerts are only written to the log.
 /// </summary>
 public class AlertOptions
 {
@@ -39,37 +39,24 @@ public class SiteOptions
     public string UrlFor(string path) => PublicUrl.TrimEnd('/') + path;
 }
 
-/// <summary>Sends the queued <see cref="PhoneAlert"/>s to ntfy, one at a time. A failed alert is logged and dropped.</summary>
-public class AlertWorker(PhoneAlerts alerts, IHttpClientFactory http, IOptions<AlertOptions> options, IOptions<SiteOptions> site, ILogger<AlertWorker> logger) : BackgroundService
+/// <summary>Posts one alert to ntfy with the current settings.</summary>
+public class NtfySender(IHttpClientFactory http, IOptionsMonitor<AlertOptions> options, IOptions<SiteOptions> site, ILogger<NtfySender> logger)
 {
     public const string HttpClientName = "ntfy";
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    /// <summary>False when no topic is set (the alert is only logged). Throws when ntfy refuses it or can't be reached.</summary>
+    public async Task<bool> SendAsync(PhoneAlert alert, CancellationToken cancellationToken)
     {
-        await foreach (var alert in alerts.Reader.ReadAllAsync(stoppingToken))
-        {
-            try
-            {
-                await SendAsync(alert, stoppingToken);
-            }
-            catch (Exception e) when (!stoppingToken.IsCancellationRequested)
-            {
-                logger.LogWarning(e, "Couldn't send the phone alert \"{Title}\".", alert.Title);
-            }
-        }
-    }
-
-    private async Task SendAsync(PhoneAlert alert, CancellationToken cancellationToken)
-    {
-        var config = options.Value;
+        var config = options.CurrentValue;
         if (!config.IsConfigured)
         {
             logger.LogInformation("Phone alert (Alerts:NtfyTopic isn't set): {Title}: {Message}", alert.Title, alert.Message);
-            return;
+            return false;
         }
 
         // JSON publishing, so titles and messages can hold any characters (headers can't).
-        using var request = new HttpRequestMessage(HttpMethod.Post, config.NtfyServer.TrimEnd('/') + "/")
+        var server = string.IsNullOrWhiteSpace(config.NtfyServer) ? "https://ntfy.sh" : config.NtfyServer.Trim();
+        using var request = new HttpRequestMessage(HttpMethod.Post, server.TrimEnd('/') + "/")
         {
             Content = JsonContent.Create(NtfyMessage(alert, config.NtfyTopic.Trim(), site.Value)),
         };
@@ -77,6 +64,7 @@ public class AlertWorker(PhoneAlerts alerts, IHttpClientFactory http, IOptions<A
 
         using var response = await http.CreateClient(HttpClientName).SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
+        return true;
     }
 
     /// <summary>The body ntfy's JSON publishing expects.</summary>
@@ -91,8 +79,32 @@ public class AlertWorker(PhoneAlerts alerts, IHttpClientFactory http, IOptions<A
         };
         if (alert.Tag.Length > 0) body["tags"] = new[] { alert.Tag };
         if (alert.Path is { Length: > 0 } path) body["click"] = site.UrlFor(path);
+        if (alert.Actions is { Count: > 0 } actions)
+        {
+            // Buttons on the notification: the phone posts to the URL itself (no browser), then the notification goes away.
+            body["actions"] = actions.Select(a => new Dictionary<string, object> { ["action"] = "http", ["label"] = a.Label, ["url"] = a.Url, ["method"] = "POST", ["clear"] = true }).ToArray();
+        }
         return body;
     }
 
     private static string Cut(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
+}
+
+/// <summary>Sends the queued <see cref="PhoneAlert"/>s, one at a time. A failed alert is logged and dropped.</summary>
+public class AlertWorker(PhoneAlerts alerts, NtfySender ntfy, ILogger<AlertWorker> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await foreach (var alert in alerts.Reader.ReadAllAsync(stoppingToken))
+        {
+            try
+            {
+                await ntfy.SendAsync(alert, stoppingToken);
+            }
+            catch (Exception e) when (!stoppingToken.IsCancellationRequested)
+            {
+                logger.LogWarning(e, "Couldn't send the phone alert \"{Title}\".", alert.Title);
+            }
+        }
+    }
 }

@@ -513,10 +513,10 @@ export interface SupportInfo {
   url: string
 }
 
-/** A payment Ko-fi reported (admin only). */
+/** A payment Buy Me a Coffee reported (admin only). */
 export interface Donation {
   id: number
-  /** "Donation", "Subscription", "Shop Order" or "Commission". */
+  /** The event, e.g. "donation.created". */
   type: string
   fromName: string
   message: string | null
@@ -524,7 +524,6 @@ export interface Donation {
   amount: string
   currency: string
   email: string | null
-  isPublic: boolean
   /** ISO 8601 timestamp. */
   receivedAt: string
 }
@@ -538,14 +537,57 @@ export interface Subscriber {
   confirmedAt: string | null
 }
 
-/** Something new that was emailed to the subscribers. */
+/** pending: a new app waiting for the admin; approved: about to be emailed. */
+export type AnnouncementStatus = 'pending' | 'approved' | 'sent' | 'ignored'
+
+/** Something new to email the subscribers about. */
 export interface Announcement {
   id: number
   kind: 'app' | 'video'
   title: string
+  status: AnnouncementStatus
   /** ISO 8601 timestamp. */
-  sentAt: string
+  createdAt: string
+  /** ISO 8601 timestamp, or null until emailed. */
+  sentAt: string | null
   recipientCount: number
+}
+
+/** A connection setting (Settings tab). Secrets are never sent to the browser: only whether they're set and their last 4 characters. */
+export interface Setting {
+  /** The configuration key, e.g. "Email:ResendApiKey". */
+  key: string
+  label: string
+  isSecret: boolean
+  /** Only for settings that aren't secret. */
+  value: string | null
+  isSet: boolean
+  /** A secret's last 4 characters. */
+  hint: string | null
+  /** Where the value in use comes from: saved here, the server's configuration, or nowhere. */
+  source: 'settings' | 'configuration' | 'none'
+  /** ISO 8601 timestamp of the last save here. */
+  updatedAt: string | null
+}
+
+export interface GoogleStatus {
+  isConfigured: boolean
+  clientIdHint: string | null
+  adminEmailCount: number
+  /** The callback to register in Google Cloud. */
+  redirectUri: string
+}
+
+export interface SettingsResponse {
+  settings: Setting[]
+  google: GoogleStatus
+  /** The site's public address, e.g. "https://jechel.dev". */
+  siteUrl: string
+}
+
+export interface TestResult {
+  ok: boolean
+  message: string
 }
 
 /** The parts of About Me a résumé can include, in print order (ResumeSections.cs). */
@@ -575,6 +617,8 @@ export interface ResumeSettings {
   location: string
   summary: string
   sections: ResumeSection[]
+  /** Names of the About Me skills to leave out. */
+  excludedSkills: string[]
 }
 
 export interface ResumeSettingsDetails extends ResumeSettings {
@@ -904,7 +948,13 @@ export const api = {
       await http.delete(`/api/updates/subscribers/${id}`)
     },
 
-    /** Admin only. What was emailed, newest first. */
+    /** Admin only. A pending announcement: email it (`send`) or not (`ignore`). */
+    async decide(id: number, decision: 'send' | 'ignore'): Promise<AnnouncementStatus> {
+      const { status } = await post<{ status: AnnouncementStatus }>(`/api/updates/announcements/${id}/${decision}`)
+      return status
+    },
+
+    /** Admin only. Newest first, with whether each was emailed. */
     listAnnouncements(page = 1, pageSize = 20, signal?: AbortSignal): Promise<Page<Announcement>> {
       return get<Page<Announcement>>('/api/updates/announcements', { params: { page, pageSize }, signal })
     },
@@ -934,6 +984,24 @@ export const api = {
      */
     generate(settings: ResumeSettings): Promise<ResumeSettingsDetails> {
       return post<ResumeSettingsDetails>('/api/resume/generate', settings)
+    },
+  },
+
+  settings: {
+    /** Admin only. */
+    get(signal?: AbortSignal): Promise<SettingsResponse> {
+      return get<SettingsResponse>('/api/settings', { signal })
+    },
+
+    /** Admin only. Applies at once; an empty value clears it. Rejects with validationErrors.value. */
+    async save(key: string, value: string): Promise<SettingsResponse> {
+      const response = await http.put<SettingsResponse>(`/api/settings/${encodeURIComponent(key)}`, { value })
+      return response.data
+    },
+
+    /** Admin only. Sends a test alert ("ntfy"), a test email to you ("email"), or lists the videos ("youtube"). */
+    test(service: 'ntfy' | 'email' | 'youtube'): Promise<TestResult> {
+      return post<TestResult>(`/api/settings/test/${service}`)
     },
   },
 

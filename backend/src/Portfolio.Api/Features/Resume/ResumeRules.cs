@@ -29,10 +29,11 @@ public static class ResumeSections
 }
 
 /// <param name="Sections">Ids from <see cref="ResumeSections.All"/>; printed in that order, whatever the order here.</param>
-public record ResumeSettingsRequest(string? Phone, string? Email, string? Headline, string? Location, string? Summary, IReadOnlyList<string>? Sections);
+/// <param name="ExcludedSkills">Names of the About Me skills to leave out; skills added later are in until left out.</param>
+public record ResumeSettingsRequest(string? Phone, string? Email, string? Headline, string? Location, string? Summary, IReadOnlyList<string>? Sections, IReadOnlyList<string>? ExcludedSkills = null);
 
 /// <param name="GeneratedAt">When the PDFs were last made; null before the first time.</param>
-public record ResumeSettingsDto(string Phone, string Email, string Headline, string Location, string Summary, IReadOnlyList<string> Sections, DateTimeOffset? GeneratedAt);
+public record ResumeSettingsDto(string Phone, string Email, string Headline, string Location, string Summary, IReadOnlyList<string> Sections, IReadOnlyList<string> ExcludedSkills, DateTimeOffset? GeneratedAt);
 
 public static partial class ResumeRules
 {
@@ -40,6 +41,7 @@ public static partial class ResumeRules
     public const int HeadlineMaxLength = 150;
     public const int LocationMaxLength = 100;
     public const int SummaryMaxLength = 1500;
+    public const int MaxExcludedSkills = 200;
 
     public static Dictionary<string, string[]> Validate(ResumeSettingsRequest request)
     {
@@ -59,6 +61,8 @@ public static partial class ResumeRules
             errors["summary"] = [$"At most {SummaryMaxLength} characters."];
         if (request.Sections is null || request.Sections.Any(s => !ResumeSections.All.Contains(s)))
             errors["sections"] = ["Choose sections from the list."];
+        if (request.ExcludedSkills is { } excluded && (excluded.Count > MaxExcludedSkills || excluded.Any(s => string.IsNullOrWhiteSpace(s) || s.Length > 200)))
+            errors["excludedSkills"] = ["Choose skills from the list."];
 
         return errors;
     }
@@ -70,7 +74,8 @@ public static partial class ResumeRules
         request.Headline?.Trim() ?? "",
         request.Location?.Trim() ?? "",
         request.Summary?.Trim() ?? "",
-        [.. ResumeSections.All.Where(s => request.Sections?.Contains(s) == true)]);
+        [.. ResumeSections.All.Where(s => request.Sections?.Contains(s) == true)],
+        [.. (request.ExcludedSkills ?? []).Select(s => s.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)]);
 
     [GeneratedRegex(@"^[0-9+()\-. ]*$")]
     private static partial Regex Phone();

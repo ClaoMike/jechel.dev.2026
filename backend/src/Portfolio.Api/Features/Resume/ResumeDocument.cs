@@ -44,18 +44,18 @@ public static class ResumeDocument
                 page.MarginVertical(36);
                 page.DefaultTextStyle(style => style.FontSize(9.5f).LineHeight(1.3f).FontColor(Colors.Grey.Darken4));
 
-                page.Header().Element(header => Header(header, input, Has(ResumeSections.Statuses), Has(ResumeSections.Links)));
-
-                page.Content().PaddingTop(10).Column(column =>
+                page.Content().Column(column =>
                 {
                     column.Spacing(10);
+                    // In the content, not page.Header(): only the first page has it.
+                    column.Item().PaddingBottom(4).Element(header => Header(header, input, Has(ResumeSections.Statuses), Has(ResumeSections.Links)));
                     var about = input.About;
                     if (Has(ResumeSections.Summary) && settings.Summary!.Length > 0)
                         Section(column, "Profile", body => body.Item().Text(text => Rich(text, settings.Summary, input.SiteUrl)));
                     if (Has(ResumeSections.Experience) && about.Experience.Count > 0)
                         Section(column, "Experience", body => { foreach (var item in about.Experience) Experience(body, item, input); });
-                    if (Has(ResumeSections.Skills) && about.Skills.Count > 0)
-                        Section(column, "Skills", body => body.Item().Text(SkillsLine(about.Skills, input.Today)));
+                    if (Has(ResumeSections.Skills) && SkillsLine(about.Skills, settings.ExcludedSkills ?? []).Length > 0)
+                        Section(column, "Skills", body => body.Item().Text(SkillsLine(about.Skills, settings.ExcludedSkills ?? [])));
                     if (Has(ResumeSections.Education) && about.Education.Count > 0)
                         Section(column, "Education", body => { foreach (var item in about.Education) Education(body, item, input); });
                     if (Has(ResumeSections.Qualifications) && about.Qualifications.Count > 0)
@@ -134,19 +134,17 @@ public static class ResumeDocument
         });
     }
 
-    /// <summary>The site, GitHub and LinkedIn, shown by their address without "https://www.".</summary>
-    private static IEnumerable<(string Label, string Url)> Links(ResumeInput input)
+    /// <summary>The site (by its name, e.g. "jechel.dev"), GitHub and LinkedIn (by their names), each a link.</summary>
+    public static IEnumerable<(string Label, string Url)> Links(ResumeInput input)
     {
-        string[] urls = [input.SiteUrl, input.About.Links.GitHubUrl, input.About.Links.LinkedInUrl];
-        foreach (var url in urls)
-        {
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("https" or "http")) continue;
-            // A bare "https://github.com/" placeholder isn't a profile.
-            if (uri.AbsolutePath.Trim('/').Length == 0 && url != input.SiteUrl) continue;
-            var label = (uri.Host.StartsWith("www.") ? uri.Host[4..] : uri.Host) + uri.AbsolutePath.TrimEnd('/');
-            yield return (label, url);
-        }
+        if (Uri.TryCreate(input.SiteUrl, UriKind.Absolute, out var site)) yield return (site.Host.StartsWith("www.") ? site.Host[4..] : site.Host, input.SiteUrl);
+        if (IsProfile(input.About.Links.GitHubUrl)) yield return ("GitHub", input.About.Links.GitHubUrl);
+        if (IsProfile(input.About.Links.LinkedInUrl)) yield return ("LinkedIn", input.About.Links.LinkedInUrl);
     }
+
+    /// <summary>An http(s) link to a profile; a bare "https://github.com/" placeholder isn't one.</summary>
+    private static bool IsProfile(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http" && uri.AbsolutePath.Trim('/').Length > 0;
 
     private static void Section(ColumnDescriptor column, string title, Action<ColumnDescriptor> body)
     {
@@ -271,37 +269,9 @@ public static class ResumeDocument
 
     public static string Dates(DateOnly start, DateOnly? end) => $"{Month(start)} – {(end is { } e ? Month(e) : "Present")}";
 
-    /// <summary>"C# (7 years), TypeScript (5 years), Docker": in the page's order, with the experience worked out like the page does.</summary>
-    public static string SkillsLine(IReadOnlyList<Skill> skills, DateOnly today) =>
-        string.Join(", ", skills.Select(s => MonthsUsed(s, today) is var months and > 0 ? $"{PlainText(s.Name)} ({Experience(months)})" : PlainText(s.Name)));
-
-    /// <summary>Months used up to now; overlapping periods count once, the future doesn't count. Same as the frontend's skills.ts.</summary>
-    public static int MonthsUsed(Skill skill, DateOnly today)
-    {
-        static int Index(DateOnly d) => d.Year * 12 + d.Month - 1;
-        var nowEnd = Index(today) + 1;
-        var spans = skill.Periods
-            .Select(p => (Start: Index(p.Start), End: Math.Min(Index(p.End ?? today) + 1, nowEnd)))
-            .Where(s => s.End > s.Start)
-            .OrderBy(s => s.Start);
-        var total = 0;
-        var coveredUntil = int.MinValue;
-        foreach (var (start, end) in spans)
-        {
-            var from = Math.Max(start, coveredUntil);
-            if (end > from) total += end - from;
-            coveredUntil = Math.Max(coveredUntil, end);
-        }
-        return total;
-    }
-
-    /// <summary>"3 months", "1 year", "6 years". Same as the frontend's formatExperience.</summary>
-    public static string Experience(int months)
-    {
-        if (months < 12) return months == 1 ? "1 month" : $"{months} months";
-        var years = (int)Math.Round(months / 12.0, MidpointRounding.AwayFromZero);
-        return years == 1 ? "1 year" : $"{years} years";
-    }
+    /// <summary>"C#, TypeScript, Docker": in the page's order, without the ones left out.</summary>
+    public static string SkillsLine(IReadOnlyList<Skill> skills, IReadOnlyList<string> excluded) =>
+        string.Join(", ", skills.Select(s => PlainText(s.Name)).Where(name => !excluded.Contains(name, StringComparer.OrdinalIgnoreCase)));
 
     private static readonly Dictionary<string, string> NeetCodeNames = new()
     {

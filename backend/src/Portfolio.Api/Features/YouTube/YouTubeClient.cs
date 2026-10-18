@@ -13,7 +13,7 @@ public interface IYouTubeClient
 /// Reads the channel's uploads with the YouTube Data API v3: one call to find the channel's
 /// "uploads" playlist, then one per 50 videos. Each costs 1 unit of the free 10,000 a day.
 /// </summary>
-public class YouTubeClient(HttpClient http, IOptions<YouTubeOptions> options) : IYouTubeClient
+public class YouTubeClient(HttpClient http, IOptionsMonitor<YouTubeOptions> options) : IYouTubeClient
 {
     public static readonly Uri BaseAddress = new("https://www.googleapis.com/youtube/v3/");
 
@@ -22,8 +22,8 @@ public class YouTubeClient(HttpClient http, IOptions<YouTubeOptions> options) : 
 
     public async Task<IReadOnlyList<YouTubeVideo>> FetchVideosAsync(CancellationToken cancellationToken)
     {
-        var key = Uri.EscapeDataString(options.Value.ApiKey.Trim());
-        var channel = options.Value.Channel.Trim();
+        var key = Uri.EscapeDataString(options.CurrentValue.ApiKey.Trim());
+        var channel = options.CurrentValue.Channel.Trim();
         var channelQuery = channel.StartsWith('@') ? $"forHandle={Uri.EscapeDataString(channel)}" : $"id={Uri.EscapeDataString(channel)}";
 
         var channels = await GetAsync($"channels?part=contentDetails&{channelQuery}&key={key}", cancellationToken);

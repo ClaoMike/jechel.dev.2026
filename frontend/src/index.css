@@ -3195,3 +3195,112 @@ button.media-card {
 .chip-muted {
   color: var(--text-muted);
 }
+
+/* ---------- Settings (admin only) ---------- */
+
+.settings {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-card {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-links a {
+  text-decoration: none;
+}
+
+.settings-input-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-input-row input {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.settings-source {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.settings-steps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.settings-copyable {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.settings-copyable code {
+  overflow-wrap: anywhere;
+}
+
+.settings-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.settings-facts dd {
+  margin: 0;
+}
+
+.settings-test {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-test p {
+  margin: 0;
+}
+
+.settings-ok {
+  color: var(--success, #188038);
+  margin: 0;
+}
+
+.settings-more > summary {
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.community-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+@media (max-width: 520px) {
+  .settings-facts {
+    grid-template-columns: 1fr;
+  }
+}

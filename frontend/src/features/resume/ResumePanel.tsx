@@ -9,7 +9,7 @@ const SECTION_LABELS: Record<ResumeSection, string> = {
   statuses: 'Citizenship and residence',
   links: 'Links (this site, GitHub, LinkedIn)',
   experience: 'Work experience',
-  skills: 'Skills (with years)',
+  skills: 'Skills',
   education: 'Education',
   qualifications: 'Qualifications',
   papers: 'Academic papers',
@@ -29,7 +29,7 @@ type Busy = 'saving' | 'generating' | null
  * makes two PDFs: visitors' "Download résumé" gets the one without the phone number; the one with it
  * is only for the admin. Nothing here is ever shown to visitors.
  */
-export function ResumePanel({ onGenerated }: { onGenerated: () => void }) {
+export function ResumePanel({ skills, onGenerated }: { skills: string[]; onGenerated: () => void }) {
   const [state, setState] = useState<State>({ status: 'loading' })
   const [draft, setDraft] = useState<ResumeSettings | null>(null)
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -112,6 +112,16 @@ export function ResumePanel({ onGenerated }: { onGenerated: () => void }) {
             labelFor={(section) => SECTION_LABELS[section]}
             error={errors.sections}
           />
+          {draft.sections.includes('skills') && skills.length > 0 && (
+            <CheckboxGroup
+              label="Skills to show"
+              options={skills}
+              value={skills.filter((skill) => !draft.excludedSkills.some((excluded) => sameSkill(excluded, skill)))}
+              onChange={(shown) => set('excludedSkills')(skills.filter((skill) => !shown.includes(skill)))}
+              labelFor={(skill) => skill}
+              error={errors.excludedSkills}
+            />
+          )}
 
           <div className="resume-actions">
             <button type="submit" className="button" disabled={busy !== null}>
@@ -150,6 +160,11 @@ export function ResumePanel({ onGenerated }: { onGenerated: () => void }) {
   )
 }
 
-function toSettings({ phone, email, headline, location, summary, sections }: ResumeSettingsDetails): ResumeSettings {
-  return { phone, email, headline, location, summary, sections }
+function toSettings({ phone, email, headline, location, summary, sections, excludedSkills }: ResumeSettingsDetails): ResumeSettings {
+  return { phone, email, headline, location, summary, sections, excludedSkills }
+}
+
+/** Skill names match whatever their case, like on the API. */
+function sameSkill(a: string, b: string) {
+  return a.toLowerCase() === b.toLowerCase()
 }

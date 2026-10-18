@@ -8,7 +8,7 @@ namespace Portfolio.Api.UnitTests.Features.YouTube;
 
 public class YouTubeEndpointsTests
 {
-    private static readonly IOptions<YouTubeOptions> Configured = Options.Create(new YouTubeOptions { Channel = "@me", ApiKey = "k" });
+    private static readonly IOptionsMonitor<YouTubeOptions> Configured = TestOptions.Monitor(new YouTubeOptions { Channel = "@me", ApiKey = "k" });
     private readonly RefreshingCache<IReadOnlyList<YouTubeVideo>> _cache = new(new FakeTimeProvider(), YouTubeEndpoints.FreshFor, YouTubeEndpoints.RetryAfter);
 
     private static YouTubeVideo Video(int n) => new($"v{n}", $"Video {n}", "", "", default);
@@ -32,7 +32,7 @@ public class YouTubeEndpointsTests
     [Fact]
     public async Task Is_unavailable_until_configured_or_when_youtube_fails_with_nothing_kept()
     {
-        var notSetUp = await YouTubeEndpoints.ListVideos(Options.Create(new YouTubeOptions()), new FakeYouTube(1), _cache, NullLoggerFactory.Instance, default);
+        var notSetUp = await YouTubeEndpoints.ListVideos(TestOptions.Monitor(new YouTubeOptions()), new FakeYouTube(1), _cache, NullLoggerFactory.Instance, default);
         var down = await YouTubeEndpoints.ListVideos(Configured, new FakeYouTube(1, fails: true), _cache, NullLoggerFactory.Instance, default);
 
         Assert.Equal(503, Assert.IsType<ProblemHttpResult>(notSetUp.Result).StatusCode);

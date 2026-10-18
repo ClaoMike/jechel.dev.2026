@@ -47,13 +47,14 @@ public class ResumeEndpointTests(PortfolioApiFactory factory)
     public async Task Generating_gives_visitors_a_copy_without_the_phone_and_the_admin_one_with_it()
     {
         var admin = await SignedInClientAsync();
-        var settings = new ResumeSettingsRequest(Phone, "claudiu@example.com", "Full-stack engineer", "Manchester, UK", "I build things.", [ResumeSections.Experience, ResumeSections.Summary]);
+        var settings = new ResumeSettingsRequest(Phone, "claudiu@example.com", "Full-stack engineer", "Manchester, UK", "I build things.", [ResumeSections.Experience, ResumeSections.Summary], ["Cobol"]);
 
         var generate = await admin.PostAsJsonAsync("/api/resume/generate", settings);
         Assert.Equal(HttpStatusCode.OK, generate.StatusCode);
         var saved = await generate.Content.ReadFromJsonAsync<ResumeSettingsDto>();
         Assert.NotNull(saved!.GeneratedAt);
         Assert.Equal([ResumeSections.Summary, ResumeSections.Experience], saved.Sections);
+        Assert.Equal(["Cobol"], saved.ExcludedSkills);
 
         var visitor = factory.CreateBrowserClient();
         var publicPdf = await visitor.GetAsync("/api/resume");

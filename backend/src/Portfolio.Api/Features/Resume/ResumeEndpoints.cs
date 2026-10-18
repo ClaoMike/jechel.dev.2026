@@ -146,12 +146,14 @@ public static class ResumeEndpoints
         row.Location = settings.Location!;
         row.Summary = settings.Summary!;
         row.Sections = JsonSerializer.Serialize(settings.Sections, Json);
+        row.ExcludedSkills = JsonSerializer.Serialize(settings.ExcludedSkills ?? [], Json);
         return row;
     }
 
     private static ResumeSettingsDto ToDto(ResumeSettings? row) => row is null
-        ? new ResumeSettingsDto("", "", "", "", "", ResumeSections.Defaults, null)
-        : new ResumeSettingsDto(row.Phone, row.Email, row.Headline, row.Location, row.Summary, JsonSerializer.Deserialize<string[]>(row.Sections, Json) ?? [], row.GeneratedAt);
+        ? new ResumeSettingsDto("", "", "", "", "", ResumeSections.Defaults, [], null)
+        : new ResumeSettingsDto(row.Phone, row.Email, row.Headline, row.Location, row.Summary,
+            JsonSerializer.Deserialize<string[]>(row.Sections, Json) ?? [], JsonSerializer.Deserialize<string[]>(row.ExcludedSkills, Json) ?? [], row.GeneratedAt);
 
     private static FileContentHttpResult Pdf(HttpContext http, byte[] pdf, bool inline, DateTimeOffset? generatedAt)
     {

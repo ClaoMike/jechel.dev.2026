@@ -58,6 +58,29 @@ public partial class UpdatesEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
+    public async Task A_new_app_alerts_the_phone_whose_send_button_approves_it_with_its_token()
+    {
+        var admin = await SignedInClientAsync();
+        var title = $"App {Guid.NewGuid():N}";
+        var created = await admin.PostAsJsonAsync("/api/apps", new Portfolio.Api.Features.Apps.AppRequest(title, "About it", []));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+        var alert = Assert.Single(factory.Alerts.All, a => a.Title == $"New app: {title}");
+        var send = new Uri(alert.Actions![0].Url);
+        Assert.Equal("jechel.test", send.Host);
+
+        // The phone isn't signed in: the token in the link is what lets it through.
+        var phone = factory.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await phone.PostAsync(send.AbsolutePath + "?token=guess", null)).StatusCode);
+        var approved = await phone.PostAsync(send.PathAndQuery, null);
+        Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
+        Assert.Equal("approved", (await approved.Content.ReadFromJsonAsync<DecisionResult>())!.Status);
+
+        var listed = await admin.GetFromJsonAsync<PagedResponse<AnnouncementDto>>("/api/updates/announcements?pageSize=50");
+        Assert.Equal("approved", Assert.Single(listed!.Items, a => a.Title == title).Status);
+    }
+
+    [Fact]
     public async Task An_invalid_address_gets_a_field_error()
     {
         var response = await factory.CreateBrowserClient().PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest("nope"));
