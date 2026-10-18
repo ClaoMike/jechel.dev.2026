@@ -21,9 +21,6 @@ export function MaintenanceScreen({ reason, message }: { reason: 'maintenance' |
         <button type="button" className="button button-secondary" onClick={() => void dispatch(fetchSite())}>
           Try again
         </button>
-        <p className="maintenance-admin">
-          <a href="/admin">Admin sign-in</a>
-        </p>
       </div>
     </main>
   )

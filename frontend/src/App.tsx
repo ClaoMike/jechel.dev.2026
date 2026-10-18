@@ -19,6 +19,9 @@ import { ConfirmSubscriptionPage, UnsubscribePage } from './pages/UpdatesPages'
 import { WhatsNewPage } from './pages/WhatsNewPage'
 import { YouTubePage } from './pages/YouTubePage'
 
+/** Pages that work during maintenance too. */
+const ALWAYS_OPEN = ['/admin', '/updates/confirm', '/updates/unsubscribe']
+
 function App() {
   useLoadSite()
   const site = useAppSelector((state) => state.site)
@@ -26,8 +29,8 @@ function App() {
   const { pathname } = useLocation()
 
   // Visitors get the maintenance screen when it's on, or when the API can't be reached. The admin
-  // always gets the site (and /admin, to sign in, is always there).
-  if (auth !== 'authenticated' && pathname !== '/admin') {
+  // always gets the site; signing in (/admin) and the links in emails (confirm, unsubscribe) always work.
+  if (auth !== 'authenticated' && !ALWAYS_OPEN.includes(pathname)) {
     if (site.status === 'unreachable') return <MaintenanceScreen reason="unreachable" />
     if (site.status === 'loaded' && site.site.maintenance && auth === 'anonymous') return <MaintenanceScreen reason="maintenance" message={site.site.maintenanceMessage} />
   }

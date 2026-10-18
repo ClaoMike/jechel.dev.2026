@@ -218,6 +218,9 @@ There is exactly one admin, so there is exactly one session, stored on the profi
 - **Every request that carries the cookie** is validated against the database (`OnValidatePrincipal`): the token hash must match and the session must not have expired. Otherwise the request is anonymous and the cookie is cleared.
 - **10-minute idle timeout** (`Auth:SessionIdleTimeout`, default `00:10:00`). Any request is activity: at most once a minute, the expiry is pushed to now + 10 minutes and the cookie is re-issued with the same expiry. So the session ends 10 minutes (±1 minute) after the last request.
 - **Sign out** clears the database session, which **signs out every browser**. Anonymous calls to `/api/auth/logout` only clear their own cookie; they can't end the admin's session.
+- **No answer isn't "signed out":** only the API's answer decides (signed in, or 401). If the first check gets no answer (the API
+  down or restarting, a network error, a 5xx), the page keeps waiting and asks again (after 2, 4, 8, then every 15 seconds), so
+  restarting the API doesn't sign the admin out of an open page.
 - **Frontend** (`src/auth/AuthProvider.tsx`): while signed in, clicks, key presses, scrolling and mouse movement call `/api/auth/me` (at most once a minute) to keep the session alive. A timer re-checks just after `sessionExpiresInSeconds`, so the UI shows you as signed out once the session ends. The expiry is sent as *seconds remaining*, not a timestamp, so the browser's clock doesn't matter.
 
 Details:
@@ -494,7 +497,8 @@ start with everything on: `Site:PagesVisibleByDefault`.)
 - A feature that's off is off for everyone: its button goes, and the API agrees (`/api/meetings/info` and `/api/support` answer
   `""`, subscribing answers 404). The page data APIs stay public: hiding a page is about what's ready, not about secrecy.
 - **Under maintenance** (with an optional message) gives visitors a maintenance screen instead of the site; you still see
-  everything, with a reminder in the admin bar. `/admin` stays reachable to sign in.
+  everything, with a reminder in the admin bar. Signing in (`/admin`) and the links in emails (`/updates/confirm`,
+  `/updates/unsubscribe`) keep working; the screen itself has no admin link.
 - **When the API can't be reached** (down, or answering with errors), visitors get the same screen, saying so, and the page asks
   again every 30 seconds and comes back by itself.
 
@@ -511,7 +515,9 @@ State lives in the `site_state` table (one row) and is read through `SiteEndpoin
   `renderApp`); use the typed `useAppSelector` / `useAppDispatch`. The first slice is `site` (`store/siteSlice.ts`: what visitors
   see, loaded with the `fetchSite` thunk, saved with `saveSite`). More state moves here as the app is refactored.
 - **Backend: HybridCache** (`Microsoft.Extensions.Caching.Hybrid`): values are kept in memory, and in **Redis** too when
-  `ConnectionStrings:Redis` is set (shared by every API instance, kept across restarts, `portfolio:` prefix). Locally it's the
+  `ConnectionStrings:Redis` is set (shared by every API instance, kept across restarts). Keys start with
+  `portfolio:{database}:` (`CachePrefix`), so APIs on different databases sharing one Redis (yours and the E2E tests') never
+  serve each other's values. Locally it's the
   `redis` service in docker-compose (port 6380, in memory only, 128 MB, least-recently-used out first). Without Redis the API just
   caches in memory. The first value cached this way is `/api/site`; the older in-memory caches (YouTube, LeetCode) can move to it.
 

@@ -4175,14 +4175,6 @@ button.media-card {
   letter-spacing: 0.02em;
 }
 
-.maintenance-admin {
-  font-size: 13px;
-}
-
-.maintenance-admin a {
-  color: var(--text-muted);
-}
-
 .coming-soon {
   display: grid;
   gap: 8px;

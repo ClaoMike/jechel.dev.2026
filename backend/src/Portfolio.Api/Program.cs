@@ -68,7 +68,8 @@ if (!string.IsNullOrWhiteSpace(redis))
     builder.Services.AddStackExchangeRedisCache(options =>
     {
         options.Configuration = redis;
-        options.InstanceName = "portfolio:";
+        // Per database: two APIs on different databases (yours and the tests') must never share entries.
+        options.InstanceName = CachePrefix.For(builder.Configuration.GetConnectionString("Default"));
     });
 }
 builder.Services.AddHybridCache();

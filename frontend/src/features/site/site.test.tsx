@@ -57,6 +57,22 @@ describe('maintenance', () => {
     expect(await screen.findByRole('heading', { name: "We'll be right back" })).toBeInTheDocument()
     expect(screen.getByText('Back by 18:00')).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Sections' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /sign/i })).not.toBeInTheDocument()
+  })
+
+  it('signing in and the links in emails still work', async () => {
+    site({ maintenance: true })
+    server.use(http.post(`${API}/api/updates/unsubscribe`, () => new HttpResponse(null, { status: 204 })))
+    renderApp('/updates/unsubscribe?token=abc')
+
+    expect(await screen.findByRole('status')).toHaveTextContent("You're unsubscribed")
+  })
+
+  it('/admin, to sign in, still works', async () => {
+    site({ maintenance: true })
+    renderApp('/admin')
+
+    expect(await screen.findByRole('link', { name: 'Sign in with Google' })).toBeInTheDocument()
   })
 
   it('the admin still sees the site, with a reminder that visitors do not', async () => {
