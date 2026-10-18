@@ -6,7 +6,7 @@ test('a visitor sends a message through the contact form', async ({ page }) => {
   await page.goto('/contact')
 
   await page.getByLabel('Name').fill(`E2E visitor ${Date.now()}`)
-  await page.getByLabel('Email').fill('visitor@example.com')
+  await page.getByLabel('Email', { exact: true }).fill('visitor@example.com')
   await page.getByLabel('Message').fill(MESSAGE)
   await expect(page.getByText(`${MESSAGE.trim().length} / 1000`)).toBeVisible()
   await page.getByRole('button', { name: 'Send message' }).click()
@@ -21,7 +21,7 @@ test('the contact form explains what is wrong before sending', async ({ page }) 
   })
   await page.goto('/contact')
 
-  await page.getByLabel('Email').fill('not-an-email')
+  await page.getByLabel('Email', { exact: true }).fill('not-an-email')
   await page.getByLabel('Message').fill('Too short.')
   await page.getByRole('button', { name: 'Send message' }).click()
 
