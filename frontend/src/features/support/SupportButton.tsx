@@ -5,7 +5,7 @@ import { trackEvent } from '../analytics'
 
 /**
  * "Buy me a coffee" in the header: a link to the donation page set in the API's configuration
- * (Support:Url, e.g. a Ko-fi page). Hidden until it's known, and when none is set.
+ * (Support:Url, e.g. a Buy Me a Coffee page). Hidden until it's known, and when none is set.
  */
 export function SupportButton() {
   const [url, setUrl] = useState('')

@@ -520,7 +520,7 @@ export interface Donation {
   type: string
   fromName: string
   message: string | null
-  /** As Ko-fi sent it, e.g. "3.00". */
+  /** As the service sent it, e.g. "3.00". */
   amount: string
   currency: string
   email: string | null
