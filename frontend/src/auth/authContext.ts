@@ -15,3 +15,9 @@ export interface AuthContextValue {
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)
+
+/**
+ * When the first check fails without an answer (the API down, restarting, a network error), how long
+ * to wait before each new try: the session is still there, so this isn't "signed out".
+ */
+export const RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 15_000] as const

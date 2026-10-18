@@ -22,13 +22,16 @@ describe('YouTubePage', () => {
 
     expect(screen.getByRole('heading', { name: 'YouTube' })).toBeInTheDocument()
     expect(cards()).toHaveLength(9)
+    // The title is the link (stretched over the card); the picture, date and description are the card's own.
     const first = screen.getByRole('link', { name: 'Video 1 (opens in a new tab)' })
     expect(first).toHaveAttribute('href', 'https://www.youtube.com/watch?v=v1')
     expect(first).toHaveAttribute('target', '_blank')
     expect(first).toHaveAttribute('rel', 'noopener noreferrer')
-    expect(first).toHaveAccessibleDescription(videos[0].description.trim())
-    expect(first.querySelector('img')).toHaveAttribute('src', videos[0].thumbnailUrl)
-    expect(within(first).getByText(formatDate(videos[0].publishedAt))).toHaveAttribute('dateTime', videos[0].publishedAt)
+    const card = within(first.closest('li')!)
+    expect(card.getByRole('heading', { name: 'Video 1 (opens in a new tab)' })).toBeInTheDocument()
+    expect(card.getByText(videos[0].description.trim())).toBeInTheDocument()
+    expect(first.closest('li')!.querySelector('img')).toHaveAttribute('src', videos[0].thumbnailUrl)
+    expect(card.getByText(formatDate(videos[0].publishedAt))).toHaveAttribute('dateTime', videos[0].publishedAt)
   })
 
   it('pages through the videos, keeping the page in the URL', async () => {

@@ -6,6 +6,8 @@ import { SeriesChart } from '../features/analytics/SeriesChart'
 import { StatTiles } from '../features/analytics/StatTiles'
 import { VisitsTable } from '../features/analytics/VisitsTable'
 import { api, type AnalyticsRange, type AnalyticsSummary } from '../services/api'
+import { ErrorState } from '../components/ErrorState'
+import { Loading, PageSkeleton, Skeleton, SkeletonList } from '../components/Skeleton'
 
 const RANGES: { value: AnalyticsRange; label: string }[] = [
   { value: '1h', label: '1 hour' },
@@ -28,7 +30,7 @@ type State = { status: 'loading' } | { status: 'loaded'; summary: AnalyticsSumma
 export function EngagementPage() {
   const { status } = useAuth()
 
-  if (status === 'loading') return <p>Loading…</p>
+  if (status === 'loading') return <PageSkeleton />
   if (status === 'anonymous') return <Navigate to="/" replace />
   return <Dashboard />
 }
@@ -67,8 +69,40 @@ function Dashboard() {
         </div>
       </div>
 
-      {state.status === 'loading' && <p>Loading…</p>}
-      {state.status === 'error' && <p role="alert">The numbers couldn't be loaded. Please try again later.</p>}
+      {state.status === 'loading' && (
+        <Loading label="Loading the numbers…">
+          <div className="skeleton-tiles">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="skeleton-tile">
+                <Skeleton width="55%" height={12} />
+                <Skeleton width="40%" height={26} />
+              </div>
+            ))}
+          </div>
+          <div className="card skeleton-chart">
+            {Array.from({ length: 24 }, (_, i) => (
+              <Skeleton key={i} height={`${25 + ((i * 37) % 70)}%`} radius={4} />
+            ))}
+          </div>
+          <div className="ranked-grid">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="card skeleton-card">
+                <Skeleton width="45%" height={18} />
+                <SkeletonList rows={4} />
+              </div>
+            ))}
+          </div>
+        </Loading>
+      )}
+      {state.status === 'error' && (
+        <ErrorState
+          message="The numbers couldn't be loaded."
+          onRetry={() => {
+            setState({ status: 'loading' })
+            reload()
+          }}
+        />
+      )}
       {state.status === 'loaded' && (
         <>
           <StatTiles totals={state.summary.totals} />

@@ -7,8 +7,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
+using Microsoft.Extensions.Hosting;
+using Portfolio.Api.Features.Alerts;
 using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.LeetCode;
+using Portfolio.Api.Features.Updates;
 using Portfolio.Api.Features.YouTube;
 using Testcontainers.PostgreSql;
 
@@ -25,6 +28,8 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
 {
     public const string AdminEmail = "admin@example.com";
     public const string SignInPath = "/test/sign-in";
+    public const string BuyMeACoffeeSecret = "test-bmc-secret";
+    public const string CalSecret = "test-cal-secret";
 
     private readonly PostgreSqlContainer _db = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
@@ -40,6 +45,16 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         builder.UseSetting("Auth:AdminEmails:0", AdminEmail);
         builder.UseSetting("YouTube:Channel", "@test");
         builder.UseSetting("YouTube:ApiKey", "test-key");
+        builder.UseSetting("Support:Url", "https://buymeacoffee.com/test");
+        builder.UseSetting("Support:BuyMeACoffeeWebhookSecret", BuyMeACoffeeSecret);
+        builder.UseSetting("Site:PublicUrl", "https://jechel.test");
+        // Every page shows unless a test hides it; caching in memory only (no Redis).
+        builder.UseSetting("Site:PagesVisibleByDefault", "true");
+        builder.UseSetting("ConnectionStrings:Redis", "");
+        builder.UseSetting("Cal:Link", "claomike/30min");
+        builder.UseSetting("Cal:WebhookSecret", CalSecret);
+        // Every test client comes from the same (unknown) address.
+        builder.UseSetting("Updates:SubscribeLimitPer10Minutes", "1000");
 
         builder.ConfigureTestServices(services =>
         {
@@ -47,8 +62,25 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
             services.AddSingleton<ILeetCodeClient>(LeetCode);
             services.AddSingleton<IYouTubeClient>(new FakeYouTubeClient());
             services.AddSingleton<IStartupFilter, TestSignInStartupFilter>();
+            services.AddSingleton<IEmailSender>(Emails);
+            services.AddSingleton<IPhoneAlerts>(Alerts);
+            services.AddSingleton<Portfolio.Api.Features.Meetings.ICalClient>(Cal);
+            // Reminders run on a timer; their own tests call MeetingReminders.
+            services.Remove(services.Single(s => s.ImplementationType == typeof(Portfolio.Api.Features.Meetings.MeetingRemindersWorker)));
+            // Announcing runs on a timer; tests that need it call UpdatesAnnouncer themselves.
+            var worker = services.Single(s => s.ImplementationType == typeof(UpdatesWorker));
+            services.Remove(worker);
         });
     }
+
+    /// <summary>Stands in for Cal.com's API: records what it was asked to do.</summary>
+    public RecordingCalClient Cal { get; } = new();
+
+    /// <summary>Every phone alert the API raised.</summary>
+    public RecordingPhoneAlerts Alerts { get; } = new();
+
+    /// <summary>Every email the API sent.</summary>
+    public RecordingEmailSender Emails { get; } = new();
 
     /// <summary>Stands in for leetcode.com, so tests never call it.</summary>
     public FakeLeetCodeClient LeetCode { get; } = new();
@@ -109,4 +141,49 @@ public sealed class FakeYouTubeClient : IYouTubeClient
     public Task<IReadOnlyList<YouTubeVideo>> FetchVideosAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<YouTubeVideo>>(
             [.. Enumerable.Range(1, 11).Select(n => new YouTubeVideo($"v{n}", $"Video {n}", "About it", $"https://i.ytimg.com/vi/v{n}/hqdefault.jpg", DateTimeOffset.UnixEpoch.AddDays(100 - n)))]);
+}
+
+/// <summary>Keeps every email instead of sending it. Thread-safe: tests run in parallel against one API.</summary>
+public sealed class RecordingEmailSender : IEmailSender
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<EmailMessage> _sent = new();
+
+    public IReadOnlyList<EmailMessage> To(string address) => [.. _sent.Where(m => m.To == address)];
+
+    public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
+    {
+        _sent.Enqueue(message);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Keeps every phone alert instead of sending it.</summary>
+public sealed class RecordingPhoneAlerts : IPhoneAlerts
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<PhoneAlert> _sent = new();
+
+    public IReadOnlyList<PhoneAlert> All => [.. _sent];
+
+    public void Send(PhoneAlert alert) => _sent.Enqueue(alert);
+
+    public void SendThrottled(string key, PhoneAlert alert) => _sent.Enqueue(alert);
+}
+
+public sealed class RecordingCalClient : Portfolio.Api.Features.Meetings.ICalClient
+{
+    public System.Collections.Concurrent.ConcurrentQueue<string> Calls { get; } = new();
+
+    public Task ConfirmAsync(string uid, CancellationToken cancellationToken)
+    {
+        Calls.Enqueue($"confirm {uid}");
+        return Task.CompletedTask;
+    }
+
+    public Task DeclineAsync(string uid, string? reason, CancellationToken cancellationToken)
+    {
+        Calls.Enqueue($"decline {uid} {reason}".TrimEnd());
+        return Task.CompletedTask;
+    }
+
+    public Task<string> WhoAmIAsync(CancellationToken cancellationToken) => Task.FromResult("claomike");
 }

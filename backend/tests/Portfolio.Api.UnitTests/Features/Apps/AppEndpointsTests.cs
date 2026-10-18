@@ -1,10 +1,14 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.About;
+using Portfolio.Api.Features.Alerts;
 using Portfolio.Api.Features.Apps;
 using Portfolio.Api.Features.Files;
+using Portfolio.Api.Features.Updates;
+using Portfolio.Api.UnitTests.Features.Alerts;
 
 namespace Portfolio.Api.UnitTests.Features.Apps;
 
@@ -15,11 +19,14 @@ public class AppEndpointsTests
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
         .Options);
 
+    private readonly FakePhoneAlerts _alerts = new();
+    private static readonly IOptions<SiteOptions> Site = Options.Create(new SiteOptions { PublicUrl = "https://jechel.dev" });
+
     private DatabaseFileStorage Files => new(_db, _time);
 
     private async Task<AppDetails> CreateAsync(string title, params AppMedia[] media)
     {
-        var result = await AppEndpoints.CreateApp(new AppRequest($" {title} ", " About it ", media), _db, Files, _time, default);
+        var result = await AppEndpoints.CreateApp(new AppRequest($" {title} ", " About it ", media), _db, Files, _alerts, Site, _time, default);
         return Assert.IsType<Created<AppDetails>>(result.Result).Value!;
     }
 
@@ -62,7 +69,7 @@ public class AppEndpointsTests
     [Fact]
     public async Task Invalid_apps_are_rejected()
     {
-        var result = await AppEndpoints.CreateApp(new AppRequest("", "", []), _db, Files, _time, default);
+        var result = await AppEndpoints.CreateApp(new AppRequest("", "", []), _db, Files, _alerts, Site, _time, default);
 
         Assert.Equal(["title"], Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors.Keys);
         Assert.Empty(_db.Apps);
@@ -110,7 +117,7 @@ public class AppEndpointsTests
         var categories = await SaveCategoriesAsync(new AppCategoryRequest(null, "Mobile app"), new AppCategoryRequest(null, "Video game"));
         var request = new AppRequest(" Game ", "", [], [categories[1].Id, categories[0].Id], [" iOS ", "Android"], [new AppLink(" Steam ", " https://store.steampowered.com/app/1 ")]);
 
-        var created = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(request, _db, Files, _time, default)).Result).Value!;
+        var created = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(request, _db, Files, _alerts, Site, _time, default)).Result).Value!;
 
         // In the categories' order, not the order chosen.
         Assert.Equal(["Mobile app", "Video game"], created.Categories.Select(c => c.Name));
@@ -122,7 +129,7 @@ public class AppEndpointsTests
     [Fact]
     public async Task An_unknown_category_is_rejected()
     {
-        var result = await AppEndpoints.CreateApp(new AppRequest("App", "", [], [42]), _db, Files, _time, default);
+        var result = await AppEndpoints.CreateApp(new AppRequest("App", "", [], [42]), _db, Files, _alerts, Site, _time, default);
 
         Assert.Equal(["categoryIds"], Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors.Keys);
     }
@@ -132,7 +139,7 @@ public class AppEndpointsTests
     {
         var first = await SaveCategoriesAsync(new AppCategoryRequest(null, "Mobile app"), new AppCategoryRequest(null, "Website"), new AppCategoryRequest(null, "Video game"));
         var (mobile, website, game) = (first[0], first[1], first[2]);
-        var app = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(new AppRequest("App", "", [], [mobile.Id, website.Id]), _db, Files, _time, default)).Result).Value!;
+        var app = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(new AppRequest("App", "", [], [mobile.Id, website.Id]), _db, Files, _alerts, Site, _time, default)).Result).Value!;
 
         var saved = await SaveCategoriesAsync(new AppCategoryRequest(game.Id, "Game"), new AppCategoryRequest(mobile.Id, "Mobile app"), new AppCategoryRequest(null, "Desktop app"));
 
@@ -159,8 +166,24 @@ public class AppEndpointsTests
     {
         var request = new AppRequest("App", "", [new AppMedia("https://youtu.be/dQw4w9WgXcQ?si=x", AppMediaKinds.YouTube), new AppMedia(" https://cdn.example.com/a.png ", AppMediaKinds.Image)]);
 
-        var created = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(request, _db, Files, _time, default)).Result).Value!;
+        var created = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(request, _db, Files, _alerts, Site, _time, default)).Result).Value!;
 
         Assert.Equal(["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://cdn.example.com/a.png"], created.Media.Select(m => m.Url));
+    }
+
+    [Fact]
+    public async Task A_new_app_asks_the_phone_whether_to_email_the_subscribers()
+    {
+        var app = await CreateAsync("Space Game");
+
+        var announcement = await _db.Announcements.SingleAsync();
+        Assert.Equal((UpdatesAnnouncer.AppKind, app.Id.ToString(), AnnouncementStatus.Pending), (announcement.Kind, announcement.ItemKey, announcement.Status));
+        var alert = Assert.Single(_alerts.Sent);
+        Assert.Equal("New app: Space Game", alert.Title);
+        Assert.Equal(["Send email", "Ignore"], alert.Actions!.Select(a => a.Label));
+        Assert.StartsWith($"https://jechel.dev/api/updates/announcements/{announcement.Id}/send?token=", alert.Actions![0].Url);
+        var token = alert.Actions[0].Url.Split("token=")[1];
+        Assert.True(AnnouncementDecisions.TokenMatches(announcement, token));
+        Assert.False(AnnouncementDecisions.TokenMatches(announcement, "guess"));
     }
 }

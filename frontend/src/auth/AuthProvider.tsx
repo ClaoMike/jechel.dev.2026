@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, type CurrentUser } from '../services/api'
-import { AuthContext, type AuthContextValue } from './authContext'
+import { AuthContext, RETRY_DELAYS_MS, type AuthContextValue } from './authContext'
 
 type AuthState =
   | { status: 'loading' }
@@ -13,21 +13,33 @@ export const ACTIVITY_REFRESH_MS = 60_000
 const EXPIRY_GRACE_MS = 2_000
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'scroll', 'mousemove'] as const
 
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading' })
   const lastRefreshAt = useRef(0)
 
+  // Only the API's answer decides: signed in, or not (401). Without one, it stays "loading" and asks
+  // again, so a restart of the API (or a moment offline) doesn't sign the admin out of the page.
   useEffect(() => {
     const controller = new AbortController()
-    lastRefreshAt.current = Date.now()
+    let timer: number | undefined
 
-    api.auth.me(controller.signal)
-      .then((user) => setState(toAuthState(user)))
-      .catch(() => {
-        if (!controller.signal.aborted) setState({ status: 'anonymous' })
-      })
+    const check = (attempt: number) => {
+      lastRefreshAt.current = Date.now()
+      api.auth
+        .me(controller.signal)
+        .then((user) => setState(toAuthState(user)))
+        .catch(() => {
+          if (controller.signal.aborted) return
+          timer = window.setTimeout(() => check(attempt + 1), RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)])
+        })
+    }
+    check(0)
 
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
   }, [])
 
   const refresh = useCallback(async () => {

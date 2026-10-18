@@ -22,7 +22,7 @@ interface TextFieldProps {
   error?: string
   hint?: string
   multiline?: boolean
-  type?: 'text' | 'url' | 'number'
+  type?: 'text' | 'url' | 'number' | 'tel' | 'email'
   required?: boolean
   placeholder?: string
   min?: number

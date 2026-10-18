@@ -1,42 +1,49 @@
 import type { ReactNode } from 'react'
-import { DownloadIcon, GitHubIcon, InstagramIcon, LeetCodeIcon, LinkedInIcon, PersonIcon } from '../../components/icons'
+import { ErrorState } from '../../components/ErrorState'
+import { DownloadIcon, GitHubIcon, InstagramIcon, LeetCodeIcon, LinkedInIcon, PersonIcon, PhoneIcon } from '../../components/icons'
 import { useId } from 'react'
-import { api, type AboutLinks, type Status } from '../../services/api'
+import { api, type AboutLinks, type ResumeContact, type Status } from '../../services/api'
 import { EditableSection } from './EditableSection'
 import { FileUpload } from './FileUpload'
 import { TextField, type EditorProps } from './fields'
-import { fileNameOf, isSafeUrl } from './format'
+import { isSafeUrl } from './format'
 import { Flag } from './Flag'
 import { FLAG_CHOICES, flagName, guessFlag } from './flags'
 import { AddButton, ItemControls } from './fields'
 import { move, removeAt, replaceAt } from './list'
 import { leetCodeProfileUrl } from './problemSolving'
 import { RichText } from './RichText'
-import { PHOTO_MAX_BYTES, RESUME_MAX_BYTES } from './uploadLimits'
+import { PHOTO_MAX_BYTES } from './uploadLimits'
 
 export interface Profile {
   photoUrl: string
   statuses: Status[]
   links: AboutLinks
+  /** The résumé's phone, email and headline: only the signed-in admin has them, and they're never on the public page. */
+  contact?: ResumeContact
 }
 
 /**
  * The photo, then citizenship / residence labels, then the résumé / GitHub / LeetCode / LinkedIn /
- * Instagram links. The LeetCode username is set in the "Problem solving" section.
+ * Instagram links. The LeetCode username is set in the "Problem solving" section. The résumé is
+ * generated (the panel above); for the admin, this section also holds its private contact details.
  */
 export function ProfileSection({
   value,
   leetCodeUsername = '',
   canEdit,
   onSave,
+  onRetryContact,
 }: {
   value: Profile
   leetCodeUsername?: string
   canEdit: boolean
   onSave: (value: Profile) => Promise<void>
+  /** Set when the résumé's private details couldn't be loaded (admin only). */
+  onRetryContact?: () => void
 }) {
   return (
-    <EditableSection title="Photo and links" hideTitle errorKeys={['photoUrl', 'statuses', 'links']} className="profile-card" value={value} canEdit={canEdit} onSave={onSave} editor={ProfileEditor}>
+    <EditableSection title="Photo and links" hideTitle errorKeys={['photoUrl', 'statuses', 'links', 'contact']} className="profile-card" value={value} canEdit={canEdit} onSave={onSave} editor={ProfileEditor}>
       <div className="profile">
         <ProfilePhoto url={value.photoUrl} />
         <p className="profile-name">Claudiu Mihai Jechel</p>
@@ -70,8 +77,23 @@ export function ProfileSection({
             Instagram
           </ProfileLink>
         </ul>
+        {value.contact && <PrivateContact contact={value.contact} />}
+        {onRetryContact && <ErrorState compact message="Your résumé's phone, email and headline couldn't be loaded." onRetry={onRetryContact} />}
       </div>
     </EditableSection>
+  )
+}
+
+/** The admin's own line: what goes in the résumé's header. Visitors never get these. */
+function PrivateContact({ contact }: { contact: ResumeContact }) {
+  const parts = [contact.headline, contact.email, contact.phone].filter(Boolean)
+  return (
+    <p className="profile-private">
+      <PhoneIcon size={16} />
+      <span>
+        <strong>Only you see this:</strong> {parts.length > 0 ? parts.join(' · ') : 'no headline, email or phone for the résumé yet. Use Edit to add them.'}
+      </span>
+    </p>
   )
 }
 
@@ -106,8 +128,7 @@ function ProfileLink({ href, icon, download = false, children }: { href: string;
 
 function ProfileEditor({ value, onChange, update, errors }: EditorProps<Profile>) {
   const setLink = (key: keyof AboutLinks) => (url: string) => onChange({ ...value, links: { ...value.links, [key]: url } })
-  // Uploads finish later, maybe both at once: each changes the latest draft, not the one it started from.
-  const setResume = (url: string) => update((current) => ({ ...current, links: { ...current.links, resumeUrl: url } }))
+  const setContact = (key: keyof ResumeContact) => (text: string) => onChange({ ...value, contact: { ...value.contact!, [key]: text } })
 
   return (
     <div className="editor-list">
@@ -124,27 +145,18 @@ function ProfileEditor({ value, onChange, update, errors }: EditorProps<Profile>
         >
           <ProfilePhoto url={value.photoUrl} />
         </FileUpload>
-        <FileUpload
-          label="Résumé"
-          accept="application/pdf,.pdf"
-          maxBytes={RESUME_MAX_BYTES}
-          hint="A PDF, up to 20 MB. Visitors download it under its file name."
-          upload={api.files.uploadResume}
-          onUploaded={(file) => setResume(file.url)}
-          onRemove={value.links.resumeUrl ? () => setResume('') : undefined}
-          error={errors['links.resumeUrl']}
-        >
-          <p className="upload-current">
-            {value.links.resumeUrl && isSafeUrl(value.links.resumeUrl) ? (
-              <a href={value.links.resumeUrl} target="_blank" rel="noopener noreferrer">
-                {fileNameOf(value.links.resumeUrl)}
-              </a>
-            ) : (
-              <span className="muted">No résumé: the download button is hidden.</span>
-            )}
-          </p>
-        </FileUpload>
       </div>
+      {value.contact && (
+        <fieldset className="editor-item">
+          <legend>For the résumé (only you see these)</legend>
+          <p className="muted editor-note">The header of the résumé you generate above. The phone number is only in your private copy.</p>
+          <div className="editor-grid">
+            <TextField label="Headline" value={value.contact.headline} onChange={setContact('headline')} error={errors['contact.headline']} placeholder="Full-stack engineer · .NET, React, PostgreSQL" />
+            <TextField label="Email" type="email" value={value.contact.email} onChange={setContact('email')} error={errors['contact.email']} />
+            <TextField label="Phone" type="tel" value={value.contact.phone} onChange={setContact('phone')} error={errors['contact.phone']} />
+          </div>
+        </fieldset>
+      )}
       <fieldset className="editor-item">
         <legend>Citizenship and residence</legend>
         <p className="muted editor-note">Labels under the photo, e.g. Romanian citizenship, EU citizenship, UK Settled Status.</p>

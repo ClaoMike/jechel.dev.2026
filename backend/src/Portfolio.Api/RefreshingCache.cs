@@ -12,6 +12,13 @@ public class RefreshingCache<T>(TimeProvider time, TimeSpan freshFor, TimeSpan r
     private T? _value;
     private DateTimeOffset _until;
 
+    /// <summary>Forgets the value, so the next <see cref="GetAsync"/> fetches it, e.g. after its source changed.</summary>
+    public void Clear()
+    {
+        _value = null;
+        _until = default;
+    }
+
     public async Task<T> GetAsync(Func<CancellationToken, Task<T>> fetch, CancellationToken cancellationToken)
     {
         if (_value is { } cached && time.GetUtcNow() < _until) return cached;

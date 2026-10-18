@@ -1,6 +1,7 @@
 import { Navigate, useSearchParams } from 'react-router'
 import { useAuth } from '../auth'
 import { api } from '../services/api'
+import { Loading, Skeleton } from '../components/Skeleton'
 
 const ERROR_MESSAGES: Record<string, string> = {
   not_authorized: 'This Google account is not allowed to access the admin area.',
@@ -12,7 +13,15 @@ export function AdminPage() {
   const [searchParams] = useSearchParams()
   const error = searchParams.get('error')
 
-  if (isLoading) return <p>Loading…</p>
+  if (isLoading)
+    return (
+      <main className="login-page">
+        <Loading label="Loading…" className="login-card">
+          <Skeleton width="60%" height={28} />
+          <Skeleton height={44} radius={999} />
+        </Loading>
+      </main>
+    )
   if (isAuthenticated) return <Navigate to="/" replace />
 
   return (

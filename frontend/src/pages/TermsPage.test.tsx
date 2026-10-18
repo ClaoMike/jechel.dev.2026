@@ -37,12 +37,13 @@ describe('TermsPage', () => {
     expect(tabs().queryByRole('link', { name: 'Terms' })).not.toBeInTheDocument()
   })
 
-  it('is the last tab for the admin', async () => {
+  it('is a tab for the admin, just before Settings', async () => {
     server.use(signedIn())
     renderApp('/')
 
     await tabs().findByRole('link', { name: 'Terms' })
-    expect(tabs().getAllByRole('link').at(-1)).toHaveTextContent('Terms')
+    expect(tabs().getAllByRole('link').at(-2)).toHaveTextContent('Terms')
+    expect(tabs().getAllByRole('link').at(-1)).toHaveTextContent('Settings')
   })
 
   it('shows the terms as a document with numbered sections, paragraphs and bullet points', async () => {

@@ -6,7 +6,7 @@ test('a visitor sends a message through the contact form', async ({ page }) => {
   await page.goto('/contact')
 
   await page.getByLabel('Name').fill(`E2E visitor ${Date.now()}`)
-  await page.getByLabel('Email').fill('visitor@example.com')
+  await page.getByLabel('Email', { exact: true }).fill('visitor@example.com')
   await page.getByLabel('Message').fill(MESSAGE)
   await expect(page.getByText(`${MESSAGE.trim().length} / 1000`)).toBeVisible()
   await page.getByRole('button', { name: 'Send message' }).click()
@@ -21,7 +21,7 @@ test('the contact form explains what is wrong before sending', async ({ page }) 
   })
   await page.goto('/contact')
 
-  await page.getByLabel('Email').fill('not-an-email')
+  await page.getByLabel('Email', { exact: true }).fill('not-an-email')
   await page.getByLabel('Message').fill('Too short.')
   await page.getByRole('button', { name: 'Send message' }).click()
 
@@ -87,7 +87,7 @@ test('the admin sees the inbox instead of the form, and pages through it', async
   await expect(page.getByRole('table').getByRole('row')).toHaveCount(11) // header + 10
   await expect(page.getByText('Page 1 of 2')).toBeVisible()
 
-  await page.getByRole('button', { name: 'Next' }).click()
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
 
   await expect(page).toHaveURL('/contact?page=2')
   await expect(page.getByRole('button', { name: 'Sender 15', exact: true })).toBeVisible()

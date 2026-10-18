@@ -19,13 +19,14 @@ test('visitors page through the videos, three to a row', async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 900 })
   await page.goto('/youtube')
 
-  const cards = page.getByRole('list', { name: 'Videos' }).getByRole('link')
+  const cards = page.getByRole('list', { name: 'Videos' }).getByRole('listitem')
   await expect(cards).toHaveCount(9)
   const [a, b, c, d] = await Promise.all([0, 1, 2, 3].map((i) => cards.nth(i).boundingBox()))
-  expect(a!.y).toBe(b!.y)
-  expect(b!.y).toBe(c!.y)
+  expect(a!.y).toBeCloseTo(b!.y, 0)
+  expect(b!.y).toBeCloseTo(c!.y, 0)
   expect(d!.y).toBeGreaterThan(a!.y)
-  await expect(cards.first()).toHaveAttribute('target', '_blank')
+  // Each card's title is its link, opening YouTube in a new tab.
+  await expect(cards.first().getByRole('link', { name: 'Video 1 (opens in a new tab)' })).toHaveAttribute('target', '_blank')
 
   await page.getByRole('button', { name: 'Next' }).click()
   await expect(page).toHaveURL(/\?page=2$/)

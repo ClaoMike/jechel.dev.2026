@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>jechel.dev · Back soon</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <style>
+      /* Standalone on purpose: served by Cloudflare on its own (a redirect rule or a Worker) when
+         the whole site is down for planned work, so it needs nothing else. The app's own
+         maintenance screen covers the usual case (switched on in Settings, or the API unreachable). */
+      :root { color-scheme: light dark; --bg: #f5f5f7; --card: #fff; --text: #1d1d1f; --muted: #555; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #1c1c1e; --text: #f5f5f7; --muted: #aaa; } }
+      body { display: grid; place-items: center; min-height: 100vh; margin: 0; padding: 24px 16px; box-sizing: border-box;
+        background: var(--bg); color: var(--text); font: 16px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+      main { max-width: 440px; padding: 32px 28px; border-radius: 24px; background: var(--card); text-align: center; }
+      h1 { margin: 0 0 8px; font-size: 26px; }
+      p { margin: 0; color: var(--muted); }
+      .brand { margin-bottom: 12px; color: var(--text); font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="brand">jechel.dev</p>
+      <h1>We'll be right back</h1>
+      <p>The site is having some planned work done. Please check back soon.</p>
+    </main>
+  </body>
+</html>

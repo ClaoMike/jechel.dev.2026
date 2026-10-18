@@ -5,6 +5,8 @@ import type { FieldErrors } from '../features/about/fields'
 import { useTerms } from '../features/terms'
 import { TermsDocumentView } from '../features/terms/TermsDocumentView'
 import { TermsEditor } from '../features/terms/TermsEditor'
+import { TermsSkeleton } from '../features/terms/TermsDialog'
+import { ErrorState } from '../components/ErrorState'
 import { api, ApiError, type TermsContent } from '../services/api'
 
 type Editing = { state: 'editing' | 'saving'; draft: TermsContent; errors: FieldErrors; message: string | null }
@@ -15,7 +17,7 @@ type Editing = { state: 'editing' | 'saving'; draft: TermsContent; errors: Field
  */
 export function TermsPage() {
   const { isAuthenticated } = useAuth()
-  const { state, replaceTerms } = useTerms()
+  const { state, replaceTerms, reload } = useTerms()
   const [editing, setEditing] = useState<Editing | null>(null)
 
   const heading = <h2 className="visually-hidden">Terms and Conditions</h2>
@@ -23,14 +25,16 @@ export function TermsPage() {
     return (
       <>
         {heading}
-        <p>Loading…</p>
+        <div className="card">
+          <TermsSkeleton />
+        </div>
       </>
     )
   if (state.status === 'error')
     return (
       <>
         {heading}
-        <p role="alert">The terms couldn't be loaded. Please try again later.</p>
+        <ErrorState message="The terms couldn't be loaded." onRetry={reload} />
       </>
     )
 

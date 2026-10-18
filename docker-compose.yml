@@ -16,5 +16,18 @@ services:
       timeout: 5s
       retries: 10
 
+  # Cache for the API (HybridCache's second level). Optional: without it the API caches in memory only.
+  redis:
+    image: redis:7-alpine
+    container_name: portfolio-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   portfolio-db-data:

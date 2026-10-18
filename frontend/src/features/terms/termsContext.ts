@@ -12,6 +12,8 @@ export interface TermsContextValue {
   openTerms: () => void
   /** After the admin saves: everyone on this page sees the new terms. */
   replaceTerms: (terms: TermsDocument) => void
+  /** Loads them again, e.g. after they couldn't be loaded. */
+  reload: () => void
 }
 
 export const TermsContext = createContext<TermsContextValue | null>(null)

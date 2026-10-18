@@ -1,4 +1,6 @@
 import { useEffect, useId, useState } from 'react'
+import { ErrorState } from '../../components/ErrorState'
+import { Loading, SkeletonChips, SkeletonList } from '../../components/Skeleton'
 import { CopyButton } from '../../components/CopyButton'
 import { DeleteButton } from '../../components/DeleteButton'
 import { TrashIcon } from '../../components/icons'
@@ -16,6 +18,7 @@ type State = { status: 'loading' } | { status: 'loaded'; visit: VisitDetails } |
 export function VisitDialog({ visitId, onClose, onDelete }: { visitId: string; onClose: () => void; onDelete: (id: string) => Promise<void> }) {
   const titleId = useId()
   const [state, setState] = useState<State>({ status: 'loading' })
+  const [retries, setRetries] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -26,19 +29,32 @@ export function VisitDialog({ visitId, onClose, onDelete }: { visitId: string; o
         if (!controller.signal.aborted) setState({ status: 'error' })
       })
     return () => controller.abort()
-  }, [visitId])
+  }, [visitId, retries])
 
   return (
     <Modal labelledBy={titleId} onClose={onClose} className="modal-wide">
-      <header className="modal-header">
+      <div className="modal-header">
         <h2 id={titleId}>{state.status === 'loaded' ? `Visit on ${formatDateTime(state.visit.startedAt)}` : 'Visit'}</h2>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
           <span aria-hidden="true">×</span>
         </button>
-      </header>
+      </div>
 
-      {state.status === 'loading' && <p>Loading…</p>}
-      {state.status === 'error' && <p role="alert">This visit couldn't be loaded. Please try again.</p>}
+      {state.status === 'loading' && (
+        <Loading label="Loading the visit…">
+          <SkeletonChips count={5} />
+          <SkeletonList rows={8} pill />
+        </Loading>
+      )}
+      {state.status === 'error' && (
+        <ErrorState
+          message="This visit couldn't be loaded."
+          onRetry={() => {
+            setState({ status: 'loading' })
+            setRetries((n) => n + 1)
+          }}
+        />
+      )}
       {state.status === 'loaded' && <VisitView visit={state.visit} onDelete={() => onDelete(visitId)} />}
     </Modal>
   )

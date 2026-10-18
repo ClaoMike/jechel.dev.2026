@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Contact;
+using Portfolio.Api.UnitTests.Features.Alerts;
 
 namespace Portfolio.Api.UnitTests.Features.Contact;
 
@@ -11,6 +12,7 @@ public class ContactEndpointsTests
     private static readonly DateTimeOffset Now = new(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
 
     private readonly FakeTimeProvider _time = new(Now);
+    private readonly FakePhoneAlerts _alerts = new();
     private readonly PortfolioDbContext _db = new(new DbContextOptionsBuilder<PortfolioDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
         .Options);
@@ -37,7 +39,7 @@ public class ContactEndpointsTests
     {
         var request = new SendMessageRequest("  Ada  ", " ada@example.com ", $"  {LongMessage}  ");
 
-        var result = await ContactEndpoints.SendMessage(request, _db, _time, CancellationToken.None);
+        var result = await ContactEndpoints.SendMessage(request, _db, _time, _alerts, CancellationToken.None);
 
         Assert.IsType<Created>(result.Result);
         var stored = await _db.ContactMessages.SingleAsync();
@@ -46,16 +48,20 @@ public class ContactEndpointsTests
         Assert.Equal(LongMessage, stored.Message);
         Assert.Equal(Now, stored.ReceivedAt);
         Assert.Null(stored.ReadAt);
+        var alert = Assert.Single(_alerts.Sent);
+        Assert.Equal("New message from Ada", alert.Title);
+        Assert.Equal("/contact", alert.Path);
     }
 
     [Fact]
     public async Task SendMessage_rejects_an_invalid_request_and_stores_nothing()
     {
-        var result = await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "nope", "too short"), _db, _time, CancellationToken.None);
+        var result = await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "nope", "too short"), _db, _time, _alerts, CancellationToken.None);
 
         var problem = Assert.IsType<ValidationProblem>(result.Result);
         Assert.Equal(["email", "message"], problem.ProblemDetails.Errors.Keys.Order());
         Assert.Empty(_db.ContactMessages);
+        Assert.Empty(_alerts.Sent);
     }
 
     [Fact]
@@ -106,7 +112,9 @@ public class ContactEndpointsTests
         var result = await ContactEndpoints.GetMessage(seeded.Id, _db, CancellationToken.None);
 
         var details = Assert.IsType<Ok<ContactMessageDetails>>(result.Result).Value!;
-        Assert.Equal(new ContactMessageDetails(seeded.Id, "Ada", "ada@example.com", LongMessage, Now, null), details);
+        Assert.Equal((seeded.Id, "Ada", "ada@example.com", LongMessage, Now, (DateTimeOffset?)null), (details.Id, details.Name, details.Email, details.Message, details.ReceivedAt, details.ReadAt));
+        Assert.Empty(details.Replies);
+        Assert.Empty(details.Meetings);
         Assert.Null((await _db.ContactMessages.AsNoTracking().SingleAsync()).ReadAt);
     }
 
@@ -144,5 +152,41 @@ public class ContactEndpointsTests
 
         Assert.Equal([kept.Id], _db.ContactMessages.Select(m => m.Id));
         Assert.IsType<NotFound>((await ContactEndpoints.DeleteMessage(deleted.Id, _db, CancellationToken.None)).Result);
+    }
+
+    [Fact]
+    public async Task Reply_emails_the_sender_with_the_message_quoted_and_keeps_it_with_the_message()
+    {
+        var seeded = Seed("Ada", Now);
+        var emails = new Updates.FakeEmailSender();
+        var admins = TestOptions.Monitor(new Portfolio.Api.Features.Auth.AdminOptions { AdminEmails = ["me@example.com"] });
+
+        var result = await ContactEndpoints.Reply(seeded.Id, new ReplyRequest("  Thanks, let's talk!  "), _db, emails, admins, _time, CancellationToken.None);
+
+        Assert.IsType<Ok<ContactReplyDto>>(result.Result);
+        var email = Assert.Single(emails.Sent);
+        Assert.Equal(("ada@example.com", "me@example.com"), (email.To, email.ReplyTo));
+        Assert.Contains("Thanks, let's talk!", email.Text);
+        Assert.Contains("> " + LongMessage[..20], email.Text);
+        var details = Assert.IsType<Ok<ContactMessageDetails>>((await ContactEndpoints.GetMessage(seeded.Id, _db, CancellationToken.None)).Result).Value!;
+        Assert.Equal("Thanks, let's talk!", Assert.Single(details.Replies).Text);
+        Assert.Equal(Now, details.ReadAt);
+    }
+
+    [Fact]
+    public async Task Reply_refuses_an_empty_answer_and_says_when_it_cant_be_sent()
+    {
+        var seeded = Seed("Ada", Now);
+        var emails = new Updates.FakeEmailSender();
+        var admins = TestOptions.Monitor(new Portfolio.Api.Features.Auth.AdminOptions());
+
+        Assert.IsType<ValidationProblem>((await ContactEndpoints.Reply(seeded.Id, new ReplyRequest(" "), _db, emails, admins, _time, CancellationToken.None)).Result);
+        emails.FailWith = new Portfolio.Api.Features.Settings.ServiceException("Resend refused it: domain not verified");
+        var failed = await ContactEndpoints.Reply(seeded.Id, new ReplyRequest("Hi"), _db, emails, admins, _time, CancellationToken.None);
+
+        var problem = Assert.IsType<ProblemHttpResult>(failed.Result);
+        Assert.Equal(503, problem.StatusCode);
+        Assert.Equal("Resend refused it: domain not verified", problem.ProblemDetails.Detail);
+        Assert.Empty(_db.ContactReplies);
     }
 }

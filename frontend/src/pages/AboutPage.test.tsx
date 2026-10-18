@@ -38,7 +38,7 @@ async function renderAsAdmin(initial = aboutContent()) {
   server.use(signedIn(), ...api.handlers)
   const user = await renderAbout()
   await screen.findAllByRole('button', { name: /^Edit/ })
-  return { user, saved: api.saved }
+  return { user, saved: api.saved, contacts: api.contacts }
 }
 
 describe('AboutPage for visitors', () => {
@@ -311,51 +311,73 @@ describe('AboutPage for the admin', () => {
     ])
   })
 
-  it('uploads a photo and a résumé, and edits the links', async () => {
+  it('uploads a photo and edits the links', async () => {
     const { user, saved } = await renderAsAdmin()
     const uploadPhoto = vi.spyOn(api.files, 'uploadPhoto').mockResolvedValue({ url: '/api/files/11111111-1111-1111-1111-111111111111/photo.webp', fileName: 'photo.webp' })
-    vi.spyOn(api.files, 'uploadResume').mockResolvedValue({ url: '/api/files/22222222-2222-2222-2222-222222222222/My%20CV.pdf', fileName: 'My CV.pdf' })
 
     await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
+    expect(screen.queryByLabelText('Résumé file')).not.toBeInTheDocument()
     await user.upload(screen.getByLabelText('Photo file'), new File(['img'], 'me.png', { type: 'image/png' }))
-    await user.upload(screen.getByLabelText('Résumé file'), new File(['%PDF-'], 'My CV.pdf', { type: 'application/pdf' }))
-    expect(await screen.findByRole('link', { name: 'My CV.pdf' })).toBeInTheDocument()
     expect(uploadPhoto).toHaveBeenCalledWith(expect.objectContaining({ name: 'me.png' }), expect.any(Function))
     await user.type(screen.getByLabelText('Instagram URL'), 'https://instagram.com/claudiu')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('link', { name: 'Instagram' })).toHaveAttribute('href', 'https://instagram.com/claudiu')
     expect(screen.getByRole('img', { name: 'Claudiu Jechel' })).toHaveAttribute('src', '/api/files/11111111-1111-1111-1111-111111111111/photo.webp')
-    expect(screen.getByRole('link', { name: 'Download résumé' })).toHaveAttribute('href', '/api/files/22222222-2222-2222-2222-222222222222/My%20CV.pdf')
     expect(saved[0]).toMatchObject({ photoUrl: '/api/files/11111111-1111-1111-1111-111111111111/photo.webp', links: { instagramUrl: 'https://instagram.com/claudiu', gitHubUrl: 'https://github.com/claudiu' } })
-    // the rest of the page is sent unchanged
+    // the rest of the page is sent unchanged, and the résumé's private details never go in it
     expect(saved[0].experience).toEqual(aboutContent().experience)
+    expect(saved[0]).not.toHaveProperty('contact')
   })
 
-  it('removes the photo and the résumé', async () => {
+  it("keeps the résumé's phone, email and headline private, and saves them on their own", async () => {
+    const { user, saved, contacts } = await renderAsAdmin()
+
+    expect(screen.getByText(/Only you see this/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
+    const resume = within(screen.getByRole('group', { name: 'For the résumé (only you see these)' }))
+    await user.type(resume.getByLabelText('Headline'), 'Full-stack engineer')
+    await user.type(resume.getByLabelText('Phone'), '+44 7700 900123')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText(/Full-stack engineer · \+44 7700 900123/)).toBeInTheDocument()
+    expect(contacts).toEqual([{ phone: '+44 7700 900123', email: '', headline: 'Full-stack engineer' }])
+    expect(JSON.stringify(saved)).not.toContain('7700')
+  })
+
+  it("shows the résumé details' errors on their fields", async () => {
+    const { user } = await renderAsAdmin()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
+    await user.type(screen.getByLabelText('Phone'), 'call me')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Use digits.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Phone')).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('removes the photo', async () => {
     const { user, saved } = await renderAsAdmin({ ...aboutContent(), photoUrl: '/api/files/x/photo.webp' })
 
     await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
     await removeConfirmed(user, 'Remove photo')
-    await removeConfirmed(user, 'Remove résumé')
     expect(screen.getByRole('button', { name: 'Upload photo' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('img', { name: 'Photo placeholder' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Download résumé' })).not.toBeInTheDocument()
-    expect(saved[0]).toMatchObject({ photoUrl: '', links: { resumeUrl: '' } })
+    expect(saved[0]).toMatchObject({ photoUrl: '' })
   })
 
   it("refuses a file over the limit without sending it", async () => {
     const { user } = await renderAsAdmin()
-    const upload = vi.spyOn(api.files, 'uploadResume')
+    const upload = vi.spyOn(api.files, 'uploadPhoto')
 
     await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
-    const big = new File(['%PDF-'], 'big.pdf', { type: 'application/pdf' })
-    Object.defineProperty(big, 'size', { value: 25 * 1024 * 1024 })
-    await user.upload(screen.getByLabelText('Résumé file'), big)
+    const big = new File(['img'], 'big.png', { type: 'image/png' })
+    Object.defineProperty(big, 'size', { value: 20 * 1024 * 1024 })
+    await user.upload(screen.getByLabelText('Photo file'), big)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('That file is 25 MB. The limit is 20 MB.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('That file is 20 MB. The limit is 15 MB.')
     expect(upload).not.toHaveBeenCalled()
   })
 
@@ -377,12 +399,29 @@ describe('AboutPage for the admin', () => {
 
   it('says why an upload was refused', async () => {
     const { user } = await renderAsAdmin()
-    vi.spyOn(api.files, 'uploadResume').mockRejectedValue(new ApiError('/api/files/resume', 400, { file: ['The résumé must be a PDF.'] }))
+    vi.spyOn(api.files, 'uploadPhoto').mockRejectedValue(new ApiError('/api/files/photo', 400, { file: ["That file isn't an image we can read."] }))
 
     await user.click(screen.getByRole('button', { name: 'Edit Photo and links' }))
-    await user.upload(screen.getByLabelText('Résumé file'), new File(['<html>'], 'cv.pdf', { type: 'application/pdf' }))
+    await user.upload(screen.getByLabelText('Photo file'), new File(['<html>'], 'me.png', { type: 'image/png' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('The résumé must be a PDF.')
+    expect(await screen.findByRole('alert')).toHaveTextContent("That file isn't an image we can read.")
+  })
+
+  it('folds each skill to a row, opened by a click, and keeps it open as it moves', async () => {
+    const { user } = await renderAsAdmin()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Skills' }))
+    const python = screen.getByRole('button', { name: /^Python/ })
+    expect(python).toHaveAttribute('aria-expanded', 'false')
+    expect(within(screen.getByRole('group', { name: 'Skill 2' })).queryByLabelText('Skill')).not.toBeVisible()
+    await user.click(python)
+    expect(within(screen.getByRole('group', { name: 'Skill 2' })).getByLabelText('Skill')).toHaveValue('Python')
+
+    await user.click(screen.getByRole('button', { name: 'Move skill 2 up' }))
+
+    expect(screen.getByRole('button', { name: /^Python/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /^C#/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(screen.getByRole('group', { name: 'Skill 1' })).getByLabelText('Skill')).toHaveValue('Python')
   })
 
   it('adds, reorders and removes skills, with periods, uses and colours', async () => {

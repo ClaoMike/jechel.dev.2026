@@ -12,6 +12,11 @@ export type ContactErrors = Partial<Record<ContactField, string>>
 // One address, a dotted domain, no spaces or display names. Edge cases are left to the API.
 const EMAIL_PATTERN = /^[^\s@<>,]+@[^\s@<>,.]+(\.[^\s@<>,.]+)+$/
 
+/** Looks like an email address (also used by the "Get updates" form). */
+export function isEmail(value: string): boolean {
+  return value.length <= EMAIL_MAX_LENGTH && EMAIL_PATTERN.test(value)
+}
+
 export function validateContact(values: SendMessageRequest): ContactErrors {
   const errors: ContactErrors = {}
   const name = values.name.trim()
@@ -22,7 +27,7 @@ export function validateContact(values: SendMessageRequest): ContactErrors {
   else if (name.length > NAME_MAX_LENGTH) errors.name = `Your name can be at most ${NAME_MAX_LENGTH} characters.`
 
   if (!email) errors.email = 'Please enter your email.'
-  else if (email.length > EMAIL_MAX_LENGTH || !EMAIL_PATTERN.test(email)) errors.email = 'Please enter a valid email address, like name@example.com.'
+  else if (!isEmail(email)) errors.email = 'Please enter a valid email address, like name@example.com.'
 
   if (!message) errors.message = 'Please write a message.'
   else if (message.length < MESSAGE_MIN_LENGTH)

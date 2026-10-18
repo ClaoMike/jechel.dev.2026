@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Analytics;
+using Portfolio.Api.UnitTests.Features.Alerts;
 
 namespace Portfolio.Api.UnitTests.Features.Analytics;
 
@@ -16,6 +17,7 @@ public class AnalyticsEndpointsTests
     private const string IPhone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
     private readonly FakeTimeProvider _time = new(Now);
+    private FakePhoneAlerts Alerts { get; } = new();
     private readonly VisitorHasher _visitors;
     private readonly PortfolioDbContext _db = new(new DbContextOptionsBuilder<PortfolioDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -39,7 +41,7 @@ public class AnalyticsEndpointsTests
         new(seq, type, path, label, detail, ageMs);
 
     private Task<Results<NoContent, ValidationProblem>> Collect(Guid id, HttpContext? http = null, params EventInput[] events) =>
-        AnalyticsEndpoints.Collect(new CollectRequest(id, Info, [.. events]), http ?? Http(), _db, _visitors, _time, CancellationToken.None);
+        AnalyticsEndpoints.Collect(new CollectRequest(id, Info, [.. events]), http ?? Http(), _db, _visitors, _time, Alerts, CancellationToken.None);
 
     [Fact]
     public async Task Collect_records_the_visit_with_where_it_came_from_and_what_it_ran_on()
@@ -77,6 +79,9 @@ public class AnalyticsEndpointsTests
         Assert.Equal((2, 4, 1), (session.PageViews, session.EventCount, session.ErrorCount));
         Assert.Equal(Now.AddSeconds(30), session.LastSeenAt);
         Assert.Equal([1, 2, 3, 4], await _db.VisitEvents.OrderBy(e => e.Sequence).Select(e => e.Sequence).ToListAsync());
+        var (key, alert) = Assert.Single(Alerts.Throttled);
+        Assert.Equal("web:TypeError: boom", key);
+        Assert.StartsWith("TypeError: boom\non /about", alert.Message);
     }
 
     [Fact]
@@ -160,7 +165,7 @@ public class AnalyticsEndpointsTests
         var switched = Guid.NewGuid();
         await Collect(switched, null, Event(1, "pageview"));
         var themeChanged = Event(2, "event", label: AnalyticsRules.ThemeChangedEvent, detail: new() { ["from"] = "vice", ["to"] = "dark" });
-        await AnalyticsEndpoints.Collect(new CollectRequest(switched, Info with { CurrentTheme = "dark" }, [themeChanged]), Http(), _db, _visitors, _time, CancellationToken.None);
+        await AnalyticsEndpoints.Collect(new CollectRequest(switched, Info with { CurrentTheme = "dark" }, [themeChanged]), Http(), _db, _visitors, _time, Alerts, CancellationToken.None);
         await Collect(Guid.NewGuid(), null, Event(1, "pageview"));
 
         var session = await _db.VisitSessions.SingleAsync(s => s.Id == switched);

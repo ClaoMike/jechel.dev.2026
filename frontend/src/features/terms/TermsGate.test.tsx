@@ -84,4 +84,12 @@ describe('The welcome popup', () => {
     await screen.findByText('Signed in as admin@example.com')
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
+
+  it("isn't shown on the admin's sign-in page", async () => {
+    localStorage.clear()
+    renderApp('/admin')
+
+    expect(await screen.findByRole('link', { name: 'Sign in with Google' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Welcome to jechel.dev' })).not.toBeInTheDocument()
+  })
 })

@@ -84,14 +84,6 @@ h2 {
   display: inline-block;
 }
 
-.session-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
 .tabs {
   display: flex;
   gap: 4px;
@@ -154,7 +146,7 @@ h2 {
   padding: 0 20px;
   border: 1px solid var(--accent);
   border-radius: 20px;
-  background: var(--accent);
+  background: var(--accent-fill, var(--accent));
   color: var(--accent-text);
   font: inherit;
   font-size: 14px;
@@ -379,7 +371,7 @@ h2 {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-fill, var(--accent));
 }
 
 .messages-table time {
@@ -439,7 +431,41 @@ h2 {
   transform: translateY(-2px);
 }
 
-.media-card:focus-visible {
+.media-card {
+  position: relative;
+  cursor: pointer;
+}
+
+/* The title's link or button covers the card (::after), so the whole card is the click target. */
+.media-card-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.media-card-action::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+}
+
+.media-card-action:focus-visible {
+  outline: none;
+}
+
+.add-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.media-card:has(.media-card-action:focus-visible) {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -491,6 +517,7 @@ h2 {
 }
 
 .media-card-title {
+  margin: 0;
   font-size: 16px;
   font-weight: 600;
   line-height: 1.3;
@@ -504,6 +531,7 @@ h2 {
 }
 
 .media-card-description {
+  margin: 0;
   font-size: 14px;
   line-height: 1.45;
   color: var(--text-muted);
@@ -666,7 +694,7 @@ button.media-card {
 }
 
 .carousel-dot[aria-current='true'] {
-  background: var(--accent);
+  background: var(--accent-fill, var(--accent));
 }
 
 .carousel-count {
@@ -1783,7 +1811,7 @@ button.media-card {
 }
 
 .language-step-on {
-  background: var(--accent);
+  background: var(--accent-fill, var(--accent));
 }
 
 .language-level {
@@ -1843,7 +1871,7 @@ button.media-card {
 
 .licence-toggle[aria-pressed='true'] {
   border-color: var(--accent);
-  background: var(--accent);
+  background: var(--accent-fill, var(--accent));
   color: var(--accent-text);
 }
 
@@ -1947,7 +1975,7 @@ button.media-card {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--accent-fill, var(--accent));
 }
 
 .timeline-heading {
@@ -2038,10 +2066,22 @@ button.media-card {
   min-width: 0;
 }
 
-.editor-item legend {
-  padding: 0 6px;
+/*
+ * The item's title ("Skill 3", "Job 1") sits inside its box, not on the border: a floated legend
+ * is laid out like any other content. The toolbar (move / remove) shares its row, on the right.
+ */
+.editor-item > legend:not(.visually-hidden) {
+  float: left;
+  margin: 0 0 8px;
+  padding: 0;
   font-size: 13px;
   font-weight: 600;
+  /* The height of the toolbar's icon buttons, so both sit on one line. */
+  line-height: 36px;
+}
+
+.editor-item > legend ~ :not(.editor-item-toolbar) {
+  clear: both;
 }
 
 .editor-item-inline {
@@ -2055,7 +2095,7 @@ button.media-card {
 .editor-item-toolbar {
   display: flex;
   justify-content: flex-end;
-  margin: -8px 0 4px;
+  margin: 0 0 8px;
 }
 
 .editor-period {
@@ -2275,8 +2315,11 @@ button.media-card {
   min-width: 0;
 }
 
-.upload legend {
-  padding: 0 6px;
+.upload > legend {
+  /* Inside the box, like .editor-item's. */
+  float: left;
+  padding: 0;
+  font-weight: 600;
 }
 
 .upload .profile-photo {
@@ -2931,7 +2974,7 @@ button.media-card {
   grid-column: 1 / -1;
   height: 6px;
   border-radius: 0 4px 4px 0;
-  background: var(--accent);
+  background: var(--accent-fill, var(--accent));
 }
 
 .visits-filter {
@@ -3089,5 +3132,1048 @@ button.media-card {
   .ranked-grid,
   .visit-facts {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- Header: "Buy me a coffee" and "Get updates" ---------- */
+
+.header-button {
+  min-height: 36px;
+  padding: 0 14px;
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  /* Icons only: the buttons are named by their aria-label. */
+  .header-button-label {
+    display: none;
+  }
+
+  .header-button {
+    width: 36px;
+    padding: 0;
+  }
+}
+
+/* ---------- Get updates: the popup, and the confirm / unsubscribe pages ---------- */
+
+.subscribe-form,
+.subscribe-sent {
+  display: grid;
+  gap: 12px;
+}
+
+.subscribe-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.updates-page {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+/* ---------- Résumé generator (About Me, admin only) ---------- */
+
+.resume-panel {
+  margin-bottom: 16px;
+}
+
+.resume-panel > summary {
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.resume-panel-title {
+  font-weight: 600;
+}
+
+.resume-panel[open] > summary {
+  margin-bottom: 16px;
+}
+
+.resume-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.resume-actions a.button {
+  text-decoration: none;
+}
+
+.resume-downloads {
+  display: grid;
+  gap: 8px;
+}
+
+/* ---------- Community (admin only) ---------- */
+
+.community {
+  display: grid;
+  gap: 16px;
+}
+
+.community-card {
+  display: grid;
+  gap: 12px;
+}
+
+.community-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.community-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip-muted {
+  color: var(--text-muted);
+}
+
+/* ---------- Settings (admin only) ---------- */
+
+.settings {
+  display: grid;
+  gap: 16px;
+}
+
+.settings {
+  /* Folded cards: a compact list. */
+  gap: 10px;
+}
+
+.settings-card {
+  padding: 8px 20px;
+}
+
+.settings-card-heading {
+  margin: 0;
+  font-size: 17px;
+}
+
+.settings-card-heading .accordion-toggle {
+  /* A button shrinks to its content even as a flex box: stretch it, so the status sits on the right. */
+  width: 100%;
+  min-height: 48px;
+}
+
+.settings-card-body {
+  display: grid;
+  gap: 12px;
+  padding: 4px 0 16px;
+}
+
+.settings-status {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chip.settings-status-ready {
+  border-color: transparent;
+  background: rgb(52 199 89 / 0.18);
+  color: var(--text);
+}
+
+.chip.settings-status-partial {
+  border-color: transparent;
+  background: rgb(255 179 64 / 0.22);
+  color: var(--text);
+}
+
+.settings-status-off,
+.settings-status-later {
+  color: var(--text-muted);
+}
+
+.settings-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-links a {
+  text-decoration: none;
+}
+
+.settings-input-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-input-row input {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.settings-source {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.settings-steps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.settings-copyable {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.settings-copyable code {
+  overflow-wrap: anywhere;
+}
+
+.settings-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.settings-facts dd {
+  margin: 0;
+}
+
+.settings-test {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-test p {
+  margin: 0;
+}
+
+.settings-ok {
+  color: var(--success, #188038);
+  margin: 0;
+}
+
+.settings-more > summary {
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.community-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+@media (max-width: 520px) {
+  .settings-facts {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Accordions (skills in the editor, Settings) ---------- */
+
+.accordion-item {
+  padding: 6px 8px 6px 12px;
+}
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.accordion-header .item-controls {
+  padding-top: 0;
+}
+
+.accordion-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.accordion-toggle:disabled {
+  cursor: default;
+}
+
+.accordion-toggle svg {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform 0.2s;
+}
+
+.accordion-toggle[aria-expanded='true'] svg {
+  transform: none;
+}
+
+.accordion-title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accordion-meta {
+  flex: none;
+  font-size: 13px;
+}
+
+.accordion-body {
+  display: grid;
+  gap: 12px;
+  padding: 4px 4px 10px 0;
+}
+
+.profile-private {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.profile-private svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accordion-toggle svg {
+    transition: none;
+  }
+}
+
+/* ---------- The admin's bar, above everything in the header ---------- */
+
+.admin-bar {
+  border-bottom: 1px solid var(--border);
+  background: var(--tint, rgb(10 132 255 / 0.12));
+}
+
+.admin-bar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+.admin-bar-badge {
+  margin-right: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent-fill, var(--accent));
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-bar-user {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+
+/* `display: grid` above would beat the hidden attribute: folded means gone. */
+.accordion-body[hidden],
+.settings-card-body[hidden] {
+  display: none;
+}
+
+/* ---------- Loading placeholders (components/Skeleton.tsx) ---------- */
+
+.skeleton {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  background: linear-gradient(90deg, var(--skeleton-base) 0%, var(--skeleton-shine) 45%, var(--skeleton-base) 90%);
+  background-size: 300% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+:root {
+  --skeleton-base: rgb(128 128 128 / 0.14);
+  --skeleton-shine: rgb(128 128 128 / 0.28);
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
+}
+
+.loading-shapes,
+.skeleton-text,
+.skeleton-card,
+.skeleton-list {
+  display: grid;
+  gap: 10px;
+}
+
+.loading-shapes {
+  gap: 16px;
+}
+
+.skeleton-card {
+  gap: 14px;
+}
+
+.skeleton-media-card {
+  display: grid;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.skeleton-media {
+  aspect-ratio: 16 / 9;
+}
+
+.skeleton-media-body {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 18px;
+}
+
+.skeleton-table {
+  display: grid;
+}
+
+.skeleton-row {
+  display: grid;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.skeleton-list-row,
+.skeleton-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.skeleton-profile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+}
+
+.skeleton-profile-text {
+  display: grid;
+  flex: 1;
+  gap: 12px;
+  min-width: 200px;
+}
+
+.skeleton-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.skeleton-tile {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.skeleton-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 160px;
+}
+
+.skeleton-chart .skeleton {
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* ---------- When loading fails (components/ErrorState.tsx) ---------- */
+
+.error-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 16px 18px;
+  border: 1px solid rgb(255 69 58 / 0.35);
+  border-radius: 14px;
+  background: rgb(255 69 58 / 0.08);
+}
+
+.error-state p {
+  flex: 1;
+  min-width: 180px;
+  margin: 0;
+}
+
+.error-state-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgb(255 69 58 / 0.85);
+  color: #fff;
+  font-weight: 700;
+}
+
+.error-state-compact {
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+/* ---------- The admin's preview switch (normal / loading / error) ---------- */
+
+.preview-switch {
+  --stop: 74px;
+  position: relative;
+  display: inline-flex;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.preview-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: var(--stop);
+  height: 24px;
+  border-radius: 999px;
+  background: var(--selected, var(--surface-muted));
+  transform: translateX(calc(var(--preview-index, 0) * var(--stop)));
+  transition: transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1), background 0.2s;
+}
+
+/* Solid, so the labels stay readable over them (5.4:1 and 6:1). */
+.preview-switch[data-mode='loading'] .preview-switch-thumb {
+  background: #8a5a00;
+}
+
+.preview-switch[data-mode='error'] .preview-switch-thumb {
+  background: #b3261e;
+}
+
+.preview-switch-option {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--stop);
+  height: 24px;
+  /* Full-strength text, not muted: the coloured thumb slides under every label on its way. */
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.preview-switch-option:has(input:checked) {
+  font-weight: 700;
+}
+
+.preview-switch-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-switch-thumb {
+    transition: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .preview-switch {
+    --stop: 62px;
+  }
+}
+
+.skeleton-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 64px;
+}
+
+@media (max-width: 640px) {
+  .header-button-skeleton {
+    width: 36px !important;
+  }
+}
+
+/* ---------- When Vice was too slow (layout/SlowSceneNotice.tsx) ---------- */
+
+.slow-scene-notice {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  z-index: 20;
+  display: grid;
+  gap: 10px;
+  max-width: 420px;
+  margin-left: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
+}
+
+.slow-scene-notice[hidden] {
+  display: none;
+}
+
+.slow-scene-notice p {
+  margin: 0;
+}
+
+.slow-scene-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------- Contact: message or meeting (features/meetings/VisitorContact.tsx) ---------- */
+
+.visitor-contact,
+.admin-contact {
+  display: grid;
+  gap: 16px;
+}
+
+.contact-mode {
+  display: inline-flex;
+  justify-self: center;
+  gap: 4px;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--glass-fill, var(--surface));
+}
+
+.contact-mode-option {
+  padding: 8px 18px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.contact-mode-option:has(input:checked) {
+  background: var(--accent-fill, var(--accent));
+  color: var(--accent-text);
+}
+
+.contact-mode-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.contact-meeting {
+  display: grid;
+  gap: 12px;
+}
+
+.contact-meeting-booked {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--tint, rgb(10 132 255 / 0.12));
+}
+
+.cal-embed {
+  min-height: 620px;
+  overflow: auto;
+  border-radius: 12px;
+}
+
+/* ---------- Meetings calendar (admin) ---------- */
+
+.meetings {
+  display: grid;
+  gap: 12px;
+}
+
+.meetings-month {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.meetings-waiting {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgb(255 179 64 / 0.16);
+}
+
+.calendar {
+  display: grid;
+  gap: 4px;
+}
+
+.calendar-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-weekday {
+  padding: 4px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.calendar-day {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.calendar-day:hover {
+  background: var(--surface-muted);
+}
+
+.calendar-day[data-other-month] {
+  color: var(--text-muted);
+}
+
+.calendar-day[data-today] {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.calendar-day[aria-pressed='true'] {
+  background: var(--accent-fill, var(--accent));
+  color: var(--accent-text);
+}
+
+.calendar-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.calendar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.calendar-dot-requested {
+  background: #ffb340;
+}
+
+.calendar-dot-accepted {
+  background: #30d158;
+}
+
+.calendar-dot-declined,
+.calendar-dot-cancelled {
+  background: #8e8e93;
+}
+
+.meetings-day-title {
+  margin: 8px 0 0;
+  font-size: 16px;
+}
+
+.meetings-list,
+.replies-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meeting,
+.reply {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.meeting p,
+.reply p {
+  margin: 0;
+}
+
+.meeting-when {
+  font-weight: 600;
+}
+
+.meeting-notes {
+  font-style: italic;
+}
+
+.meeting-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.meeting-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.meeting-status {
+  margin-top: 4px;
+}
+
+.chip.meeting-chip-accepted {
+  border-color: transparent;
+  background: rgb(52 199 89 / 0.18);
+}
+
+.chip.meeting-chip-declined,
+.chip.meeting-chip-cancelled {
+  color: var(--text-muted);
+}
+
+.message-meetings,
+.message-replies {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.message-meetings h3,
+.message-replies h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.reply-form {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.reply-form .field {
+  width: 100%;
+}
+
+/* ---------- Settings → Visitor pages: switches ---------- */
+
+.site-visibility {
+  display: grid;
+  gap: 14px;
+}
+
+.site-visibility h3,
+.settings-section-title {
+  margin: 0;
+}
+
+.settings-section-title {
+  margin-top: 8px;
+  font-size: 18px;
+}
+
+.switch-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.switch-list > legend {
+  margin-bottom: 6px;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.switch-text {
+  display: grid;
+  gap: 2px;
+}
+
+.switch-hint {
+  font-size: 13px;
+}
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  width: 74px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  transition: transform 0.2s;
+}
+
+.switch[aria-checked='true'] {
+  justify-content: flex-start;
+  background: #1f7a3a;
+  color: #fff;
+}
+
+.switch[aria-checked='true'] .switch-thumb {
+  transform: translateX(42px);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.switch:disabled {
+  opacity: 0.6;
+}
+
+.tab-hidden {
+  display: inline-flex;
+  margin-left: 6px;
+  vertical-align: -2px;
+  opacity: 0.7;
+}
+
+.admin-bar-maintenance {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #8a5a00;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ---------- Maintenance screen (visitors) ---------- */
+
+.maintenance {
+  display: grid;
+  place-items: center;
+  min-height: 50vh;
+  padding: 24px 0;
+}
+
+.maintenance-card {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  max-width: 480px;
+  padding: 32px 28px;
+  text-align: center;
+}
+
+.maintenance-card h2 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.maintenance-card p {
+  margin: 0;
+}
+
+.coming-soon {
+  display: grid;
+  gap: 8px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch-thumb {
+    transition: none;
   }
 }

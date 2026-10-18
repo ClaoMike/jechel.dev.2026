@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { reportSlowScene } from '../theme'
 import { plate1920Url, startRiviera } from './riviera'
 
 /** What the plane's banner says. */
@@ -18,7 +19,8 @@ export function RivieraBackground() {
     const canvas = canvasRef.current
     if (!canvas) return
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-    const scene = startRiviera(canvas, { bannerText: BANNER_TEXT, still, onReady: () => setMode('ready') })
+    // Too slow here: the visitor gets their light or dark instead (unless they chose Vice themselves).
+    const scene = startRiviera(canvas, { bannerText: BANNER_TEXT, still, onReady: () => setMode('ready'), onSlow: reportSlowScene })
     if (!scene) setMode('still')
     return () => scene?.destroy()
   }, [])

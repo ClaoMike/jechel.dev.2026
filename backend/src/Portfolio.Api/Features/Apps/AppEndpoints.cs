@@ -1,8 +1,11 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Portfolio.Api.Data;
+using Portfolio.Api.Features.Alerts;
 using Portfolio.Api.Features.Files;
+using Portfolio.Api.Features.Updates;
 
 namespace Portfolio.Api.Features.Apps;
 
@@ -51,11 +54,13 @@ public static class AppEndpoints
         return TypedResults.Ok(new PagedResponse<AppDetails>([.. rows.Select(r => ToDetails(r, categories))], page, pageSize, totalCount));
     }
 
-    /// <summary>Admin only.</summary>
+    /// <summary>Admin only. Then asks the admin's phone whether to email the subscribers about it.</summary>
     public static async Task<Results<Created<AppDetails>, ValidationProblem>> CreateApp(
         AppRequest request,
         PortfolioDbContext db,
         IFileStorage files,
+        IPhoneAlerts alerts,
+        IOptions<SiteOptions> site,
         TimeProvider time,
         CancellationToken cancellationToken)
     {
@@ -68,6 +73,7 @@ public static class AppEndpoints
         db.Apps.Add(entry);
         await db.SaveChangesAsync(cancellationToken);
         await FileCleanup.DeleteUnusedAsync(db, files, time, cancellationToken);
+        await AnnouncementDecisions.ProposeAppAsync(entry, db, alerts, site.Value, time, cancellationToken);
 
         return TypedResults.Created($"/api/apps/{entry.Id}", ToDetails(entry, categories));
     }

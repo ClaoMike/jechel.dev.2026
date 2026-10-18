@@ -1,0 +1,106 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.Options;
+using Portfolio.Api.Features.Settings;
+
+namespace Portfolio.Api.Features.Updates;
+
+/// <param name="UnsubscribeUrl">Sent as List-Unsubscribe (one click, RFC 8058), which Gmail and Yahoo require for bulk mail. Optional.</param>
+/// <param name="ReplyTo">Where answers go, e.g. the admin's own address for a reply to a contact message. Optional.</param>
+public record EmailMessage(string To, string Subject, string Html, string Text, string? UnsubscribeUrl = null, string? ReplyTo = null);
+
+public interface IEmailSender
+{
+    /// <summary>Throws when it couldn't be sent.</summary>
+    Task SendAsync(EmailMessage message, CancellationToken cancellationToken);
+}
+
+/// <summary>The "Email" configuration section (also editable in the Settings tab). Without a Resend key, emails are only written to the log.</summary>
+public class EmailOptions
+{
+    public const string Section = "Email";
+
+    /// <summary>A <see href="https://resend.com">Resend</see> API key (a secret).</summary>
+    public string ResendApiKey { get; set; } = "";
+
+    /// <summary>
+    /// The sender; its domain must be verified in Resend. Until one is, Resend's own address works, but
+    /// only for emails to the Resend account's own address (enough to try subscribing yourself).
+    /// </summary>
+    public string From { get; set; } = "jechel.dev <onboarding@resend.dev>";
+
+    public bool IsConfigured => ResendApiKey.Trim().Length > 0;
+}
+
+/// <summary>Sends through Resend's HTTP API.</summary>
+public class ResendEmailSender(HttpClient http, IOptionsMonitor<EmailOptions> options) : IEmailSender
+{
+    public static readonly Uri BaseAddress = new("https://api.resend.com/");
+
+    public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
+    {
+        var body = new Dictionary<string, object>
+        {
+            ["from"] = options.CurrentValue.From,
+            ["to"] = new[] { message.To },
+            ["subject"] = message.Subject,
+            ["html"] = message.Html,
+            ["text"] = message.Text,
+        };
+        if (message.ReplyTo is { Length: > 0 } replyTo) body["reply_to"] = replyTo;
+        if (message.UnsubscribeUrl is { } unsubscribe)
+        {
+            body["headers"] = new Dictionary<string, string>
+            {
+                ["List-Unsubscribe"] = $"<{unsubscribe}>",
+                ["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click",
+            };
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "emails") { Content = JsonContent.Create(body) };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.CurrentValue.ResendApiKey.Trim());
+        using var response = await http.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            // Resend says why, e.g. that the sender's domain isn't verified.
+            var answer = await response.Content.ReadAsStringAsync(cancellationToken);
+            var reason = TryRead(answer) ?? $"{(int)response.StatusCode} {response.StatusCode}";
+            throw new ServiceException($"Resend refused it: {reason}");
+        }
+    }
+
+    private static string? TryRead(string body)
+    {
+        try
+        {
+            return JsonNode.Parse(body)?["message"]?.GetValue<string>();
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+}
+
+/// <summary>
+/// Resend while an API key is set (in the configuration or the Settings tab), otherwise the log.
+/// Checked on every email, so a key saved in the Settings tab applies at once.
+/// </summary>
+public class SwitchingEmailSender(ResendEmailSender resend, LogEmailSender log, IOptionsMonitor<EmailOptions> options) : IEmailSender
+{
+    public bool IsConfigured => options.CurrentValue.IsConfigured;
+
+    public Task SendAsync(EmailMessage message, CancellationToken cancellationToken) =>
+        IsConfigured ? resend.SendAsync(message, cancellationToken) : log.SendAsync(message, cancellationToken);
+}
+
+/// <summary>Writes emails to the log instead of sending them: for local development, before Resend is set up.</summary>
+public class LogEmailSender(ILogger<LogEmailSender> logger) : IEmailSender
+{
+    public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Email (Email:ResendApiKey isn't set) to {To}: {Subject}\n{Text}", message.To, message.Subject, message.Text);
+        return Task.CompletedTask;
+    }
+}

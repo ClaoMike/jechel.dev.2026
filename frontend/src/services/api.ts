@@ -8,7 +8,7 @@
  * backend's `Features/<Feature>` folders.
  */
 
-import axios, { isAxiosError, type AxiosRequestConfig } from 'axios'
+import axios, { AxiosError, CanceledError, isAxiosError, type AxiosRequestConfig } from 'axios'
 
 // Empty by default: the app calls `/api/...` on its own origin (Vite proxies it to the API in dev).
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -50,6 +50,40 @@ export interface ContactMessageDetails {
   receivedAt: string
   /** ISO 8601 timestamp, or null while unread. */
   readAt: string | null
+  /** What the admin answered, oldest first. */
+  replies: ContactReply[]
+  /** Meetings the same address booked (not cancelled), soonest first. */
+  meetings: Meeting[]
+}
+
+export interface ContactReply {
+  id: number
+  text: string
+  /** ISO 8601 timestamp. */
+  sentAt: string
+}
+
+/** requested: waits for the admin to accept or decline. */
+export type MeetingStatus = 'requested' | 'accepted' | 'declined' | 'cancelled'
+
+/** A meeting booked with Cal.com. */
+export interface Meeting {
+  id: number
+  title: string
+  /** ISO 8601 timestamps. */
+  startTime: string
+  endTime: string
+  attendeeName: string
+  attendeeEmail: string
+  attendeeTimeZone: string | null
+  notes: string | null
+  status: MeetingStatus
+}
+
+export interface MeetingDecision {
+  status: MeetingStatus
+  /** False when there was a message but it couldn't be emailed (the decision still stands). */
+  emailSent: boolean
 }
 
 export interface Page<T> {
@@ -506,6 +540,156 @@ export interface VisitDetails {
   events: VisitEvent[]
 }
 
+// ---------- Support (Buy me a coffee), email updates, résumé ----------
+
+export interface SupportInfo {
+  /** Where the "Buy me a coffee" button goes; empty hides it. */
+  url: string
+}
+
+export type SubscribeStatus = 'sent' | 'alreadySubscribed' | 'pending'
+
+/** A payment Buy Me a Coffee reported (admin only). */
+export interface Donation {
+  id: number
+  /** The event, e.g. "donation.created". */
+  type: string
+  fromName: string
+  message: string | null
+  /** As the service sent it, e.g. "3.00". */
+  amount: string
+  currency: string
+  email: string | null
+  /** ISO 8601 timestamp. */
+  receivedAt: string
+}
+
+export interface Subscriber {
+  id: number
+  email: string
+  /** ISO 8601 timestamp. */
+  createdAt: string
+  /** Null until they click the link in the confirmation email. */
+  confirmedAt: string | null
+}
+
+/** pending: a new app waiting for the admin; approved: about to be emailed. */
+export type AnnouncementStatus = 'pending' | 'approved' | 'sent' | 'ignored'
+
+/** Something new to email the subscribers about. */
+export interface Announcement {
+  id: number
+  kind: 'app' | 'video'
+  title: string
+  status: AnnouncementStatus
+  /** ISO 8601 timestamp. */
+  createdAt: string
+  /** ISO 8601 timestamp, or null until emailed. */
+  sentAt: string | null
+  recipientCount: number
+}
+
+/** The visitor pages that can be hidden (Settings → Visitor pages), in tab order. */
+export const SITE_PAGES = ['whatsNew', 'apps', 'youtube', 'about', 'contact'] as const
+export type SitePage = (typeof SITE_PAGES)[number]
+
+/** Features that need setting up once live: Book a meeting (Contact), Buy me a coffee and Get updates (header). */
+export const SITE_FEATURES = ['meetings', 'coffee', 'updates'] as const
+export type SiteFeature = (typeof SITE_FEATURES)[number]
+
+/** What visitors see. */
+export interface SiteStatus {
+  pages: Record<SitePage, boolean>
+  features: Record<SiteFeature, boolean>
+  /** Visitors get the maintenance screen (the signed-in admin still sees the site). */
+  maintenance: boolean
+  maintenanceMessage: string
+  updatedAt: string | null
+}
+
+export interface SaveSiteRequest {
+  pages?: Partial<Record<SitePage, boolean>>
+  features?: Partial<Record<SiteFeature, boolean>>
+  maintenance?: boolean
+  maintenanceMessage?: string
+}
+
+/** A connection setting (Settings tab). Secrets are never sent to the browser: only whether they're set and their last 4 characters. */
+export interface Setting {
+  /** The configuration key, e.g. "Email:ResendApiKey". */
+  key: string
+  label: string
+  isSecret: boolean
+  /** Only for settings that aren't secret. */
+  value: string | null
+  isSet: boolean
+  /** A secret's last 4 characters. */
+  hint: string | null
+  /** Where the value in use comes from: saved here, the server's configuration, or nowhere. */
+  source: 'settings' | 'configuration' | 'none'
+  /** ISO 8601 timestamp of the last save here. */
+  updatedAt: string | null
+}
+
+export interface GoogleStatus {
+  isConfigured: boolean
+  clientIdHint: string | null
+  adminEmailCount: number
+  /** The callback to register in Google Cloud. */
+  redirectUri: string
+}
+
+export interface SettingsResponse {
+  settings: Setting[]
+  google: GoogleStatus
+  /** The site's public address, e.g. "https://jechel.dev". */
+  siteUrl: string
+}
+
+export interface TestResult {
+  ok: boolean
+  message: string
+}
+
+/** The parts of About Me a résumé can include, in print order (ResumeSections.cs). */
+export const RESUME_SECTIONS = [
+  'statuses',
+  'links',
+  'experience',
+  'skills',
+  'education',
+  'qualifications',
+  'papers',
+  'hackathons',
+  'problemSolving',
+  'languages',
+  'licences',
+  'places',
+] as const
+
+export type ResumeSection = (typeof RESUME_SECTIONS)[number]
+
+/** The résumé's contact details: edited with the About Me profile, but never on the public page. */
+export interface ResumeContact {
+  /** Private: only in the admin's copy. */
+  phone: string
+  email: string
+  /** Under the name, e.g. "Full-stack engineer · .NET, React, PostgreSQL". */
+  headline: string
+}
+
+/** What the generator puts in. */
+export interface ResumeChoices {
+  sections: ResumeSection[]
+  /** Names of the About Me skills to leave out. */
+  excludedSkills: string[]
+}
+
+export interface ResumeSettingsDetails extends ResumeContact, ResumeChoices {
+  /** ISO 8601 timestamp of the last generation, or null before the first. */
+  generatedAt: string | null
+}
+
 // ---------- HTTP plumbing ----------
 
 export class ApiError extends Error {
@@ -525,6 +709,33 @@ const http = axios.create({
   baseURL: API_BASE_URL,
   headers: { Accept: 'application/json' },
 })
+
+/** The admin's preview switch (features/preview): how content requests behave. */
+export type RequestPreview = 'normal' | 'loading' | 'error'
+
+let requestPreview: RequestPreview = 'normal'
+
+/** "loading" holds GET requests until they're cancelled; "error" fails them with a 500. Never sign-in, never writes. */
+export function setRequestPreview(preview: RequestPreview) {
+  requestPreview = preview
+}
+
+const sendRequest = axios.getAdapter(http.defaults.adapter)
+
+http.defaults.adapter = (config) => {
+  const previewed = requestPreview !== 'normal' && (config.method ?? 'get').toLowerCase() === 'get' && !config.url?.startsWith('/api/auth/')
+  if (!previewed) return sendRequest(config)
+
+  if (requestPreview === 'error') {
+    const response = { data: { title: 'Preview: an error' }, status: 500, statusText: 'Preview error', headers: {}, config }
+    return Promise.reject(new AxiosError('Preview: the request failed', AxiosError.ERR_BAD_RESPONSE, config, null, response))
+  }
+  // Loading: never answers; leaving the page (an aborted signal) ends it like any cancelled request.
+  return new Promise((_, reject) => {
+    const signal = config.signal as AbortSignal | undefined
+    signal?.addEventListener?.('abort', () => reject(new CanceledError(undefined, undefined, config)))
+  })
+}
 
 /** A request that failed, as told to `onRequestFailed` listeners. */
 export interface FailedRequest {
@@ -621,11 +832,6 @@ export const api = {
     /** Admin only. A JPEG, PNG, WebP or GIF up to 15 MB; stored as a small WebP without metadata. Rejects with validationErrors.file. */
     uploadPhoto(file: File, onProgress?: UploadProgress): Promise<UploadedFile> {
       return upload('/api/files/photo', file, onProgress)
-    },
-
-    /** Admin only. A PDF up to 20 MB. Rejects with validationErrors.file. */
-    uploadResume(file: File, onProgress?: UploadProgress): Promise<UploadedFile> {
-      return upload('/api/files/resume', file, onProgress)
     },
 
     /** Admin only. An academic paper, as a PDF up to 200 MB. Rejects with validationErrors.file. */
@@ -750,6 +956,11 @@ export const api = {
     async deleteMessage(id: number): Promise<void> {
       await http.delete(`/api/contact/messages/${id}`)
     },
+
+    /** Admin only. Emails the answer to the sender (with the message quoted); rejects with a 503 ApiError when it can't be sent. */
+    reply(id: number, text: string): Promise<ContactReply> {
+      return post<ContactReply>(`/api/contact/messages/${id}/reply`, { text })
+    },
   },
 
   analytics: {
@@ -786,6 +997,147 @@ export const api = {
     /** Admin only. For good. */
     async deleteSession(id: string): Promise<void> {
       await http.delete(`/api/analytics/sessions/${id}`)
+    },
+  },
+
+  support: {
+    /** Public. Where the header's "Buy me a coffee" button goes. */
+    get(signal?: AbortSignal): Promise<SupportInfo> {
+      return get<SupportInfo>('/api/support', { signal })
+    },
+
+    /** Admin only. Newest first. */
+    listDonations(page = 1, pageSize = 20, signal?: AbortSignal): Promise<Page<Donation>> {
+      return get<Page<Donation>>('/api/support/donations', { params: { page, pageSize }, signal })
+    },
+  },
+
+  updates: {
+    /**
+     * Public. Emails a confirmation link: "sent"; or nothing, when they're "alreadySubscribed" or a
+     * confirmation went out lately ("pending"). Rejects with validationErrors.email, a 429 when tried
+     * too often, or a 503 when the email couldn't be sent.
+     */
+    async subscribe(email: string): Promise<SubscribeStatus> {
+      const { status } = await post<{ status: SubscribeStatus }>('/api/updates/subscribe', { email })
+      return status
+    },
+
+    /** Public. The link in the confirmation email; resolves with the address. Rejects with a 404 for an unknown token. */
+    async confirm(token: string): Promise<string> {
+      const { email } = await post<{ email: string }>('/api/updates/confirm', undefined, { params: { token } })
+      return email
+    },
+
+    /** Public. The link in every update email. */
+    async unsubscribe(token: string): Promise<void> {
+      await post('/api/updates/unsubscribe', undefined, { params: { token } })
+    },
+
+    /** Admin only. Newest first, confirmed or not. */
+    listSubscribers(page = 1, pageSize = 20, signal?: AbortSignal): Promise<Page<Subscriber>> {
+      return get<Page<Subscriber>>('/api/updates/subscribers', { params: { page, pageSize }, signal })
+    },
+
+    /** Admin only. */
+    async deleteSubscriber(id: number): Promise<void> {
+      await http.delete(`/api/updates/subscribers/${id}`)
+    },
+
+    /** Admin only. A pending announcement: email it (`send`) or not (`ignore`). */
+    async decide(id: number, decision: 'send' | 'ignore'): Promise<AnnouncementStatus> {
+      const { status } = await post<{ status: AnnouncementStatus }>(`/api/updates/announcements/${id}/${decision}`)
+      return status
+    },
+
+    /** Admin only. Newest first, with whether each was emailed. */
+    listAnnouncements(page = 1, pageSize = 20, signal?: AbortSignal): Promise<Page<Announcement>> {
+      return get<Page<Announcement>>('/api/updates/announcements', { params: { page, pageSize }, signal })
+    },
+  },
+
+  resume: {
+    /** Public: the last generated résumé, without the phone number. */
+    publicUrl: `${API_BASE_URL}/api/resume`,
+
+    /** Admin only: the same résumé with the phone number. */
+    privateUrl: `${API_BASE_URL}/api/resume/private`,
+
+    /** Admin only. */
+    getSettings(signal?: AbortSignal): Promise<ResumeSettingsDetails> {
+      return get<ResumeSettingsDetails>('/api/resume/settings', { signal })
+    },
+
+    /** Admin only. The phone, email and headline. Rejects with validationErrors (phone, email, headline). */
+    async saveContact(contact: ResumeContact): Promise<ResumeSettingsDetails> {
+      const response = await http.put<ResumeSettingsDetails>('/api/resume/contact', contact)
+      return response.data
+    },
+
+    /** Admin only. Saves the sections and skills without generating. */
+    async saveChoices(choices: ResumeChoices): Promise<ResumeSettingsDetails> {
+      const response = await http.put<ResumeSettingsDetails>('/api/resume/choices', choices)
+      return response.data
+    },
+
+    /**
+     * Admin only. Saves the choices, then makes both PDFs from the About Me page and the saved contact
+     * details; the page's "Download résumé" button then gets the one without the phone number.
+     */
+    generate(choices: ResumeChoices): Promise<ResumeSettingsDetails> {
+      return post<ResumeSettingsDetails>('/api/resume/generate', choices)
+    },
+  },
+
+  meetings: {
+    /** Public. The Cal.com booking page ("username/event"), or "" when meetings aren't offered. */
+    async info(signal?: AbortSignal): Promise<string> {
+      const { calLink } = await get<{ calLink: string }>('/api/meetings/info', { signal })
+      return calLink
+    },
+
+    /** Admin only. Meetings overlapping [from, to), soonest first. */
+    list(from: Date, to: Date, signal?: AbortSignal): Promise<Meeting[]> {
+      return get<Meeting[]>('/api/meetings', { params: { from: from.toISOString(), to: to.toISOString() }, signal })
+    },
+
+    /**
+     * Admin only. Accepts or declines a requested meeting with Cal.com, and emails `message` (if any)
+     * to the attendee. Rejects with a 502 ApiError when Cal.com refuses.
+     */
+    decide(id: number, accept: boolean, message: string): Promise<MeetingDecision> {
+      return post<MeetingDecision>(`/api/meetings/${id}/${accept ? 'accept' : 'decline'}`, { message })
+    },
+  },
+
+  site: {
+    /** Public. Which pages and features visitors see, and whether the site is under maintenance. */
+    status(signal?: AbortSignal): Promise<SiteStatus> {
+      return get<SiteStatus>('/api/site', { signal })
+    },
+
+    /** Admin only. Changes what's given; the rest stays. */
+    async save(changes: SaveSiteRequest): Promise<SiteStatus> {
+      const response = await http.put<SiteStatus>('/api/site', changes)
+      return response.data
+    },
+  },
+
+  settings: {
+    /** Admin only. */
+    get(signal?: AbortSignal): Promise<SettingsResponse> {
+      return get<SettingsResponse>('/api/settings', { signal })
+    },
+
+    /** Admin only. Applies at once; an empty value clears it. Rejects with validationErrors.value. */
+    async save(key: string, value: string): Promise<SettingsResponse> {
+      const response = await http.put<SettingsResponse>(`/api/settings/${encodeURIComponent(key)}`, { value })
+      return response.data
+    },
+
+    /** Admin only. Sends a test alert ("ntfy"), a test email to you ("email"), lists the videos ("youtube"), or checks the Cal.com key ("cal"). */
+    test(service: 'ntfy' | 'email' | 'youtube' | 'cal'): Promise<TestResult> {
+      return post<TestResult>(`/api/settings/test/${service}`)
     },
   },
 

@@ -25,7 +25,7 @@ public static class YouTubeEndpoints
     /// configured, or can't be reached and there's no earlier list to show.
     /// </summary>
     public static async Task<Results<Ok<PagedResponse<YouTubeVideo>>, ProblemHttpResult>> ListVideos(
-        IOptions<YouTubeOptions> options,
+        IOptionsMonitor<YouTubeOptions> options,
         IYouTubeClient youTube,
         RefreshingCache<IReadOnlyList<YouTubeVideo>> cache,
         ILoggerFactory loggers,
@@ -33,7 +33,7 @@ public static class YouTubeEndpoints
         int page = 1,
         int pageSize = DefaultPageSize)
     {
-        if (!options.Value.IsConfigured)
+        if (!options.CurrentValue.IsConfigured)
         {
             return TypedResults.Problem("YouTube isn't set up: set YouTube:Channel and YouTube:ApiKey.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }

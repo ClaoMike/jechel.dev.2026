@@ -17,6 +17,15 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<AppCategory> AppCategories => Set<AppCategory>();
     public DbSet<VisitSession> VisitSessions => Set<VisitSession>();
     public DbSet<VisitEvent> VisitEvents => Set<VisitEvent>();
+    public DbSet<Donation> Donations => Set<Donation>();
+    public DbSet<Subscriber> Subscribers => Set<Subscriber>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<UpdatesState> UpdatesStates => Set<UpdatesState>();
+    public DbSet<ResumeSettings> ResumeSettings => Set<ResumeSettings>();
+    public DbSet<SiteSetting> SiteSettings => Set<SiteSetting>();
+    public DbSet<Meeting> Meetings => Set<Meeting>();
+    public DbSet<ContactReply> ContactReplies => Set<ContactReply>();
+    public DbSet<SiteState> SiteStates => Set<SiteState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -165,6 +174,142 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             // One row per sequence number: a batch sent twice isn't stored twice.
             entity.HasIndex(e => new { e.SessionId, e.Sequence }).IsUnique();
             entity.HasIndex(e => e.OccurredAt);
+        });
+
+        modelBuilder.Entity<Donation>(entity =>
+        {
+            entity.ToTable("donations");
+            entity.HasKey(d => d.Id);
+            entity.Property(d => d.Id).HasColumnName("id");
+            entity.Property(d => d.TransactionId).HasColumnName("transaction_id").HasMaxLength(100).IsRequired();
+            entity.Property(d => d.Type).HasColumnName("type").HasMaxLength(40).IsRequired();
+            entity.Property(d => d.FromName).HasColumnName("from_name").HasMaxLength(200).IsRequired();
+            entity.Property(d => d.Message).HasColumnName("message").HasMaxLength(2000);
+            entity.Property(d => d.Amount).HasColumnName("amount").HasMaxLength(20).IsRequired();
+            entity.Property(d => d.Currency).HasColumnName("currency").HasMaxLength(10).IsRequired();
+            entity.Property(d => d.Email).HasColumnName("email").HasMaxLength(320);
+            entity.Property(d => d.Payload).HasColumnName("payload").HasColumnType("jsonb");
+            entity.Property(d => d.ReceivedAt).HasColumnName("received_at");
+
+            // A webhook is retried until it gets a 200: one row per payment.
+            entity.HasIndex(d => d.TransactionId).IsUnique();
+            entity.HasIndex(d => d.ReceivedAt);
+        });
+
+        modelBuilder.Entity<Subscriber>(entity =>
+        {
+            entity.ToTable("subscribers");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasColumnName("id");
+            entity.Property(s => s.Email).HasColumnName("email").HasMaxLength(ContactRules.EmailMaxLength).IsRequired();
+            entity.Property(s => s.Token).HasColumnName("token").HasMaxLength(100).IsRequired();
+            entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+            entity.Property(s => s.ConfirmationSentAt).HasColumnName("confirmation_sent_at");
+            entity.Property(s => s.ConfirmedAt).HasColumnName("confirmed_at");
+
+            entity.HasIndex(s => s.Email).IsUnique();
+            entity.HasIndex(s => s.Token).IsUnique();
+        });
+
+        modelBuilder.Entity<Announcement>(entity =>
+        {
+            entity.ToTable("announcements");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Id).HasColumnName("id");
+            entity.Property(a => a.Kind).HasColumnName("kind").HasMaxLength(20).IsRequired();
+            entity.Property(a => a.ItemKey).HasColumnName("item_key").HasMaxLength(100).IsRequired();
+            entity.Property(a => a.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+            entity.Property(a => a.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(a => a.DecisionTokenHash).HasColumnName("decision_token_hash").HasMaxLength(64);
+            entity.Property(a => a.CreatedAt).HasColumnName("created_at");
+            entity.Property(a => a.SentAt).HasColumnName("sent_at");
+            entity.Property(a => a.RecipientCount).HasColumnName("recipient_count");
+
+            // Nothing is announced twice.
+            entity.HasIndex(a => new { a.Kind, a.ItemKey }).IsUnique();
+        });
+
+        modelBuilder.Entity<UpdatesState>(entity =>
+        {
+            entity.ToTable("updates_state");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(s => s.AnnounceAfter).HasColumnName("announce_after");
+        });
+
+        modelBuilder.Entity<ResumeSettings>(entity =>
+        {
+            entity.ToTable("resume");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(r => r.Phone).HasColumnName("phone").HasMaxLength(Features.Resume.ResumeRules.PhoneMaxLength).IsRequired();
+            entity.Property(r => r.Email).HasColumnName("email").HasMaxLength(ContactRules.EmailMaxLength).IsRequired();
+            entity.Property(r => r.Headline).HasColumnName("headline").HasMaxLength(Features.Resume.ResumeRules.HeadlineMaxLength).IsRequired();
+            entity.Property(r => r.Sections).HasColumnName("sections").HasColumnType("jsonb").IsRequired();
+            entity.Property(r => r.ExcludedSkills).HasColumnName("excluded_skills").HasColumnType("jsonb").IsRequired().HasDefaultValueSql("'[]'::jsonb");
+            entity.Property(r => r.PublicPdf).HasColumnName("public_pdf");
+            entity.Property(r => r.PrivatePdf).HasColumnName("private_pdf");
+            entity.Property(r => r.GeneratedAt).HasColumnName("generated_at");
+        });
+
+        modelBuilder.Entity<SiteSetting>(entity =>
+        {
+            entity.ToTable("site_settings");
+            entity.HasKey(s => s.Key);
+            entity.Property(s => s.Key).HasColumnName("key").HasMaxLength(100);
+            entity.Property(s => s.Value).HasColumnName("value").IsRequired();
+            entity.Property(s => s.IsEncrypted).HasColumnName("is_encrypted");
+            entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<Meeting>(entity =>
+        {
+            entity.ToTable("meetings");
+            entity.HasKey(m => m.Id);
+            entity.Property(m => m.Id).HasColumnName("id");
+            entity.Property(m => m.Uid).HasColumnName("uid").HasMaxLength(100).IsRequired();
+            entity.Property(m => m.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
+            entity.Property(m => m.StartTime).HasColumnName("start_time");
+            entity.Property(m => m.EndTime).HasColumnName("end_time");
+            entity.Property(m => m.AttendeeName).HasColumnName("attendee_name").HasMaxLength(200).IsRequired();
+            entity.Property(m => m.AttendeeEmail).HasColumnName("attendee_email").HasMaxLength(320).IsRequired();
+            entity.Property(m => m.AttendeeTimeZone).HasColumnName("attendee_time_zone").HasMaxLength(64);
+            entity.Property(m => m.Notes).HasColumnName("notes").HasMaxLength(2000);
+            entity.Property(m => m.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(m => m.DecisionTokenHash).HasColumnName("decision_token_hash").HasMaxLength(64);
+            entity.Property(m => m.RemindersSent).HasColumnName("reminders_sent");
+            entity.Property(m => m.CreatedAt).HasColumnName("created_at");
+            entity.Property(m => m.UpdatedAt).HasColumnName("updated_at");
+
+            entity.HasIndex(m => m.Uid).IsUnique();
+            // The calendar and the reminders read by time.
+            entity.HasIndex(m => m.StartTime);
+        });
+
+        modelBuilder.Entity<ContactReply>(entity =>
+        {
+            entity.ToTable("contact_replies");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).HasColumnName("id");
+            entity.Property(r => r.MessageId).HasColumnName("message_id");
+            entity.Property(r => r.Text).HasColumnName("text").HasMaxLength(Features.Contact.ContactEndpoints.ReplyMaxLength).IsRequired();
+            entity.Property(r => r.SentAt).HasColumnName("sent_at");
+
+            // Deleting a message deletes its replies.
+            entity.HasOne<ContactMessage>().WithMany().HasForeignKey(r => r.MessageId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(r => r.MessageId);
+        });
+
+        modelBuilder.Entity<SiteState>(entity =>
+        {
+            entity.ToTable("site_state");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(s => s.Pages).HasColumnName("pages").HasColumnType("jsonb").IsRequired();
+            entity.Property(s => s.Features).HasColumnName("features").HasColumnType("jsonb").IsRequired();
+            entity.Property(s => s.MaintenanceEnabled).HasColumnName("maintenance_enabled");
+            entity.Property(s => s.MaintenanceMessage).HasColumnName("maintenance_message").HasMaxLength(Features.Site.SiteEndpoints.MessageMaxLength).IsRequired();
+            entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
         });
     }
 }

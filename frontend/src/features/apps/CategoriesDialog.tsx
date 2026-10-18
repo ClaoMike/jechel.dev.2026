@@ -38,12 +38,12 @@ export function CategoriesDialog({ categories, onClose, onSaved }: { categories:
 
   return (
     <Modal labelledBy={titleId} onClose={requestClose}>
-      <header className="modal-header">
+      <div className="modal-header">
         <h2 id={titleId}>App categories</h2>
         <button type="button" className="icon-button" onClick={requestClose} aria-label="Close">
           <span aria-hidden="true">×</span>
         </button>
-      </header>
+      </div>
       <form
         className="app-form"
         noValidate

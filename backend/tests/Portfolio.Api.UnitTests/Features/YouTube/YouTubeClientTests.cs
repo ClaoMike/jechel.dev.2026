@@ -63,7 +63,7 @@ public class YouTubeClientTests
                 ? Page(null, Item("new", published: "2026-05-01T00:00:00Z"))
                 : Page("p2", Item("old", published: "2025-05-01T00:00:00Z"));
         });
-        var client = new YouTubeClient(new HttpClient(handler) { BaseAddress = YouTubeClient.BaseAddress }, Options.Create(new YouTubeOptions { Channel = channel, ApiKey = "k" }));
+        var client = new YouTubeClient(new HttpClient(handler) { BaseAddress = YouTubeClient.BaseAddress }, TestOptions.Monitor(new YouTubeOptions { Channel = channel, ApiKey = "k" }));
 
         var videos = await client.FetchVideosAsync(default);
 

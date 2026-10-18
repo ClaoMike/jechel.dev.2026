@@ -33,6 +33,8 @@ export default defineConfig({
   webServer: [
     {
       command: `dotnet run --project ../backend/src/Portfolio.Api --launch-profile http --urls ${API_URL}`,
+      // Every visitor page shows (they start hidden otherwise; Settings → Visitor pages).
+      env: { Site__PagesVisibleByDefault: 'true' },
       url: `${API_URL}/api/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

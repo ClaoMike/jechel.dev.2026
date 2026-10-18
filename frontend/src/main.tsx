@@ -5,9 +5,11 @@ import '@fontsource/mr-dafoe/latin.css'
 import './index.css'
 import './glass.css'
 import App from './App.tsx'
+import { Provider } from 'react-redux'
 import { AuthProvider } from './auth'
 import { tracker } from './features/analytics'
 import { storedTheme } from './layout/theme'
+import { makeStore } from './store'
 
 // Before the first render, so the page never flashes the wrong theme.
 document.documentElement.dataset.theme = storedTheme()
@@ -24,10 +26,12 @@ createRoot(document.getElementById('root')!, {
   },
 }).render(
   <StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </BrowserRouter>
+    <Provider store={makeStore()}>
+      <BrowserRouter>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrowserRouter>
+    </Provider>
   </StrictMode>,
 )

@@ -56,6 +56,7 @@ Personal portfolio website of Claudiu Mihai Jechel.
 | Frontend    | http://localhost:5173      | Vite dev server (`strictPort`, fails if taken). Proxies `/api/*` to the API |
 | API         | http://localhost:5105      | `http` launch profile. Browse the site via 5173, not 5105 |
 | PostgreSQL  | localhost:**5433**         | 5433, not 5432, so it doesn't clash with a Homebrew Postgres |
+| Redis       | localhost:**6380**         | 6380, not 6379, for the same reason. Optional: the API caches in memory without it |
 | OpenAPI doc | http://localhost:5105/openapi/v1.json | Development only                        |
 
 Local DB credentials (dev only): database/user/password all `portfolio`.
@@ -63,7 +64,7 @@ Local DB credentials (dev only): database/user/password all `portfolio`.
 ## Running locally
 
 ```bash
-# 1. Database
+# 1. Database (and Redis, the API's optional cache)
 docker compose up -d --wait
 
 # 2. API (applies EF migrations + seed data on startup in Development)
@@ -120,6 +121,34 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/analytics/sessions?page=&pageSize=&errorsOnly=` | cookie | Visits, newest first (pageSize 1–50, default 20) |
 | GET    | `/api/analytics/sessions/{id}` | cookie | One visit with every event in order, or **404** |
 | DELETE | `/api/analytics/sessions/{id}` | cookie | Deletes the visit and its events: **204**, or **404** |
+| GET    | `/api/support`              | public  | `{ url }`: where the header's **Buy me a coffee** goes (`Support:Url`); `""` hides it |
+| POST   | `/api/support/buymeacoffee` | signature | Buy Me a Coffee's webhook (HMAC-SHA256 of the body in `X-Signature-Sha256` or `X-Bmc-Signature`): stores the payment once, alerts the phone. **401** for a bad signature, **503** until the webhook secret is set |
+| GET    | `/api/support/donations?page=&pageSize=` | cookie | Donations, newest first |
+| POST   | `/api/updates/subscribe`    | public  | `{ email }`: **200** `{ status }`: `sent` (a confirmation link is on its way), `alreadySubscribed`, or `pending` (one went out less than 10 minutes ago). **400** field error, **429** after 5 tries per IP in 10 minutes, **503** when the email couldn't be sent (and the phone is told why) |
+| POST   | `/api/updates/confirm?token=` | public | Confirms: **200** `{ email }`, or **404** |
+| POST   | `/api/updates/unsubscribe?token=` | public | Deletes the subscriber: always **204** (also what mail apps' one-click Unsubscribe posts) |
+| GET    | `/api/updates/subscribers?page=&pageSize=` | cookie | Subscribers, newest first, with `confirmedAt` |
+| DELETE | `/api/updates/subscribers/{id}` | cookie | **204**, or **404** |
+| GET    | `/api/updates/announcements?page=&pageSize=` | cookie | Update emails, newest first, with their `status` (`pending`, `approved`, `sent`, `ignored`) |
+| POST   | `/api/updates/announcements/{id}/send?token=` | cookie or token | Approves a pending one (emailed at once): **200** `{ status }`. The phone alert's button sends the token |
+| POST   | `/api/updates/announcements/{id}/ignore?token=` | cookie or token | Ignores a pending one |
+| GET    | `/api/resume?inline=`       | public  | The last generated résumé **without** the phone number (PDF), or **404** |
+| GET    | `/api/resume/private?inline=` | cookie | The same **with** the phone number |
+| GET    | `/api/resume/settings`      | cookie  | `{ phone, email, headline, sections, excludedSkills, generatedAt }` |
+| PUT    | `/api/resume/contact`       | cookie  | `{ phone, email, headline }` (edited with About Me's profile): **200**, or **400** with field errors |
+| PUT    | `/api/resume/choices`       | cookie  | `{ sections, excludedSkills }` without generating: **200**, or **400** |
+| POST   | `/api/resume/generate`      | cookie  | `{ sections, excludedSkills }`: saves them, makes both PDFs, and points About Me's résumé link at the public one: **200**, or **400** |
+| GET    | `/api/meetings/info`        | public  | `{ calLink }`: the Cal.com booking page ("user/event") for **Book a meeting**, or `""` |
+| POST   | `/api/meetings/cal`         | signature | Cal.com's webhook (HMAC-SHA256 of the body, hex, in `x-cal-signature-256`): keeps bookings up to date, alerts the phone. **401** bad signature, **503** until the secret is set |
+| GET    | `/api/meetings?from=&to=`   | cookie  | Meetings overlapping the range (a calendar month), soonest first |
+| POST   | `/api/meetings/{id}/accept` | cookie or token | `{ message? }`: confirms a requested meeting with Cal.com and emails the message: **200** `{ status, emailSent }`, **502** when Cal.com refuses |
+| POST   | `/api/meetings/{id}/decline` | cookie or token | The same, declining (the message is also Cal.com's reason) |
+| POST   | `/api/contact/messages/{id}/reply` | cookie | `{ text }`: emails the answer to the sender (their message quoted, your address to reply to): **200**, **400**, **503** when it can't be sent |
+| GET    | `/api/site`                 | public  | What visitors see: `{ pages, features, maintenance, maintenanceMessage }` (cached: memory, then Redis) |
+| PUT    | `/api/site`                 | cookie  | Changes what's given (pages, features, maintenance, its message): **200**, or **400** for unknown ids |
+| GET    | `/api/settings`             | cookie  | The connection settings (secrets only as set/not set and their last 4 characters), how Google sign-in is set up, and the site's address |
+| PUT    | `/api/settings/{key}`       | cookie  | `{ value }`: saves one (encrypted if secret) and applies it at once; `""` clears it. **400** for a bad value, **404** for an unknown key |
+| POST   | `/api/settings/test/{service}` | cookie | `ntfy` (test alert), `email` (test email to you) or `youtube` (lists the videos): **200** `{ ok, message }` |
 
 ## The "j" (Vice title and tab icon)
 
@@ -136,7 +165,7 @@ on the icon links in `index.html` (browsers keep tab icons cached).
 
 ## Terms and conditions
 
-- **Welcome popup:** a visitor who hasn't accepted the terms gets a popup that can't be closed: they tick every box (placeholders for now, in `features/terms/TermsGate.tsx`), then **Continue**. Accepting is remembered in the browser (`localStorage["terms.accepted"]`) against the terms' `updatedAt`, so saving new terms asks everyone again. The signed-in admin isn't asked.
+- **Welcome popup:** a visitor who hasn't accepted the terms (anywhere but the sign-in page, `/admin`) gets a popup that can't be closed: they tick every box (placeholders for now, in `features/terms/TermsGate.tsx`), then **Continue**. Accepting is remembered in the browser (`localStorage["terms.accepted"]`) against the terms' `updatedAt`, so saving new terms asks everyone again. The signed-in admin isn't asked.
 - **Reading them:** the footer on every page, and the welcome popup, have a **Terms and Conditions** link that opens them in a popup above anything else that's open.
 - **Editing them:** the admin's last tab, **Terms**, shows them as a page with an **Edit** button: title, introduction, and numbered sections of paragraphs and bullet lists (add, reorder, remove). Text may contain `[text](https://…)` links.
 - **E2E:** the `setup` project (`e2e/terms.setup.ts`) accepts the terms once and the other projects start from that browser state; tests of the popup itself use a fresh state.
@@ -189,6 +218,9 @@ There is exactly one admin, so there is exactly one session, stored on the profi
 - **Every request that carries the cookie** is validated against the database (`OnValidatePrincipal`): the token hash must match and the session must not have expired. Otherwise the request is anonymous and the cookie is cleared.
 - **10-minute idle timeout** (`Auth:SessionIdleTimeout`, default `00:10:00`). Any request is activity: at most once a minute, the expiry is pushed to now + 10 minutes and the cookie is re-issued with the same expiry. So the session ends 10 minutes (±1 minute) after the last request.
 - **Sign out** clears the database session, which **signs out every browser**. Anonymous calls to `/api/auth/logout` only clear their own cookie; they can't end the admin's session.
+- **No answer isn't "signed out":** only the API's answer decides (signed in, or 401). If the first check gets no answer (the API
+  down or restarting, a network error, a 5xx), the page keeps waiting and asks again (after 2, 4, 8, then every 15 seconds), so
+  restarting the API doesn't sign the admin out of an open page.
 - **Frontend** (`src/auth/AuthProvider.tsx`): while signed in, clicks, key presses, scrolling and mouse movement call `/api/auth/me` (at most once a minute) to keep the session alive. A timer re-checks just after `sessionExpiresInSeconds`, so the UI shows you as signed out once the session ends. The expiry is sent as *seconds remaining*, not a timestamp, so the browser's clock doesn't matter.
 
 Details:
@@ -260,7 +292,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
 ## Site sections and the contact feature
 
-The site is a header (greeting, plus the session bar when signed in) above five tabs (seven for the signed-in admin), each a route rendered inside `src/layout/AppLayout.tsx`:
+The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch) above five tabs (nine for the signed-in admin), each a route rendered inside `src/layout/AppLayout.tsx`:
 
 | Tab | Route | Status |
 | --- | --- | --- |
@@ -270,7 +302,10 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 | About Me | `/about` | profile, where I've been (map), problem solving (LeetCode, NeetCode), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
 | Engagement | `/engagement` | admin only: how visitors use the site, and every visit replayable to reproduce errors (see [Engagement](#engagement-visitor-analytics)); visitors who open the URL go to `/` |
+| Community | `/community` | admin only: email subscribers, the update emails (new apps wait here to be sent or ignored), and coffees (see [Email updates](#email-updates) and [Buy me a coffee](#buy-me-a-coffee-donations)) |
 | Terms | `/terms` | admin only: the terms and conditions, editable (see [Terms and conditions](#terms-and-conditions)) |
+| Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](#settings-connections)) |
+| (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
 **What's new?** (`src/pages/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list; if one fails (e.g. YouTube isn't set up), the other is shown.
 
@@ -293,6 +328,12 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 
 Unknown URLs redirect to `/`.
 
+**The tab bar** (`layout/TabNav.tsx`): when the window is too narrow for every tab (phones, small windows), a ‹ / › arrow shows
+at the end that has more, over a fade, and scrolls the bar most of its width. The arrows are for pointers and fingers; keyboards
+reach every tab with Tab. One highlight glides to the tab that's picked. Pressing the current tab and dragging moves it
+across; letting go snaps it to the nearest tab, which opens (a tap stays a tap: dragging starts after 5 px, and the click that ends a
+drag is swallowed). On phones the bar still scrolls sideways when dragged anywhere else.
+
 **Contact** (`src/pages/ContactPage.tsx`, `src/features/contact/`):
 
 - **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. Errors appear after the first submit and then update as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields.
@@ -306,10 +347,10 @@ Unknown URLs redirect to `/`.
 
 - The page is **one JSON document** (`AboutContent`), stored in the `about_page` table (`jsonb`, one row). It's always read and saved whole, so changing its shape means changing `AboutContent.cs` and the matching types in `api.ts`, with no new migration. Until the first save, `GET` returns `AboutDefaults` (placeholders).
 - **Sections:**
-  - **Photo and links:** an uploaded photo (or a placeholder icon) on top, then citizenship and residence labels (`statuses`: text and a flag each, e.g. 🇬🇧 "UK Settled Status"; the editor guesses the flag from the words; with none, only the admin sees a hint where they go), then an uploaded résumé (download button) and GitHub, LeetCode (when a username is set under Problem solving), LinkedIn and Instagram in their brand colours. An empty link is hidden.
+  - **Photo and links:** an uploaded photo (or a placeholder icon) on top, then citizenship and residence labels (`statuses`: text and a flag each, e.g. 🇬🇧 "UK Settled Status"; the editor guesses the flag from the words; with none, only the admin sees a hint where they go), then the generated résumé (download button, see [Résumé generator](#résumé-generator)) and GitHub, LeetCode (when a username is set under Problem solving), LinkedIn and Instagram in their brand colours. An empty link is hidden.
   - **Where I've been:** a dotted world map with a pin per city. Each city is marked *worked*, *studied* and/or *visited*, each with an optional note. A pin with several marks is split into equal slices, one colour each. Hovering, focusing or tapping a pin shows its notes. Zoom with the buttons, a pinch, or Ctrl/⌘ + scroll; drag to move.
   - **Problem solving:** LeetCode stats (solved problems, split into Easy, Medium and Hard, out of all on LeetCode) for the username the admin sets (pasting the profile link works too), and the NeetCode lists completed (Blind 75, NeetCode 150, NeetCode 250), switched on and off like licences and shown as labels. NeetCode has no public API, so those are ticked by hand.
-  - **Skills:** a timeline. Each skill has periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once. A skill without periods is listed without a bar. **Sort by experience** orders them by total time (applies on Save, like the sort below).
+  - **Skills:** a timeline. In the editor each skill is folded to a row (name, experience, move and remove buttons) until clicked open; a skill with an error opens by itself. Each skill has periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once. A skill without periods is listed without a bar. **Sort by experience** orders them by total time (applies on Save, like the sort below).
   - **Work experience:** title, company, optional location, start month (may be in the future), an end month or *ongoing*, and bullet points.
   - **Education:** the same, without bullet points.
   - **Academic papers:** a title and an uploaded PDF each. With a PDF, the title is a download link with a download icon.
@@ -328,8 +369,8 @@ Unknown URLs redirect to `/`.
 
 **Uploaded files** (`backend/.../Features/Files/`):
 
-- `POST /api/files/photo`, `POST /api/files/resume` and `POST /api/files/paper` (admin, multipart field `file`) return `{ url, fileName }`. The editor puts the URL in the page; it's used once the section is saved.
-- Photos (JPEG, PNG, WebP or GIF, up to 15 MB) are turned upright, scaled to fit 800×800 and stored as WebP **without metadata**, so a phone photo's GPS position never reaches the site. Résumés (up to 20 MB) and papers (up to 200 MB) must be PDFs and keep their file name.
+- `POST /api/files/photo` and `POST /api/files/paper` (admin, multipart field `file`) return `{ url, fileName }`. The editor puts the URL in the page; it's used once the section is saved.
+- Photos (JPEG, PNG, WebP or GIF, up to 15 MB) are turned upright, scaled to fit 800×800 and stored as WebP **without metadata**, so a phone photo's GPS position never reaches the site. Papers (up to 200 MB) must be PDFs and keep their file name.
 - Each upload endpoint reads its own form and raises the server's request limit (Kestrel's default is 30 MB) for that request only. The editor checks the size before sending and shows the upload's progress. Limits are in `FileRules.cs` and `uploadLimits.ts`.
 - Files are served publicly from `GET /api/files/{id}/{name}`. Saving the page or an app deletes uploads nothing uses any more once they're a day old (a replaced photo, or one uploaded and never saved).
 - Storage is behind `IFileStorage`. `DatabaseFileStorage` keeps files in the `stored_files` table, which suits a photo and a PDF. Moving to object storage (Cloudflare R2, S3) means a new implementation and one line in `Program.cs`. There's no HTTP caching yet; adding a CDN later only needs cache headers, since a file's URL never changes.
@@ -346,6 +387,214 @@ Only one refresh runs at a time (`RefreshLock`), so visitors arriving together c
 **City search** (`backend/.../Features/Places/`): `GET /api/places/search?q=manch` (admin) searches every place with 1,000+ people (~170k, from [GeoNames](https://www.geonames.org), CC BY 4.0) by the start of its name, largest first, ignoring accents. Text after a comma narrows by region or country (`manchester, new hampshire`). The list is `cities.tsv.gz`, embedded in the API and built by `python3 scripts/build_cities.py`.
 
 **The map's dots** are generated once by `node scripts/build-world-dots.ts` (in `frontend/`) from Natural Earth land shapes into `src/features/about/places/worldDots.ts`. Pins use the same projection (`projection.ts`), so they line up.
+
+## Buy me a coffee (donations)
+
+The header's amber **Buy me a coffee** button links to the page in `Support:Url` (Settings tab), hidden while it's empty. The site
+uses **[Buy Me a Coffee](https://buymeacoffee.com/claomike)** (it keeps 5% of each coffee, plus the payment processor's fee).
+
+**Coffee alerts** come from its webhook (`Features/Support/SupportEndpoints.cs`): in the Buy Me a Coffee dashboard add a webhook to
+`https://<your-domain>/api/support/buymeacoffee`, and paste its secret into Settings. Each request must be signed (HMAC-SHA256 of the
+body with the secret, in hex, in `X-Signature-Sha256`, or `X-Bmc-Signature` as older webhooks did). Payments are stored once (unique on
+their id, or a hash of the body) and alert the phone.
+
+Buy Me a Coffee doesn't document its webhook's JSON well, so the API reads the common field names (`supporter_name`, `amount`,
+`currency`, `support_note`, `supporter_email`, under `data` or `response`) and keeps the whole body in `donations.payload`. **To do:**
+after the first real (or "Send test") webhook, check that payload and tighten the parsing. Locally, the webhook can't be reached from
+Buy Me a Coffee: it needs the site to be online.
+
+## Email updates
+
+Visitors click **Get updates**, give an email address, and confirm it from an email (double opt-in). From then on they get an
+email for every new app and YouTube video, with a one-click unsubscribe link (and the `List-Unsubscribe` headers Gmail and Yahoo
+require of bulk senders).
+
+- **Subscribing** (`Features/Updates/UpdatesEndpoints.cs`): addresses are stored lower case, with a random 256-bit token used in
+  the confirm and unsubscribe links. The confirmation email isn't sent to the same address more than once per 10 minutes, and each
+  IP gets 5 tries per 10 minutes (`Updates:SubscribeLimitPer10Minutes`). The popup says whether a confirmation was sent, one is
+  already on its way, or the address is already subscribed (this tells anyone whether an address is subscribed: a choice made
+  for clarity). Unsubscribing deletes the row. When the email can't be sent, the visitor hears it didn't work and the admin's
+  phone gets the email service's reason.
+- **The links** open pages on the site (`/updates/confirm`, `/updates/unsubscribe`, in `pages/UpdatesPages.tsx`) that call the
+  API, rather than API URLs, so mail scanners that open every link don't confirm anyone.
+- **A new app asks first:** adding an app records it as `pending` and sends a phone alert with **Send email** and **Ignore** buttons
+  (`AnnouncementDecisions.cs`). The buttons post to the API with a one-time token in the link, since the phone isn't signed in (so
+  they only work once the site is online; locally, decide in the Community tab, which has the same two buttons).
+- **New videos don't ask:** one published after announcing started is approved by itself.
+- **Sending** (`UpdatesAnnouncer.cs`, run every 10 minutes by `UpdatesWorker`, and at once after an approval): emails what's approved,
+  reading the app as it is then (edits since are included; a deleted one is skipped). Each item is marked sent *before* the emails go
+  out: a crash halfway means some miss it, never that anyone gets it twice. At most 3 items per run; 600 ms between emails.
+- **Email service** (`Email.cs`): [Resend](https://resend.com) (free for 3,000 emails a month), while an API key is set (Settings, or
+  `Email:ResendApiKey`); otherwise emails are written to the API's log, confirm links included. A sending-only key is enough.
+- **Setting up Resend:** add and verify your domain in Resend (its DNS records for SPF/DKIM), then set the **Sender** in Settings (e.g.
+  `jechel.dev <updates@jechel.dev>`) and press **Send me a test email**. Until then the sender is `jechel.dev <onboarding@resend.dev>`,
+  which Resend only delivers to the Resend account's own address: enough to try subscribing yourself, not for visitors.
+- **Privacy:** the terms should say what's stored (the address and when it was confirmed) and that unsubscribing deletes it.
+
+## Résumé generator
+
+Signed in, About Me starts with a **Résumé generator** panel (`features/resume/ResumePanel.tsx`), which visitors never see. The
+résumé is the only one the site offers: there's no upload any more.
+
+- **The header** (headline, email, **phone**) is edited with **Photo and links**, in a "For the résumé (only you see these)" group,
+  and shown to the admin under the links. It's saved on its own (`PUT /api/resume/contact`), never in the About Me JSON.
+- **The panel** chooses the **sections** (ticked by default: citizenship, links, experience, skills, education, qualifications,
+  papers, hackathons, languages; not ticked: problem solving, licences, places) and the **skills** (all until unticked; stored as
+  the ones left out, so new skills are in). Sections print in a fixed order recruiters expect.
+- The name, contact line and links are on the **first page only**; there are no page numbers. Links show as words: the site's
+  name, **GitHub**, **LinkedIn**. Skills are a plain list, without years.
+- **Generate résumés** makes two A4 PDFs from the page as it is now (`Features/Resume/ResumeDocument.cs`, with
+  [QuestPDF](https://www.questpdf.com), free under its Community licence for individuals and companies under $1M revenue):
+  - **public**, without the phone number: stored, and served to everyone at `/api/resume`. The page's **Download résumé** button
+    is pointed at it (`/api/resume?v=<time>`, so browsers fetch the new one), replacing an uploaded PDF if there was one.
+  - **private**, with the phone number: stored, and only served to the admin (`/api/resume/private`, `no-store`).
+  Then **Download private copy** and **Download public copy** in the panel.
+- The phone number lives in its own table (`resume`), never in the About Me JSON, so it can't leak through `/api/about`. Tests check
+  it's in the private PDF's text and not in the public one's.
+- `[text](url)` links on the page become real links in the PDF.
+
+## Phone alerts
+
+The API pushes a notification to the admin's phone for a **new message**, a **coffee**, a **new subscriber**, a **new app** (with
+**Send email** / **Ignore** buttons), each **update email sent**, and **crashes**: errors visitors' browsers hit (from the Engagement
+recorder) and exceptions the API didn't catch (`CrashAlertHandler`, which still answers with a 500 problem). Crashes are throttled:
+the same error once an hour, and at most 10 error alerts an hour in all. Tapping an alert opens the matching page on the site.
+
+They're sent with **[ntfy](https://ntfy.sh)** (free, open source, iOS and Android apps), queued and sent in the background
+(`PhoneAlerts`, `AlertWorker`, `NtfySender`), so a slow or broken ntfy never slows a request down. Until a topic is set, alerts only go
+to the log. Setting it up (Settings tab, ntfy card):
+
+1. Press **Generate** for a long random topic name, and **Save**. (On the public server anyone who knows a topic can read it.)
+2. In the ntfy app tap **+**, type the same topic, keep the server `ntfy.sh`, and **Subscribe**.
+3. Press **Send a test alert**.
+
+Optionally reserve the topic with an ntfy account (access token), or use your own server, under "Your own ntfy server".
+
+## Settings (connections)
+
+The admin's **Settings** tab (`pages/SettingsPage.tsx`, API in `Features/Settings/`) lists every service the site connects to, with
+links to their dashboards, the keys, the URLs to paste into them (webhook, OAuth callback), and a test button: Buy Me a Coffee,
+Google sign-in, YouTube Data API, Resend, ntfy, and (later) hosting.
+
+- **Storage:** the `site_settings` table, one row per key. Secrets are encrypted with ASP.NET Core Data Protection (the same keys as
+  the session cookie; persist them in production, or saved secrets can't be read after a deploy and have to be entered again).
+- **Never back to the browser:** a secret is shown as set/not set and its last 4 characters; the box only takes a new one.
+- **Applies at once:** a saved value overrides the same key in the configuration (`SettingsStore`, bound into the options with
+  `BindWithSettings<T>`; code reads them through `IOptionsMonitor<T>`). **Remove** goes back to the configuration's value.
+- **Google sign-in** is shown, not editable: it's read when the API starts, and a wrong secret saved from a page that needs it to
+  sign in would lock you out. Change it in user secrets or environment variables.
+- Which keys can be set is a fixed list (`SettingsCatalog.cs`); each is checked (links, sender address, topic characters).
+
+## Visitor pages and maintenance
+
+**Settings → Visitor pages** (above the connections) switches each visitor page (What's new, Apps, YouTube, About Me, Contact)
+and each feature that needs setting up once live (Book a meeting, Buy me a coffee, Get updates) on or off. **Everything starts
+off**, so going live shows nothing half-finished: switch each part on once it's ready. (The E2E tests and the integration tests
+start with everything on: `Site:PagesVisibleByDefault`.)
+
+- A page that's off is gone from visitors' tabs, and its link leads to the first page that's on, or **Coming soon** when none is.
+  You always see every page; hidden ones have an eye-off mark in the tabs.
+- A feature that's off is off for everyone: its button goes, and the API agrees (`/api/meetings/info` and `/api/support` answer
+  `""`, subscribing answers 404). The page data APIs stay public: hiding a page is about what's ready, not about secrecy.
+- **Under maintenance** (with an optional message) gives visitors the maintenance card in the site's usual frame (the name, the
+  theme switch, Vice's scene), without the tabs, the pages, the footer or the header's other buttons; you still see
+  everything, with a reminder in the admin bar. Signing in (`/admin`) and the links in emails (`/updates/confirm`,
+  `/updates/unsubscribe`) keep working; the screen itself has no admin link.
+- **When the API can't be reached** (down, or answering with errors), visitors get the same screen, saying so, and the page asks
+  again every 30 seconds and comes back by itself.
+
+**Hosting the frontend on Cloudflare, the API elsewhere:** the SPA is static (Cloudflare Pages), so it stays up while the API is
+down, restarting or being deployed, and the maintenance screen is part of it: no second website needed. For planned work on
+the frontend itself (or to take everything offline), `frontend/public/maintenance.html` is a standalone page with nothing to
+load: point a Cloudflare redirect rule (or a small Worker) at it while the work lasts.
+
+State lives in the `site_state` table (one row) and is read through `SiteEndpoints.LoadAsync` (cached, cleared on save).
+
+## State and caching
+
+- **Frontend: Redux Toolkit** (`src/store/`). `makeStore()` builds the store (`main.tsx`, and a fresh one per test in
+  `renderApp`); use the typed `useAppSelector` / `useAppDispatch`. The first slice is `site` (`store/siteSlice.ts`: what visitors
+  see, loaded with the `fetchSite` thunk, saved with `saveSite`). More state moves here as the app is refactored.
+- **Backend: HybridCache** (`Microsoft.Extensions.Caching.Hybrid`): values are kept in memory, and in **Redis** too when
+  `ConnectionStrings:Redis` is set (shared by every API instance, kept across restarts). Keys start with
+  `portfolio:{database}:` (`CachePrefix`), so APIs on different databases sharing one Redis (yours and the E2E tests') never
+  serve each other's values. Locally it's the
+  `redis` service in docker-compose (port 6380, in memory only, 128 MB, least-recently-used out first). Without Redis the API just
+  caches in memory. The first value cached this way is `/api/site`; the older in-memory caches (YouTube, LeetCode) can move to it.
+
+## Meetings (Cal.com) and replies
+
+**Visitors** choose between **Send a message** and **Book a meeting** on the Contact page (the second once a Cal.com page is
+set in Settings). Booking shows Cal.com's own calendar inline (`features/meetings/CalBooking.tsx`, Cal.com's embed script from
+`app.cal.com`), so they see when you're free and pick a slot.
+
+**You decide:** with **Requires confirmation** on the Cal.com event type, a booking is a *request*:
+- your phone gets **Meeting request: Grace** with **Accept** / **Decline** buttons (a one-time token in their links)
+- the Contact tab has a **Meetings** calendar above the messages: the month with each day's meetings marked (amber waiting,
+  green accepted), and the chosen day's meetings, each request with **Accept** / **Decline** and an optional message
+- a message from someone who also booked shows that meeting in its popup, with the same buttons
+
+Accepting or declining goes through Cal.com's API (`/v2/bookings/{uid}/confirm` or `/decline`, `cal-api-version: 2026-02-25`),
+so Cal.com sends its usual emails and calendar invites; your message, if any, is emailed too (Resend, with your address to reply
+to; for a decline it's also Cal.com's reason). Cal.com's webhook (`/api/meetings/cal`) keeps each booking up to date: requested,
+created, rescheduled (the old one is marked cancelled), cancelled, rejected.
+
+**Reminders** for accepted meetings go to your phone a day before, 2 hours before, 5 minutes before and when it starts
+(`MeetingReminders`, checked every 30 seconds by the site itself; ntfy only keeps scheduled messages for 3 days). If a reminder's
+time passed while a later one is due (a meeting accepted an hour before), only the latest goes out. Times in alerts use
+`Site:TimeZone` (default Europe/London).
+
+**Replies:** a message's popup has a reply box: the answer is emailed to the sender with their message quoted and your own
+address to reply to, and kept with the message. Until a domain is verified in Resend, it only reaches your own address.
+
+**Setting up Cal.com** (Settings → Cal.com has the links and the URL to paste):
+1. An event type (e.g. 30 minutes) with your availability, and **Advanced → Requires confirmation** on. Its link goes in Settings.
+2. Connect your calendar in Cal.com (Google, Outlook…) so busy times are blocked and accepted meetings land in it.
+3. **Settings → Developer → Webhooks:** `https://<your-domain>/api/meetings/cal`, a secret (also in Settings), and the booking
+   events: requested, created, rescheduled, cancelled, rejected. Cal.com can't reach `localhost`, so this needs the site online.
+4. **Settings → Developer → API keys:** a key, pasted in Settings, so this site can accept and decline for you
+   (**Check the API key** tests it).
+
+## Vice on phones and on weak devices
+
+- **Phones** (≤ 640 px): Vice's hide / show button is an icon in the header, left of **Buy me a coffee**. It's pinned over an empty
+  slot there (`ContentToggle`'s `anchor`), not inside the header, because the header slides away with the page and the button must
+  stay to bring it back. While the page is hidden it waits in the bottom-right corner; when the page comes back it returns to the
+  slot once the header has landed. The neon title gets some room from the screen's edge.
+
+**Scrolling:** each page remembers how far down it was (for this tab, `layout/useScrollMemory.ts`): a page you haven't opened
+yet starts at the top, and going back to one returns to where you were, retried while its content loads.
+- **First visit, no theme chosen yet:** Vice, unless the device can't show it smoothly (`layout/device.ts`): the browser asks to save
+  data or is on a slow connection, under 4 GB of memory (Chrome reports it), two cores or fewer, no WebGL 2, or WebGL drawn in
+  software (SwiftShader, llvmpipe: no real graphics card). Then the device's own light or dark (`prefers-color-scheme`).
+- **Too slow anyway:** the scene counts the frames it manages (it aims for ~30 a second). After a 2-second warm-up, under 20 a second
+  over 4 seconds, with the tab visible and focused, it switches to light or dark, remembers that for next visits
+  (`theme.slowDevice`), and says so with a **Use Vice anyway** button. Someone who picked Vice themselves is never switched.
+
+## Accessibility
+
+`e2e/a11y.spec.ts` checks every page with [axe](https://github.com/dequelabs/axe-core) against WCAG 2.2 A and AA, in every theme,
+plus the popups (Get updates, terms, the welcome), a phone in Vice, and the admin's pages (sign-in faked; About Me with every editor
+open, Settings with every card open, the loading and error previews). It runs with the other E2E tests (Chromium, WebKit; Firefox in
+CI). YouTube's player is left out: what's inside its frame is YouTube's.
+
+Things it caught, so they stay fixed: white on the bright blue was 3.6:1 (now `--accent-fill`, 5.4:1 and up), the light theme's grey
+text was 3.8:1, the pagination over the Vice scene, popup headers counting as extra page banners, a card's link named only by its
+title while it held the whole card (now the title is the link, stretched over the card), the title and licence buttons speaking
+differently from what they show.
+
+## Loading and error states, and the admin's preview switch
+
+Every view that loads data shows **placeholders shaped like its content** while it waits (no spinners), and a **red box with what
+failed and "Try again"** when it can't load. Both are shared: `components/Skeleton.tsx` (`Loading` wraps the shapes in a live
+region that says "Loading apps…" and hides the shapes from screen readers; `SkeletonMediaGrid`, `SkeletonTable`, `SkeletonList`,
+`SkeletonCard`, `SkeletonText`, `SkeletonChips`, `PageSkeleton`) and `components/ErrorState.tsx`. A new view uses them too.
+
+**Preview switch** (admin bar: Normal / Loading / Error, `features/preview/`): shows the whole site in that state, to check every
+view at a glance. It works in the one place every request goes through (`api.ts`'s axios adapter): in **Loading** content requests
+(GETs) never answer until the page is left; in **Error** they fail with a 500, through the same path a real failure takes. Sign-in
+(`/api/auth/*`) and anything that saves are never touched. Changing it reloads the page's content (and the terms); it's
+remembered for the tab (`sessionStorage`) and only applies while signed in.
 
 ## Roadmap: ideas to review
 
@@ -394,7 +643,22 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Auth:SessionIdleTimeout`     | Admin session idle timeout (default `00:10:00`)              |
 | `YouTube:Channel`             | The channel shown on the YouTube page: `@handle` or `UC…` id  |
 | `YouTube:ApiKey`              | YouTube Data API v3 key (secret; user-secrets or env vars). Videos aren't shown when empty |
+| `Site:PublicUrl`              | The site's address, for links in emails, alerts and the résumé (default `http://localhost:5173`) |
+| `Support:Url`                 | The **Buy me a coffee** page, e.g. `https://buymeacoffee.com/claomike`. Empty hides the button |
+| `Support:BuyMeACoffeeWebhookSecret` | Buy Me a Coffee's webhook secret. The webhook answers 503 until it's set |
+| `Email:ResendApiKey`          | Resend API key (secret). Empty: emails are written to the log |
+| `Email:From`                  | The sender, on a domain verified in Resend (default `jechel.dev <onboarding@resend.dev>`, which only reaches the Resend account's own address) |
+| `Updates:SubscribeLimitPer10Minutes` | Subscribe attempts per IP per 10 minutes (default 5) |
+| `Alerts:NtfyTopic`            | The ntfy topic phone alerts go to (secret). Empty: alerts are written to the log |
+| `Alerts:NtfyToken` / `Alerts:NtfyServer` | Optional ntfy access token, and server (default `https://ntfy.sh`) |
+| `Cal:Link`                    | The Cal.com booking page (`you/30min` or its link). Empty hides **Book a meeting** |
+| `Cal:ApiKey`                  | Cal.com API key (secret), to accept and decline from this site |
+| `Cal:WebhookSecret`           | The Cal.com webhook's secret. The webhook answers 503 until it's set |
+| `Site:TimeZone`               | Your time zone for times in phone alerts (default `Europe/London`) |
+| `Site:PagesVisibleByDefault`  | Whether visitor pages and features not yet switched in Settings show (default `false`: everything starts hidden) |
+| `ConnectionStrings:Redis`     | Redis for the API's cache, e.g. `localhost:6380,abortConnect=false` (set in appsettings.Development). Empty: memory only |
 
+Every key above from `Support`, `YouTube`, `Email`, `Alerts` and `Cal` can also be set in the **Settings** tab, which overrides these.
 Secrets are never committed. Locally, use [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets):
 `dotnet user-secrets set "<Key>" "<value>" --project backend/src/Portfolio.Api`.
 
