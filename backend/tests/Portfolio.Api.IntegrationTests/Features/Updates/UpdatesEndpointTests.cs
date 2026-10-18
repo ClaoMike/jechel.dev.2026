@@ -23,7 +23,8 @@ public partial class UpdatesEndpointTests(PortfolioApiFactory factory)
         var address = $"reader-{Guid.NewGuid():N}@example.com";
 
         var subscribe = await visitor.PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest(address));
-        Assert.Equal(HttpStatusCode.Accepted, subscribe.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, subscribe.StatusCode);
+        Assert.Equal(SubscribeStatus.Sent, (await subscribe.Content.ReadFromJsonAsync<SubscribeResult>())!.Status);
 
         var email = Assert.Single(factory.Emails.To(address));
         var token = ConfirmLink().Match(email.Text).Groups[1].Value;
@@ -31,6 +32,8 @@ public partial class UpdatesEndpointTests(PortfolioApiFactory factory)
 
         var confirm = await visitor.PostAsync($"/api/updates/confirm?token={token}", null);
         Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
+        var again = await visitor.PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest(address));
+        Assert.Equal(SubscribeStatus.AlreadySubscribed, (await again.Content.ReadFromJsonAsync<SubscribeResult>())!.Status);
         Assert.Equal(address, (await confirm.Content.ReadFromJsonAsync<ConfirmedSubscription>())!.Email);
 
         var admin = await SignedInClientAsync();

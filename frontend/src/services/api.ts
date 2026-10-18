@@ -513,6 +513,8 @@ export interface SupportInfo {
   url: string
 }
 
+export type SubscribeStatus = 'sent' | 'alreadySubscribed' | 'pending'
+
 /** A payment Buy Me a Coffee reported (admin only). */
 export interface Donation {
   id: number
@@ -920,9 +922,14 @@ export const api = {
   },
 
   updates: {
-    /** Public. Emails a confirmation link; rejects with validationErrors.email, or a 429 when tried too often. */
-    async subscribe(email: string): Promise<void> {
-      await post('/api/updates/subscribe', { email })
+    /**
+     * Public. Emails a confirmation link: "sent"; or nothing, when they're "alreadySubscribed" or a
+     * confirmation went out lately ("pending"). Rejects with validationErrors.email, a 429 when tried
+     * too often, or a 503 when the email couldn't be sent.
+     */
+    async subscribe(email: string): Promise<SubscribeStatus> {
+      const { status } = await post<{ status: SubscribeStatus }>('/api/updates/subscribe', { email })
+      return status
     },
 
     /** Public. The link in the confirmation email; resolves with the address. Rejects with a 404 for an unknown token. */

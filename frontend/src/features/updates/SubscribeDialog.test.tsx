@@ -18,7 +18,7 @@ describe('Get updates', () => {
     server.use(
       http.post(`${API}/api/updates/subscribe`, async ({ request }) => {
         sent.push(await request.json())
-        return new HttpResponse(null, { status: 202 })
+        return HttpResponse.json({ status: 'sent' })
       }),
     )
     const { user, dialog } = await openDialog()
@@ -28,6 +28,26 @@ describe('Get updates', () => {
 
     expect(await dialog.findByRole('status')).toHaveTextContent('check ada@example.com and click the link')
     expect(sent).toEqual([{ email: 'ada@example.com' }])
+  })
+
+  it('says when the address is already subscribed', async () => {
+    server.use(http.post(`${API}/api/updates/subscribe`, () => HttpResponse.json({ status: 'alreadySubscribed' })))
+    const { user, dialog } = await openDialog()
+
+    await user.type(dialog.getByLabelText('Email', { exact: true }), 'ada@example.com')
+    await user.click(dialog.getByRole('button', { name: 'Subscribe' }))
+
+    expect(await dialog.findByRole('status')).toHaveTextContent('ada@example.com is already subscribed')
+  })
+
+  it('says when a confirmation was sent lately', async () => {
+    server.use(http.post(`${API}/api/updates/subscribe`, () => HttpResponse.json({ status: 'pending' })))
+    const { user, dialog } = await openDialog()
+
+    await user.type(dialog.getByLabelText('Email', { exact: true }), 'ada@example.com')
+    await user.click(dialog.getByRole('button', { name: 'Subscribe' }))
+
+    expect(await dialog.findByRole('status')).toHaveTextContent('We already sent a confirmation to ada@example.com')
   })
 
   it('checks the address before sending anything', async () => {

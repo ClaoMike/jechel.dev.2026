@@ -23,8 +23,11 @@ public class EmailOptions
     /// <summary>A <see href="https://resend.com">Resend</see> API key (a secret).</summary>
     public string ResendApiKey { get; set; } = "";
 
-    /// <summary>The sender; its domain must be verified in Resend.</summary>
-    public string From { get; set; } = "jechel.dev <updates@jechel.dev>";
+    /// <summary>
+    /// The sender; its domain must be verified in Resend. Until one is, Resend's own address works, but
+    /// only for emails to the Resend account's own address (enough to try subscribing yourself).
+    /// </summary>
+    public string From { get; set; } = "jechel.dev <onboarding@resend.dev>";
 
     public bool IsConfigured => ResendApiKey.Trim().Length > 0;
 }

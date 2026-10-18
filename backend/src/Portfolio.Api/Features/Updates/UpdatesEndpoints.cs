@@ -10,6 +10,21 @@ namespace Portfolio.Api.Features.Updates;
 
 public record SubscribeRequest(string? Email);
 
+public static class SubscribeStatus
+{
+    /// <summary>A confirmation email is on its way.</summary>
+    public const string Sent = "sent";
+
+    /// <summary>Confirmed already: nothing to do.</summary>
+    public const string AlreadySubscribed = "alreadySubscribed";
+
+    /// <summary>A confirmation went out less than <see cref="UpdatesEndpoints.ConfirmationCooldown"/> ago: check the inbox.</summary>
+    public const string Pending = "pending";
+}
+
+/// <param name="Status">One of <see cref="SubscribeStatus"/>.</param>
+public record SubscribeResult(string Status);
+
 public record ConfirmedSubscription(string Email);
 
 /// <param name="ConfirmedAt">Null while they haven't clicked the confirmation link.</param>
@@ -55,14 +70,17 @@ public static class UpdatesEndpoints
     }
 
     /// <summary>
-    /// Sends a confirmation email to a new (or not yet confirmed) address. Always 202 for a valid
-    /// address, whether it was new, waiting or already subscribed, so nobody can find out who subscribed.
+    /// Sends a confirmation email to a new (or not yet confirmed) address, and says what happened:
+    /// <see cref="SubscribeStatus.Sent"/>, <see cref="SubscribeStatus.AlreadySubscribed"/>, or
+    /// <see cref="SubscribeStatus.Pending"/> (a confirmation went out less than 10 minutes ago).
+    /// When the email can't be sent, 503, and the admin's phone is told why (once an hour per reason).
     /// </summary>
-    public static async Task<Results<Accepted, ValidationProblem, ProblemHttpResult>> Subscribe(
+    public static async Task<Results<Ok<SubscribeResult>, ValidationProblem, ProblemHttpResult>> Subscribe(
         SubscribeRequest request,
         PortfolioDbContext db,
         IEmailSender emails,
         IOptions<SiteOptions> site,
+        IPhoneAlerts alerts,
         TimeProvider time,
         ILoggerFactory loggers,
         CancellationToken cancellationToken)
@@ -75,8 +93,8 @@ public static class UpdatesEndpoints
 
         var now = time.GetUtcNow();
         var subscriber = await db.Subscribers.FirstOrDefaultAsync(s => s.Email == email, cancellationToken);
-        if (subscriber is { ConfirmedAt: not null }) return TypedResults.Accepted((string?)null);
-        if (subscriber is not null && now - subscriber.ConfirmationSentAt < ConfirmationCooldown) return TypedResults.Accepted((string?)null);
+        if (subscriber is { ConfirmedAt: not null }) return TypedResults.Ok(new SubscribeResult(SubscribeStatus.AlreadySubscribed));
+        if (subscriber is not null && now - subscriber.ConfirmationSentAt < ConfirmationCooldown) return TypedResults.Ok(new SubscribeResult(SubscribeStatus.Pending));
 
         if (subscriber is null)
         {
@@ -93,13 +111,16 @@ public static class UpdatesEndpoints
         catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
             loggers.CreateLogger(typeof(UpdatesEndpoints)).LogError(e, "Couldn't send the confirmation email.");
+            // The visitor only hears it didn't work; the admin needs the reason (e.g. the sender's domain isn't verified).
+            var reason = e is Settings.ServiceException ? e.Message : "The email service couldn't be reached.";
+            alerts.SendThrottled($"email:{reason}", new PhoneAlert("Emails aren't going out", $"A visitor couldn't subscribe. {reason}", "/settings", AlertPriority.High, "warning"));
             // Lets them try again at once.
             subscriber.ConfirmationSentAt = default;
             await db.SaveChangesAsync(CancellationToken.None);
             return TypedResults.Problem("The confirmation email couldn't be sent. Please try again later.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
-        return TypedResults.Accepted((string?)null);
+        return TypedResults.Ok(new SubscribeResult(SubscribeStatus.Sent));
     }
 
     /// <summary>The link in the confirmation email. Idempotent; 404 for an unknown token (e.g. they unsubscribed since).</summary>

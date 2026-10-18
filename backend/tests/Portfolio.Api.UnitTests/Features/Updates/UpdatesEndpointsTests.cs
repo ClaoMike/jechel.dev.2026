@@ -22,15 +22,18 @@ public class UpdatesEndpointsTests
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
         .Options);
 
-    private Task<Results<Accepted, ValidationProblem, ProblemHttpResult>> Subscribe(string? email) =>
-        UpdatesEndpoints.Subscribe(new SubscribeRequest(email), _db, _emails, _site, _time, NullLoggerFactory.Instance, CancellationToken.None);
+    private Task<Results<Ok<SubscribeResult>, ValidationProblem, ProblemHttpResult>> Subscribe(string? email) =>
+        UpdatesEndpoints.Subscribe(new SubscribeRequest(email), _db, _emails, _site, _alerts, _time, NullLoggerFactory.Instance, CancellationToken.None);
+
+    private static string StatusOf(Results<Ok<SubscribeResult>, ValidationProblem, ProblemHttpResult> result) =>
+        Assert.IsType<Ok<SubscribeResult>>(result.Result).Value!.Status;
 
     [Fact]
     public async Task Subscribe_stores_the_address_unconfirmed_and_emails_a_confirmation_link()
     {
         var result = await Subscribe("  Ada@Example.com ");
 
-        Assert.IsType<Accepted>(result.Result);
+        Assert.Equal(SubscribeStatus.Sent, StatusOf(result));
         var subscriber = await _db.Subscribers.SingleAsync();
         Assert.Equal("ada@example.com", subscriber.Email);
         Assert.Null(subscriber.ConfirmedAt);
@@ -50,10 +53,10 @@ public class UpdatesEndpointsTests
     }
 
     [Fact]
-    public async Task Subscribing_again_soon_or_once_confirmed_sends_nothing_but_still_says_accepted()
+    public async Task Subscribing_again_says_a_confirmation_is_on_its_way_or_that_they_are_subscribed_and_sends_nothing()
     {
         await Subscribe("ada@example.com");
-        Assert.IsType<Accepted>((await Subscribe("ada@example.com")).Result);
+        Assert.Equal(SubscribeStatus.Pending, StatusOf(await Subscribe("ada@example.com")));
         Assert.Single(_emails.Sent);
 
         _time.Advance(UpdatesEndpoints.ConfirmationCooldown);
@@ -63,7 +66,7 @@ public class UpdatesEndpointsTests
         (await _db.Subscribers.SingleAsync()).ConfirmedAt = Now;
         await _db.SaveChangesAsync();
         _time.Advance(UpdatesEndpoints.ConfirmationCooldown);
-        Assert.IsType<Accepted>((await Subscribe("ada@example.com")).Result);
+        Assert.Equal(SubscribeStatus.AlreadySubscribed, StatusOf(await Subscribe("ada@example.com")));
         Assert.Equal(2, _emails.Sent.Count);
     }
 
@@ -73,6 +76,9 @@ public class UpdatesEndpointsTests
         _emails.Fail = true;
         var result = await Subscribe("ada@example.com");
         Assert.Equal(503, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+        var (key, alert) = Assert.Single(_alerts.Throttled);
+        Assert.Equal("Emails aren't going out", alert.Title);
+        Assert.Contains("couldn't be reached", alert.Message);
 
         _emails.Fail = false;
         await Subscribe("ada@example.com");
