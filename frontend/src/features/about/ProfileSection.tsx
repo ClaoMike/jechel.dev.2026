@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ErrorState } from '../../components/ErrorState'
 import { DownloadIcon, GitHubIcon, InstagramIcon, LeetCodeIcon, LinkedInIcon, PersonIcon, PhoneIcon } from '../../components/icons'
 import { useId } from 'react'
 import { api, type AboutLinks, type ResumeContact, type Status } from '../../services/api'
@@ -32,11 +33,14 @@ export function ProfileSection({
   leetCodeUsername = '',
   canEdit,
   onSave,
+  onRetryContact,
 }: {
   value: Profile
   leetCodeUsername?: string
   canEdit: boolean
   onSave: (value: Profile) => Promise<void>
+  /** Set when the résumé's private details couldn't be loaded (admin only). */
+  onRetryContact?: () => void
 }) {
   return (
     <EditableSection title="Photo and links" hideTitle errorKeys={['photoUrl', 'statuses', 'links', 'contact']} className="profile-card" value={value} canEdit={canEdit} onSave={onSave} editor={ProfileEditor}>
@@ -74,6 +78,7 @@ export function ProfileSection({
           </ProfileLink>
         </ul>
         {value.contact && <PrivateContact contact={value.contact} />}
+        {onRetryContact && <ErrorState compact message="Your résumé's phone, email and headline couldn't be loaded." onRetry={onRetryContact} />}
       </div>
     </EditableSection>
   )

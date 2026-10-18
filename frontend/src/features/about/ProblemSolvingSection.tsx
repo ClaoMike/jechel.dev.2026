@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { ErrorState } from '../../components/ErrorState'
+import { Loading, Skeleton } from '../../components/Skeleton'
 import { CheckIcon, LeetCodeIcon } from '../../components/icons'
 import { ApiError, api, NEETCODE_LISTS, type LeetCodeStats, type ProblemSolving } from '../../services/api'
 import { EditableSection } from './EditableSection'
@@ -39,6 +41,7 @@ type Load = { status: 'loading' } | { status: 'loaded'; stats: LeetCodeStats; st
 /** Loads the stats once; keyed by username, so a new username starts afresh. */
 function LeetCodeCard({ username, canEdit }: { username: string; canEdit: boolean }) {
   const [load, setLoad] = useState<Load>({ status: 'loading' })
+  const [retries, setRetries] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -52,7 +55,7 @@ function LeetCodeCard({ username, canEdit }: { username: string; canEdit: boolea
         setLoad({ status: error instanceof ApiError && error.status === 404 ? 'not-found' : 'unavailable' })
       })
     return () => controller.abort()
-  }, [username])
+  }, [username, retries])
 
   // A wrong username is the admin's to fix; visitors just don't see the card.
   if (load.status === 'not-found') return canEdit ? <p className="field-error">LeetCode has no user called {username}. Check the username with Edit.</p> : null
@@ -69,14 +72,30 @@ function LeetCodeCard({ username, canEdit }: { username: string; canEdit: boolea
     return (
       <div className="leetcode">
         {profile}
-        <p className="muted">Loading LeetCode stats…</p>
+        <Loading label="Loading LeetCode stats…">
+          <div className="leetcode-body">
+            <Skeleton width={120} height={120} radius="50%" />
+            <div className="skeleton-text" style={{ flex: 1 }}>
+              <Skeleton width="70%" height={16} />
+              <Skeleton width="80%" height={16} />
+              <Skeleton width="60%" height={16} />
+            </div>
+          </div>
+        </Loading>
       </div>
     )
   if (load.status === 'unavailable')
     return (
       <div className="leetcode">
         {profile}
-        <p className="muted">LeetCode stats can't be loaded right now.</p>
+        <ErrorState
+          compact
+          message="LeetCode stats can't be loaded right now."
+          onRetry={() => {
+            setLoad({ status: 'loading' })
+            setRetries((n) => n + 1)
+          }}
+        />
       </div>
     )
 

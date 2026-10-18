@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ErrorState } from '../../components/ErrorState'
+import { Loading, SkeletonTable } from '../../components/Skeleton'
 import { Pagination } from '../../components/Pagination'
 import { api, type Page, type VisitSummary } from '../../services/api'
 import { formatDateTime } from '../../utils/formatDate'
@@ -15,7 +17,8 @@ export function VisitsTable({ reloadKey, onChange }: { reloadKey: number; onChan
   const [page, setPage] = useState(1)
   const [errorsOnly, setErrorsOnly] = useState(false)
   // The last response and what it was for: while that's not what's asked now, it's loading.
-  const key = `${page}|${errorsOnly}|${reloadKey}`
+  const [retries, setRetries] = useState(0)
+  const key = `${page}|${errorsOnly}|${reloadKey}|${retries}`
   const [result, setResult] = useState<Result | null>(null)
   const state: State = result && result.key === key ? result : { status: 'loading' }
   const [open, setOpen] = useState<string | null>(null)
@@ -59,8 +62,12 @@ export function VisitsTable({ reloadKey, onChange }: { reloadKey: number; onChan
         </label>
       </div>
 
-      {state.status === 'loading' && <p>Loading visits…</p>}
-      {state.status === 'error' && <p role="alert">Visits couldn't be loaded. Please try again later.</p>}
+      {state.status === 'loading' && (
+        <Loading label="Loading visits…">
+          <SkeletonTable rows={6} columns={5} />
+        </Loading>
+      )}
+      {state.status === 'error' && <ErrorState message="Visits couldn't be loaded." onRetry={() => setRetries((n) => n + 1)} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">{errorsOnly ? 'No visit has hit an error.' : 'No visits yet.'}</p>}
 
       {state.status === 'loaded' && state.data.items.length > 0 && (

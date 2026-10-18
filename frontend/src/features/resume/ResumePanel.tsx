@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { ErrorState } from '../../components/ErrorState'
+import { Loading, Skeleton, SkeletonChips } from '../../components/Skeleton'
 import { DownloadIcon, PhoneIcon } from '../../components/icons'
 import { api, RESUME_SECTIONS, type ResumeChoices, type ResumeSection, type ResumeSettingsDetails } from '../../services/api'
 import { formatDateTime } from '../../utils/formatDate'
@@ -32,6 +34,7 @@ export function ResumePanel({ skills, onGenerated }: { skills: string[]; onGener
   const [draft, setDraft] = useState<ResumeChoices | null>(null)
   const [busy, setBusy] = useState<Busy>(null)
   const [message, setMessage] = useState('')
+  const [retries, setRetries] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -45,7 +48,7 @@ export function ResumePanel({ skills, onGenerated }: { skills: string[]; onGener
         if (!controller.signal.aborted) setState({ status: 'error' })
       })
     return () => controller.abort()
-  }, [])
+  }, [retries])
 
   async function run(kind: Exclude<Busy, null>) {
     if (!draft) return
@@ -74,8 +77,22 @@ export function ResumePanel({ skills, onGenerated }: { skills: string[]; onGener
         <span className="muted"> · only you see this</span>
       </summary>
 
-      {state.status === 'loading' && <p>Loading…</p>}
-      {state.status === 'error' && <p role="alert">The résumé settings couldn't be loaded.</p>}
+      {state.status === 'loading' && (
+        <Loading label="Loading the résumé settings…">
+          <Skeleton width="30%" height={14} />
+          <SkeletonChips count={8} />
+          <Skeleton width={160} height={40} radius={999} />
+        </Loading>
+      )}
+      {state.status === 'error' && (
+        <ErrorState
+          message="The résumé settings couldn't be loaded."
+          onRetry={() => {
+            setState({ status: 'loading' })
+            setRetries((n) => n + 1)
+          }}
+        />
+      )}
       {draft && (
         <form
           className="editor-list"

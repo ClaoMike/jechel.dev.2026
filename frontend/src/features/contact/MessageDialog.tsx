@@ -2,7 +2,9 @@ import { useEffect, useId, useState } from 'react'
 import { CopyButton } from '../../components/CopyButton'
 import { DeleteButton } from '../../components/DeleteButton'
 import { TrashIcon } from '../../components/icons'
+import { ErrorState } from '../../components/ErrorState'
 import { Modal } from '../../components/Modal'
+import { Loading, Skeleton, SkeletonText } from '../../components/Skeleton'
 import { api, type ContactMessageDetails } from '../../services/api'
 import { formatDateTime } from '../../utils/formatDate'
 
@@ -26,6 +28,7 @@ interface MessageDialogProps {
 export function MessageDialog({ messageId, name, onClose, onRead, onDelete }: MessageDialogProps) {
   const titleId = useId()
   const [state, setState] = useState<State>({ status: 'loading' })
+  const [retries, setRetries] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -51,7 +54,7 @@ export function MessageDialog({ messageId, name, onClose, onRead, onDelete }: Me
 
     void load()
     return () => controller.abort()
-  }, [messageId, onRead])
+  }, [messageId, onRead, retries])
 
   return (
     <Modal labelledBy={titleId} onClose={onClose}>
@@ -62,8 +65,26 @@ export function MessageDialog({ messageId, name, onClose, onRead, onDelete }: Me
         </button>
       </header>
 
-      {state.status === 'loading' && <p>Loading…</p>}
-      {state.status === 'error' && <p role="alert">This message couldn't be loaded. Please try again.</p>}
+      {state.status === 'loading' && (
+        <Loading label="Loading the message…">
+          {[40, 55, 35].map((width, i) => (
+            <div key={i} className="skeleton-text">
+              <Skeleton width={70} height={11} />
+              <Skeleton width={`${width}%`} height={16} />
+            </div>
+          ))}
+          <SkeletonText lines={4} />
+        </Loading>
+      )}
+      {state.status === 'error' && (
+        <ErrorState
+          message="This message couldn't be loaded."
+          onRetry={() => {
+            setState({ status: 'loading' })
+            setRetries((n) => n + 1)
+          }}
+        />
+      )}
       {state.status === 'loaded' && (
         <dl className="message-details">
           <DetailRow label="Name" value={state.message.name} />

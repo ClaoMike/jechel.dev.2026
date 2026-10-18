@@ -1,10 +1,12 @@
 import { useId, useRef } from 'react'
+import { ErrorState } from '../../components/ErrorState'
 import { Modal } from '../../components/Modal'
+import { Loading, SkeletonText } from '../../components/Skeleton'
 import type { TermsState } from './termsContext'
 import { TermsDocumentView } from './TermsDocumentView'
 
 /** The terms in a popup. It sits above every other popup, the welcome one included. */
-export function TermsDialog({ state, onClose }: { state: TermsState; onClose: () => void }) {
+export function TermsDialog({ state, onRetry, onClose }: { state: TermsState; onRetry: () => void; onClose: () => void }) {
   const titleId = useId()
   const closeRef = useRef<HTMLButtonElement>(null)
 
@@ -16,8 +18,8 @@ export function TermsDialog({ state, onClose }: { state: TermsState; onClose: ()
           <span aria-hidden="true">×</span>
         </button>
       </header>
-      {state.status === 'loading' && <p>Loading…</p>}
-      {state.status === 'error' && <p role="alert">The terms couldn't be loaded. Please try again later.</p>}
+      {state.status === 'loading' && <TermsSkeleton />}
+      {state.status === 'error' && <ErrorState message="The terms couldn't be loaded." onRetry={onRetry} />}
       {state.status === 'loaded' && <TermsDocumentView terms={state.terms} hideTitle />}
       <div className="terms-modal-actions">
         <button type="button" className="button" onClick={onClose}>
@@ -25,5 +27,20 @@ export function TermsDialog({ state, onClose }: { state: TermsState; onClose: ()
         </button>
       </div>
     </Modal>
+  )
+}
+
+/** The terms' shape while they load: an introduction, then numbered sections of paragraphs. */
+export function TermsSkeleton() {
+  return (
+    <Loading label="Loading the terms…">
+      <SkeletonText lines={2} />
+      {[4, 3, 5].map((lines, i) => (
+        <div key={i} className="skeleton-text">
+          <SkeletonText lines={1} lineHeight={20} />
+          <SkeletonText lines={lines} />
+        </div>
+      ))}
+    </Loading>
   )
 }

@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router'
 import { SignedIn, useAuth } from '../auth'
+import { applyPreview, usePreviewMode } from '../features/preview/preview'
+import { PreviewSwitch } from '../features/preview/PreviewSwitch'
 import { SupportButton } from '../features/support/SupportButton'
 import { SubscribeButton } from '../features/updates/SubscribeButton'
 import { RivieraBackground } from './background/RivieraBackground'
@@ -13,7 +15,12 @@ import { useTheme } from './theme'
 
 /** The site frame: the admin's own bar on top (who's signed in, Sign out), then the site name, "Buy me a coffee" and "Get updates", the theme switch, the tabs, the current tab's page, and the footer. */
 export function AppLayout() {
-  const { signOut } = useAuth()
+  const { signOut, isAuthenticated } = useAuth()
+  // The admin's preview (normal / loading / error) applies to requests before anything below renders
+  // and fetches; changing it remounts what loads data (the keys below), so everything loads again.
+  const previewMode = usePreviewMode()
+  const preview = isAuthenticated ? previewMode : 'normal'
+  applyPreview(preview)
   const theme = useTheme()
   // Vice can hide the page to show off the scene; leaving Vice always brings the page back.
   const [hideContent, setHideContent] = useState(false)
@@ -30,6 +37,7 @@ export function AppLayout() {
             <div className="admin-bar">
               <div className="admin-bar-inner">
                 <span className="admin-bar-badge">Admin</span>
+                <PreviewSwitch />
                 <span className="admin-bar-user">Signed in as {user.email}</span>
                 <button type="button" className="button button-secondary button-small" onClick={() => void signOut()}>
                   Sign out
@@ -56,7 +64,7 @@ export function AppLayout() {
             </Link>
           </h1>
           <div className="header-actions">
-            <SupportButton />
+            <SupportButton key={preview} />
             <SubscribeButton />
             <ThemeSwitch />
           </div>
@@ -64,7 +72,7 @@ export function AppLayout() {
         <TabNav />
       </header>
       <main className="page" inert={contentHidden}>
-        <PageTransition />
+        <PageTransition key={preview} />
       </main>
       <SiteFooter inert={contentHidden} />
       {theme === 'vice' && <ContentToggle hidden={contentHidden} onToggle={toggleContent} />}

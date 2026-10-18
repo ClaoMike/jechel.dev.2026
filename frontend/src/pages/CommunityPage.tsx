@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Navigate } from 'react-router'
 import { useAuth } from '../auth'
 import { DeleteButton } from '../components/DeleteButton'
+import { ErrorState } from '../components/ErrorState'
+import { Loading, PageSkeleton, SkeletonList, SkeletonTable } from '../components/Skeleton'
 import { Pagination } from '../components/Pagination'
 import { usePagedList } from '../features/community/usePagedList'
 import { api } from '../services/api'
@@ -21,7 +23,7 @@ const loadDonations = api.support.listDonations
 export function CommunityPage() {
   const { status } = useAuth()
 
-  if (status === 'loading') return <p>Loading…</p>
+  if (status === 'loading') return <PageSkeleton />
   if (status === 'anonymous') return <Navigate to="/" replace />
   return (
     <div className="community">
@@ -43,8 +45,12 @@ function Subscribers() {
         {state.status === 'loaded' && <span className="muted">{state.data.totalCount} in all</span>}
       </div>
       <p className="muted">They get an email about each new app you choose to send, and each new YouTube video. Only confirmed addresses get them.</p>
-      {state.status === 'loading' && <p>Loading…</p>}
-      {state.status === 'error' && <p role="alert">Subscribers couldn't be loaded.</p>}
+      {state.status === 'loading' && (
+        <Loading label="Loading subscribers…">
+          <SkeletonTable rows={4} columns={3} />
+        </Loading>
+      )}
+      {state.status === 'error' && <ErrorState message="Subscribers couldn't be loaded." onRetry={reload} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">No subscribers yet.</p>}
       {state.status === 'loaded' && state.data.items.length > 0 && (
         <div className="table-scroll" role="region" aria-label="Subscribers table" tabIndex={0}>
@@ -107,8 +113,12 @@ function Announcements() {
     <section className="card community-card" aria-labelledby="announcements-title">
       <h3 id="announcements-title">Update emails</h3>
       <p className="muted">A new app waits for you: send or ignore it here, or from the alert on your phone. New videos are emailed by themselves.</p>
-      {state.status === 'loading' && <p>Loading…</p>}
-      {state.status === 'error' && <p role="alert">The update emails couldn't be loaded.</p>}
+      {state.status === 'loading' && (
+        <Loading label="Loading the update emails…">
+          <SkeletonList rows={3} pill />
+        </Loading>
+      )}
+      {state.status === 'error' && <ErrorState message="The update emails couldn't be loaded." onRetry={reload} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">Nothing yet. The next new app or video shows up here.</p>}
       {failed && <p role="alert">{failed}</p>}
       {state.status === 'loaded' && state.data.items.length > 0 && (
@@ -143,7 +153,7 @@ function Announcements() {
 }
 
 function Donations() {
-  const { state, page, totalPages, setPage } = usePagedList(loadDonations, PAGE_SIZE)
+  const { state, page, totalPages, setPage, reload } = usePagedList(loadDonations, PAGE_SIZE)
 
   return (
     <section className="card community-card" aria-labelledby="donations-title">
@@ -151,8 +161,12 @@ function Donations() {
         <h3 id="donations-title">Coffees (Buy Me a Coffee)</h3>
         {state.status === 'loaded' && <span className="muted">{state.data.totalCount} in all</span>}
       </div>
-      {state.status === 'loading' && <p>Loading…</p>}
-      {state.status === 'error' && <p role="alert">Donations couldn't be loaded.</p>}
+      {state.status === 'loading' && (
+        <Loading label="Loading coffees…">
+          <SkeletonTable rows={3} columns={4} />
+        </Loading>
+      )}
+      {state.status === 'error' && <ErrorState message="Coffees couldn't be loaded." onRetry={reload} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">No coffees yet. They appear here once the Buy Me a Coffee webhook is set up (Settings).</p>}
       {state.status === 'loaded' && state.data.items.length > 0 && (
         <div className="table-scroll" role="region" aria-label="Donations table" tabIndex={0}>

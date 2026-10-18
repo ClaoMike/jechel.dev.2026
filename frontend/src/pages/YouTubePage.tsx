@@ -14,9 +14,9 @@ export function YouTubePage() {
         load={api.youtube.listVideos}
         itemKey={(video) => video.id}
         label="Videos"
-        loading={<p>Loading videos…</p>}
+        loadingLabel="Loading videos…"
         empty={<p className="muted">No videos yet.</p>}
-        error={<p role="alert">The videos can't be loaded right now. Please try again later.</p>}
+        errorMessage="The videos can't be loaded right now."
         renderItem={(video) => (
           <MediaCard
             href={video.url}

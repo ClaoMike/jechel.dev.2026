@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DeleteButton } from '../../components/DeleteButton'
+import { ErrorState } from '../../components/ErrorState'
 import { Pagination } from '../../components/Pagination'
+import { Loading, SkeletonTable } from '../../components/Skeleton'
 import { usePageParam } from '../../components/usePageParam'
 import { api, type ContactMessageSummary, type Page } from '../../services/api'
 import { formatDateTime } from '../../utils/formatDate'
@@ -66,8 +68,20 @@ export function MessagesInbox() {
         )}
       </div>
 
-      {state.status === 'loading' && <p>Loading messages…</p>}
-      {state.status === 'error' && <p role="alert">Messages couldn't be loaded. Please try again later.</p>}
+      {state.status === 'loading' && (
+        <Loading label="Loading messages…">
+          <SkeletonTable rows={5} columns={3} />
+        </Loading>
+      )}
+      {state.status === 'error' && (
+        <ErrorState
+          message="Messages couldn't be loaded."
+          onRetry={() => {
+            setResult(null)
+            setReloads((n) => n + 1)
+          }}
+        />
+      )}
       {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">No messages yet.</p>}
 
       {state.status === 'loaded' && state.data.items.length > 0 && (

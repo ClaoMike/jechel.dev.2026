@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CoffeeIcon } from '../../components/icons'
+import { Skeleton } from '../../components/Skeleton'
 import { api } from '../../services/api'
 import { trackEvent } from '../analytics'
 
@@ -8,7 +9,8 @@ import { trackEvent } from '../analytics'
  * (Support:Url, e.g. a Buy Me a Coffee page). Hidden until it's known, and when none is set.
  */
 export function SupportButton() {
-  const [url, setUrl] = useState('')
+  // null while loading; "" when there's no page (or it couldn't be loaded): then there's no button.
+  const [url, setUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -17,10 +19,12 @@ export function SupportButton() {
       .then((info) => setUrl(info.url))
       .catch(() => {
         // No button, rather than a broken one.
+        if (!controller.signal.aborted) setUrl('')
       })
     return () => controller.abort()
   }, [])
 
+  if (url === null) return <Skeleton className="header-button-skeleton" width={150} height={36} radius={999} />
   if (!url) return null
   return (
     <a

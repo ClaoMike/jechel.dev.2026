@@ -10,6 +10,8 @@ import { ProfileSection } from '../features/about/ProfileSection'
 import { QualificationsSection } from '../features/about/QualificationsSection'
 import { SkillsSection } from '../features/about/SkillsSection'
 import { EducationSection, ExperienceSection } from '../features/about/TimelineSection'
+import { ErrorState } from '../components/ErrorState'
+import { Loading, Skeleton, SkeletonCard, SkeletonChips } from '../components/Skeleton'
 import { ResumePanel } from '../features/resume/ResumePanel'
 import { plainText } from '../features/about/textLinks'
 import { api, ApiError, type AboutContent, type ResumeContact } from '../services/api'
@@ -40,7 +42,8 @@ export function AboutPage() {
   const [reloads, setReloads] = useState(0)
   const reload = useCallback(() => setReloads((n) => n + 1), [])
   // The résumé's private phone, email and headline: only loaded for the admin.
-  const [contact, setContact] = useState<ResumeContact | null>(null)
+  const [contact, setContact] = useState<ResumeContact | 'error' | null>(null)
+  const [contactRetries, setContactRetries] = useState(0)
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -49,10 +52,11 @@ export function AboutPage() {
       .getSettings(controller.signal)
       .then(({ phone, email, headline }) => setContact({ phone, email, headline }))
       .catch(() => {
-        // The profile then just doesn't offer them.
+        // The profile says so, with a retry; meanwhile it doesn't offer the fields.
+        if (!controller.signal.aborted) setContact('error')
       })
     return () => controller.abort()
-  }, [isAuthenticated])
+  }, [isAuthenticated, contactRetries])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -82,14 +86,20 @@ export function AboutPage() {
     return (
       <>
         {heading}
-        <p>Loading…</p>
+        <AboutSkeleton />
       </>
     )
   if (state.status === 'error')
     return (
       <>
         {heading}
-        <p role="alert">This page couldn't be loaded. Please try again later.</p>
+        <ErrorState
+          message="This page couldn't be loaded."
+          onRetry={() => {
+            setState({ status: 'loading' })
+            reload()
+          }}
+        />
       </>
     )
 
@@ -99,7 +109,15 @@ export function AboutPage() {
       {heading}
       {isAuthenticated && <ResumePanel skills={page.skills.map((skill) => plainText(skill.name))} onGenerated={reload} />}
       <ProfileSection
-        value={{ photoUrl: page.photoUrl, statuses: page.statuses, links: page.links, contact: isAuthenticated && contact ? contact : undefined }}
+        value={{ photoUrl: page.photoUrl, statuses: page.statuses, links: page.links, contact: isAuthenticated && contact && contact !== 'error' ? contact : undefined }}
+        onRetryContact={
+          isAuthenticated && contact === 'error'
+            ? () => {
+                setContact(null)
+                setContactRetries((n) => n + 1)
+              }
+            : undefined
+        }
         leetCodeUsername={page.problemSolving.leetCodeUsername}
         canEdit={isAuthenticated}
         onSave={async ({ contact: nextContact, ...profile }) => {
@@ -126,5 +144,26 @@ export function AboutPage() {
       <LicencesSection value={page.licences} canEdit={isAuthenticated} onSave={(licences) => save({ licences })} />
       <HackathonsSection value={page.hackathons} canEdit={isAuthenticated} onSave={(hackathons) => save({ hackathons })} />
     </div>
+  )
+}
+
+/** The page's shape while it loads: the profile card (photo, name, labels, links), then sections. */
+function AboutSkeleton() {
+  return (
+    <Loading label="Loading About Me…" className="about">
+      <div className="card">
+        <div className="skeleton-profile">
+          <Skeleton width={120} height={120} radius="50%" />
+          <div className="skeleton-profile-text">
+            <Skeleton width="45%" height={26} />
+            <SkeletonChips count={2} />
+            <SkeletonChips count={4} />
+          </div>
+        </div>
+      </div>
+      <SkeletonCard lines={6} />
+      <SkeletonCard lines={3} />
+      <SkeletonCard lines={4} />
+    </Loading>
   )
 }

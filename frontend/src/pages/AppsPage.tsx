@@ -52,9 +52,9 @@ export function AppsPage() {
         reloadKey={reloads}
         itemKey={(app) => app.id}
         label="Apps"
-        loading={<p>Loading apps…</p>}
+        loadingLabel="Loading apps…"
         empty={<p className="muted">No apps yet.</p>}
-        error={<p role="alert">The apps can't be loaded right now. Please try again later.</p>}
+        errorMessage="The apps can't be loaded right now."
         leading={
           isAuthenticated && (
             <button type="button" className="media-card add-tile" onClick={() => setOpen(null)}>

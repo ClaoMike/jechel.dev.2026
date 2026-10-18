@@ -123,7 +123,7 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/support`              | public  | `{ url }`: where the header's **Buy me a coffee** goes (`Support:Url`); `""` hides it |
 | POST   | `/api/support/buymeacoffee` | signature | Buy Me a Coffee's webhook (HMAC-SHA256 of the body in `X-Signature-Sha256` or `X-Bmc-Signature`): stores the payment once, alerts the phone. **401** for a bad signature, **503** until the webhook secret is set |
 | GET    | `/api/support/donations?page=&pageSize=` | cookie | Donations, newest first |
-| POST   | `/api/updates/subscribe`    | public  | `{ email }`: emails a confirmation link. Always **202** for a valid address (never says who's subscribed), **400** field error, **429** after 5 tries per IP in 10 minutes |
+| POST   | `/api/updates/subscribe`    | public  | `{ email }`: **200** `{ status }`: `sent` (a confirmation link is on its way), `alreadySubscribed`, or `pending` (one went out less than 10 minutes ago). **400** field error, **429** after 5 tries per IP in 10 minutes, **503** when the email couldn't be sent (and the phone is told why) |
 | POST   | `/api/updates/confirm?token=` | public | Confirms: **200** `{ email }`, or **404** |
 | POST   | `/api/updates/unsubscribe?token=` | public | Deletes the subscriber: always **204** (also what mail apps' one-click Unsubscribe posts) |
 | GET    | `/api/updates/subscribers?page=&pageSize=` | cookie | Subscribers, newest first, with `confirmedAt` |
@@ -397,8 +397,10 @@ require of bulk senders).
 
 - **Subscribing** (`Features/Updates/UpdatesEndpoints.cs`): addresses are stored lower case, with a random 256-bit token used in
   the confirm and unsubscribe links. The confirmation email isn't sent to the same address more than once per 10 minutes, and each
-  IP gets 5 tries per 10 minutes (`Updates:SubscribeLimitPer10Minutes`). The answer is the same whether an address was new or
-  already subscribed. Unsubscribing deletes the row.
+  IP gets 5 tries per 10 minutes (`Updates:SubscribeLimitPer10Minutes`). The popup says whether a confirmation was sent, one is
+  already on its way, or the address is already subscribed (this tells anyone whether an address is subscribed: a choice made
+  for clarity). Unsubscribing deletes the row. When the email can't be sent, the visitor hears it didn't work and the admin's
+  phone gets the email service's reason.
 - **The links** open pages on the site (`/updates/confirm`, `/updates/unsubscribe`, in `pages/UpdatesPages.tsx`) that call the
   API, rather than API URLs, so mail scanners that open every link don't confirm anyone.
 - **A new app asks first:** adding an app records it as `pending` and sends a phone alert with **Send email** and **Ignore** buttons
@@ -411,8 +413,8 @@ require of bulk senders).
 - **Email service** (`Email.cs`): [Resend](https://resend.com) (free for 3,000 emails a month), while an API key is set (Settings, or
   `Email:ResendApiKey`); otherwise emails are written to the API's log, confirm links included. A sending-only key is enough.
 - **Setting up Resend:** add and verify your domain in Resend (its DNS records for SPF/DKIM), then set the **Sender** in Settings (e.g.
-  `jechel.dev <updates@jechel.dev>`) and press **Send me a test email**. Until a domain is verified, Resend only sends from
-  `onboarding@resend.dev`, and only to your own address; the test shows Resend's own reason when it refuses.
+  `jechel.dev <updates@jechel.dev>`) and press **Send me a test email**. Until then the sender is `jechel.dev <onboarding@resend.dev>`,
+  which Resend only delivers to the Resend account's own address: enough to try subscribing yourself, not for visitors.
 - **Privacy:** the terms should say what's stored (the address and when it was confirmed) and that unsubscribing deletes it.
 
 ## Résumé generator
@@ -469,6 +471,19 @@ Google sign-in, YouTube Data API, Resend, ntfy, and (later) hosting.
   sign in would lock you out. Change it in user secrets or environment variables.
 - Which keys can be set is a fixed list (`SettingsCatalog.cs`); each is checked (links, sender address, topic characters).
 
+## Loading and error states, and the admin's preview switch
+
+Every view that loads data shows **placeholders shaped like its content** while it waits (no spinners), and a **red box with what
+failed and "Try again"** when it can't load. Both are shared: `components/Skeleton.tsx` (`Loading` wraps the shapes in a live
+region that says "Loading apps…" and hides the shapes from screen readers; `SkeletonMediaGrid`, `SkeletonTable`, `SkeletonList`,
+`SkeletonCard`, `SkeletonText`, `SkeletonChips`, `PageSkeleton`) and `components/ErrorState.tsx`. A new view uses them too.
+
+**Preview switch** (admin bar: Normal / Loading / Error, `features/preview/`): shows the whole site in that state, to check every
+view at a glance. It works in the one place every request goes through (`api.ts`'s axios adapter): in **Loading** content requests
+(GETs) never answer until the page is left; in **Error** they fail with a 500, through the same path a real failure takes. Sign-in
+(`/api/auth/*`) and anything that saves are never touched. Changing it reloads the page's content (and the terms); it's
+remembered for the tab (`sessionStorage`) and only applies while signed in.
+
 ## Roadmap: ideas to review
 
 Suggestions from a review of the site for its three audiences (tech employers, recruiters, people
@@ -520,7 +535,7 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Support:Url`                 | The **Buy me a coffee** page, e.g. `https://buymeacoffee.com/claomike`. Empty hides the button |
 | `Support:BuyMeACoffeeWebhookSecret` | Buy Me a Coffee's webhook secret. The webhook answers 503 until it's set |
 | `Email:ResendApiKey`          | Resend API key (secret). Empty: emails are written to the log |
-| `Email:From`                  | The sender, on a domain verified in Resend (default `jechel.dev <updates@jechel.dev>`) |
+| `Email:From`                  | The sender, on a domain verified in Resend (default `jechel.dev <onboarding@resend.dev>`, which only reaches the Resend account's own address) |
 | `Updates:SubscribeLimitPer10Minutes` | Subscribe attempts per IP per 10 minutes (default 5) |
 | `Alerts:NtfyTopic`            | The ntfy topic phone alerts go to (secret). Empty: alerts are written to the log |
 | `Alerts:NtfyToken` / `Alerts:NtfyServer` | Optional ntfy access token, and server (default `https://ntfy.sh`) |

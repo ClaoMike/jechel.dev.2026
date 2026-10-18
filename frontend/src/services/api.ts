@@ -8,7 +8,7 @@
  * backend's `Features/<Feature>` folders.
  */
 
-import axios, { isAxiosError, type AxiosRequestConfig } from 'axios'
+import axios, { AxiosError, CanceledError, isAxiosError, type AxiosRequestConfig } from 'axios'
 
 // Empty by default: the app calls `/api/...` on its own origin (Vite proxies it to the API in dev).
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -650,6 +650,33 @@ const http = axios.create({
   baseURL: API_BASE_URL,
   headers: { Accept: 'application/json' },
 })
+
+/** The admin's preview switch (features/preview): how content requests behave. */
+export type RequestPreview = 'normal' | 'loading' | 'error'
+
+let requestPreview: RequestPreview = 'normal'
+
+/** "loading" holds GET requests until they're cancelled; "error" fails them with a 500. Never sign-in, never writes. */
+export function setRequestPreview(preview: RequestPreview) {
+  requestPreview = preview
+}
+
+const sendRequest = axios.getAdapter(http.defaults.adapter)
+
+http.defaults.adapter = (config) => {
+  const previewed = requestPreview !== 'normal' && (config.method ?? 'get').toLowerCase() === 'get' && !config.url?.startsWith('/api/auth/')
+  if (!previewed) return sendRequest(config)
+
+  if (requestPreview === 'error') {
+    const response = { data: { title: 'Preview: an error' }, status: 500, statusText: 'Preview error', headers: {}, config }
+    return Promise.reject(new AxiosError('Preview: the request failed', AxiosError.ERR_BAD_RESPONSE, config, null, response))
+  }
+  // Loading: never answers; leaving the page (an aborted signal) ends it like any cancelled request.
+  return new Promise((_, reject) => {
+    const signal = config.signal as AbortSignal | undefined
+    signal?.addEventListener?.('abort', () => reject(new CanceledError(undefined, undefined, config)))
+  })
+}
 
 /** A request that failed, as told to `onRequestFailed` listeners. */
 export interface FailedRequest {

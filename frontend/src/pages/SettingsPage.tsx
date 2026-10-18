@@ -2,6 +2,8 @@ import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Navigate } from 'react-router'
 import { useAuth } from '../auth'
 import { CopyButton } from '../components/CopyButton'
+import { ErrorState } from '../components/ErrorState'
+import { Loading, PageSkeleton, Skeleton } from '../components/Skeleton'
 import { ArrowDownIcon, ExternalLinkIcon } from '../components/icons'
 import { api, ApiError, type Setting, type SettingsResponse, type TestResult } from '../services/api'
 
@@ -15,13 +17,14 @@ type State = { status: 'loading' } | { status: 'error' } | { status: 'loaded'; d
 export function SettingsPage() {
   const { status } = useAuth()
 
-  if (status === 'loading') return <p>Loading…</p>
+  if (status === 'loading') return <PageSkeleton />
   if (status === 'anonymous') return <Navigate to="/" replace />
   return <Settings />
 }
 
 function Settings() {
   const [state, setState] = useState<State>({ status: 'loading' })
+  const [retries, setRetries] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -32,10 +35,31 @@ function Settings() {
         if (!controller.signal.aborted) setState({ status: 'error' })
       })
     return () => controller.abort()
-  }, [])
+  }, [retries])
 
-  if (state.status === 'loading') return <p>Loading…</p>
-  if (state.status === 'error') return <p role="alert">The settings couldn't be loaded.</p>
+  if (state.status === 'loading')
+    return (
+      // The folded list of services, each a name and a status.
+      <Loading label="Loading the settings…" className="settings">
+        <Skeleton width="80%" height={14} />
+        {[46, 38, 42, 34, 40, 26].map((width, i) => (
+          <div key={i} className="card settings-card skeleton-settings-row">
+            <Skeleton width={`${width}%`} height={18} />
+            <Skeleton width={90} height={22} radius={999} />
+          </div>
+        ))}
+      </Loading>
+    )
+  if (state.status === 'error')
+    return (
+      <ErrorState
+        message="The settings couldn't be loaded."
+        onRetry={() => {
+          setState({ status: 'loading' })
+          setRetries((n) => n + 1)
+        }}
+      />
+    )
 
   const { data } = state
   const setting = (key: string) => data.settings.find((s) => s.key === key)!
