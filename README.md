@@ -165,7 +165,7 @@ on the icon links in `index.html` (browsers keep tab icons cached).
 
 ## Terms and conditions
 
-- **Welcome popup:** a visitor who hasn't accepted the terms gets a popup that can't be closed: they tick every box (placeholders for now, in `features/terms/TermsGate.tsx`), then **Continue**. Accepting is remembered in the browser (`localStorage["terms.accepted"]`) against the terms' `updatedAt`, so saving new terms asks everyone again. The signed-in admin isn't asked.
+- **Welcome popup:** a visitor who hasn't accepted the terms (anywhere but the sign-in page, `/admin`) gets a popup that can't be closed: they tick every box (placeholders for now, in `features/terms/TermsGate.tsx`), then **Continue**. Accepting is remembered in the browser (`localStorage["terms.accepted"]`) against the terms' `updatedAt`, so saving new terms asks everyone again. The signed-in admin isn't asked.
 - **Reading them:** the footer on every page, and the welcome popup, have a **Terms and Conditions** link that opens them in a popup above anything else that's open.
 - **Editing them:** the admin's last tab, **Terms**, shows them as a page with an **Edit** button: title, introduction, and numbered sections of paragraphs and bullet lists (add, reorder, remove). Text may contain `[text](https://…)` links.
 - **E2E:** the `setup` project (`e2e/terms.setup.ts`) accepts the terms once and the other projects start from that browser state; tests of the popup itself use a fresh state.
@@ -496,7 +496,8 @@ start with everything on: `Site:PagesVisibleByDefault`.)
   You always see every page; hidden ones have an eye-off mark in the tabs.
 - A feature that's off is off for everyone: its button goes, and the API agrees (`/api/meetings/info` and `/api/support` answer
   `""`, subscribing answers 404). The page data APIs stay public: hiding a page is about what's ready, not about secrecy.
-- **Under maintenance** (with an optional message) gives visitors a maintenance screen instead of the site; you still see
+- **Under maintenance** (with an optional message) gives visitors the maintenance card in the site's usual frame (the name, the
+  theme switch, Vice's scene), without the tabs, the pages, the footer or the header's other buttons; you still see
   everything, with a reminder in the admin bar. Signing in (`/admin`) and the links in emails (`/updates/confirm`,
   `/updates/unsubscribe`) keep working; the screen itself has no admin link.
 - **When the API can't be reached** (down, or answering with errors), visitors get the same screen, saying so, and the page asks

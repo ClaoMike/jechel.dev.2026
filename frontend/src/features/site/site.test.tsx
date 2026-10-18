@@ -56,8 +56,24 @@ describe('maintenance', () => {
 
     expect(await screen.findByRole('heading', { name: "We'll be right back" })).toBeInTheDocument()
     expect(screen.getByText('Back by 18:00')).toBeInTheDocument()
-    expect(screen.queryByRole('navigation', { name: 'Sections' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /sign/i })).not.toBeInTheDocument()
+  })
+
+  it('it sits in the usual frame: the name and the theme switch, but no tabs, pages, footer or header buttons', async () => {
+    site({ maintenance: true })
+    const user = userEvent.setup()
+    renderApp('/about')
+
+    await screen.findByRole('heading', { name: "We'll be right back" })
+    expect(screen.getByRole('heading', { level: 1, name: 'jechel.dev' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Sections' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Skills' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Get updates by email' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Light mode' }))
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(screen.getByRole('heading', { name: "We'll be right back" })).toBeInTheDocument()
   })
 
   it('signing in and the links in emails still work', async () => {
@@ -68,9 +84,9 @@ describe('maintenance', () => {
     expect(await screen.findByRole('status')).toHaveTextContent("You're unsubscribed")
   })
 
-  it('/admin, to sign in, still works', async () => {
+  it.each(['/admin', '/admin/'])('%s, to sign in, still works', async (url) => {
     site({ maintenance: true })
-    renderApp('/admin')
+    renderApp(url)
 
     expect(await screen.findByRole('link', { name: 'Sign in with Google' })).toBeInTheDocument()
   })

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useLocation } from 'react-router'
 import { useAuth } from '../../auth'
 import { api, type TermsDocument } from '../../services/api'
 import { trackEvent } from '../analytics'
@@ -43,8 +44,10 @@ export function TermsProvider({ children }: { children: ReactNode }) {
   const replaceTerms = useCallback((terms: TermsDocument) => setResult({ key, state: { status: 'loaded', terms } }), [key])
   const version = termsVersion(state.status === 'loaded' ? state.terms : null)
   // If the terms can't be loaded, only those who never accepted any version are asked.
+  // Not on the admin's sign-in page (/admin): nothing there is for visitors.
+  const onSignIn = useLocation().pathname.replace(/\/+$/, '') === '/admin'
   const mustAccept =
-    authStatus === 'anonymous' && (state.status === 'loaded' ? accepted !== version : state.status === 'error' && accepted === null)
+    !onSignIn && authStatus === 'anonymous' && (state.status === 'loaded' ? accepted !== version : state.status === 'error' && accepted === null)
 
   const welcomeOpen = mustAccept || authStatus === 'loading' || state.status === 'loading'
 

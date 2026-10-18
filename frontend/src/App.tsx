@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { useAuth } from './auth'
 import { AnalyticsTracker } from './features/analytics'
-import { MaintenanceScreen, ComingSoonPage } from './features/site/MaintenanceScreen'
+import { ComingSoonPage } from './features/site/MaintenanceScreen'
 import { useLoadSite } from './features/site/useSite'
 import { VisiblePage } from './features/site/VisiblePage'
 import { TermsProvider } from './features/terms'
@@ -30,9 +30,11 @@ function App() {
 
   // Visitors get the maintenance screen when it's on, or when the API can't be reached. The admin
   // always gets the site; signing in (/admin) and the links in emails (confirm, unsubscribe) always work.
-  if (auth !== 'authenticated' && !ALWAYS_OPEN.includes(pathname)) {
-    if (site.status === 'unreachable') return <MaintenanceScreen reason="unreachable" />
-    if (site.status === 'loaded' && site.site.maintenance && auth === 'anonymous') return <MaintenanceScreen reason="maintenance" message={site.site.maintenanceMessage} />
+  // "/admin/" is "/admin" too.
+  const path = pathname.replace(/\/+$/, '') || '/'
+  if (auth !== 'authenticated' && !ALWAYS_OPEN.includes(path)) {
+    if (site.status === 'unreachable') return <AppLayout downtime={{ reason: 'unreachable' }} />
+    if (site.status === 'loaded' && site.site.maintenance && auth === 'anonymous') return <AppLayout downtime={{ reason: 'maintenance', message: site.site.maintenanceMessage }} />
   }
 
   return (

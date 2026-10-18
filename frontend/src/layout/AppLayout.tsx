@@ -12,13 +12,25 @@ import { ContentToggle } from './ContentToggle'
 import { PageTransition } from './PageTransition'
 import { SiteFooter } from './SiteFooter'
 import { SlowSceneNotice } from './SlowSceneNotice'
+import { MaintenanceScreen } from '../features/site/MaintenanceScreen'
 import { useScrollMemory } from './useScrollMemory'
 import { TabNav } from './TabNav'
 import { ThemeSwitch } from './ThemeSwitch'
 import { useTheme } from './theme'
 
-/** The site frame: the admin's own bar on top (who's signed in, Sign out), then the site name, "Buy me a coffee" and "Get updates", the theme switch, the tabs, the current tab's page, and the footer. */
-export function AppLayout() {
+/** Shown instead of the tabs and the page while visitors can't use the site (see App). */
+export interface Downtime {
+  reason: 'maintenance' | 'unreachable'
+  message?: string
+}
+
+/**
+ * The site frame: the admin's own bar on top (who's signed in, Sign out), then the site name, "Buy me a
+ * coffee" and "Get updates", the theme switch, the tabs, the current tab's page, and the footer. With
+ * `downtime`, visitors get the same frame (the name, the theme switch, Vice's scene) around the
+ * maintenance card, without the tabs, the pages, the footer or the header's other buttons.
+ */
+export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
   const { signOut, isAuthenticated } = useAuth()
   // The admin's preview (normal / loading / error) applies to requests before anything below renders
   // and fetches; changing it remounts what loads data (the keys below), so everything loads again.
@@ -80,17 +92,17 @@ export function AppLayout() {
           </h1>
           <div className="header-actions">
             {theme === 'vice' && <span ref={toggleSlot} className="content-toggle-slot" aria-hidden="true" />}
-            <SupportButton key={preview} />
-            {updates && <SubscribeButton />}
+            {!downtime && <SupportButton key={preview} />}
+            {!downtime && updates && <SubscribeButton />}
             <ThemeSwitch />
           </div>
         </div>
-        <TabNav />
+        {!downtime && <TabNav />}
       </header>
       <main className="page" inert={contentHidden}>
-        <PageTransition key={preview} />
+        {downtime ? <MaintenanceScreen reason={downtime.reason} message={downtime.message} /> : <PageTransition key={preview} />}
       </main>
-      <SiteFooter inert={contentHidden} />
+      {!downtime && <SiteFooter inert={contentHidden} />}
       {theme === 'vice' && <ContentToggle hidden={contentHidden} onToggle={toggleContent} anchor={toggleSlot} />}
       <SlowSceneNotice />
     </div>

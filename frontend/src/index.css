@@ -4143,36 +4143,26 @@ button.media-card {
 .maintenance {
   display: grid;
   place-items: center;
-  min-height: 100vh;
-  padding: 24px 16px;
-  background: var(--background);
-  color: var(--text);
+  min-height: 50vh;
+  padding: 24px 0;
 }
 
 .maintenance-card {
   display: grid;
   justify-items: center;
   gap: 12px;
-  max-width: 460px;
+  max-width: 480px;
   padding: 32px 28px;
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  background: var(--surface);
   text-align: center;
 }
 
-.maintenance-card h1 {
+.maintenance-card h2 {
   margin: 0;
   font-size: 26px;
 }
 
 .maintenance-card p {
   margin: 0;
-}
-
-.maintenance-brand {
-  font-weight: 700;
-  letter-spacing: 0.02em;
 }
 
 .coming-soon {
