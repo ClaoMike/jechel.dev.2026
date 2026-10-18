@@ -48,11 +48,18 @@ public static class SupportEndpoints
         return app;
     }
 
-    /// <summary>Public. Where the "Buy me a coffee" button goes, or "" to hide it.</summary>
-    public static Ok<SupportInfo> GetInfo(IOptionsMonitor<SupportOptions> options)
+    /// <summary>Public. Where the "Buy me a coffee" button goes, or "" to hide it (no page set, or switched off in Settings).</summary>
+    public static async Task<Ok<SupportInfo>> GetInfo(IOptionsMonitor<SupportOptions> options, Microsoft.Extensions.Caching.Hybrid.HybridCache cache, IServiceProvider services, CancellationToken cancellationToken)
     {
-        var url = options.CurrentValue.Url.Trim();
-        return TypedResults.Ok(new SupportInfo(Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http" ? url : ""));
+        var site = await Site.SiteEndpoints.LoadAsync(cache, services, cancellationToken);
+        return TypedResults.Ok(new SupportInfo(site.Features["coffee"] ? SafeUrl(options.CurrentValue.Url) : ""));
+    }
+
+    /// <summary>An http(s) link, or "".</summary>
+    public static string SafeUrl(string value)
+    {
+        var url = value.Trim();
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http" ? url : "";
     }
 
     /// <summary>

@@ -39,7 +39,8 @@ describe('when loading fails', () => {
     server.use(http.get(`${API}/api/apps`, () => new Promise(() => {})))
     renderApp('/apps')
 
-    const status = await screen.findByRole('status')
+    // (First the page's own placeholder, while it's known whether visitors may see Apps.)
+    const status = (await screen.findByText('Loading apps…')).closest<HTMLElement>('[role="status"]')!
     expect(status).toHaveTextContent('Loading apps…')
     expect(status).toHaveAttribute('aria-busy', 'true')
     expect(status.querySelectorAll('.skeleton').length).toBeGreaterThan(5)

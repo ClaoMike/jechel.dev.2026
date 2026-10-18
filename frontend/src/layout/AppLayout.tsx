@@ -5,6 +5,8 @@ import { applyPreview, usePreviewMode } from '../features/preview/preview'
 import { PreviewSwitch } from '../features/preview/PreviewSwitch'
 import { SupportButton } from '../features/support/SupportButton'
 import { SubscribeButton } from '../features/updates/SubscribeButton'
+import { useFeature } from '../features/site/useSite'
+import { useAppSelector } from '../store'
 import { RivieraBackground } from './background/RivieraBackground'
 import { ContentToggle } from './ContentToggle'
 import { PageTransition } from './PageTransition'
@@ -25,6 +27,8 @@ export function AppLayout() {
   applyPreview(preview)
   const theme = useTheme()
   useScrollMemory()
+  const updates = useFeature('updates')
+  const maintenance = useAppSelector((state) => state.site.status === 'loaded' && state.site.site.maintenance)
   // Vice can hide the page to show off the scene; leaving Vice always brings the page back.
   const [hideContent, setHideContent] = useState(false)
   const contentHidden = theme === 'vice' && hideContent
@@ -42,6 +46,11 @@ export function AppLayout() {
             <div className="admin-bar">
               <div className="admin-bar-inner">
                 <span className="admin-bar-badge">Admin</span>
+                {maintenance && (
+                  <Link to="/settings" className="admin-bar-maintenance">
+                    Maintenance on: visitors see the maintenance page
+                  </Link>
+                )}
                 <PreviewSwitch />
                 <span className="admin-bar-user">Signed in as {user.email}</span>
                 <button type="button" className="button button-secondary button-small" onClick={() => void signOut()}>
@@ -72,7 +81,7 @@ export function AppLayout() {
           <div className="header-actions">
             {theme === 'vice' && <span ref={toggleSlot} className="content-toggle-slot" aria-hidden="true" />}
             <SupportButton key={preview} />
-            <SubscribeButton />
+            {updates && <SubscribeButton />}
             <ThemeSwitch />
           </div>
         </div>

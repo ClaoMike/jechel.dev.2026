@@ -5,6 +5,7 @@ import { CopyButton } from '../components/CopyButton'
 import { ErrorState } from '../components/ErrorState'
 import { Loading, PageSkeleton, Skeleton } from '../components/Skeleton'
 import { ArrowDownIcon, ExternalLinkIcon } from '../components/icons'
+import { SiteVisibility } from '../features/site/SiteVisibility'
 import { api, ApiError, type Setting, type SettingsResponse, type TestResult } from '../services/api'
 
 type State = { status: 'loading' } | { status: 'error' } | { status: 'loaded'; data: SettingsResponse }
@@ -19,7 +20,14 @@ export function SettingsPage() {
 
   if (status === 'loading') return <PageSkeleton />
   if (status === 'anonymous') return <Navigate to="/" replace />
-  return <Settings />
+  return (
+    <div className="settings">
+      <h2 className="visually-hidden">Settings</h2>
+      <SiteVisibility />
+      <h3 className="settings-section-title">Connections</h3>
+      <Settings />
+    </div>
+  )
 }
 
 function Settings() {
@@ -73,7 +81,6 @@ function Settings() {
 
   return (
     <div className="settings">
-      <h2 className="visually-hidden">Settings</h2>
       <p className="muted">
         The services this site connects to. Keys saved here are stored encrypted, apply at once and replace the server's configuration; a secret is never shown again, only
         its last 4 characters.

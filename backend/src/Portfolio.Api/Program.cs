@@ -16,6 +16,7 @@ using Portfolio.Api.Features.Places;
 using Portfolio.Api.Features.Profile;
 using Portfolio.Api.Features.Resume;
 using Portfolio.Api.Features.Settings;
+using Portfolio.Api.Features.Site;
 using Portfolio.Api.Features.Support;
 using Portfolio.Api.Features.Terms;
 using Portfolio.Api.Features.Updates;
@@ -58,6 +59,19 @@ builder.Services.AddSingleton(services => new RefreshingCache<IReadOnlyList<YouT
     services.GetRequiredService<TimeProvider>(), YouTubeEndpoints.FreshFor, YouTubeEndpoints.RetryAfter));
 
 builder.Services.Configure<SiteOptions>(builder.Configuration.GetSection(SiteOptions.Section));
+
+// Caching: HybridCache keeps values in memory, and in Redis too when ConnectionStrings:Redis is set
+// (shared by every API instance, and kept across restarts). Without it, memory only.
+var redis = builder.Configuration.GetConnectionString("Redis");
+if (!string.IsNullOrWhiteSpace(redis))
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redis;
+        options.InstanceName = "portfolio:";
+    });
+}
+builder.Services.AddHybridCache();
 
 // Phone alerts (ntfy): queued by any request, sent in the background.
 builder.Services.BindWithSettings<AlertOptions>(builder.Configuration, AlertOptions.Section);
@@ -154,5 +168,6 @@ api.MapUpdatesEndpoints();
 api.MapResumeEndpoints();
 api.MapSettingsEndpoints();
 api.MapMeetingsEndpoints();
+api.MapSiteEndpoints();
 
 app.Run();

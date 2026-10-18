@@ -94,10 +94,21 @@ public class SupportEndpointsTests
     [InlineData("", "")]
     [InlineData("javascript:alert(1)", "")]
     [InlineData("/somewhere", "")]
-    public void GetInfo_only_gives_out_web_links(string configured, string expected)
+    public async Task GetInfo_only_gives_out_web_links(string configured, string expected)
     {
-        var info = SupportEndpoints.GetInfo(TestOptions.Monitor(new SupportOptions { Url = configured }));
+        var services = TestSite.Services();
+        var info = await SupportEndpoints.GetInfo(TestOptions.Monitor(new SupportOptions { Url = configured }), services.Cache(), services, default);
 
         Assert.Equal(expected, info.Value!.Url);
+    }
+
+    [Fact]
+    public async Task GetInfo_hides_the_button_while_it_is_switched_off()
+    {
+        var services = TestSite.Services(visibleByDefault: false);
+
+        var info = await SupportEndpoints.GetInfo(TestOptions.Monitor(new SupportOptions { Url = "https://buymeacoffee.com/claomike" }), services.Cache(), services, default);
+
+        Assert.Equal("", info.Value!.Url);
     }
 }

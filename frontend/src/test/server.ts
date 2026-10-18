@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import type { AboutContent, AnalyticsRange, AnalyticsSummary, BucketSize, AppCategory, AppCategoryRequest, AppDetails, AppRequest, Meeting, ResumeContact, ResumeSettingsDetails, TermsContent, TermsDocument, VisitDetails, VisitSummary } from '../services/api'
+import type { AboutContent, AnalyticsRange, AnalyticsSummary, BucketSize, AppCategory, AppCategoryRequest, AppDetails, AppRequest, Meeting, ResumeContact, SiteStatus, ResumeSettingsDetails, TermsContent, TermsDocument, VisitDetails, VisitSummary } from '../services/api'
 
 export const API = 'http://api.test'
 
@@ -115,6 +115,18 @@ export function termsApi(initial = termsDocument()) {
   return { handlers, saved }
 }
 
+/** Every page and feature on, not under maintenance. A fresh copy each call. */
+export function siteStatus(patch: Partial<SiteStatus> = {}): SiteStatus {
+  return {
+    pages: { whatsNew: true, apps: true, youtube: true, about: true, contact: true },
+    features: { meetings: true, coffee: true, updates: true },
+    maintenance: false,
+    maintenanceMessage: '',
+    updatedAt: null,
+    ...patch,
+  }
+}
+
 /** The résumé settings before the first save. A fresh copy each call. */
 export function resumeSettings(): ResumeSettingsDetails {
   return {
@@ -139,6 +151,8 @@ export const handlers = [
   http.get(`${API}/api/apps`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),
   // The admin's résumé generator on About Me: never generated.
   http.get(`${API}/api/resume/settings`, () => HttpResponse.json(resumeSettings())),
+  // What visitors see: every page and feature on, not under maintenance.
+  http.get(`${API}/api/site`, () => HttpResponse.json(siteStatus())),
   // Meetings (Cal.com): not offered by default; the admin's calendar is empty.
   http.get(`${API}/api/meetings/info`, () => HttpResponse.json({ calLink: '' })),
   http.get(`${API}/api/meetings`, () => HttpResponse.json([])),

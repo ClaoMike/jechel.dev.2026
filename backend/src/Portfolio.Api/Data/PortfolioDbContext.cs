@@ -25,6 +25,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<SiteSetting> SiteSettings => Set<SiteSetting>();
     public DbSet<Meeting> Meetings => Set<Meeting>();
     public DbSet<ContactReply> ContactReplies => Set<ContactReply>();
+    public DbSet<SiteState> SiteStates => Set<SiteState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -297,6 +298,18 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             // Deleting a message deletes its replies.
             entity.HasOne<ContactMessage>().WithMany().HasForeignKey(r => r.MessageId).OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(r => r.MessageId);
+        });
+
+        modelBuilder.Entity<SiteState>(entity =>
+        {
+            entity.ToTable("site_state");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(s => s.Pages).HasColumnName("pages").HasColumnType("jsonb").IsRequired();
+            entity.Property(s => s.Features).HasColumnName("features").HasColumnType("jsonb").IsRequired();
+            entity.Property(s => s.MaintenanceEnabled).HasColumnName("maintenance_enabled");
+            entity.Property(s => s.MaintenanceMessage).HasColumnName("maintenance_message").HasMaxLength(Features.Site.SiteEndpoints.MessageMaxLength).IsRequired();
+            entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
         });
     }
 }

@@ -56,6 +56,7 @@ Personal portfolio website of Claudiu Mihai Jechel.
 | Frontend    | http://localhost:5173      | Vite dev server (`strictPort`, fails if taken). Proxies `/api/*` to the API |
 | API         | http://localhost:5105      | `http` launch profile. Browse the site via 5173, not 5105 |
 | PostgreSQL  | localhost:**5433**         | 5433, not 5432, so it doesn't clash with a Homebrew Postgres |
+| Redis       | localhost:**6380**         | 6380, not 6379, for the same reason. Optional: the API caches in memory without it |
 | OpenAPI doc | http://localhost:5105/openapi/v1.json | Development only                        |
 
 Local DB credentials (dev only): database/user/password all `portfolio`.
@@ -63,7 +64,7 @@ Local DB credentials (dev only): database/user/password all `portfolio`.
 ## Running locally
 
 ```bash
-# 1. Database
+# 1. Database (and Redis, the API's optional cache)
 docker compose up -d --wait
 
 # 2. API (applies EF migrations + seed data on startup in Development)
@@ -143,6 +144,8 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | POST   | `/api/meetings/{id}/accept` | cookie or token | `{ message? }`: confirms a requested meeting with Cal.com and emails the message: **200** `{ status, emailSent }`, **502** when Cal.com refuses |
 | POST   | `/api/meetings/{id}/decline` | cookie or token | The same, declining (the message is also Cal.com's reason) |
 | POST   | `/api/contact/messages/{id}/reply` | cookie | `{ text }`: emails the answer to the sender (their message quoted, your address to reply to): **200**, **400**, **503** when it can't be sent |
+| GET    | `/api/site`                 | public  | What visitors see: `{ pages, features, maintenance, maintenanceMessage }` (cached: memory, then Redis) |
+| PUT    | `/api/site`                 | cookie  | Changes what's given (pages, features, maintenance, its message): **200**, or **400** for unknown ids |
 | GET    | `/api/settings`             | cookie  | The connection settings (secrets only as set/not set and their last 4 characters), how Google sign-in is set up, and the site's address |
 | PUT    | `/api/settings/{key}`       | cookie  | `{ value }`: saves one (encrypted if secret) and applies it at once; `""` clears it. **400** for a bad value, **404** for an unknown key |
 | POST   | `/api/settings/test/{service}` | cookie | `ntfy` (test alert), `email` (test email to you) or `youtube` (lists the videos): **200** `{ ok, message }` |
@@ -479,6 +482,39 @@ Google sign-in, YouTube Data API, Resend, ntfy, and (later) hosting.
   sign in would lock you out. Change it in user secrets or environment variables.
 - Which keys can be set is a fixed list (`SettingsCatalog.cs`); each is checked (links, sender address, topic characters).
 
+## Visitor pages and maintenance
+
+**Settings → Visitor pages** (above the connections) switches each visitor page (What's new, Apps, YouTube, About Me, Contact)
+and each feature that needs setting up once live (Book a meeting, Buy me a coffee, Get updates) on or off. **Everything starts
+off**, so going live shows nothing half-finished: switch each part on once it's ready. (The E2E tests and the integration tests
+start with everything on: `Site:PagesVisibleByDefault`.)
+
+- A page that's off is gone from visitors' tabs, and its link leads to the first page that's on, or **Coming soon** when none is.
+  You always see every page; hidden ones have an eye-off mark in the tabs.
+- A feature that's off is off for everyone: its button goes, and the API agrees (`/api/meetings/info` and `/api/support` answer
+  `""`, subscribing answers 404). The page data APIs stay public: hiding a page is about what's ready, not about secrecy.
+- **Under maintenance** (with an optional message) gives visitors a maintenance screen instead of the site; you still see
+  everything, with a reminder in the admin bar. `/admin` stays reachable to sign in.
+- **When the API can't be reached** (down, or answering with errors), visitors get the same screen, saying so, and the page asks
+  again every 30 seconds and comes back by itself.
+
+**Hosting the frontend on Cloudflare, the API elsewhere:** the SPA is static (Cloudflare Pages), so it stays up while the API is
+down, restarting or being deployed, and the maintenance screen is part of it: no second website needed. For planned work on
+the frontend itself (or to take everything offline), `frontend/public/maintenance.html` is a standalone page with nothing to
+load: point a Cloudflare redirect rule (or a small Worker) at it while the work lasts.
+
+State lives in the `site_state` table (one row) and is read through `SiteEndpoints.LoadAsync` (cached, cleared on save).
+
+## State and caching
+
+- **Frontend: Redux Toolkit** (`src/store/`). `makeStore()` builds the store (`main.tsx`, and a fresh one per test in
+  `renderApp`); use the typed `useAppSelector` / `useAppDispatch`. The first slice is `site` (`store/siteSlice.ts`: what visitors
+  see, loaded with the `fetchSite` thunk, saved with `saveSite`). More state moves here as the app is refactored.
+- **Backend: HybridCache** (`Microsoft.Extensions.Caching.Hybrid`): values are kept in memory, and in **Redis** too when
+  `ConnectionStrings:Redis` is set (shared by every API instance, kept across restarts, `portfolio:` prefix). Locally it's the
+  `redis` service in docker-compose (port 6380, in memory only, 128 MB, least-recently-used out first). Without Redis the API just
+  caches in memory. The first value cached this way is `/api/site`; the older in-memory caches (YouTube, LeetCode) can move to it.
+
 ## Meetings (Cal.com) and replies
 
 **Visitors** choose between **Send a message** and **Book a meeting** on the Contact page (the second once a Cal.com page is
@@ -612,6 +648,8 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Cal:ApiKey`                  | Cal.com API key (secret), to accept and decline from this site |
 | `Cal:WebhookSecret`           | The Cal.com webhook's secret. The webhook answers 503 until it's set |
 | `Site:TimeZone`               | Your time zone for times in phone alerts (default `Europe/London`) |
+| `Site:PagesVisibleByDefault`  | Whether visitor pages and features not yet switched in Settings show (default `false`: everything starts hidden) |
+| `ConnectionStrings:Redis`     | Redis for the API's cache, e.g. `localhost:6380,abortConnect=false` (set in appsettings.Development). Empty: memory only |
 
 Every key above from `Support`, `YouTube`, `Email`, `Alerts` and `Cal` can also be set in the **Settings** tab, which overrides these.
 Secrets are never committed. Locally, use [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets):

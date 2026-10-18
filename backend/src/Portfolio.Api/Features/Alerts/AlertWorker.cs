@@ -39,6 +39,12 @@ public class SiteOptions
     /// <summary>The admin's time zone, for times in phone alerts (IANA, e.g. "Europe/London").</summary>
     public string TimeZone { get; set; } = "Europe/London";
 
+    /// <summary>
+    /// Whether visitor pages and features not yet switched on or off in Settings show. Off: everything
+    /// starts hidden, to switch on as it's ready (going live). The E2E tests turn it on.
+    /// </summary>
+    public bool PagesVisibleByDefault { get; set; }
+
     public string UrlFor(string path) => PublicUrl.TrimEnd('/') + path;
 }
 

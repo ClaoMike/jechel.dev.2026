@@ -48,6 +48,9 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         builder.UseSetting("Support:Url", "https://buymeacoffee.com/test");
         builder.UseSetting("Support:BuyMeACoffeeWebhookSecret", BuyMeACoffeeSecret);
         builder.UseSetting("Site:PublicUrl", "https://jechel.test");
+        // Every page shows unless a test hides it; caching in memory only (no Redis).
+        builder.UseSetting("Site:PagesVisibleByDefault", "true");
+        builder.UseSetting("ConnectionStrings:Redis", "");
         builder.UseSetting("Cal:Link", "claomike/30min");
         builder.UseSetting("Cal:WebhookSecret", CalSecret);
         // Every test client comes from the same (unknown) address.

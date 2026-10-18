@@ -544,6 +544,41 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("site_settings", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.SiteState", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Features")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("features");
+
+                    b.Property<bool>("MaintenanceEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("maintenance_enabled");
+
+                    b.Property<string>("MaintenanceMessage")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("maintenance_message");
+
+                    b.Property<string>("Pages")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("pages");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("site_state", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.StoredFile", b =>
                 {
                     b.Property<Guid>("Id")

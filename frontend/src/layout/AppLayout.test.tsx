@@ -37,16 +37,17 @@ describe('AppLayout: site name and session bar', () => {
 describe('AppLayout: tabs', () => {
   const tabs = () => within(screen.getByRole('navigation', { name: 'Sections' }))
 
-  it('shows the five sections in order', () => {
+  it('shows the five sections in order, once it knows which visitors may see', async () => {
     renderApp('/')
 
-    expect(tabs().getAllByRole('link').map((link) => link.textContent)).toEqual(TAB_NAMES)
+    expect(tabs().queryAllByRole('link')).toEqual([])
+    expect((await tabs().findAllByRole('link')).map((link) => link.textContent)).toEqual(TAB_NAMES)
   })
 
   it("/ shows What's new and marks its tab as current", async () => {
     renderApp('/')
 
-    expect(screen.getByRole('heading', { level: 2, name: "What's new?" })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: "What's new?" })).toBeInTheDocument()
     expect(await screen.findByText(/Nothing here yet/)).toBeInTheDocument()
     expect(tabs().getByRole('link', { name: "What's new?" })).toHaveAttribute('aria-current', 'page')
     for (const other of TAB_NAMES.filter((name) => name !== "What's new?")) {
@@ -57,7 +58,7 @@ describe('AppLayout: tabs', () => {
   it('/apps shows the apps and marks its tab as current', async () => {
     renderApp('/apps')
 
-    expect(screen.getByRole('heading', { level: 2, name: 'Apps' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Apps' })).toBeInTheDocument()
     expect(await screen.findByText('No apps yet.')).toBeInTheDocument()
     expect(tabs().getByRole('link', { name: 'Apps' })).toHaveAttribute('aria-current', 'page')
   })
@@ -65,7 +66,7 @@ describe('AppLayout: tabs', () => {
   it('/youtube shows the videos and marks its tab as current', async () => {
     renderApp('/youtube')
 
-    expect(screen.getByRole('heading', { level: 2, name: 'YouTube' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: 'YouTube' })).toBeInTheDocument()
     expect(await screen.findByText('No videos yet.')).toBeInTheDocument()
     expect(tabs().getByRole('link', { name: 'YouTube' })).toHaveAttribute('aria-current', 'page')
   })
@@ -73,7 +74,7 @@ describe('AppLayout: tabs', () => {
   it('switches sections when a tab is clicked', async () => {
     renderApp('/')
 
-    await userEvent.click(tabs().getByRole('link', { name: 'About Me' }))
+    await userEvent.click(await tabs().findByRole('link', { name: 'About Me' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'About Me' })).toBeInTheDocument()
 
     await userEvent.click(tabs().getByRole('link', { name: 'Contact' }))
@@ -81,10 +82,10 @@ describe('AppLayout: tabs', () => {
     expect(tabs().getByRole('link', { name: 'Contact' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('sends unknown URLs to the first section', () => {
+  it('sends unknown URLs to the first section', async () => {
     renderApp('/no-such-page')
 
-    expect(screen.getByRole('heading', { level: 2, name: "What's new?" })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: "What's new?" })).toBeInTheDocument()
   })
 })
 

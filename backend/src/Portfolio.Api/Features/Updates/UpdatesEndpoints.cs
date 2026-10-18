@@ -83,8 +83,16 @@ public static class UpdatesEndpoints
         IPhoneAlerts alerts,
         TimeProvider time,
         ILoggerFactory loggers,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Microsoft.Extensions.Caching.Hybrid.HybridCache? cache = null,
+        IServiceProvider? services = null)
     {
+        // Switched off in Settings ("Get updates"): not taking subscriptions.
+        if (cache is not null && services is not null && !(await Site.SiteEndpoints.LoadAsync(cache, services, cancellationToken)).Features["updates"])
+        {
+            return TypedResults.Problem("Email updates aren't open yet.", statusCode: StatusCodes.Status404NotFound);
+        }
+
         var email = request.Email?.Trim().ToLowerInvariant() ?? "";
         if (email.Length == 0 || email.Length > ContactRules.EmailMaxLength || !ContactRules.IsEmail(email))
         {

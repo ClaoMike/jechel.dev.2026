@@ -58,8 +58,12 @@ public static class MeetingsEndpoints
         return app;
     }
 
-    /// <summary>Public. Where "Request a meeting" books, or "" to hide it.</summary>
-    public static Ok<MeetingsInfo> GetInfo(IOptionsMonitor<CalOptions> options) => TypedResults.Ok(new MeetingsInfo(CalOptions.NormalizeLink(options.CurrentValue.Link)));
+    /// <summary>Public. Where "Book a meeting" books, or "" to hide it (no page set, or switched off in Settings).</summary>
+    public static async Task<Ok<MeetingsInfo>> GetInfo(IOptionsMonitor<CalOptions> options, Microsoft.Extensions.Caching.Hybrid.HybridCache cache, IServiceProvider services, CancellationToken cancellationToken)
+    {
+        var site = await Site.SiteEndpoints.LoadAsync(cache, services, cancellationToken);
+        return TypedResults.Ok(new MeetingsInfo(site.Features["meetings"] ? CalOptions.NormalizeLink(options.CurrentValue.Link) : ""));
+    }
 
     /// <summary>
     /// Cal.com's webhook (Settings → Developer → Webhooks). The body is signed: HMAC-SHA256 of it with

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth'
-import { ArrowLeftIcon, ArrowRightIcon } from '../components/icons'
+import { ArrowLeftIcon, ArrowRightIcon, EyeOffIcon } from '../components/icons'
+import { useAppSelector } from '../store'
 import { TABS } from './tabs'
 
 /** Where the highlight is, in the tab bar's own coordinates (it scrolls with the tabs). */
@@ -30,7 +31,10 @@ export function TabNav() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
-  const tabs = TABS.filter((tab) => isAuthenticated || !tab.adminOnly)
+  const site = useAppSelector((state) => state.site)
+  // Visitors see the pages that are switched on (none until that's known); the admin sees them all, hidden ones marked.
+  const hidden = (tab: (typeof TABS)[number]) => tab.page !== undefined && site.status === 'loaded' && !site.site.pages[tab.page]
+  const tabs = TABS.filter((tab) => (isAuthenticated ? true : !tab.adminOnly && site.status === 'loaded' && !hidden(tab)))
 
   const [box, setBox] = useState<Box | null>(null)
   // Off for the first placement, so the highlight doesn't fly in from the left on load.
@@ -173,8 +177,17 @@ export function TabNav() {
         />
       )}
       {tabs.map((tab) => (
-        <NavLink key={tab.to} to={tab.to} end className="tab" draggable={false}>
+        <NavLink key={tab.to} to={tab.to} end className="tab" draggable={false} title={isAuthenticated && hidden(tab) ? 'Hidden from visitors' : undefined}>
           {tab.label}
+          {isAuthenticated && hidden(tab) && (
+            <>
+              {' '}
+              <span className="tab-hidden">
+                <EyeOffIcon size={14} />
+                <span className="visually-hidden">(hidden from visitors)</span>
+              </span>
+            </>
+          )}
         </NavLink>
       ))}
     </nav>
