@@ -262,6 +262,9 @@ public static partial class AboutRules
     /// <summary>The URLs of the [text](url) links in a piece of text. Same syntax as the frontend's textLinks.ts.</summary>
     public static IEnumerable<string> LinksIn(string text) => MarkdownLink().Matches(text).Select(m => m.Groups[2].Value);
 
+    /// <summary>The [text](url) syntax: group 1 is the text, group 2 the URL.</summary>
+    public static Regex MarkdownLinkPattern() => MarkdownLink();
+
     private static void CheckUrl(string? value, string key, Action<string, string> add)
     {
         if (value is not null && value.Length > UrlMaxLength) add(key, $"Must be at most {UrlMaxLength} characters.");

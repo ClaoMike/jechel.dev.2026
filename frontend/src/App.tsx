@@ -5,9 +5,11 @@ import { AppLayout } from './layout/AppLayout'
 import { AppsPage } from './pages/AppsPage'
 import { AboutPage } from './pages/AboutPage'
 import { AdminPage } from './pages/AdminPage'
+import { CommunityPage } from './pages/CommunityPage'
 import { ContactPage } from './pages/ContactPage'
 import { EngagementPage } from './pages/EngagementPage'
 import { TermsPage } from './pages/TermsPage'
+import { ConfirmSubscriptionPage, UnsubscribePage } from './pages/UpdatesPages'
 import { WhatsNewPage } from './pages/WhatsNewPage'
 import { YouTubePage } from './pages/YouTubePage'
 
@@ -23,7 +25,10 @@ function App() {
           <Route path="about" element={<AboutPage />} />
           <Route path="contact" element={<ContactPage />} />
           <Route path="engagement" element={<EngagementPage />} />
+          <Route path="community" element={<CommunityPage />} />
           <Route path="terms" element={<TermsPage />} />
+          <Route path="updates/confirm" element={<ConfirmSubscriptionPage />} />
+          <Route path="updates/unsubscribe" element={<UnsubscribePage />} />
         </Route>
         <Route path="/admin" element={<AdminPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

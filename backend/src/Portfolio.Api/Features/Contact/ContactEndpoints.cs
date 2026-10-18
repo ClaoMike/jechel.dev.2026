@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api.Data;
+using Portfolio.Api.Features.Alerts;
 
 namespace Portfolio.Api.Features.Contact;
 
@@ -37,6 +38,7 @@ public static class ContactEndpoints
         SendMessageRequest request,
         PortfolioDbContext db,
         TimeProvider time,
+        IPhoneAlerts alerts,
         CancellationToken cancellationToken)
     {
         var errors = ContactRules.Validate(request);
@@ -45,14 +47,17 @@ public static class ContactEndpoints
             return TypedResults.ValidationProblem(errors);
         }
 
-        db.ContactMessages.Add(new ContactMessage
+        var message = new ContactMessage
         {
             Name = request.Name!.Trim(),
             Email = request.Email!.Trim(),
             Message = request.Message!.Trim(),
             ReceivedAt = time.GetUtcNow(),
-        });
+        };
+        db.ContactMessages.Add(message);
         await db.SaveChangesAsync(cancellationToken);
+
+        alerts.Send(new PhoneAlert($"New message from {message.Name}", message.Message, "/contact", AlertPriority.High, "envelope"));
 
         return TypedResults.Created();
     }

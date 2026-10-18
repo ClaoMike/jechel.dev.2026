@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api.Data;
+using Portfolio.Api.Features.Alerts;
 
 namespace Portfolio.Api.Features.Analytics;
 
@@ -44,6 +45,7 @@ public static class AnalyticsEndpoints
         PortfolioDbContext db,
         VisitorHasher visitors,
         TimeProvider time,
+        IPhoneAlerts alerts,
         CancellationToken cancellationToken)
     {
         if (request.SessionId == Guid.Empty)
@@ -72,7 +74,12 @@ public static class AnalyticsEndpoints
         {
             try
             {
-                await StoreAsync(request, events, http, agent, userAgent, db, visitors, now, cancellationToken);
+                var errors = await StoreAsync(request, events, http, agent, userAgent, db, visitors, now, cancellationToken);
+                // Once stored, so a retried batch doesn't ring twice; throttled, so a crash every visitor hits rings once an hour.
+                foreach (var (label, path) in errors)
+                {
+                    alerts.SendThrottled($"web:{label}", new PhoneAlert("Site error", $"{label}\non {path} ({agent.Browser}, {agent.Device})", "/engagement", AlertPriority.Default, "warning"));
+                }
                 return TypedResults.NoContent();
             }
             catch (DbUpdateException) when (attempt == 1)
@@ -88,7 +95,8 @@ public static class AnalyticsEndpoints
         return age > AnalyticsRules.MaxEventAge ? now : now - age;
     }
 
-    private static async Task StoreAsync(
+    /// <summary>Returns the errors it stored (label and page), to alert the phone about.</summary>
+    private static async Task<List<(string Label, string Path)>> StoreAsync(
         CollectRequest request,
         List<(EventInput Input, DateTimeOffset OccurredAt)> events,
         HttpContext http,
@@ -99,6 +107,7 @@ public static class AnalyticsEndpoints
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        var errors = new List<(string Label, string Path)>();
         var session = await db.VisitSessions.FindAsync([request.SessionId], cancellationToken);
         if (session is null)
         {
@@ -165,7 +174,11 @@ public static class AnalyticsEndpoints
 
                 session.EventCount++;
                 if (input.Type == "pageview") session.PageViews++;
-                if (input.Type == "error") session.ErrorCount++;
+                if (input.Type == "error")
+                {
+                    session.ErrorCount++;
+                    errors.Add((AnalyticsRules.Cut(input.Label, AnalyticsRules.LabelMaxLength) ?? "Unknown error", AnalyticsRules.NormalizePath(input.Path)));
+                }
                 if (input.Type is "click" or "key" or "event") session.InteractionCount++;
                 if (occurredAt > session.LastSeenAt) session.LastSeenAt = occurredAt;
                 if (occurredAt < session.StartedAt) session.StartedAt = occurredAt;
@@ -173,6 +186,7 @@ public static class AnalyticsEndpoints
         }
 
         await db.SaveChangesAsync(cancellationToken);
+        return errors;
     }
 
     /// <summary>

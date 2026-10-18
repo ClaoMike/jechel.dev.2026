@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import type { AboutContent, AnalyticsRange, AnalyticsSummary, BucketSize, AppCategory, AppCategoryRequest, AppDetails, AppRequest, TermsContent, TermsDocument, VisitDetails, VisitSummary } from '../services/api'
+import type { AboutContent, AnalyticsRange, AnalyticsSummary, BucketSize, AppCategory, AppCategoryRequest, AppDetails, AppRequest, ResumeSettingsDetails, TermsContent, TermsDocument, VisitDetails, VisitSummary } from '../services/api'
 
 export const API = 'http://api.test'
 
@@ -115,6 +115,19 @@ export function termsApi(initial = termsDocument()) {
   return { handlers, saved }
 }
 
+/** The résumé settings before the first save. A fresh copy each call. */
+export function resumeSettings(): ResumeSettingsDetails {
+  return {
+    phone: '',
+    email: '',
+    headline: '',
+    location: '',
+    summary: '',
+    sections: ['summary', 'statuses', 'links', 'experience', 'skills', 'education', 'qualifications', 'papers', 'hackathons', 'languages'],
+    generatedAt: null,
+  }
+}
+
 // Default handlers: anonymous visitor, happy path. Override per test with server.use(...)
 export const handlers = [
   http.get(`${API}/api/firstname`, () => HttpResponse.json({ firstName: 'Claudiu' })),
@@ -125,6 +138,10 @@ export const handlers = [
   http.get(`${API}/api/leetcode`, () => HttpResponse.json(LEETCODE_STATS)),
   http.get(`${API}/api/youtube/videos`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),
   http.get(`${API}/api/apps`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),
+  // The admin's résumé generator on About Me: never generated.
+  http.get(`${API}/api/resume/settings`, () => HttpResponse.json(resumeSettings())),
+  // The header's "Buy me a coffee": hidden by default (no URL configured).
+  http.get(`${API}/api/support`, () => HttpResponse.json({ url: '' })),
   // The visitor tracker (features/analytics) sends here; its own tests look at what it sends.
   http.post(`${API}/api/analytics/events`, () => new HttpResponse(null, { status: 204 })),
 ]

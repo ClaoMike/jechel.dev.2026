@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Contact;
+using Portfolio.Api.UnitTests.Features.Alerts;
 
 namespace Portfolio.Api.UnitTests.Features.Contact;
 
@@ -11,6 +12,7 @@ public class ContactEndpointsTests
     private static readonly DateTimeOffset Now = new(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
 
     private readonly FakeTimeProvider _time = new(Now);
+    private readonly FakePhoneAlerts _alerts = new();
     private readonly PortfolioDbContext _db = new(new DbContextOptionsBuilder<PortfolioDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
         .Options);
@@ -37,7 +39,7 @@ public class ContactEndpointsTests
     {
         var request = new SendMessageRequest("  Ada  ", " ada@example.com ", $"  {LongMessage}  ");
 
-        var result = await ContactEndpoints.SendMessage(request, _db, _time, CancellationToken.None);
+        var result = await ContactEndpoints.SendMessage(request, _db, _time, _alerts, CancellationToken.None);
 
         Assert.IsType<Created>(result.Result);
         var stored = await _db.ContactMessages.SingleAsync();
@@ -46,16 +48,20 @@ public class ContactEndpointsTests
         Assert.Equal(LongMessage, stored.Message);
         Assert.Equal(Now, stored.ReceivedAt);
         Assert.Null(stored.ReadAt);
+        var alert = Assert.Single(_alerts.Sent);
+        Assert.Equal("New message from Ada", alert.Title);
+        Assert.Equal("/contact", alert.Path);
     }
 
     [Fact]
     public async Task SendMessage_rejects_an_invalid_request_and_stores_nothing()
     {
-        var result = await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "nope", "too short"), _db, _time, CancellationToken.None);
+        var result = await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "nope", "too short"), _db, _time, _alerts, CancellationToken.None);
 
         var problem = Assert.IsType<ValidationProblem>(result.Result);
         Assert.Equal(["email", "message"], problem.ProblemDetails.Errors.Keys.Order());
         Assert.Empty(_db.ContactMessages);
+        Assert.Empty(_alerts.Sent);
     }
 
     [Fact]

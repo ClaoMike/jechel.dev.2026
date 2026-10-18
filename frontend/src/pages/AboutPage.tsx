@@ -10,6 +10,7 @@ import { ProfileSection } from '../features/about/ProfileSection'
 import { QualificationsSection } from '../features/about/QualificationsSection'
 import { SkillsSection } from '../features/about/SkillsSection'
 import { EducationSection, ExperienceSection } from '../features/about/TimelineSection'
+import { ResumePanel } from '../features/resume/ResumePanel'
 import { api, type AboutContent } from '../services/api'
 
 type State = { status: 'loading' } | { status: 'loaded'; content: AboutContent } | { status: 'error' }
@@ -21,6 +22,9 @@ type State = { status: 'loading' } | { status: 'loaded'; content: AboutContent }
 export function AboutPage() {
   const { isAuthenticated } = useAuth()
   const [state, setState] = useState<State>({ status: 'loading' })
+  // Bumped after generating a résumé: the page's download link changed.
+  const [reloads, setReloads] = useState(0)
+  const reload = useCallback(() => setReloads((n) => n + 1), [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -31,7 +35,7 @@ export function AboutPage() {
         if (!controller.signal.aborted) setState({ status: 'error' })
       })
     return () => controller.abort()
-  }, [])
+  }, [reloads])
 
   const content = state.status === 'loaded' ? state.content : null
 
@@ -65,6 +69,7 @@ export function AboutPage() {
   return (
     <div className="about">
       {heading}
+      {isAuthenticated && <ResumePanel onGenerated={reload} />}
       <ProfileSection
         value={{ photoUrl: page.photoUrl, statuses: page.statuses, links: page.links }}
         leetCodeUsername={page.problemSolving.leetCodeUsername}

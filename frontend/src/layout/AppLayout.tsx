@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router'
 import { SignedIn, useAuth } from '../auth'
+import { SupportButton } from '../features/support/SupportButton'
+import { SubscribeButton } from '../features/updates/SubscribeButton'
 import { RivieraBackground } from './background/RivieraBackground'
 import { ContentToggle } from './ContentToggle'
 import { PageTransition } from './PageTransition'
@@ -9,7 +11,7 @@ import { TabNav } from './TabNav'
 import { ThemeSwitch } from './ThemeSwitch'
 import { useTheme } from './theme'
 
-/** The site frame: the site name, the admin's session bar, the theme switch, the tabs, the current tab's page, and the footer. */
+/** The site frame: the site name, "Buy me a coffee" and "Get updates", the admin's session bar, the theme switch, the tabs, the current tab's page, and the footer. */
 export function AppLayout() {
   const { signOut } = useAuth()
   const theme = useTheme()
@@ -41,6 +43,8 @@ export function AppLayout() {
             </Link>
           </h1>
           <div className="header-actions">
+            <SupportButton />
+            <SubscribeButton />
             <SignedIn>
               {(user) => (
                 <div className="session-bar">

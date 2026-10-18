@@ -3091,3 +3091,107 @@ button.media-card {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- Header: "Buy me a coffee" and "Get updates" ---------- */
+
+.header-button {
+  min-height: 36px;
+  padding: 0 14px;
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  /* Icons only: the buttons are named by their aria-label. */
+  .header-button-label {
+    display: none;
+  }
+
+  .header-button {
+    width: 36px;
+    padding: 0;
+  }
+}
+
+/* ---------- Get updates: the popup, and the confirm / unsubscribe pages ---------- */
+
+.subscribe-form,
+.subscribe-sent {
+  display: grid;
+  gap: 12px;
+}
+
+.subscribe-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.updates-page {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+/* ---------- Résumé generator (About Me, admin only) ---------- */
+
+.resume-panel {
+  margin-bottom: 16px;
+}
+
+.resume-panel > summary {
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.resume-panel-title {
+  font-weight: 600;
+}
+
+.resume-panel[open] > summary {
+  margin-bottom: 16px;
+}
+
+.resume-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.resume-actions a.button {
+  text-decoration: none;
+}
+
+.resume-downloads {
+  display: grid;
+  gap: 8px;
+}
+
+/* ---------- Community (admin only) ---------- */
+
+.community {
+  display: grid;
+  gap: 16px;
+}
+
+.community-card {
+  display: grid;
+  gap: 12px;
+}
+
+.community-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.community-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.chip-muted {
+  color: var(--text-muted);
+}

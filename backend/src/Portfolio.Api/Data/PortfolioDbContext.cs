@@ -17,6 +17,11 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<AppCategory> AppCategories => Set<AppCategory>();
     public DbSet<VisitSession> VisitSessions => Set<VisitSession>();
     public DbSet<VisitEvent> VisitEvents => Set<VisitEvent>();
+    public DbSet<Donation> Donations => Set<Donation>();
+    public DbSet<Subscriber> Subscribers => Set<Subscriber>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<UpdatesState> UpdatesStates => Set<UpdatesState>();
+    public DbSet<ResumeSettings> ResumeSettings => Set<ResumeSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -165,6 +170,80 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             // One row per sequence number: a batch sent twice isn't stored twice.
             entity.HasIndex(e => new { e.SessionId, e.Sequence }).IsUnique();
             entity.HasIndex(e => e.OccurredAt);
+        });
+
+        modelBuilder.Entity<Donation>(entity =>
+        {
+            entity.ToTable("donations");
+            entity.HasKey(d => d.Id);
+            entity.Property(d => d.Id).HasColumnName("id");
+            entity.Property(d => d.TransactionId).HasColumnName("transaction_id").HasMaxLength(100).IsRequired();
+            entity.Property(d => d.Type).HasColumnName("type").HasMaxLength(40).IsRequired();
+            entity.Property(d => d.FromName).HasColumnName("from_name").HasMaxLength(200).IsRequired();
+            entity.Property(d => d.Message).HasColumnName("message").HasMaxLength(2000);
+            entity.Property(d => d.Amount).HasColumnName("amount").HasMaxLength(20).IsRequired();
+            entity.Property(d => d.Currency).HasColumnName("currency").HasMaxLength(10).IsRequired();
+            entity.Property(d => d.Email).HasColumnName("email").HasMaxLength(320);
+            entity.Property(d => d.IsPublic).HasColumnName("is_public");
+            entity.Property(d => d.ReceivedAt).HasColumnName("received_at");
+
+            // Ko-fi retries a webhook until it gets a 200: one row per payment.
+            entity.HasIndex(d => d.TransactionId).IsUnique();
+            entity.HasIndex(d => d.ReceivedAt);
+        });
+
+        modelBuilder.Entity<Subscriber>(entity =>
+        {
+            entity.ToTable("subscribers");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasColumnName("id");
+            entity.Property(s => s.Email).HasColumnName("email").HasMaxLength(ContactRules.EmailMaxLength).IsRequired();
+            entity.Property(s => s.Token).HasColumnName("token").HasMaxLength(100).IsRequired();
+            entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+            entity.Property(s => s.ConfirmationSentAt).HasColumnName("confirmation_sent_at");
+            entity.Property(s => s.ConfirmedAt).HasColumnName("confirmed_at");
+
+            entity.HasIndex(s => s.Email).IsUnique();
+            entity.HasIndex(s => s.Token).IsUnique();
+        });
+
+        modelBuilder.Entity<Announcement>(entity =>
+        {
+            entity.ToTable("announcements");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Id).HasColumnName("id");
+            entity.Property(a => a.Kind).HasColumnName("kind").HasMaxLength(20).IsRequired();
+            entity.Property(a => a.ItemKey).HasColumnName("item_key").HasMaxLength(100).IsRequired();
+            entity.Property(a => a.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+            entity.Property(a => a.SentAt).HasColumnName("sent_at");
+            entity.Property(a => a.RecipientCount).HasColumnName("recipient_count");
+
+            // Nothing is announced twice.
+            entity.HasIndex(a => new { a.Kind, a.ItemKey }).IsUnique();
+        });
+
+        modelBuilder.Entity<UpdatesState>(entity =>
+        {
+            entity.ToTable("updates_state");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(s => s.AnnounceAfter).HasColumnName("announce_after");
+        });
+
+        modelBuilder.Entity<ResumeSettings>(entity =>
+        {
+            entity.ToTable("resume");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(r => r.Phone).HasColumnName("phone").HasMaxLength(Features.Resume.ResumeRules.PhoneMaxLength).IsRequired();
+            entity.Property(r => r.Email).HasColumnName("email").HasMaxLength(ContactRules.EmailMaxLength).IsRequired();
+            entity.Property(r => r.Headline).HasColumnName("headline").HasMaxLength(Features.Resume.ResumeRules.HeadlineMaxLength).IsRequired();
+            entity.Property(r => r.Location).HasColumnName("location").HasMaxLength(Features.Resume.ResumeRules.LocationMaxLength).IsRequired();
+            entity.Property(r => r.Summary).HasColumnName("summary").HasMaxLength(Features.Resume.ResumeRules.SummaryMaxLength).IsRequired();
+            entity.Property(r => r.Sections).HasColumnName("sections").HasColumnType("jsonb").IsRequired();
+            entity.Property(r => r.PublicPdf).HasColumnName("public_pdf");
+            entity.Property(r => r.PrivatePdf).HasColumnName("private_pdf");
+            entity.Property(r => r.GeneratedAt).HasColumnName("generated_at");
         });
     }
 }

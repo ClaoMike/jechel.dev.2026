@@ -120,6 +120,20 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/analytics/sessions?page=&pageSize=&errorsOnly=` | cookie | Visits, newest first (pageSize 1–50, default 20) |
 | GET    | `/api/analytics/sessions/{id}` | cookie | One visit with every event in order, or **404** |
 | DELETE | `/api/analytics/sessions/{id}` | cookie | Deletes the visit and its events: **204**, or **404** |
+| GET    | `/api/support`              | public  | `{ url }`: where the header's **Buy me a coffee** goes (`Support:Url`); `""` hides it |
+| POST   | `/api/support/kofi`         | Ko-fi token | Ko-fi's webhook (form field `data`): stores the payment once, alerts the phone. **401** for a wrong token, **503** until `Support:KoFiVerificationToken` is set |
+| GET    | `/api/support/donations?page=&pageSize=` | cookie | Donations, newest first |
+| POST   | `/api/updates/subscribe`    | public  | `{ email }`: emails a confirmation link. Always **202** for a valid address (never says who's subscribed), **400** field error, **429** after 5 tries per IP in 10 minutes |
+| POST   | `/api/updates/confirm?token=` | public | Confirms: **200** `{ email }`, or **404** |
+| POST   | `/api/updates/unsubscribe?token=` | public | Deletes the subscriber: always **204** (also what mail apps' one-click Unsubscribe posts) |
+| GET    | `/api/updates/subscribers?page=&pageSize=` | cookie | Subscribers, newest first, with `confirmedAt` |
+| DELETE | `/api/updates/subscribers/{id}` | cookie | **204**, or **404** |
+| GET    | `/api/updates/announcements?page=&pageSize=` | cookie | What was emailed, newest first |
+| GET    | `/api/resume?inline=`       | public  | The last generated résumé **without** the phone number (PDF), or **404** |
+| GET    | `/api/resume/private?inline=` | cookie | The same **with** the phone number |
+| GET    | `/api/resume/settings`      | cookie  | `{ phone, email, headline, location, summary, sections, generatedAt }` |
+| PUT    | `/api/resume/settings`      | cookie  | Saves them without generating: **200**, or **400** with field errors |
+| POST   | `/api/resume/generate`      | cookie  | Saves them, makes both PDFs, and points About Me's résumé link at the public one: **200**, or **400** |
 
 ## The "j" (Vice title and tab icon)
 
@@ -260,7 +274,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
 ## Site sections and the contact feature
 
-The site is a header (greeting, plus the session bar when signed in) above five tabs (seven for the signed-in admin), each a route rendered inside `src/layout/AppLayout.tsx`:
+The site is a header (the name, **Buy me a coffee**, **Get updates**, the session bar when signed in, the theme switch) above five tabs (eight for the signed-in admin), each a route rendered inside `src/layout/AppLayout.tsx`:
 
 | Tab | Route | Status |
 | --- | --- | --- |
@@ -270,7 +284,9 @@ The site is a header (greeting, plus the session bar when signed in) above five 
 | About Me | `/about` | profile, where I've been (map), problem solving (LeetCode, NeetCode), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
 | Engagement | `/engagement` | admin only: how visitors use the site, and every visit replayable to reproduce errors (see [Engagement](#engagement-visitor-analytics)); visitors who open the URL go to `/` |
+| Community | `/community` | admin only: email subscribers, the emails sent to them, and donations (see [Email updates](#email-updates) and [Buy me a coffee](#buy-me-a-coffee-donations)) |
 | Terms | `/terms` | admin only: the terms and conditions, editable (see [Terms and conditions](#terms-and-conditions)) |
+| (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
 **What's new?** (`src/pages/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list; if one fails (e.g. YouTube isn't set up), the other is shown.
 
@@ -347,6 +363,77 @@ Only one refresh runs at a time (`RefreshLock`), so visitors arriving together c
 
 **The map's dots** are generated once by `node scripts/build-world-dots.ts` (in `frontend/`) from Natural Earth land shapes into `src/features/about/places/worldDots.ts`. Pins use the same projection (`projection.ts`), so they line up.
 
+## Buy me a coffee (donations)
+
+The header's amber **Buy me a coffee** button links to the page in `Support:Url` (hidden while it's empty). It works with any
+page; the site is set up for **[Ko-fi](https://ko-fi.com)**, because Ko-fi's free plan takes no platform fee on one-off donations
+(as of October 2026; only PayPal's or Stripe's own processing fee; check its pricing page) and documents a simple webhook. Buy Me a
+Coffee works the same for the button (it keeps 5%), but its webhook isn't wired up.
+
+Setting up Ko-fi:
+
+1. Create a Ko-fi page and connect PayPal and/or Stripe. Set `Support:Url` to it, e.g. `https://ko-fi.com/<you>`.
+2. Ko-fi → **Settings → More → API → Webhooks**: URL `https://<your-domain>/api/support/kofi`; copy the **verification token**
+   into `Support:KoFiVerificationToken` (a secret). **Send single donation test** should show up in the Community tab and on the phone.
+
+The webhook (`Features/Support/SupportEndpoints.cs`) stores each payment once (unique on Ko-fi's transaction id, since Ko-fi
+retries until it gets a 200), and alerts the phone. The supporter's email, when Ko-fi sends one, is only shown to the admin.
+
+## Email updates
+
+Visitors click **Get updates**, give an email address, and confirm it from an email (double opt-in). From then on they get an
+email for every new app and YouTube video, with a one-click unsubscribe link (and the `List-Unsubscribe` headers Gmail and Yahoo
+require of bulk senders).
+
+- **Subscribing** (`Features/Updates/UpdatesEndpoints.cs`): addresses are stored lower case, with a random 256-bit token used in
+  the confirm and unsubscribe links. The confirmation email isn't sent to the same address more than once per 10 minutes, and each
+  IP gets 5 tries per 10 minutes (`Updates:SubscribeLimitPer10Minutes`). The answer is the same whether an address was new or
+  already subscribed. Unsubscribing deletes the row.
+- **The links** open pages on the site (`/updates/confirm`, `/updates/unsubscribe`, in `pages/UpdatesPages.tsx`) that call the
+  API, rather than API URLs, so mail scanners that open every link don't confirm anyone.
+- **Announcing** (`UpdatesAnnouncer.cs`, run every 10 minutes by `UpdatesWorker`): emails confirmed subscribers about apps added
+  at least **30 minutes** ago (time to finish the images, or delete it) and videos YouTube lists. The first run only records when
+  announcing started, so what was posted before isn't sent. Each item is recorded in `announcements` *before* the emails go out:
+  a crash halfway means some miss it, never that anyone gets it twice. At most 3 items per run; 600 ms between emails.
+- **Sending** (`Email.cs`): [Resend](https://resend.com) (free for 3,000 emails a month). Without `Email:ResendApiKey`, emails are
+  written to the API's log instead, which is how it runs locally: the confirm link is in the log.
+- **Setting up Resend:** create an account, add and verify your domain (DNS records for SPF/DKIM), create an API key, set
+  `Email:ResendApiKey` (a secret) and `Email:From` (e.g. `jechel.dev <updates@jechel.dev>`), and `Site:PublicUrl` to the site's address.
+- **Privacy:** the terms should say what's stored (the address and when it was confirmed) and that unsubscribing deletes it.
+
+## Résumé generator
+
+Signed in, About Me starts with a **Résumé generator** panel (`features/resume/ResumePanel.tsx`), which visitors never see:
+
+- What the page doesn't have: **phone (private)**, email, headline, location and a short summary, plus which **sections** to
+  include (ticked by default: profile, citizenship, links, experience, skills, education, qualifications, papers, hackathons,
+  languages; not ticked: problem solving, licences, places). Sections print in a fixed order recruiters expect.
+- **Generate résumés** makes two A4 PDFs from the page as it is now (`Features/Resume/ResumeDocument.cs`, with
+  [QuestPDF](https://www.questpdf.com), free under its Community licence for individuals and companies under $1M revenue):
+  - **public**, without the phone number: stored, and served to everyone at `/api/resume`. The page's **Download résumé** button
+    is pointed at it (`/api/resume?v=<time>`, so browsers fetch the new one), replacing an uploaded PDF if there was one.
+  - **private**, with the phone number: stored, and only served to the admin (`/api/resume/private`, `no-store`).
+  Then **Download with phone**, **Download public copy** and **Preview** in the panel.
+- The phone number lives in its own table (`resume`), never in the About Me JSON, so it can't leak through `/api/about`. Tests check
+  it's in the private PDF's text and not in the public one's.
+- `[text](url)` links on the page become real links in the PDF. Skills show their years like the page does.
+
+## Phone alerts
+
+The API pushes a notification to the admin's phone for a **new message**, a **donation**, a **new subscriber**, each **update
+email sent**, and **crashes**: errors visitors' browsers hit (from the Engagement recorder) and exceptions the API didn't catch
+(`CrashAlertHandler`, which still answers with a 500 problem). Crashes are throttled: the same error once an hour, and at most 10
+error alerts an hour in all. Tapping an alert opens the matching page on the site.
+
+They're sent with **[ntfy](https://ntfy.sh)** (free, open source, iOS and Android apps). Alerts are queued and sent in the background
+(`PhoneAlerts`, `AlertWorker`), so a slow or broken ntfy never slows a request down; failures are logged. Until a topic is set,
+alerts only go to the log.
+
+1. Install the ntfy app and subscribe to a topic with a long random name (on the public server, anyone who knows a topic can read
+   it), e.g. `jechel-` plus `openssl rand -hex 16`.
+2. Set `Alerts:NtfyTopic` to it (a secret). Optionally reserve the topic with an ntfy account and set `Alerts:NtfyToken`, or run your
+   own server and set `Alerts:NtfyServer`.
+
 ## Roadmap: ideas to review
 
 Suggestions from a review of the site for its three audiences (tech employers, recruiters, people
@@ -394,6 +481,14 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Auth:SessionIdleTimeout`     | Admin session idle timeout (default `00:10:00`)              |
 | `YouTube:Channel`             | The channel shown on the YouTube page: `@handle` or `UC…` id  |
 | `YouTube:ApiKey`              | YouTube Data API v3 key (secret; user-secrets or env vars). Videos aren't shown when empty |
+| `Site:PublicUrl`              | The site's address, for links in emails, alerts and the résumé (default `http://localhost:5173`) |
+| `Support:Url`                 | The **Buy me a coffee** page, e.g. `https://ko-fi.com/<you>`. Empty hides the button |
+| `Support:KoFiVerificationToken` | Ko-fi's webhook token (secret). The webhook answers 503 until it's set |
+| `Email:ResendApiKey`          | Resend API key (secret). Empty: emails are written to the log |
+| `Email:From`                  | The sender, on a domain verified in Resend (default `jechel.dev <updates@jechel.dev>`) |
+| `Updates:SubscribeLimitPer10Minutes` | Subscribe attempts per IP per 10 minutes (default 5) |
+| `Alerts:NtfyTopic`            | The ntfy topic phone alerts go to (secret). Empty: alerts are written to the log |
+| `Alerts:NtfyToken` / `Alerts:NtfyServer` | Optional ntfy access token, and server (default `https://ntfy.sh`) |
 
 Secrets are never committed. Locally, use [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets):
 `dotnet user-secrets set "<Key>" "<value>" --project backend/src/Portfolio.Api`.

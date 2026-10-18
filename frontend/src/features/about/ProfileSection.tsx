@@ -128,7 +128,7 @@ function ProfileEditor({ value, onChange, update, errors }: EditorProps<Profile>
           label="Résumé"
           accept="application/pdf,.pdf"
           maxBytes={RESUME_MAX_BYTES}
-          hint="A PDF, up to 20 MB. Visitors download it under its file name."
+          hint="A PDF, up to 20 MB. Visitors download it under its file name. Generating a résumé (above) replaces it."
           upload={api.files.uploadResume}
           onUploaded={(file) => setResume(file.url)}
           onRemove={value.links.resumeUrl ? () => setResume('') : undefined}
@@ -137,7 +137,7 @@ function ProfileEditor({ value, onChange, update, errors }: EditorProps<Profile>
           <p className="upload-current">
             {value.links.resumeUrl && isSafeUrl(value.links.resumeUrl) ? (
               <a href={value.links.resumeUrl} target="_blank" rel="noopener noreferrer">
-                {fileNameOf(value.links.resumeUrl)}
+                {value.links.resumeUrl.startsWith('/api/resume') ? 'The generated résumé (without your phone number)' : fileNameOf(value.links.resumeUrl)}
               </a>
             ) : (
               <span className="muted">No résumé: the download button is hidden.</span>

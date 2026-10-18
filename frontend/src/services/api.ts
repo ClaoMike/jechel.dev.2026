@@ -506,6 +506,82 @@ export interface VisitDetails {
   events: VisitEvent[]
 }
 
+// ---------- Support (Buy me a coffee), email updates, résumé ----------
+
+export interface SupportInfo {
+  /** Where the "Buy me a coffee" button goes; empty hides it. */
+  url: string
+}
+
+/** A payment Ko-fi reported (admin only). */
+export interface Donation {
+  id: number
+  /** "Donation", "Subscription", "Shop Order" or "Commission". */
+  type: string
+  fromName: string
+  message: string | null
+  /** As Ko-fi sent it, e.g. "3.00". */
+  amount: string
+  currency: string
+  email: string | null
+  isPublic: boolean
+  /** ISO 8601 timestamp. */
+  receivedAt: string
+}
+
+export interface Subscriber {
+  id: number
+  email: string
+  /** ISO 8601 timestamp. */
+  createdAt: string
+  /** Null until they click the link in the confirmation email. */
+  confirmedAt: string | null
+}
+
+/** Something new that was emailed to the subscribers. */
+export interface Announcement {
+  id: number
+  kind: 'app' | 'video'
+  title: string
+  /** ISO 8601 timestamp. */
+  sentAt: string
+  recipientCount: number
+}
+
+/** The parts of About Me a résumé can include, in print order (ResumeSections.cs). */
+export const RESUME_SECTIONS = [
+  'summary',
+  'statuses',
+  'links',
+  'experience',
+  'skills',
+  'education',
+  'qualifications',
+  'papers',
+  'hackathons',
+  'problemSolving',
+  'languages',
+  'licences',
+  'places',
+] as const
+
+export type ResumeSection = (typeof RESUME_SECTIONS)[number]
+
+export interface ResumeSettings {
+  /** Private: only in the admin's copy. */
+  phone: string
+  email: string
+  headline: string
+  location: string
+  summary: string
+  sections: ResumeSection[]
+}
+
+export interface ResumeSettingsDetails extends ResumeSettings {
+  /** ISO 8601 timestamp of the last generation, or null before the first. */
+  generatedAt: string | null
+}
+
 // ---------- HTTP plumbing ----------
 
 export class ApiError extends Error {
@@ -786,6 +862,78 @@ export const api = {
     /** Admin only. For good. */
     async deleteSession(id: string): Promise<void> {
       await http.delete(`/api/analytics/sessions/${id}`)
+    },
+  },
+
+  support: {
+    /** Public. Where the header's "Buy me a coffee" button goes. */
+    get(signal?: AbortSignal): Promise<SupportInfo> {
+      return get<SupportInfo>('/api/support', { signal })
+    },
+
+    /** Admin only. Newest first. */
+    listDonations(page = 1, pageSize = 20, signal?: AbortSignal): Promise<Page<Donation>> {
+      return get<Page<Donation>>('/api/support/donations', { params: { page, pageSize }, signal })
+    },
+  },
+
+  updates: {
+    /** Public. Emails a confirmation link; rejects with validationErrors.email, or a 429 when tried too often. */
+    async subscribe(email: string): Promise<void> {
+      await post('/api/updates/subscribe', { email })
+    },
+
+    /** Public. The link in the confirmation email; resolves with the address. Rejects with a 404 for an unknown token. */
+    async confirm(token: string): Promise<string> {
+      const { email } = await post<{ email: string }>('/api/updates/confirm', undefined, { params: { token } })
+      return email
+    },
+
+    /** Public. The link in every update email. */
+    async unsubscribe(token: string): Promise<void> {
+      await post('/api/updates/unsubscribe', undefined, { params: { token } })
+    },
+
+    /** Admin only. Newest first, confirmed or not. */
+    listSubscribers(page = 1, pageSize = 20, signal?: AbortSignal): Promise<Page<Subscriber>> {
+      return get<Page<Subscriber>>('/api/updates/subscribers', { params: { page, pageSize }, signal })
+    },
+
+    /** Admin only. */
+    async deleteSubscriber(id: number): Promise<void> {
+      await http.delete(`/api/updates/subscribers/${id}`)
+    },
+
+    /** Admin only. What was emailed, newest first. */
+    listAnnouncements(page = 1, pageSize = 20, signal?: AbortSignal): Promise<Page<Announcement>> {
+      return get<Page<Announcement>>('/api/updates/announcements', { params: { page, pageSize }, signal })
+    },
+  },
+
+  resume: {
+    /** Public: the last generated résumé, without the phone number. */
+    publicUrl: `${API_BASE_URL}/api/resume`,
+
+    /** Admin only: the same résumé with the phone number. */
+    privateUrl: `${API_BASE_URL}/api/resume/private`,
+
+    /** Admin only. */
+    getSettings(signal?: AbortSignal): Promise<ResumeSettingsDetails> {
+      return get<ResumeSettingsDetails>('/api/resume/settings', { signal })
+    },
+
+    /** Admin only. Saves without generating. Rejects with validationErrors (phone, email, …). */
+    async saveSettings(settings: ResumeSettings): Promise<ResumeSettingsDetails> {
+      const response = await http.put<ResumeSettingsDetails>('/api/resume/settings', settings)
+      return response.data
+    },
+
+    /**
+     * Admin only. Saves, then makes both PDFs from the About Me page as it is now; the page's
+     * "Download résumé" button then gets the one without the phone number.
+     */
+    generate(settings: ResumeSettings): Promise<ResumeSettingsDetails> {
+      return post<ResumeSettingsDetails>('/api/resume/generate', settings)
     },
   },
 

@@ -25,12 +25,12 @@ describe('EngagementPage', () => {
     expect(screen.queryByRole('heading', { name: 'Engagement' })).not.toBeInTheDocument()
   })
 
-  it('is a tab for the admin, just before Terms', async () => {
+  it('is a tab for the admin, before Community and Terms', async () => {
     await renderAsAdmin()
 
     expect(screen.getByRole('heading', { level: 2, name: 'Engagement' })).toBeInTheDocument()
     expect(tabs().getByRole('link', { name: 'Engagement' })).toHaveAttribute('aria-current', 'page')
-    expect(tabs().getAllByRole('link').map((link) => link.textContent).slice(-2)).toEqual(['Engagement', 'Terms'])
+    expect(tabs().getAllByRole('link').map((link) => link.textContent).slice(-3)).toEqual(['Engagement', 'Community', 'Terms'])
   })
 
   it('shows the headline numbers for the last 30 days', async () => {

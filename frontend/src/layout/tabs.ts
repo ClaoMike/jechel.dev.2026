@@ -13,6 +13,7 @@ export const TABS: readonly Tab[] = [
   { to: '/about', label: 'About Me' },
   { to: '/contact', label: 'Contact' },
   { to: '/engagement', label: 'Engagement', adminOnly: true },
+  { to: '/community', label: 'Community', adminOnly: true },
   { to: '/terms', label: 'Terms', adminOnly: true },
 ]
 
