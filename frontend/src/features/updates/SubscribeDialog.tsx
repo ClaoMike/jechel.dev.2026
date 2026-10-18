@@ -42,12 +42,12 @@ export function SubscribeDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal labelledBy={`${id}-title`} onClose={onClose} initialFocus={inputRef}>
-      <header className="modal-header">
+      <div className="modal-header">
         <h2 id={`${id}-title`}>Get updates</h2>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
           <span aria-hidden="true">×</span>
         </button>
-      </header>
+      </div>
       {status.kind === 'done' ? (
         <div className="subscribe-sent">
           <p role="status">

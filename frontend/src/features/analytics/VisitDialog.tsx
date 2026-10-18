@@ -33,12 +33,12 @@ export function VisitDialog({ visitId, onClose, onDelete }: { visitId: string; o
 
   return (
     <Modal labelledBy={titleId} onClose={onClose} className="modal-wide">
-      <header className="modal-header">
+      <div className="modal-header">
         <h2 id={titleId}>{state.status === 'loaded' ? `Visit on ${formatDateTime(state.visit.startedAt)}` : 'Visit'}</h2>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
           <span aria-hidden="true">×</span>
         </button>
-      </header>
+      </div>
 
       {state.status === 'loading' && (
         <Loading label="Loading the visit…">

@@ -12,12 +12,12 @@ export function TermsDialog({ state, onRetry, onClose }: { state: TermsState; on
 
   return (
     <Modal labelledBy={titleId} initialFocus={closeRef} onClose={onClose} className="modal-wide terms-modal">
-      <header className="modal-header">
+      <div className="modal-header">
         <h2 id={titleId}>{state.status === 'loaded' ? state.terms.title : 'Terms and Conditions'}</h2>
         <button ref={closeRef} type="button" className="icon-button" onClick={onClose} aria-label="Close">
           <span aria-hidden="true">×</span>
         </button>
-      </header>
+      </div>
       {state.status === 'loading' && <TermsSkeleton />}
       {state.status === 'error' && <ErrorState message="The terms couldn't be loaded." onRetry={onRetry} />}
       {state.status === 'loaded' && <TermsDocumentView terms={state.terms} hideTitle />}

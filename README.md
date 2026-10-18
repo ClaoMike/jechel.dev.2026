@@ -316,7 +316,9 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 
 Unknown URLs redirect to `/`.
 
-**The tab bar** (`layout/TabNav.tsx`): one highlight glides to the tab that's picked. Pressing the current tab and dragging moves it
+**The tab bar** (`layout/TabNav.tsx`): when the window is too narrow for every tab (phones, small windows), a ‹ / › arrow shows
+at the end that has more, over a fade, and scrolls the bar most of its width. The arrows are for pointers and fingers; keyboards
+reach every tab with Tab. One highlight glides to the tab that's picked. Pressing the current tab and dragging moves it
 across; letting go snaps it to the nearest tab, which opens (a tap stays a tap: dragging starts after 5 px, and the click that ends a
 drag is swallowed). On phones the bar still scrolls sideways when dragged anywhere else.
 
@@ -470,6 +472,30 @@ Google sign-in, YouTube Data API, Resend, ntfy, and (later) hosting.
 - **Google sign-in** is shown, not editable: it's read when the API starts, and a wrong secret saved from a page that needs it to
   sign in would lock you out. Change it in user secrets or environment variables.
 - Which keys can be set is a fixed list (`SettingsCatalog.cs`); each is checked (links, sender address, topic characters).
+
+## Vice on phones and on weak devices
+
+- **Phones** (≤ 640 px): Vice's hide / show button is an icon in the header, left of **Buy me a coffee**. It's pinned over an empty
+  slot there (`ContentToggle`'s `anchor`), not inside the header, because the header slides away with the page and the button must
+  stay to bring it back. The neon title gets some room from the screen's edge.
+- **First visit, no theme chosen yet:** Vice, unless the device can't show it smoothly (`layout/device.ts`): the browser asks to save
+  data or is on a slow connection, under 4 GB of memory (Chrome reports it), two cores or fewer, no WebGL 2, or WebGL drawn in
+  software (SwiftShader, llvmpipe: no real graphics card). Then the device's own light or dark (`prefers-color-scheme`).
+- **Too slow anyway:** the scene counts the frames it manages (it aims for ~30 a second). After a 2-second warm-up, under 20 a second
+  over 4 seconds, with the tab visible and focused, it switches to light or dark, remembers that for next visits
+  (`theme.slowDevice`), and says so with a **Use Vice anyway** button. Someone who picked Vice themselves is never switched.
+
+## Accessibility
+
+`e2e/a11y.spec.ts` checks every page with [axe](https://github.com/dequelabs/axe-core) against WCAG 2.2 A and AA, in every theme,
+plus the popups (Get updates, terms, the welcome), a phone in Vice, and the admin's pages (sign-in faked; About Me with every editor
+open, Settings with every card open, the loading and error previews). It runs with the other E2E tests (Chromium, WebKit; Firefox in
+CI). YouTube's player is left out: what's inside its frame is YouTube's.
+
+Things it caught, so they stay fixed: white on the bright blue was 3.6:1 (now `--accent-fill`, 5.4:1 and up), the light theme's grey
+text was 3.8:1, the pagination over the Vice scene, popup headers counting as extra page banners, a card's link named only by its
+title while it held the whole card (now the title is the link, stretched over the card), the title and licence buttons speaking
+differently from what they show.
 
 ## Loading and error states, and the admin's preview switch
 

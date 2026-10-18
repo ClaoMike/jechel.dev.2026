@@ -17,6 +17,8 @@ async function renderApps({ count = 3, admin = false } = {}) {
 }
 
 const tiles = () => within(screen.getByRole('list', { name: 'Apps' })).getAllByRole('button')
+/** A whole tile (picture, labels, description), around its title's button. */
+const tile = (i: number) => within(tiles()[i].closest('li')!)
 const dialog = (name: string | RegExp) => screen.getByRole('dialog', { name })
 
 /** Clicks a remove button, then confirms in the popup it opens. */
@@ -40,10 +42,11 @@ describe('AppsPage for visitors', () => {
     await renderApps()
 
     expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument()
-    expect(tiles().map((t) => t.getAttribute('aria-label'))).toEqual(['App 1', 'App 2', 'App 3'])
+    expect(tiles().map((t) => t.textContent)).toEqual(['App 1', 'App 2', 'App 3'])
     // App 1 starts with a video: its tile still shows the first image.
-    expect(tiles()[0].querySelector('img')).toHaveAttribute('src', makeApps(1)[0].media[1].url)
-    expect(tiles()[0]).toHaveAccessibleDescription('What app 1 does, on GitHub.')
+    const card = tiles()[0].closest('li')!
+    expect(card.querySelector('img')).toHaveAttribute('src', makeApps(1)[0].media[1].url)
+    expect(within(card).getByText('What app 1 does, on GitHub.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add an app' })).not.toBeInTheDocument()
   })
 
@@ -71,9 +74,9 @@ describe('AppsPage for visitors', () => {
   it('shows categories as labels on the tile and in the popup, with platforms and store links in the popup', async () => {
     const { user } = await renderApps()
 
-    expect(within(tiles()[0]).getByText('Mobile app')).toBeInTheDocument()
-    expect(within(tiles()[0]).getByText('Video game')).toBeInTheDocument()
-    expect(within(tiles()[0]).queryByText('iOS')).not.toBeInTheDocument()
+    expect(tile(0).getByText('Mobile app')).toBeInTheDocument()
+    expect(tile(0).getByText('Video game')).toBeInTheDocument()
+    expect(tile(0).queryByText('iOS')).not.toBeInTheDocument()
 
     await user.click(tiles()[0])
     const popup = dialog('App 1')
@@ -177,7 +180,7 @@ describe('AppsPage for the admin', () => {
       { id: null, name: 'Desktop app' },
     ])
     // The tiles show the new names, and the removed category is gone.
-    await waitFor(() => expect(within(tiles()[1]).getByText('Game')).toBeInTheDocument())
+    await waitFor(() => expect(tile(1).getByText('Game')).toBeInTheDocument())
     expect(screen.queryByText('Website')).not.toBeInTheDocument()
 
     await user.click(tiles()[2])
@@ -234,7 +237,7 @@ describe('AppsPage for the admin', () => {
     expect(within(popup).getByTitle('Space game, video 1 of 2')).toBeInTheDocument()
     // The tile shows the first image, even after a YouTube video.
     await user.keyboard('{Escape}')
-    expect(screen.getByRole('button', { name: 'Space game' }).querySelector('img')).toHaveAttribute('src', 'https://cdn.example.com/shot.png')
+    expect(screen.getByRole('button', { name: 'Space game' }).closest('li')!.querySelector('img')).toHaveAttribute('src', 'https://cdn.example.com/shot.png')
   })
 
   it('deletes an app once confirmed', async () => {

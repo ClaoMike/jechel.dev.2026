@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from 'react'
 import { EyeIcon, EyeOffIcon } from '../components/icons'
+import { NARROW, useMediaQuery } from './useMediaQuery'
 
 /** How long without the pointer moving (or a key) before the button and the cursor fade away. */
 export const IDLE_MS = 5000
@@ -10,9 +11,34 @@ const ACTIVITY = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart'
  * Vice only: hides the page so just the Riviera scene shows. While it's hidden, the button (and the
  * cursor) fade out after a few seconds of stillness and come back on any movement; Escape brings
  * the page back too.
+ *
+ * On wide screens it floats at the bottom right, with its words. On phones it's an icon in the header,
+ * left of "Buy me a coffee": it's pinned over `anchor` (an empty slot there), not inside the header,
+ * because the header slides away with the page and the button has to stay to bring it back.
  */
-export function ContentToggle({ hidden, onToggle }: { hidden: boolean; onToggle: () => void }) {
+export function ContentToggle({ hidden, onToggle, anchor }: { hidden: boolean; onToggle: () => void; anchor?: RefObject<HTMLElement | null> }) {
   const [idle, setIdle] = useState(false)
+  const narrow = useMediaQuery(NARROW)
+  const [place, setPlace] = useState<CSSProperties | null>(null)
+
+  // Follows the slot while the page shows (scrolling, resizing); stays where it was while it's hidden.
+  useLayoutEffect(() => {
+    if (!narrow || hidden || !anchor) return
+    const update = () => {
+      const rect = anchor.current?.getBoundingClientRect()
+      if (rect) setPlace({ top: rect.top, left: rect.left })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, { passive: true })
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    if (anchor.current?.parentElement) observer?.observe(anchor.current.parentElement)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update)
+      observer?.disconnect()
+    }
+  }, [narrow, hidden, anchor])
 
   useEffect(() => {
     if (!hidden) return
@@ -38,10 +64,18 @@ export function ContentToggle({ hidden, onToggle }: { hidden: boolean; onToggle:
     return () => document.documentElement.classList.remove('scene-idle')
   }, [idle])
 
+  const compact = narrow && place !== null
+  const label = hidden ? 'Show page' : 'Hide page'
   return (
-    <button type="button" className={`button button-secondary content-toggle${idle ? ' content-toggle-idle' : ''}`} onClick={onToggle}>
+    <button
+      type="button"
+      className={`button button-secondary content-toggle${compact ? ' content-toggle-compact' : ''}${idle ? ' content-toggle-idle' : ''}`}
+      style={compact ? place : undefined}
+      title={compact ? label : undefined}
+      onClick={onToggle}
+    >
       {hidden ? <EyeIcon /> : <EyeOffIcon />}
-      {hidden ? 'Show page' : 'Hide page'}
+      <span className={compact ? 'visually-hidden' : undefined}>{label}</span>
     </button>
   )
 }

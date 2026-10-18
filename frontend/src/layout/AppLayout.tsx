@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { SignedIn, useAuth } from '../auth'
 import { applyPreview, usePreviewMode } from '../features/preview/preview'
@@ -9,6 +9,7 @@ import { RivieraBackground } from './background/RivieraBackground'
 import { ContentToggle } from './ContentToggle'
 import { PageTransition } from './PageTransition'
 import { SiteFooter } from './SiteFooter'
+import { SlowSceneNotice } from './SlowSceneNotice'
 import { TabNav } from './TabNav'
 import { ThemeSwitch } from './ThemeSwitch'
 import { useTheme } from './theme'
@@ -27,6 +28,8 @@ export function AppLayout() {
   const contentHidden = theme === 'vice' && hideContent
   if (theme !== 'vice' && hideContent) setHideContent(false)
   const toggleContent = useCallback(() => setHideContent((hidden) => !hidden), [])
+  // On phones, Vice's hide / show button sits here (pinned over this slot; see ContentToggle).
+  const toggleSlot = useRef<HTMLSpanElement>(null)
 
   return (
     <div className="app" data-content-hidden={contentHidden || undefined}>
@@ -49,10 +52,11 @@ export function AppLayout() {
         <div className="site-header-top">
           <h1 className="brand">
             {/* In Vice it's written in neon (glass.css): a still shadow layer under the moving colours, and a drawn j (BrandJ). */}
-            {/* Named outright: in Vice the drawn j is its own box, which screen readers would read apart ("j echel.dev"). */}
-            <Link to="/" className="brand-link" aria-label="jechel.dev">
-              <span className="brand-text">
-                <span className="brand-shadow" aria-hidden="true">
+            {/* Screen readers get the name once, as plain text; the drawn layers are decoration (and would read "j echel.dev"). */}
+            <Link to="/" className="brand-link">
+              <span className="visually-hidden">jechel.dev</span>
+              <span className="brand-text" aria-hidden="true">
+                <span className="brand-shadow">
                   <BrandJ />
                   echel<span className="brand-dot">.</span>dev
                 </span>
@@ -64,6 +68,7 @@ export function AppLayout() {
             </Link>
           </h1>
           <div className="header-actions">
+            {theme === 'vice' && <span ref={toggleSlot} className="content-toggle-slot" aria-hidden="true" />}
             <SupportButton key={preview} />
             <SubscribeButton />
             <ThemeSwitch />
@@ -75,7 +80,8 @@ export function AppLayout() {
         <PageTransition key={preview} />
       </main>
       <SiteFooter inert={contentHidden} />
-      {theme === 'vice' && <ContentToggle hidden={contentHidden} onToggle={toggleContent} />}
+      {theme === 'vice' && <ContentToggle hidden={contentHidden} onToggle={toggleContent} anchor={toggleSlot} />}
+      <SlowSceneNotice />
     </div>
   )
 }

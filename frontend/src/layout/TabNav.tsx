@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth'
+import { ArrowLeftIcon, ArrowRightIcon } from '../components/icons'
 import { TABS } from './tabs'
 
 /** Where the highlight is, in the tab bar's own coordinates (it scrolls with the tabs). */
@@ -35,15 +36,34 @@ export function TabNav() {
   // Off for the first placement, so the highlight doesn't fly in from the left on load.
   const [animate, setAnimate] = useState(false)
   const [dragBox, setDragBox] = useState<Box | null>(null)
+  // Whether there are more tabs out of view on each side (narrow windows, phones): then an arrow shows there.
+  const [more, setMore] = useState({ left: false, right: false })
   const drag = useRef<Drag | null>(null)
   const suppressClick = useRef(false)
 
   const tabElements = useCallback(() => [...(navRef.current?.querySelectorAll<HTMLAnchorElement>('.tab') ?? [])], [])
 
   const measure = useCallback(() => {
-    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
+    const nav = navRef.current
+    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]')
     setBox(active ? { left: active.offsetLeft, width: active.offsetWidth } : null)
+    updateMore()
   }, [])
+
+  function updateMore() {
+    const nav = navRef.current
+    if (!nav) return
+    const left = nav.scrollLeft > 1
+    const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1
+    setMore((current) => (current.left === left && current.right === right ? current : { left, right }))
+  }
+
+  /** Scrolls the bar most of its width that way, so the next tabs come into view. */
+  function scrollTabs(direction: -1 | 1) {
+    const nav = navRef.current
+    if (!nav) return
+    nav.scrollBy?.({ left: direction * nav.clientWidth * 0.7, behavior: 'smooth' })
+  }
 
   useLayoutEffect(measure, [measure, pathname, tabs.length])
 
@@ -125,6 +145,13 @@ export function TabNav() {
 
   const shown = dragBox ?? box
   return (
+    <div className="tabs-frame" data-more-left={more.left || undefined} data-more-right={more.right || undefined}>
+      {/* For pointers and fingers only: keyboards reach every tab with Tab (the current one is scrolled into view), so these stay out of the way. */}
+      {more.left && (
+        <button type="button" className="tabs-arrow tabs-arrow-left" tabIndex={-1} aria-hidden="true" onClick={() => scrollTabs(-1)}>
+          <ArrowLeftIcon size={18} />
+        </button>
+      )}
     <nav
       ref={navRef}
       className="tabs"
@@ -135,6 +162,7 @@ export function TabNav() {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onClickCapture={onClickCapture}
+      onScroll={updateMore}
     >
       {shown && (
         <span
@@ -150,5 +178,11 @@ export function TabNav() {
         </NavLink>
       ))}
     </nav>
+      {more.right && (
+        <button type="button" className="tabs-arrow tabs-arrow-right" tabIndex={-1} aria-hidden="true" onClick={() => scrollTabs(1)}>
+          <ArrowRightIcon size={18} />
+        </button>
+      )}
+    </div>
   )
 }

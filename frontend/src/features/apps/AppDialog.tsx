@@ -81,7 +81,7 @@ export function AppDialog({ app, categories, canEdit, onClose, onSaved, onDelete
 
   return (
     <Modal labelledBy={titleId} onClose={requestClose} className="modal-wide">
-      <header className="modal-header">
+      <div className="modal-header">
         <div className="app-heading">
           <h2 id={titleId}>{heading}</h2>
           {draft === null && app && <CategoryLabels categories={app.categories} />}
@@ -89,7 +89,7 @@ export function AppDialog({ app, categories, canEdit, onClose, onSaved, onDelete
         <button type="button" className="icon-button" onClick={requestClose} aria-label="Close">
           <span aria-hidden="true">×</span>
         </button>
-      </header>
+      </div>
 
       {draft === null && app && (
         <AppDetailsView app={app}>

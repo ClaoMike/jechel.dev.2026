@@ -58,12 +58,12 @@ export function MessageDialog({ messageId, name, onClose, onRead, onDelete }: Me
 
   return (
     <Modal labelledBy={titleId} onClose={onClose}>
-      <header className="modal-header">
+      <div className="modal-header">
         <h2 id={titleId}>Message from {state.status === 'loaded' ? state.message.name : name}</h2>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
           <span aria-hidden="true">×</span>
         </button>
-      </header>
+      </div>
 
       {state.status === 'loading' && (
         <Loading label="Loading the message…">

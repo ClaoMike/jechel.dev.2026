@@ -34,6 +34,11 @@ export interface RivieraOptions {
   still: boolean
   /** Called once the picture is on screen. */
   onReady?: () => void
+  /**
+   * Called once if the scene can't keep up: after a warm-up, it drew under SLOW_FPS frames a second
+   * (it aims for ~30) while the tab was visible and focused. The device is too weak for it.
+   */
+  onSlow?: () => void
 }
 
 export interface Riviera {
@@ -177,6 +182,7 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
   }
 
   let last = -Infinity
+  const watch = frameRateWatch(options.onSlow)
   const loop = (now: number) => {
     if (destroyed) return
     frame = requestAnimationFrame(loop)
@@ -184,6 +190,7 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
     if (now - last < (document.hasFocus() ? FRAME_MS : UNFOCUSED_FRAME_MS) - 2) return
     last = now
     draw()
+    watch(now)
   }
 
   const observer = new ResizeObserver(() => {
@@ -226,5 +233,44 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
       canvas.removeEventListener('webglcontextlost', onLost)
       header?.style.removeProperty('--neon-shift')
     },
+  }
+}
+
+/** Below this many frames a second (of the ~30 aimed for), the scene is too much for the device. */
+export const SLOW_FPS = 20
+const WARM_UP_MS = 2000
+const MEASURE_MS = 4000
+
+/**
+ * Counts frames drawn while the tab is visible and focused: after a warm-up (textures uploading,
+ * shaders compiling), if MEASURE_MS of them came in under SLOW_FPS a second, calls onSlow once.
+ * A pause (hidden tab, lost focus, a long gap) restarts the count rather than counting as slow.
+ */
+export function frameRateWatch(onSlow: (() => void) | undefined, clock: { visible: () => boolean } = { visible: () => document.visibilityState === 'visible' && document.hasFocus() }) {
+  let started: number | null = null
+  let windowStart = 0
+  let frames = 0
+  let previous = 0
+  let done = !onSlow
+  return (now: number) => {
+    if (done) return
+    if (!clock.visible() || now - previous > 1000) {
+      // Paused: start over.
+      started = null
+    }
+    previous = now
+    if (started === null) {
+      started = now
+      windowStart = now + WARM_UP_MS
+      frames = 0
+      return
+    }
+    if (now < windowStart) return
+    frames++
+    const elapsed = now - windowStart
+    if (elapsed >= MEASURE_MS) {
+      done = true
+      if ((frames / elapsed) * 1000 < SLOW_FPS) onSlow!()
+    }
   }
 }

@@ -77,10 +77,11 @@ function LicencesEditor({ value, onChange, errors }: EditorProps<Licence[]>) {
                     type="button"
                     className="licence-toggle"
                     aria-pressed={has(licence)}
-                    aria-label={`${offered.code} ${offered.name}`.trim()}
                     onClick={() => toggle(licence)}
                   >
+                    {/* Named by what it shows ("B Car"): the space keeps code and name apart for screen readers too. */}
                     {offered.code && <strong className="licence-code">{offered.code}</strong>}
+                    {offered.code && ' '}
                     {offered.name}
                   </button>
                 )

@@ -59,4 +59,31 @@ describe('TabNav', () => {
     expect(tabs().getByRole('link', { name: 'Apps' })).toHaveAttribute('aria-current', 'page')
     expect(indicator().style.transform).toBe('translateX(100px)')
   })
+
+  it('shows arrows at the ends when tabs are out of view, and they scroll the bar', async () => {
+    // A bar 250px wide showing 500px of tabs, scrolled to the start.
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('tabs') ? 250 : 0
+    })
+    const scrollBy = vi.fn()
+    HTMLElement.prototype.scrollBy = scrollBy
+    renderApp('/')
+    await screen.findByRole('heading', { name: "What's new?" })
+
+    const frame = document.querySelector('.tabs-frame')!
+    expect(frame.querySelector('.tabs-arrow-left')).toBeNull()
+    const right = frame.querySelector<HTMLButtonElement>('.tabs-arrow-right')!
+    // Out of the way of keyboards and screen readers: every tab is reachable with Tab.
+    expect(right).toHaveAttribute('tabindex', '-1')
+    expect(right).toHaveAttribute('aria-hidden', 'true')
+
+    fireEvent.click(right)
+    expect(scrollBy).toHaveBeenCalledWith({ left: 175, behavior: 'smooth' })
+
+    const nav = screen.getByRole('navigation', { name: 'Sections' })
+    Object.defineProperty(nav, 'scrollLeft', { value: 250, configurable: true })
+    fireEvent.scroll(nav)
+    expect(frame.querySelector('.tabs-arrow-left')).not.toBeNull()
+    expect(frame.querySelector('.tabs-arrow-right')).toBeNull()
+  })
 })
