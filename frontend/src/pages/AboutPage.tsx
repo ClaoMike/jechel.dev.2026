@@ -12,7 +12,20 @@ import { SkillsSection } from '../features/about/SkillsSection'
 import { EducationSection, ExperienceSection } from '../features/about/TimelineSection'
 import { ResumePanel } from '../features/resume/ResumePanel'
 import { plainText } from '../features/about/textLinks'
-import { api, type AboutContent } from '../services/api'
+import { api, ApiError, type AboutContent, type ResumeContact } from '../services/api'
+
+/** Saves the résumé's contact details; its field errors come back as "contact.phone", … so the profile editor shows them. */
+async function saveContact(contact: ResumeContact): Promise<ResumeContact> {
+  try {
+    const { phone, email, headline } = await api.resume.saveContact(contact)
+    return { phone, email, headline }
+  } catch (error) {
+    if (error instanceof ApiError && error.validationErrors) {
+      throw new ApiError('/api/resume/contact', error.status, Object.fromEntries(Object.entries(error.validationErrors).map(([key, messages]) => [`contact.${key}`, messages])))
+    }
+    throw error
+  }
+}
 
 type State = { status: 'loading' } | { status: 'loaded'; content: AboutContent } | { status: 'error' }
 
@@ -26,6 +39,20 @@ export function AboutPage() {
   // Bumped after generating a résumé: the page's download link changed.
   const [reloads, setReloads] = useState(0)
   const reload = useCallback(() => setReloads((n) => n + 1), [])
+  // The résumé's private phone, email and headline: only loaded for the admin.
+  const [contact, setContact] = useState<ResumeContact | null>(null)
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const controller = new AbortController()
+    api.resume
+      .getSettings(controller.signal)
+      .then(({ phone, email, headline }) => setContact({ phone, email, headline }))
+      .catch(() => {
+        // The profile then just doesn't offer them.
+      })
+    return () => controller.abort()
+  }, [isAuthenticated])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -72,10 +99,13 @@ export function AboutPage() {
       {heading}
       {isAuthenticated && <ResumePanel skills={page.skills.map((skill) => plainText(skill.name))} onGenerated={reload} />}
       <ProfileSection
-        value={{ photoUrl: page.photoUrl, statuses: page.statuses, links: page.links }}
+        value={{ photoUrl: page.photoUrl, statuses: page.statuses, links: page.links, contact: isAuthenticated && contact ? contact : undefined }}
         leetCodeUsername={page.problemSolving.leetCodeUsername}
         canEdit={isAuthenticated}
-        onSave={(profile) => save(profile)}
+        onSave={async ({ contact: nextContact, ...profile }) => {
+          if (nextContact) setContact(await saveContact(nextContact))
+          await save(profile)
+        }}
       />
       <PlacesSection
         value={{ places: page.places, colors: page.colors.places }}

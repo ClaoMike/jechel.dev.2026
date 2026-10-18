@@ -14,7 +14,6 @@ namespace Portfolio.Api.Features.Files;
 public static partial class FileRules
 {
     public const long PhotoMaxBytes = 15 * 1024 * 1024;
-    public const long ResumeMaxBytes = 20 * 1024 * 1024;
 
     /// <summary>Papers and theses can be big. Files live in the database and are read whole, so there is still a cap.</summary>
     public const long PaperMaxBytes = 200 * 1024 * 1024;

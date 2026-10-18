@@ -8,15 +8,17 @@ using QuestPDF.Infrastructure;
 namespace Portfolio.Api.Features.Resume;
 
 /// <summary>What a résumé is made from.</summary>
-/// <param name="Settings">Normalized (<see cref="ResumeRules.Normalize"/>).</param>
+/// <param name="Contact">Normalized (<see cref="ResumeRules.Normalize(ResumeContact)"/>).</param>
+/// <param name="Choices">Normalized (<see cref="ResumeRules.Normalize(ResumeChoices)"/>).</param>
 /// <param name="LeetCode">The saved stats, for the "Problem solving" section; null leaves them out.</param>
 /// <param name="IncludePhone">True only for the admin's copy.</param>
 /// <param name="SiteUrl">The site's public address, e.g. "https://jechel.dev": paths in links are made absolute with it.</param>
-public record ResumeInput(AboutContent About, ResumeSettingsRequest Settings, LeetCodeStats? LeetCode, bool IncludePhone, DateOnly Today, string SiteUrl);
+public record ResumeInput(AboutContent About, ResumeContact Contact, ResumeChoices Choices, LeetCodeStats? LeetCode, bool IncludePhone, DateOnly Today, string SiteUrl);
 
 /// <summary>
-/// Lays the About Me page out as a one- or two-page A4 résumé (QuestPDF). Sections come in a fixed,
-/// recruiter-friendly order (<see cref="ResumeSections.All"/>); empty ones are left out.
+/// Lays the About Me page out as an A4 résumé (QuestPDF), without page numbers. The name and contact
+/// details head the first page only. Sections come in a fixed, recruiter-friendly order
+/// (<see cref="ResumeSections.All"/>); empty ones are left out.
 /// </summary>
 public static class ResumeDocument
 {
@@ -34,14 +36,15 @@ public static class ResumeDocument
 
     public static byte[] Build(ResumeInput input)
     {
-        var settings = input.Settings;
-        bool Has(string section) => settings.Sections!.Contains(section);
+        var choices = input.Choices;
+        bool Has(string section) => choices.Sections!.Contains(section);
+        var excludedSkills = choices.ExcludedSkills ?? [];
 
         return Document.Create(document => document.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.MarginHorizontal(42);
-                page.MarginVertical(36);
+                page.MarginHorizontal(30);
+                page.MarginVertical(26);
                 page.DefaultTextStyle(style => style.FontSize(9.5f).LineHeight(1.3f).FontColor(Colors.Grey.Darken4));
 
                 page.Content().Column(column =>
@@ -50,12 +53,10 @@ public static class ResumeDocument
                     // In the content, not page.Header(): only the first page has it.
                     column.Item().PaddingBottom(4).Element(header => Header(header, input, Has(ResumeSections.Statuses), Has(ResumeSections.Links)));
                     var about = input.About;
-                    if (Has(ResumeSections.Summary) && settings.Summary!.Length > 0)
-                        Section(column, "Profile", body => body.Item().Text(text => Rich(text, settings.Summary, input.SiteUrl)));
                     if (Has(ResumeSections.Experience) && about.Experience.Count > 0)
                         Section(column, "Experience", body => { foreach (var item in about.Experience) Experience(body, item, input); });
-                    if (Has(ResumeSections.Skills) && SkillsLine(about.Skills, settings.ExcludedSkills ?? []).Length > 0)
-                        Section(column, "Skills", body => body.Item().Text(SkillsLine(about.Skills, settings.ExcludedSkills ?? [])));
+                    if (Has(ResumeSections.Skills) && SkillsLine(about.Skills, excludedSkills).Length > 0)
+                        Section(column, "Skills", body => body.Item().Text(SkillsLine(about.Skills, excludedSkills)));
                     if (Has(ResumeSections.Education) && about.Education.Count > 0)
                         Section(column, "Education", body => { foreach (var item in about.Education) Education(body, item, input); });
                     if (Has(ResumeSections.Qualifications) && about.Qualifications.Count > 0)
@@ -74,13 +75,6 @@ public static class ResumeDocument
                         Section(column, "Places", body => { foreach (var line in places) body.Item().Text(line); });
                 });
 
-                page.Footer().AlignRight().Text(text =>
-                {
-                    text.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted));
-                    text.CurrentPageNumber();
-                    text.Span(" / ");
-                    text.TotalPages();
-                });
             }))
             .WithMetadata(new DocumentMetadata { Title = $"{Name} CV", Author = Name, Subject = "Curriculum vitae", CreationDate = input.Today.ToDateTime(TimeOnly.MinValue) })
             .GeneratePdf();
@@ -88,12 +82,12 @@ public static class ResumeDocument
 
     private static void Header(IContainer container, ResumeInput input, bool statuses, bool links)
     {
-        var settings = input.Settings;
+        var contact = input.Contact;
         container.Column(column =>
         {
             column.Spacing(2);
             column.Item().Text(Name).FontSize(22).Bold().FontColor(Colors.Grey.Darken4);
-            if (settings.Headline!.Length > 0) column.Item().Text(settings.Headline).FontSize(11).FontColor(Accent);
+            if (contact.Headline!.Length > 0) column.Item().Text(contact.Headline).FontSize(11).FontColor(Accent);
 
             column.Item().PaddingTop(2).Text(text =>
             {
@@ -105,9 +99,8 @@ public static class ResumeDocument
                     first = false;
                 }
 
-                if (settings.Location!.Length > 0) { Separator(); text.Span(settings.Location); }
-                if (settings.Email!.Length > 0) { Separator(); text.Hyperlink(settings.Email, $"mailto:{settings.Email}"); }
-                if (input.IncludePhone && settings.Phone!.Length > 0) { Separator(); text.Hyperlink(settings.Phone, $"tel:{settings.Phone.Replace(" ", "")}"); }
+                if (contact.Email!.Length > 0) { Separator(); text.Hyperlink(contact.Email, $"mailto:{contact.Email}"); }
+                if (input.IncludePhone && contact.Phone!.Length > 0) { Separator(); text.Hyperlink(contact.Phone, $"tel:{contact.Phone.Replace(" ", "")}"); }
                 if (links)
                 {
                     foreach (var (label, url) in Links(input))

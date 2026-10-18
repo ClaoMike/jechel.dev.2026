@@ -19,12 +19,6 @@ public class ResumeSettings
     /// <summary>Under the name, e.g. "Full-stack engineer · .NET, React, PostgreSQL".</summary>
     public string Headline { get; set; } = "";
 
-    /// <summary>E.g. "Manchester, UK".</summary>
-    public string Location { get; set; } = "";
-
-    /// <summary>A short profile paragraph at the top.</summary>
-    public string Summary { get; set; } = "";
-
     /// <summary>The sections to include, as a JSON array of <see cref="Features.Resume.ResumeSections"/> ids.</summary>
     public string Sections { get; set; } = "[]";
 

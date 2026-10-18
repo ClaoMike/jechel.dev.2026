@@ -38,7 +38,7 @@ public class ResumeEndpointTests(PortfolioApiFactory factory)
     [Fact]
     public async Task Visitors_cant_generate()
     {
-        var response = await factory.CreateBrowserClient().PostAsJsonAsync("/api/resume/generate", new ResumeSettingsRequest(Phone, "", "", "", "", []));
+        var response = await factory.CreateBrowserClient().PostAsJsonAsync("/api/resume/generate", new ResumeChoices([], []));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -47,13 +47,14 @@ public class ResumeEndpointTests(PortfolioApiFactory factory)
     public async Task Generating_gives_visitors_a_copy_without_the_phone_and_the_admin_one_with_it()
     {
         var admin = await SignedInClientAsync();
-        var settings = new ResumeSettingsRequest(Phone, "claudiu@example.com", "Full-stack engineer", "Manchester, UK", "I build things.", [ResumeSections.Experience, ResumeSections.Summary], ["Cobol"]);
+        var contact = await admin.PutAsJsonAsync("/api/resume/contact", new ResumeContact(Phone, "claudiu@example.com", "Full-stack engineer"));
+        Assert.Equal(HttpStatusCode.OK, contact.StatusCode);
 
-        var generate = await admin.PostAsJsonAsync("/api/resume/generate", settings);
+        var generate = await admin.PostAsJsonAsync("/api/resume/generate", new ResumeChoices([ResumeSections.Experience, ResumeSections.Statuses], ["Cobol"]));
         Assert.Equal(HttpStatusCode.OK, generate.StatusCode);
         var saved = await generate.Content.ReadFromJsonAsync<ResumeSettingsDto>();
         Assert.NotNull(saved!.GeneratedAt);
-        Assert.Equal([ResumeSections.Summary, ResumeSections.Experience], saved.Sections);
+        Assert.Equal([ResumeSections.Statuses, ResumeSections.Experience], saved.Sections);
         Assert.Equal(["Cobol"], saved.ExcludedSkills);
 
         var visitor = factory.CreateBrowserClient();
@@ -62,7 +63,7 @@ public class ResumeEndpointTests(PortfolioApiFactory factory)
         Assert.Equal("application/pdf", publicPdf.Content.Headers.ContentType!.MediaType);
         Assert.Equal(ResumeDocument.FileName, publicPdf.Content.Headers.ContentDisposition!.FileName!.Trim('"'));
         var publicText = TextOf(await publicPdf.Content.ReadAsByteArrayAsync());
-        Assert.Contains("I build things.", publicText);
+        Assert.Contains("Full-stack engineer", publicText);
         Assert.DoesNotContain("7700", publicText);
 
         var privateText = TextOf(await admin.GetByteArrayAsync("/api/resume/private"));
@@ -83,11 +84,12 @@ public class ResumeEndpointTests(PortfolioApiFactory factory)
     {
         var admin = await SignedInClientAsync();
 
-        var response = await admin.PutAsJsonAsync("/api/resume/settings", new ResumeSettingsRequest("call me maybe", "", "", "", "", ["map"]));
+        var contact = await admin.PutAsJsonAsync("/api/resume/contact", new ResumeContact("call me maybe", "", ""));
+        var choices = await admin.PutAsJsonAsync("/api/resume/choices", new ResumeChoices(["map"], []));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("phone", body);
-        Assert.Contains("sections", body);
+        Assert.Equal(HttpStatusCode.BadRequest, contact.StatusCode);
+        Assert.Contains("phone", await contact.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.BadRequest, choices.StatusCode);
+        Assert.Contains("sections", await choices.Content.ReadAsStringAsync());
     }
 }

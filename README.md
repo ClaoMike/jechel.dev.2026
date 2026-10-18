@@ -133,9 +133,10 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | POST   | `/api/updates/announcements/{id}/ignore?token=` | cookie or token | Ignores a pending one |
 | GET    | `/api/resume?inline=`       | public  | The last generated résumé **without** the phone number (PDF), or **404** |
 | GET    | `/api/resume/private?inline=` | cookie | The same **with** the phone number |
-| GET    | `/api/resume/settings`      | cookie  | `{ phone, email, headline, location, summary, sections, generatedAt }` |
-| PUT    | `/api/resume/settings`      | cookie  | Saves them without generating: **200**, or **400** with field errors |
-| POST   | `/api/resume/generate`      | cookie  | Saves them, makes both PDFs, and points About Me's résumé link at the public one: **200**, or **400** |
+| GET    | `/api/resume/settings`      | cookie  | `{ phone, email, headline, sections, excludedSkills, generatedAt }` |
+| PUT    | `/api/resume/contact`       | cookie  | `{ phone, email, headline }` (edited with About Me's profile): **200**, or **400** with field errors |
+| PUT    | `/api/resume/choices`       | cookie  | `{ sections, excludedSkills }` without generating: **200**, or **400** |
+| POST   | `/api/resume/generate`      | cookie  | `{ sections, excludedSkills }`: saves them, makes both PDFs, and points About Me's résumé link at the public one: **200**, or **400** |
 | GET    | `/api/settings`             | cookie  | The connection settings (secrets only as set/not set and their last 4 characters), how Google sign-in is set up, and the site's address |
 | PUT    | `/api/settings/{key}`       | cookie  | `{ value }`: saves one (encrypted if secret) and applies it at once; `""` clears it. **400** for a bad value, **404** for an unknown key |
 | POST   | `/api/settings/test/{service}` | cookie | `ntfy` (test alert), `email` (test email to you) or `youtube` (lists the videos): **200** `{ ok, message }` |
@@ -279,7 +280,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
 ## Site sections and the contact feature
 
-The site is a header (the name, **Buy me a coffee**, **Get updates**, the session bar when signed in, the theme switch) above five tabs (nine for the signed-in admin), each a route rendered inside `src/layout/AppLayout.tsx`:
+The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch) above five tabs (nine for the signed-in admin), each a route rendered inside `src/layout/AppLayout.tsx`:
 
 | Tab | Route | Status |
 | --- | --- | --- |
@@ -291,7 +292,7 @@ The site is a header (the name, **Buy me a coffee**, **Get updates**, the sessio
 | Engagement | `/engagement` | admin only: how visitors use the site, and every visit replayable to reproduce errors (see [Engagement](#engagement-visitor-analytics)); visitors who open the URL go to `/` |
 | Community | `/community` | admin only: email subscribers, the update emails (new apps wait here to be sent or ignored), and coffees (see [Email updates](#email-updates) and [Buy me a coffee](#buy-me-a-coffee-donations)) |
 | Terms | `/terms` | admin only: the terms and conditions, editable (see [Terms and conditions](#terms-and-conditions)) |
-| Settings | `/settings` | admin only: the services the site connects to, their links and keys, with test buttons (see [Settings](#settings-connections)) |
+| Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](#settings-connections)) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
 **What's new?** (`src/pages/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list; if one fails (e.g. YouTube isn't set up), the other is shown.
@@ -315,6 +316,10 @@ The site is a header (the name, **Buy me a coffee**, **Get updates**, the sessio
 
 Unknown URLs redirect to `/`.
 
+**The tab bar** (`layout/TabNav.tsx`): one highlight glides to the tab that's picked. Pressing the current tab and dragging moves it
+across; letting go snaps it to the nearest tab, which opens (a tap stays a tap: dragging starts after 5 px, and the click that ends a
+drag is swallowed). On phones the bar still scrolls sideways when dragged anywhere else.
+
 **Contact** (`src/pages/ContactPage.tsx`, `src/features/contact/`):
 
 - **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. Errors appear after the first submit and then update as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields.
@@ -328,10 +333,10 @@ Unknown URLs redirect to `/`.
 
 - The page is **one JSON document** (`AboutContent`), stored in the `about_page` table (`jsonb`, one row). It's always read and saved whole, so changing its shape means changing `AboutContent.cs` and the matching types in `api.ts`, with no new migration. Until the first save, `GET` returns `AboutDefaults` (placeholders).
 - **Sections:**
-  - **Photo and links:** an uploaded photo (or a placeholder icon) on top, then citizenship and residence labels (`statuses`: text and a flag each, e.g. 🇬🇧 "UK Settled Status"; the editor guesses the flag from the words; with none, only the admin sees a hint where they go), then an uploaded résumé (download button) and GitHub, LeetCode (when a username is set under Problem solving), LinkedIn and Instagram in their brand colours. An empty link is hidden.
+  - **Photo and links:** an uploaded photo (or a placeholder icon) on top, then citizenship and residence labels (`statuses`: text and a flag each, e.g. 🇬🇧 "UK Settled Status"; the editor guesses the flag from the words; with none, only the admin sees a hint where they go), then the generated résumé (download button, see [Résumé generator](#résumé-generator)) and GitHub, LeetCode (when a username is set under Problem solving), LinkedIn and Instagram in their brand colours. An empty link is hidden.
   - **Where I've been:** a dotted world map with a pin per city. Each city is marked *worked*, *studied* and/or *visited*, each with an optional note. A pin with several marks is split into equal slices, one colour each. Hovering, focusing or tapping a pin shows its notes. Zoom with the buttons, a pinch, or Ctrl/⌘ + scroll; drag to move.
   - **Problem solving:** LeetCode stats (solved problems, split into Easy, Medium and Hard, out of all on LeetCode) for the username the admin sets (pasting the profile link works too), and the NeetCode lists completed (Blind 75, NeetCode 150, NeetCode 250), switched on and off like licences and shown as labels. NeetCode has no public API, so those are ticked by hand.
-  - **Skills:** a timeline. Each skill has periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once. A skill without periods is listed without a bar. **Sort by experience** orders them by total time (applies on Save, like the sort below).
+  - **Skills:** a timeline. In the editor each skill is folded to a row (name, experience, move and remove buttons) until clicked open; a skill with an error opens by itself. Each skill has periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once. A skill without periods is listed without a bar. **Sort by experience** orders them by total time (applies on Save, like the sort below).
   - **Work experience:** title, company, optional location, start month (may be in the future), an end month or *ongoing*, and bullet points.
   - **Education:** the same, without bullet points.
   - **Academic papers:** a title and an uploaded PDF each. With a PDF, the title is a download link with a download icon.
@@ -350,8 +355,8 @@ Unknown URLs redirect to `/`.
 
 **Uploaded files** (`backend/.../Features/Files/`):
 
-- `POST /api/files/photo`, `POST /api/files/resume` and `POST /api/files/paper` (admin, multipart field `file`) return `{ url, fileName }`. The editor puts the URL in the page; it's used once the section is saved.
-- Photos (JPEG, PNG, WebP or GIF, up to 15 MB) are turned upright, scaled to fit 800×800 and stored as WebP **without metadata**, so a phone photo's GPS position never reaches the site. Résumés (up to 20 MB) and papers (up to 200 MB) must be PDFs and keep their file name.
+- `POST /api/files/photo` and `POST /api/files/paper` (admin, multipart field `file`) return `{ url, fileName }`. The editor puts the URL in the page; it's used once the section is saved.
+- Photos (JPEG, PNG, WebP or GIF, up to 15 MB) are turned upright, scaled to fit 800×800 and stored as WebP **without metadata**, so a phone photo's GPS position never reaches the site. Papers (up to 200 MB) must be PDFs and keep their file name.
 - Each upload endpoint reads its own form and raises the server's request limit (Kestrel's default is 30 MB) for that request only. The editor checks the size before sending and shows the upload's progress. Limits are in `FileRules.cs` and `uploadLimits.ts`.
 - Files are served publicly from `GET /api/files/{id}/{name}`. Saving the page or an app deletes uploads nothing uses any more once they're a day old (a replaced photo, or one uploaded and never saved).
 - Storage is behind `IFileStorage`. `DatabaseFileStorage` keeps files in the `stored_files` table, which suits a photo and a PDF. Moving to object storage (Cloudflare R2, S3) means a new implementation and one line in `Program.cs`. There's no HTTP caching yet; adding a CDN later only needs cache headers, since a file's URL never changes.
@@ -412,20 +417,22 @@ require of bulk senders).
 
 ## Résumé generator
 
-Signed in, About Me starts with a **Résumé generator** panel (`features/resume/ResumePanel.tsx`), which visitors never see:
+Signed in, About Me starts with a **Résumé generator** panel (`features/resume/ResumePanel.tsx`), which visitors never see. The
+résumé is the only one the site offers: there's no upload any more.
 
-- What the page doesn't have: **phone (private)**, email, headline, location and a short summary, plus which **sections** to
-  include (ticked by default: profile, citizenship, links, experience, skills, education, qualifications, papers, hackathons,
-  languages; not ticked: problem solving, licences, places) and which **skills** (all until unticked; stored as the ones left out,
-  so new skills are in). Sections print in a fixed order recruiters expect.
-- The name, contact line and links are on the **first page only**. Links show as words: the site's name, **GitHub**, **LinkedIn**.
-  Skills are a plain list, without years.
+- **The header** (headline, email, **phone**) is edited with **Photo and links**, in a "For the résumé (only you see these)" group,
+  and shown to the admin under the links. It's saved on its own (`PUT /api/resume/contact`), never in the About Me JSON.
+- **The panel** chooses the **sections** (ticked by default: citizenship, links, experience, skills, education, qualifications,
+  papers, hackathons, languages; not ticked: problem solving, licences, places) and the **skills** (all until unticked; stored as
+  the ones left out, so new skills are in). Sections print in a fixed order recruiters expect.
+- The name, contact line and links are on the **first page only**; there are no page numbers. Links show as words: the site's
+  name, **GitHub**, **LinkedIn**. Skills are a plain list, without years.
 - **Generate résumés** makes two A4 PDFs from the page as it is now (`Features/Resume/ResumeDocument.cs`, with
   [QuestPDF](https://www.questpdf.com), free under its Community licence for individuals and companies under $1M revenue):
   - **public**, without the phone number: stored, and served to everyone at `/api/resume`. The page's **Download résumé** button
     is pointed at it (`/api/resume?v=<time>`, so browsers fetch the new one), replacing an uploaded PDF if there was one.
   - **private**, with the phone number: stored, and only served to the admin (`/api/resume/private`, `no-store`).
-  Then **Download with phone**, **Download public copy** and **Preview** in the panel.
+  Then **Download private copy** and **Download public copy** in the panel.
 - The phone number lives in its own table (`resume`), never in the About Me JSON, so it can't leak through `/api/about`. Tests check
   it's in the private PDF's text and not in the public one's.
 - `[text](url)` links on the page become real links in the PDF.

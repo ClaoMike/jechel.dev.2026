@@ -11,7 +11,7 @@ import { TabNav } from './TabNav'
 import { ThemeSwitch } from './ThemeSwitch'
 import { useTheme } from './theme'
 
-/** The site frame: the site name, "Buy me a coffee" and "Get updates", the admin's session bar, the theme switch, the tabs, the current tab's page, and the footer. */
+/** The site frame: the admin's own bar on top (who's signed in, Sign out), then the site name, "Buy me a coffee" and "Get updates", the theme switch, the tabs, the current tab's page, and the footer. */
 export function AppLayout() {
   const { signOut } = useAuth()
   const theme = useTheme()
@@ -25,6 +25,19 @@ export function AppLayout() {
     <div className="app" data-content-hidden={contentHidden || undefined}>
       {theme === 'vice' && <RivieraBackground />}
       <header className="site-header" inert={contentHidden}>
+        <SignedIn>
+          {(user) => (
+            <div className="admin-bar">
+              <div className="admin-bar-inner">
+                <span className="admin-bar-badge">Admin</span>
+                <span className="admin-bar-user">Signed in as {user.email}</span>
+                <button type="button" className="button button-secondary button-small" onClick={() => void signOut()}>
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
+        </SignedIn>
         <div className="site-header-top">
           <h1 className="brand">
             {/* In Vice it's written in neon (glass.css): a still shadow layer under the moving colours, and a drawn j (BrandJ). */}
@@ -45,16 +58,6 @@ export function AppLayout() {
           <div className="header-actions">
             <SupportButton />
             <SubscribeButton />
-            <SignedIn>
-              {(user) => (
-                <div className="session-bar">
-                  <span>Signed in as {user.email}</span>
-                  <button type="button" className="button button-secondary" onClick={() => void signOut()}>
-                    Sign out
-                  </button>
-                </div>
-              )}
-            </SignedIn>
             <ThemeSwitch />
           </div>
         </div>

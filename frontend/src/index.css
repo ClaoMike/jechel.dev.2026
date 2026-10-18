@@ -84,14 +84,6 @@ h2 {
   display: inline-block;
 }
 
-.session-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
 .tabs {
   display: flex;
   gap: 4px;
@@ -2038,10 +2030,22 @@ button.media-card {
   min-width: 0;
 }
 
-.editor-item legend {
-  padding: 0 6px;
+/*
+ * The item's title ("Skill 3", "Job 1") sits inside its box, not on the border: a floated legend
+ * is laid out like any other content. The toolbar (move / remove) shares its row, on the right.
+ */
+.editor-item > legend:not(.visually-hidden) {
+  float: left;
+  margin: 0 0 8px;
+  padding: 0;
   font-size: 13px;
   font-weight: 600;
+  /* The height of the toolbar's icon buttons, so both sit on one line. */
+  line-height: 36px;
+}
+
+.editor-item > legend ~ :not(.editor-item-toolbar) {
+  clear: both;
 }
 
 .editor-item-inline {
@@ -2055,7 +2059,7 @@ button.media-card {
 .editor-item-toolbar {
   display: flex;
   justify-content: flex-end;
-  margin: -8px 0 4px;
+  margin: 0 0 8px;
 }
 
 .editor-period {
@@ -2275,8 +2279,11 @@ button.media-card {
   min-width: 0;
 }
 
-.upload legend {
-  padding: 0 6px;
+.upload > legend {
+  /* Inside the box, like .editor-item's. */
+  float: left;
+  padding: 0;
+  font-weight: 600;
 }
 
 .upload .profile-photo {
@@ -3203,17 +3210,53 @@ button.media-card {
   gap: 16px;
 }
 
-.settings-card {
-  display: grid;
-  gap: 12px;
+.settings {
+  /* Folded cards: a compact list. */
+  gap: 10px;
 }
 
-.settings-card-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.settings-card {
+  padding: 8px 20px;
+}
+
+.settings-card-heading {
+  margin: 0;
+  font-size: 17px;
+}
+
+.settings-card-heading .accordion-toggle {
+  /* A button shrinks to its content even as a flex box: stretch it, so the status sits on the right. */
+  width: 100%;
+  min-height: 48px;
+}
+
+.settings-card-body {
+  display: grid;
+  gap: 12px;
+  padding: 4px 0 16px;
+}
+
+.settings-status {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chip.settings-status-ready {
+  border-color: transparent;
+  background: rgb(52 199 89 / 0.18);
+  color: var(--text);
+}
+
+.chip.settings-status-partial {
+  border-color: transparent;
+  background: rgb(255 179 64 / 0.22);
+  color: var(--text);
+}
+
+.settings-status-off,
+.settings-status-later {
+  color: var(--text-muted);
 }
 
 .settings-links {
@@ -3303,4 +3346,133 @@ button.media-card {
   .settings-facts {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---------- Accordions (skills in the editor, Settings) ---------- */
+
+.accordion-item {
+  padding: 6px 8px 6px 12px;
+}
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.accordion-header .item-controls {
+  padding-top: 0;
+}
+
+.accordion-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.accordion-toggle:disabled {
+  cursor: default;
+}
+
+.accordion-toggle svg {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform 0.2s;
+}
+
+.accordion-toggle[aria-expanded='true'] svg {
+  transform: none;
+}
+
+.accordion-title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accordion-meta {
+  flex: none;
+  font-size: 13px;
+}
+
+.accordion-body {
+  display: grid;
+  gap: 12px;
+  padding: 4px 4px 10px 0;
+}
+
+.profile-private {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.profile-private svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accordion-toggle svg {
+    transition: none;
+  }
+}
+
+/* ---------- The admin's bar, above everything in the header ---------- */
+
+.admin-bar {
+  border-bottom: 1px solid var(--border);
+  background: var(--tint, rgb(10 132 255 / 0.12));
+}
+
+.admin-bar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+.admin-bar-badge {
+  margin-right: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-bar-user {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+
+/* `display: grid` above would beat the hidden attribute: folded means gone. */
+.accordion-body[hidden],
+.settings-card-body[hidden] {
+  display: none;
 }

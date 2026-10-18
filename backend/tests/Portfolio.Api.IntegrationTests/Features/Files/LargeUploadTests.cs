@@ -40,17 +40,17 @@ public class LargeUploadTests(KestrelApiFactory factory)
     }
 
     [Fact]
-    public async Task A_resume_over_its_limit_is_refused_with_a_reason()
+    public async Task A_photo_over_its_limit_is_refused_with_a_reason()
     {
         var admin = await SignedInClientAsync();
 
         // Waits for the server's go-ahead before sending the body, so it gets the answer instead
         // of a closed connection when the server turns the request down unread.
         admin.DefaultRequestHeaders.ExpectContinue = true;
-        var upload = await admin.PostAsync("/api/files/resume", Pdf(25));
+        var upload = await admin.PostAsync("/api/files/photo", Pdf(20));
 
         Assert.Equal(HttpStatusCode.BadRequest, upload.StatusCode);
         var problem = await upload.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        Assert.Equal("The file must be at most 20 MB.", problem!.Errors["file"][0]);
+        Assert.Equal("The file must be at most 15 MB.", problem!.Errors["file"][0]);
     }
 }

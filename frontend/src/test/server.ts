@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import type { AboutContent, AnalyticsRange, AnalyticsSummary, BucketSize, AppCategory, AppCategoryRequest, AppDetails, AppRequest, ResumeSettingsDetails, TermsContent, TermsDocument, VisitDetails, VisitSummary } from '../services/api'
+import type { AboutContent, AnalyticsRange, AnalyticsSummary, BucketSize, AppCategory, AppCategoryRequest, AppDetails, AppRequest, ResumeContact, ResumeSettingsDetails, TermsContent, TermsDocument, VisitDetails, VisitSummary } from '../services/api'
 
 export const API = 'http://api.test'
 
@@ -121,9 +121,7 @@ export function resumeSettings(): ResumeSettingsDetails {
     phone: '',
     email: '',
     headline: '',
-    location: '',
-    summary: '',
-    sections: ['summary', 'statuses', 'links', 'experience', 'skills', 'education', 'qualifications', 'papers', 'hackathons', 'languages'],
+    sections: ['statuses', 'links', 'experience', 'skills', 'education', 'qualifications', 'papers', 'hackathons', 'languages'],
     excludedSkills: [],
     generatedAt: null,
   }
@@ -155,7 +153,18 @@ export const handlers = [
 export function aboutApi(initial = aboutContent()) {
   let current = initial
   const saved: AboutContent[] = []
+  let contact = resumeSettings()
+  const contacts: ResumeContact[] = []
   const handlers = [
+    // The résumé's private header, saved with the profile.
+    http.get(`${API}/api/resume/settings`, () => HttpResponse.json(contact)),
+    http.put(`${API}/api/resume/contact`, async ({ request }) => {
+      const body = (await request.json()) as ResumeContact
+      contacts.push(body)
+      if (/[a-z]/i.test(body.phone)) return HttpResponse.json({ status: 400, errors: { phone: ['Use digits.'] } }, { status: 400 })
+      contact = { ...contact, ...body }
+      return HttpResponse.json(contact)
+    }),
     http.get(`${API}/api/about`, () => HttpResponse.json(current)),
     http.put(`${API}/api/about`, async ({ request }) => {
       current = (await request.json()) as AboutContent
@@ -167,7 +176,7 @@ export function aboutApi(initial = aboutContent()) {
       return HttpResponse.json(TEST_CITIES.filter((c) => c.name.toLowerCase().startsWith(q)))
     }),
   ]
-  return { handlers, saved }
+  return { handlers, saved, contacts }
 }
 
 export const LEETCODE_STATS = {

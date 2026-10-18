@@ -29,7 +29,8 @@ public static class ResumeEndpoints
 
         resume.MapGet("/private", GetPrivatePdf).WithName("GetPrivateResume").RequireAuthorization();
         resume.MapGet("/settings", GetSettings).WithName("GetResumeSettings").RequireAuthorization();
-        resume.MapPut("/settings", SaveSettings).WithName("SaveResumeSettings").RequireAuthorization();
+        resume.MapPut("/contact", SaveContact).WithName("SaveResumeContact").RequireAuthorization();
+        resume.MapPut("/choices", SaveChoices).WithName("SaveResumeChoices").RequireAuthorization();
         resume.MapPost("/generate", Generate).WithName("GenerateResume").RequireAuthorization();
 
         return app;
@@ -71,26 +72,45 @@ public static class ResumeEndpoints
         return TypedResults.Ok(ToDto(row));
     }
 
-    /// <summary>Admin only. Saves the choices without generating.</summary>
-    public static async Task<Results<Ok<ResumeSettingsDto>, ValidationProblem>> SaveSettings(
-        ResumeSettingsRequest request,
+    /// <summary>Admin only. The phone, email and headline (edited with the About Me profile; never on the public page).</summary>
+    public static async Task<Results<Ok<ResumeSettingsDto>, ValidationProblem>> SaveContact(
+        ResumeContact request,
         PortfolioDbContext db,
         CancellationToken cancellationToken)
     {
         var errors = ResumeRules.Validate(request);
         if (errors.Count > 0) return TypedResults.ValidationProblem(errors);
 
-        var row = await SaveAsync(db, ResumeRules.Normalize(request), cancellationToken);
+        var contact = ResumeRules.Normalize(request);
+        var row = await RowAsync(db, cancellationToken);
+        row.Phone = contact.Phone!;
+        row.Email = contact.Email!;
+        row.Headline = contact.Headline!;
+        await db.SaveChangesAsync(cancellationToken);
+        return TypedResults.Ok(ToDto(row));
+    }
+
+    /// <summary>Admin only. Saves the sections and skills without generating.</summary>
+    public static async Task<Results<Ok<ResumeSettingsDto>, ValidationProblem>> SaveChoices(
+        ResumeChoices request,
+        PortfolioDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var errors = ResumeRules.Validate(request);
+        if (errors.Count > 0) return TypedResults.ValidationProblem(errors);
+
+        var row = await RowAsync(db, cancellationToken);
+        SetChoices(row, ResumeRules.Normalize(request));
         await db.SaveChangesAsync(cancellationToken);
         return TypedResults.Ok(ToDto(row));
     }
 
     /// <summary>
-    /// Admin only. Saves the choices, makes both PDFs from the About Me page as it is now, and
-    /// points the page's "Download résumé" button at the public one.
+    /// Admin only. Saves the choices, makes both PDFs from the About Me page and the saved contact
+    /// details as they are now, and points the page's "Download résumé" button at the public one.
     /// </summary>
     public static async Task<Results<Ok<ResumeSettingsDto>, ValidationProblem>> Generate(
-        ResumeSettingsRequest request,
+        ResumeChoices request,
         PortfolioDbContext db,
         LeetCodeStatsService leetCode,
         IOptions<SiteOptions> site,
@@ -100,25 +120,24 @@ public static class ResumeEndpoints
         var errors = ResumeRules.Validate(request);
         if (errors.Count > 0) return TypedResults.ValidationProblem(errors);
 
-        var settings = ResumeRules.Normalize(request);
+        var choices = ResumeRules.Normalize(request);
         var about = await AboutEndpoints.LoadAsync(db, cancellationToken);
         LeetCodeStats? stats = null;
-        if (settings.Sections!.Contains(ResumeSections.ProblemSolving) && about.ProblemSolving.LeetCodeUsername.Length > 0)
+        if (choices.Sections!.Contains(ResumeSections.ProblemSolving) && about.ProblemSolving.LeetCodeUsername.Length > 0)
         {
             stats = (await leetCode.GetAsync(about.ProblemSolving.LeetCodeUsername, cancellationToken)).Stats;
         }
 
-        var now = time.GetUtcNow();
-        var today = DateOnly.FromDateTime(now.UtcDateTime);
-        var siteUrl = site.Value.PublicUrl.TrimEnd('/');
-        var input = new ResumeInput(about, settings, stats, IncludePhone: false, today, siteUrl);
+        var row = await RowAsync(db, cancellationToken);
+        SetChoices(row, choices);
 
-        var row = await SaveAsync(db, settings, cancellationToken);
+        var now = time.GetUtcNow();
+        var input = new ResumeInput(about, new ResumeContact(row.Phone, row.Email, row.Headline), choices, stats, IncludePhone: false, DateOnly.FromDateTime(now.UtcDateTime), site.Value.PublicUrl.TrimEnd('/'));
         row.PublicPdf = ResumeDocument.Build(input);
         row.PrivatePdf = ResumeDocument.Build(input with { IncludePhone = true });
         row.GeneratedAt = now;
 
-        // Visitors' "Download résumé" now gets this one (replacing an uploaded PDF, if there was one).
+        // Visitors' "Download résumé" now gets this one.
         var page = await db.AboutPages.FindAsync([AboutPage.SingletonId], cancellationToken);
         if (page is null)
         {
@@ -132,28 +151,29 @@ public static class ResumeEndpoints
         return TypedResults.Ok(ToDto(row));
     }
 
-    private static async Task<ResumeSettings> SaveAsync(PortfolioDbContext db, ResumeSettingsRequest settings, CancellationToken cancellationToken)
+    private static async Task<ResumeSettings> RowAsync(PortfolioDbContext db, CancellationToken cancellationToken)
     {
         var row = await db.ResumeSettings.FindAsync([ResumeSettings.SingletonId], cancellationToken);
         if (row is null)
         {
-            row = new ResumeSettings { Id = ResumeSettings.SingletonId };
+            row = new ResumeSettings { Id = ResumeSettings.SingletonId, Sections = JsonSerializer.Serialize(ResumeSections.Defaults, Json) };
             db.ResumeSettings.Add(row);
         }
-        row.Phone = settings.Phone!;
-        row.Email = settings.Email!;
-        row.Headline = settings.Headline!;
-        row.Location = settings.Location!;
-        row.Summary = settings.Summary!;
-        row.Sections = JsonSerializer.Serialize(settings.Sections, Json);
-        row.ExcludedSkills = JsonSerializer.Serialize(settings.ExcludedSkills ?? [], Json);
         return row;
     }
 
+    private static void SetChoices(ResumeSettings row, ResumeChoices choices)
+    {
+        row.Sections = JsonSerializer.Serialize(choices.Sections, Json);
+        row.ExcludedSkills = JsonSerializer.Serialize(choices.ExcludedSkills ?? [], Json);
+    }
+
+    /// <summary>Sections an older version saved (e.g. "summary") are left out.</summary>
     private static ResumeSettingsDto ToDto(ResumeSettings? row) => row is null
-        ? new ResumeSettingsDto("", "", "", "", "", ResumeSections.Defaults, [], null)
-        : new ResumeSettingsDto(row.Phone, row.Email, row.Headline, row.Location, row.Summary,
-            JsonSerializer.Deserialize<string[]>(row.Sections, Json) ?? [], JsonSerializer.Deserialize<string[]>(row.ExcludedSkills, Json) ?? [], row.GeneratedAt);
+        ? new ResumeSettingsDto("", "", "", ResumeSections.Defaults, [], null)
+        : new ResumeSettingsDto(row.Phone, row.Email, row.Headline,
+            ResumeRules.Normalize(new ResumeChoices(JsonSerializer.Deserialize<string[]>(row.Sections, Json), null)).Sections!,
+            JsonSerializer.Deserialize<string[]>(row.ExcludedSkills, Json) ?? [], row.GeneratedAt);
 
     private static FileContentHttpResult Pdf(HttpContext http, byte[] pdf, bool inline, DateTimeOffset? generatedAt)
     {

@@ -592,7 +592,6 @@ export interface TestResult {
 
 /** The parts of About Me a résumé can include, in print order (ResumeSections.cs). */
 export const RESUME_SECTIONS = [
-  'summary',
   'statuses',
   'links',
   'experience',
@@ -609,19 +608,23 @@ export const RESUME_SECTIONS = [
 
 export type ResumeSection = (typeof RESUME_SECTIONS)[number]
 
-export interface ResumeSettings {
+/** The résumé's contact details: edited with the About Me profile, but never on the public page. */
+export interface ResumeContact {
   /** Private: only in the admin's copy. */
   phone: string
   email: string
+  /** Under the name, e.g. "Full-stack engineer · .NET, React, PostgreSQL". */
   headline: string
-  location: string
-  summary: string
+}
+
+/** What the generator puts in. */
+export interface ResumeChoices {
   sections: ResumeSection[]
   /** Names of the About Me skills to leave out. */
   excludedSkills: string[]
 }
 
-export interface ResumeSettingsDetails extends ResumeSettings {
+export interface ResumeSettingsDetails extends ResumeContact, ResumeChoices {
   /** ISO 8601 timestamp of the last generation, or null before the first. */
   generatedAt: string | null
 }
@@ -741,11 +744,6 @@ export const api = {
     /** Admin only. A JPEG, PNG, WebP or GIF up to 15 MB; stored as a small WebP without metadata. Rejects with validationErrors.file. */
     uploadPhoto(file: File, onProgress?: UploadProgress): Promise<UploadedFile> {
       return upload('/api/files/photo', file, onProgress)
-    },
-
-    /** Admin only. A PDF up to 20 MB. Rejects with validationErrors.file. */
-    uploadResume(file: File, onProgress?: UploadProgress): Promise<UploadedFile> {
-      return upload('/api/files/resume', file, onProgress)
     },
 
     /** Admin only. An academic paper, as a PDF up to 200 MB. Rejects with validationErrors.file. */
@@ -972,18 +970,24 @@ export const api = {
       return get<ResumeSettingsDetails>('/api/resume/settings', { signal })
     },
 
-    /** Admin only. Saves without generating. Rejects with validationErrors (phone, email, …). */
-    async saveSettings(settings: ResumeSettings): Promise<ResumeSettingsDetails> {
-      const response = await http.put<ResumeSettingsDetails>('/api/resume/settings', settings)
+    /** Admin only. The phone, email and headline. Rejects with validationErrors (phone, email, headline). */
+    async saveContact(contact: ResumeContact): Promise<ResumeSettingsDetails> {
+      const response = await http.put<ResumeSettingsDetails>('/api/resume/contact', contact)
+      return response.data
+    },
+
+    /** Admin only. Saves the sections and skills without generating. */
+    async saveChoices(choices: ResumeChoices): Promise<ResumeSettingsDetails> {
+      const response = await http.put<ResumeSettingsDetails>('/api/resume/choices', choices)
       return response.data
     },
 
     /**
-     * Admin only. Saves, then makes both PDFs from the About Me page as it is now; the page's
-     * "Download résumé" button then gets the one without the phone number.
+     * Admin only. Saves the choices, then makes both PDFs from the About Me page and the saved contact
+     * details; the page's "Download résumé" button then gets the one without the phone number.
      */
-    generate(settings: ResumeSettings): Promise<ResumeSettingsDetails> {
-      return post<ResumeSettingsDetails>('/api/resume/generate', settings)
+    generate(choices: ResumeChoices): Promise<ResumeSettingsDetails> {
+      return post<ResumeSettingsDetails>('/api/resume/generate', choices)
     },
   },
 

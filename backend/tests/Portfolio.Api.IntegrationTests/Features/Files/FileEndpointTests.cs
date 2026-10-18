@@ -40,10 +40,10 @@ public class FileEndpointTests(PortfolioApiFactory factory)
         var client = factory.CreateBrowserClient();
 
         var photo = await client.PostAsync("/api/files/photo", Form(Png(10, 10), "me.png", "image/png"));
-        var resume = await client.PostAsync("/api/files/resume", Form("%PDF-1.7"u8.ToArray(), "cv.pdf", "application/pdf"));
+        var paper = await client.PostAsync("/api/files/paper", Form("%PDF-1.7"u8.ToArray(), "paper.pdf", "application/pdf"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, photo.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, resume.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, paper.StatusCode);
     }
 
     [Fact]
@@ -65,12 +65,12 @@ public class FileEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
-    public async Task A_resume_keeps_its_bytes_and_name()
+    public async Task A_pdf_keeps_its_bytes_and_name()
     {
         var admin = await SignedInClientAsync();
         var pdf = "%PDF-1.7\nhello"u8.ToArray();
 
-        var upload = await admin.PostAsync("/api/files/resume", Form(pdf, "Claudiu Jechel CV.pdf", "application/pdf"));
+        var upload = await admin.PostAsync("/api/files/paper", Form(pdf, "Claudiu Jechel CV.pdf", "application/pdf"));
 
         var uploaded = (await upload.Content.ReadFromJsonAsync<UploadedFile>())!;
         Assert.Equal("Claudiu Jechel CV.pdf", uploaded.FileName);
@@ -81,7 +81,7 @@ public class FileEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
-    public async Task A_paper_is_uploaded_like_a_resume()
+    public async Task Only_the_admin_uploads_a_paper()
     {
         var admin = await SignedInClientAsync();
 
@@ -96,7 +96,6 @@ public class FileEndpointTests(PortfolioApiFactory factory)
     [Theory]
     [InlineData("/api/files/paper", "<html>not a pdf</html>")]
     [InlineData("/api/files/photo", "not an image")]
-    [InlineData("/api/files/resume", "<html>not a pdf</html>")]
     public async Task Wrong_file_types_are_rejected(string path, string body)
     {
         var admin = await SignedInClientAsync();

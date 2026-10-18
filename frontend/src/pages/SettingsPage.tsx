@@ -2,7 +2,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Navigate } from 'react-router'
 import { useAuth } from '../auth'
 import { CopyButton } from '../components/CopyButton'
-import { ExternalLinkIcon } from '../components/icons'
+import { ArrowDownIcon, ExternalLinkIcon } from '../components/icons'
 import { api, ApiError, type Setting, type SettingsResponse, type TestResult } from '../services/api'
 
 type State = { status: 'loading' } | { status: 'error' } | { status: 'loaded'; data: SettingsResponse }
@@ -41,6 +41,11 @@ function Settings() {
   const setting = (key: string) => data.settings.find((s) => s.key === key)!
   const onSaved = (next: SettingsResponse) => setState({ status: 'loaded', data: next })
   const field = (key: string, extra?: Partial<FieldProps>) => <SettingField setting={setting(key)} onSaved={onSaved} {...extra} />
+  /** "Set up" when every key the service needs is set, "Partly set up" when some are. */
+  const status = (...keys: string[]): ServiceStatus => {
+    const set = keys.filter((key) => setting(key).isSet).length
+    return set === keys.length ? 'ready' : set > 0 ? 'partial' : 'off'
+  }
 
   return (
     <div className="settings">
@@ -52,6 +57,7 @@ function Settings() {
 
       <ServiceCard
         title="Buy Me a Coffee"
+        status={status('Support:Url', 'Support:BuyMeACoffeeWebhookSecret')}
         what="The header's Buy me a coffee button, and a phone alert for each coffee."
         links={[
           ['Your page', setting('Support:Url').value || 'https://buymeacoffee.com'],
@@ -71,6 +77,7 @@ function Settings() {
 
       <ServiceCard
         title="Google sign-in"
+        status={data.google.isConfigured ? 'ready' : 'off'}
         what="How you sign in to this site. Set on the server only: a wrong secret saved here could lock you out."
         links={[['Google Cloud: OAuth clients', 'https://console.cloud.google.com/auth/clients']]}
       >
@@ -88,6 +95,7 @@ function Settings() {
 
       <ServiceCard
         title="YouTube Data API"
+        status={status('YouTube:Channel', 'YouTube:ApiKey')}
         what="The YouTube tab and What's new, and the emails about new videos."
         links={[
           ['Google Cloud: API keys', 'https://console.cloud.google.com/apis/credentials'],
@@ -101,6 +109,7 @@ function Settings() {
 
       <ServiceCard
         title="Resend (email)"
+        status={status('Email:ResendApiKey', 'Email:From')}
         what="Confirmation emails for subscribers, and the emails about new apps and videos."
         links={[
           ['API keys', 'https://resend.com/api-keys'],
@@ -114,6 +123,7 @@ function Settings() {
 
       <ServiceCard
         title="ntfy (phone alerts)"
+        status={status('Alerts:NtfyTopic')}
         what="Alerts on your phone: new messages, coffees, subscribers, new apps (to send or ignore) and crashes."
         links={[
           ['ntfy', 'https://ntfy.sh'],
@@ -140,31 +150,46 @@ function Settings() {
         </details>
       </ServiceCard>
 
-      <ServiceCard title="Hosting" what="Where the site runs, its domain and its database. Not connected yet: it comes when the site goes live." links={[]}>
+      <ServiceCard title="Hosting" status="later" what="Where the site runs, its domain and its database. Not connected yet: it comes when the site goes live." links={[]}>
         <p className="muted">Nothing to set yet.</p>
       </ServiceCard>
     </div>
   )
 }
 
+type ServiceStatus = 'ready' | 'partial' | 'off' | 'later'
+
+const STATUS_TEXT: Record<ServiceStatus, string> = { ready: 'Set up', partial: 'Partly set up', off: 'Not set up', later: 'Later' }
+
+/** One service, folded to its name and status until clicked open. */
 function ServiceCard({
   title,
+  status,
   what,
   links,
   test,
   children,
 }: {
   title: string
+  status: ServiceStatus
   what: string
   links: [string, string][]
   test?: { service: 'ntfy' | 'email' | 'youtube'; label: string }
   children: ReactNode
 }) {
   const id = useId()
+  const [open, setOpen] = useState(false)
   return (
     <section className="card settings-card" aria-labelledby={id}>
-      <div className="settings-card-header">
-        <h3 id={id}>{title}</h3>
+      <h3 className="settings-card-heading">
+        <button type="button" id={id} className="accordion-toggle" aria-expanded={open} aria-controls={`${id}-body`} onClick={() => setOpen(!open)}>
+          <ArrowDownIcon size={18} />
+          <span className="accordion-title">{title}</span>
+          <span className={`chip settings-status settings-status-${status}`}>{STATUS_TEXT[status]}</span>
+        </button>
+      </h3>
+      <div id={`${id}-body`} className="settings-card-body" hidden={!open}>
+        <p className="muted">{what}</p>
         {links.length > 0 && (
           <div className="settings-links">
             {links.map(([label, href]) => (
@@ -175,10 +200,9 @@ function ServiceCard({
             ))}
           </div>
         )}
+        {children}
+        {test && <TestButton service={test.service} label={test.label} />}
       </div>
-      <p className="muted">{what}</p>
-      {children}
-      {test && <TestButton service={test.service} label={test.label} />}
     </section>
   )
 }

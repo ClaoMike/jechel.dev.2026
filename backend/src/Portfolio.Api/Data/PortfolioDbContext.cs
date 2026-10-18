@@ -242,8 +242,6 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(r => r.Phone).HasColumnName("phone").HasMaxLength(Features.Resume.ResumeRules.PhoneMaxLength).IsRequired();
             entity.Property(r => r.Email).HasColumnName("email").HasMaxLength(ContactRules.EmailMaxLength).IsRequired();
             entity.Property(r => r.Headline).HasColumnName("headline").HasMaxLength(Features.Resume.ResumeRules.HeadlineMaxLength).IsRequired();
-            entity.Property(r => r.Location).HasColumnName("location").HasMaxLength(Features.Resume.ResumeRules.LocationMaxLength).IsRequired();
-            entity.Property(r => r.Summary).HasColumnName("summary").HasMaxLength(Features.Resume.ResumeRules.SummaryMaxLength).IsRequired();
             entity.Property(r => r.Sections).HasColumnName("sections").HasColumnType("jsonb").IsRequired();
             entity.Property(r => r.ExcludedSkills).HasColumnName("excluded_skills").HasColumnType("jsonb").IsRequired().HasDefaultValueSql("'[]'::jsonb");
             entity.Property(r => r.PublicPdf).HasColumnName("public_pdf");

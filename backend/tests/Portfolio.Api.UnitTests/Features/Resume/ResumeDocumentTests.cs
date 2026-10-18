@@ -18,8 +18,9 @@ public class ResumeDocumentTests
         ProblemSolving = new ProblemSolving("neetcode", [NeetCodeListIds.Blind75]),
     };
 
-    private static ResumeSettingsRequest Settings(params string[] sections) =>
-        new(PhoneNumber, "claudiu@example.com", "Full-stack engineer", "Manchester, UK", "I build web apps.", sections.Length == 0 ? ResumeSections.All : sections);
+    private static readonly ResumeContact Contact = new(PhoneNumber, "claudiu@example.com", "Full-stack engineer");
+
+    private static ResumeChoices Settings(params string[] sections) => new(sections.Length == 0 ? ResumeSections.All : sections, []);
 
     private static string TextOf(byte[] pdf)
     {
@@ -27,8 +28,8 @@ public class ResumeDocumentTests
         return string.Join("\n", document.GetPages().Select(p => p.Text));
     }
 
-    private static ResumeInput Input(ResumeSettingsRequest settings, bool includePhone) =>
-        new(About, settings, new LeetCodeStats("NeetCode", new DifficultyCounts(205, 103, 98, 4), new DifficultyCounts(4000, 900, 2100, 1000), default), includePhone, Today, "https://jechel.dev");
+    private static ResumeInput Input(ResumeChoices choices, bool includePhone) =>
+        new(About, Contact, choices, new LeetCodeStats("NeetCode", new DifficultyCounts(205, 103, 98, 4), new DifficultyCounts(4000, 900, 2100, 1000), default), includePhone, Today, "https://jechel.dev");
 
     [Fact]
     public void The_phone_number_is_only_in_the_private_copy()
@@ -67,7 +68,6 @@ public class ResumeDocumentTests
         Assert.DoesNotContain("PLACES", text);
         Assert.DoesNotContain("UK Settled Status", text);
         Assert.DoesNotContain("GitHub", text);
-        Assert.DoesNotContain("I build web apps.", text);
         // The contact line isn't a section: it's always there.
         Assert.Contains("7700", text);
     }
@@ -103,6 +103,8 @@ public class ResumeDocumentTests
         Assert.Contains(ResumeDocument.Name, pages[0]);
         Assert.All(pages.Skip(1), page => Assert.DoesNotContain("Claudiu", page));
         Assert.All(pages.Skip(1), page => Assert.DoesNotContain("7700", page));
+        // No page numbers.
+        Assert.DoesNotContain("1 / ", pages[0]);
     }
 
     [Fact]

@@ -20,7 +20,6 @@ public static class FileEndpoints
         // like the rest of the API there are no antiforgery tokens: the session cookie is
         // SameSite=Lax, so another site can't post with it.
         files.MapPost("/photo", UploadPhoto).WithName("UploadPhoto").RequireAuthorization();
-        files.MapPost("/resume", UploadResume).WithName("UploadResume").RequireAuthorization();
         files.MapPost("/paper", UploadPaper).WithName("UploadPaper").RequireAuthorization();
         files.MapPost("/app-media", UploadAppMedia).WithName("UploadAppMedia").RequireAuthorization();
 
@@ -96,11 +95,7 @@ public static class FileEndpoints
         return TypedResults.Ok(new UploadedMedia(FileRules.UrlFor(id, name), name, Apps.AppMediaKinds.Image));
     }
 
-    /// <summary>A PDF, kept as it is and downloaded under the name it was uploaded with.</summary>
-    public static Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadResume(HttpRequest request, IFileStorage storage, CancellationToken cancellationToken) =>
-        UploadPdf(request, FileRules.ResumeMaxBytes, "Resume", "The résumé must be a PDF.", storage, cancellationToken);
-
-    /// <summary>An academic paper: a PDF like the résumé, but it may be much bigger.</summary>
+    /// <summary>An academic paper: a PDF, kept as it is and downloaded under the name it was uploaded with.</summary>
     public static Task<Results<Ok<UploadedFile>, ValidationProblem>> UploadPaper(HttpRequest request, IFileStorage storage, CancellationToken cancellationToken) =>
         UploadPdf(request, FileRules.PaperMaxBytes, "Paper", "The paper must be a PDF.", storage, cancellationToken);
 

@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { SortIcon } from '../../components/icons'
+import { ArrowDownIcon, SortIcon } from '../../components/icons'
 import { SKILL_USES, type AboutColors, type Skill, type SkillPeriod } from '../../services/api'
 import { EditableSection } from './EditableSection'
 import { AddButton, CheckboxGroup, ColorField, ItemControls, MonthField, TextField, type EditorProps, type FieldErrors } from './fields'
@@ -7,6 +7,7 @@ import { currentMonth, formatPeriod } from './format'
 import { SKILL_USE_LABELS, splitBackground } from './legend'
 import { move, removeAt, replaceAt } from './list'
 import { axisYears, chartRange, formatExperience, monthIndex, monthsUsed, sortByExperience } from './skills'
+import { plainText } from './textLinks'
 
 export interface SkillsValue {
   skills: Skill[]
@@ -95,22 +96,27 @@ function SkillBar({ skill, period, colors, now, left, right }: { skill: string; 
 
 function SkillsEditor({ value, onChange, errors }: EditorProps<SkillsValue>) {
   const [sorted, setSorted] = useState(false)
-  const setSkills = (skills: Skill[]) => {
+  // Which skills are open, by position: kept in step when skills move, go or come.
+  const [open, setOpen] = useState<ReadonlySet<number>>(new Set())
+  const setSkills = (skills: Skill[], nextOpen = open) => {
     setSorted(false)
+    setOpen(nextOpen)
     onChange({ ...value, skills })
   }
+  const toggle = (i: number) => setOpen((current) => (current.has(i) ? new Set([...current].filter((n) => n !== i)) : new Set([...current, i])))
   const newSkill = (): Skill => ({ name: '', periods: [{ start: currentMonth(), end: null, uses: ['work'] }] })
 
   return (
     <div className="editor-list">
       <div className="editor-list-header">
-        <p className="muted editor-note">Shown in this order. Move skills with the arrows, or sort them by experience.</p>
+        <p className="muted editor-note">Shown in this order. Move skills with the arrows, or sort them by experience. Click a skill to edit it.</p>
         <button
           type="button"
           className="button button-secondary button-small"
           disabled={value.skills.length < 2}
           onClick={() => {
             onChange({ ...value, skills: sortByExperience(value.skills) })
+            setOpen(new Set())
             setSorted(true)
           }}
         >
@@ -143,15 +149,22 @@ function SkillsEditor({ value, onChange, errors }: EditorProps<SkillsValue>) {
           skill={skill}
           colors={value.colors}
           errors={errors}
+          open={open.has(i)}
+          onToggle={() => toggle(i)}
           onChange={(next) => setSkills(replaceAt(value.skills, i, next))}
-          onMove={(from, to) => setSkills(move(value.skills, from, to))}
-          onRemove={() => setSkills(removeAt(value.skills, i))}
+          onMove={(from, to) => setSkills(move(value.skills, from, to), swapped(open, from, to))}
+          onRemove={() => setSkills(removeAt(value.skills, i), new Set([...open].filter((n) => n !== i).map((n) => (n > i ? n - 1 : n))))}
         />
       ))}
       {errors.skills && <p className="field-error">{errors.skills}</p>}
-      <AddButton onClick={() => setSkills([...value.skills, newSkill()])}>Add skill</AddButton>
+      <AddButton onClick={() => setSkills([...value.skills, newSkill()], new Set([...open, value.skills.length]))}>Add skill</AddButton>
     </div>
   )
+}
+
+/** The open positions after the skills at `from` and `to` swap places. */
+function swapped(open: ReadonlySet<number>, from: number, to: number): ReadonlySet<number> {
+  return new Set([...open].map((n) => (n === from ? to : n === to ? from : n)))
 }
 
 interface SkillEditorProps {
@@ -160,42 +173,59 @@ interface SkillEditorProps {
   skill: Skill
   colors: AboutColors['skills']
   errors: FieldErrors
+  open: boolean
+  onToggle: () => void
   onChange: (skill: Skill) => void
   onMove: (from: number, to: number) => void
   onRemove: () => void
 }
 
-function SkillEditor({ index, count, skill, colors, errors, onChange, onMove, onRemove }: SkillEditorProps) {
+/** One skill, folded to a row (its name, how long, move and remove) until clicked open. A skill with an error is always open. */
+function SkillEditor({ index, count, skill, colors, errors, open, onToggle, onChange, onMove, onRemove }: SkillEditorProps) {
+  const bodyId = useId()
   const key = `skills[${index}]`
   const setPeriods = (periods: SkillPeriod[]) => onChange({ ...skill, periods })
   const lastEnd = skill.periods.at(-1)?.end
+  const hasError = Object.keys(errors).some((k) => k.startsWith(`${key}.`) || k === key)
+  const expanded = open || hasError
+  const name = plainText(skill.name).trim()
+  const months = monthsUsed(skill)
 
   return (
-    <fieldset className="editor-item">
-      <legend>Skill {index + 1}</legend>
-      <div className="editor-item-toolbar">
+    <fieldset className="editor-item accordion-item">
+      <legend className="visually-hidden">Skill {index + 1}</legend>
+      <div className="accordion-header">
+        <button type="button" className="accordion-toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={onToggle} disabled={hasError}>
+          <ArrowDownIcon size={16} />
+          <span className="accordion-title">{name || `Skill ${index + 1}`}</span>
+          <span className="muted accordion-meta">
+            {skill.periods.length === 0 ? 'no dates' : months > 0 ? formatExperience(months) : `${skill.periods.length} ${skill.periods.length === 1 ? 'period' : 'periods'}`}
+          </span>
+        </button>
         <ItemControls name={`skill ${index + 1}`} index={index} count={count} onMove={onMove} onRemove={onRemove} />
       </div>
-      <TextField label="Skill" value={skill.name} required onChange={(name) => onChange({ ...skill, name })} error={errors[`${key}.name`]} />
-      <div className="editor-subitems">
-        {skill.periods.length === 0 && <p className="muted editor-note">No dates yet. Add when you used it to show it on the timeline.</p>}
-        {skill.periods.map((period, p) => (
-          <PeriodEditor
-            key={p}
-            name={`period ${p + 1} of skill ${index + 1}`}
-            label={`Period ${p + 1}`}
-            period={period}
-            colors={colors}
-            errorKey={`${key}.periods[${p}]`}
-            errors={errors}
-            onChange={(next) => setPeriods(replaceAt(skill.periods, p, next))}
-            onRemove={() => setPeriods(removeAt(skill.periods, p))}
-          />
-        ))}
-        {errors[`${key}.periods`] && <p className="field-error">{errors[`${key}.periods`]}</p>}
-        <AddButton onClick={() => setPeriods([...skill.periods, { start: lastEnd ?? currentMonth(), end: null, uses: ['work'] }])}>
-          Add period <span className="visually-hidden">to skill {index + 1}</span>
-        </AddButton>
+      <div id={bodyId} className="accordion-body" hidden={!expanded}>
+        <TextField label="Skill" value={skill.name} required onChange={(name) => onChange({ ...skill, name })} error={errors[`${key}.name`]} />
+        <div className="editor-subitems">
+          {skill.periods.length === 0 && <p className="muted editor-note">No dates yet. Add when you used it to show it on the timeline.</p>}
+          {skill.periods.map((period, p) => (
+            <PeriodEditor
+              key={p}
+              name={`period ${p + 1} of skill ${index + 1}`}
+              label={`Period ${p + 1}`}
+              period={period}
+              colors={colors}
+              errorKey={`${key}.periods[${p}]`}
+              errors={errors}
+              onChange={(next) => setPeriods(replaceAt(skill.periods, p, next))}
+              onRemove={() => setPeriods(removeAt(skill.periods, p))}
+            />
+          ))}
+          {errors[`${key}.periods`] && <p className="field-error">{errors[`${key}.periods`]}</p>}
+          <AddButton onClick={() => setPeriods([...skill.periods, { start: lastEnd ?? currentMonth(), end: null, uses: ['work'] }])}>
+            Add period <span className="visually-hidden">to skill {index + 1}</span>
+          </AddButton>
+        </div>
       </div>
     </fieldset>
   )

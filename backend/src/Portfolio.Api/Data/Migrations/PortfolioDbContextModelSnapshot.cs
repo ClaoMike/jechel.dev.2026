@@ -381,12 +381,6 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("character varying(150)")
                         .HasColumnName("headline");
 
-                    b.Property<string>("Location")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("location");
-
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -405,12 +399,6 @@ namespace Portfolio.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("sections");
-
-                    b.Property<string>("Summary")
-                        .IsRequired()
-                        .HasMaxLength(1500)
-                        .HasColumnType("character varying(1500)")
-                        .HasColumnName("summary");
 
                     b.HasKey("Id");
 

@@ -56,8 +56,13 @@ async function renderSettings() {
   server.use(signedIn(), ...settings.handlers)
   const user = userEvent.setup()
   renderApp('/settings')
-  await screen.findByRole('heading', { name: 'Buy Me a Coffee' })
-  const card = (name: string) => within(screen.getByRole('region', { name }))
+  await screen.findByRole('button', { name: /^Buy Me a Coffee/ })
+  /** Opens the service's card and gives its contents. */
+  const card = async (name: string) => {
+    const toggle = screen.getByRole('button', { name: new RegExp(`^${name.replace(/[()]/g, '\\$&')}`) })
+    if (toggle.getAttribute('aria-expanded') === 'false') await user.click(toggle)
+    return within(screen.getByRole('region', { name: new RegExp(`^${name.replace(/[()]/g, '\\$&')}`) }))
+  }
   return { user, card, ...settings }
 }
 
@@ -66,32 +71,48 @@ describe('SettingsPage', () => {
     renderApp('/settings')
 
     await screen.findByText(/Nothing here yet/)
-    expect(screen.queryByRole('heading', { name: 'Buy Me a Coffee' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Buy Me a Coffee/ })).not.toBeInTheDocument()
   })
 
   it('saves the coffee page link', async () => {
     const { user, card, saved } = await renderSettings()
+    const coffee = await card('Buy Me a Coffee')
 
-    await user.type(card('Buy Me a Coffee').getByLabelText(/Page link/), 'https://buymeacoffee.com/claomike')
-    await user.click(card('Buy Me a Coffee').getAllByRole('button', { name: 'Save' })[0])
+    await user.type(coffee.getByLabelText(/Page link/), 'https://buymeacoffee.com/claomike')
+    await user.click(coffee.getAllByRole('button', { name: 'Save' })[0])
 
-    expect(await card('Buy Me a Coffee').findByText('Saved.')).toBeInTheDocument()
+    expect(await coffee.findByText('Saved.')).toBeInTheDocument()
     expect(saved).toEqual([{ key: 'Support:Url', value: 'https://buymeacoffee.com/claomike' }])
-    expect(card('Buy Me a Coffee').getByText('https://jechel.dev/api/support/buymeacoffee')).toBeInTheDocument()
+    expect(coffee.getByText('https://jechel.dev/api/support/buymeacoffee')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Buy Me a Coffee/ })).toHaveTextContent('Partly set up')
   })
 
   it('never shows a secret, only how it ends', async () => {
     const { card } = await renderSettings()
 
-    const resend = card('Resend (email)')
+    const resend = await card('Resend (email)')
     expect(resend.getByLabelText(/API key/)).toHaveValue('')
     expect(resend.getByText(/ends in abcd/)).toBeInTheDocument()
     expect(screen.queryByDisplayValue(/re_EXAMPLE/)).not.toBeInTheDocument()
   })
 
+  it('lists the services folded, each with how far it is set up', async () => {
+    await renderSettings()
+
+    const toggles = screen.getAllByRole('button', { expanded: false })
+    expect(toggles.map((t) => t.textContent)).toEqual([
+      'Buy Me a CoffeeNot set up',
+      'Google sign-inSet up',
+      'YouTube Data APISet up',
+      'Resend (email)Partly set up',
+      'ntfy (phone alerts)Not set up',
+      'HostingLater',
+    ])
+  })
+
   it('generates an ntfy topic and sends a test alert', async () => {
     const { user, card, saved } = await renderSettings()
-    const ntfy = card('ntfy (phone alerts)')
+    const ntfy = await card('ntfy (phone alerts)')
 
     await user.click(ntfy.getByRole('button', { name: 'Generate' }))
     const topic = (ntfy.getByLabelText(/^Topic/) as HTMLInputElement).value
@@ -107,15 +128,16 @@ describe('SettingsPage', () => {
   it("shows why a test failed", async () => {
     const { user, card } = await renderSettings()
 
-    await user.click(card('Resend (email)').getByRole('button', { name: 'Send me a test email' }))
+    const resend = await card('Resend (email)')
+    await user.click(resend.getByRole('button', { name: 'Send me a test email' }))
 
-    expect(await card('Resend (email)').findByText('Resend refused it: domain not verified')).toBeInTheDocument()
+    expect(await resend.findByText('Resend refused it: domain not verified')).toBeInTheDocument()
   })
 
   it('shows how Google sign-in is set up, without letting it change', async () => {
     const { card } = await renderSettings()
 
-    const google = card('Google sign-in')
+    const google = await card('Google sign-in')
     expect(google.getByText(/client 1234-abc…/)).toBeInTheDocument()
     expect(google.getByText('https://jechel.dev/api/auth/signin-google')).toBeInTheDocument()
     expect(google.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
