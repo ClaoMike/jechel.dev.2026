@@ -50,6 +50,40 @@ export interface ContactMessageDetails {
   receivedAt: string
   /** ISO 8601 timestamp, or null while unread. */
   readAt: string | null
+  /** What the admin answered, oldest first. */
+  replies: ContactReply[]
+  /** Meetings the same address booked (not cancelled), soonest first. */
+  meetings: Meeting[]
+}
+
+export interface ContactReply {
+  id: number
+  text: string
+  /** ISO 8601 timestamp. */
+  sentAt: string
+}
+
+/** requested: waits for the admin to accept or decline. */
+export type MeetingStatus = 'requested' | 'accepted' | 'declined' | 'cancelled'
+
+/** A meeting booked with Cal.com. */
+export interface Meeting {
+  id: number
+  title: string
+  /** ISO 8601 timestamps. */
+  startTime: string
+  endTime: string
+  attendeeName: string
+  attendeeEmail: string
+  attendeeTimeZone: string | null
+  notes: string | null
+  status: MeetingStatus
+}
+
+export interface MeetingDecision {
+  status: MeetingStatus
+  /** False when there was a message but it couldn't be emailed (the decision still stands). */
+  emailSent: boolean
 }
 
 export interface Page<T> {
@@ -897,6 +931,11 @@ export const api = {
     async deleteMessage(id: number): Promise<void> {
       await http.delete(`/api/contact/messages/${id}`)
     },
+
+    /** Admin only. Emails the answer to the sender (with the message quoted); rejects with a 503 ApiError when it can't be sent. */
+    reply(id: number, text: string): Promise<ContactReply> {
+      return post<ContactReply>(`/api/contact/messages/${id}/reply`, { text })
+    },
   },
 
   analytics: {
@@ -1025,6 +1064,27 @@ export const api = {
     },
   },
 
+  meetings: {
+    /** Public. The Cal.com booking page ("username/event"), or "" when meetings aren't offered. */
+    async info(signal?: AbortSignal): Promise<string> {
+      const { calLink } = await get<{ calLink: string }>('/api/meetings/info', { signal })
+      return calLink
+    },
+
+    /** Admin only. Meetings overlapping [from, to), soonest first. */
+    list(from: Date, to: Date, signal?: AbortSignal): Promise<Meeting[]> {
+      return get<Meeting[]>('/api/meetings', { params: { from: from.toISOString(), to: to.toISOString() }, signal })
+    },
+
+    /**
+     * Admin only. Accepts or declines a requested meeting with Cal.com, and emails `message` (if any)
+     * to the attendee. Rejects with a 502 ApiError when Cal.com refuses.
+     */
+    decide(id: number, accept: boolean, message: string): Promise<MeetingDecision> {
+      return post<MeetingDecision>(`/api/meetings/${id}/${accept ? 'accept' : 'decline'}`, { message })
+    },
+  },
+
   settings: {
     /** Admin only. */
     get(signal?: AbortSignal): Promise<SettingsResponse> {
@@ -1037,8 +1097,8 @@ export const api = {
       return response.data
     },
 
-    /** Admin only. Sends a test alert ("ntfy"), a test email to you ("email"), or lists the videos ("youtube"). */
-    test(service: 'ntfy' | 'email' | 'youtube'): Promise<TestResult> {
+    /** Admin only. Sends a test alert ("ntfy"), a test email to you ("email"), lists the videos ("youtube"), or checks the Cal.com key ("cal"). */
+    test(service: 'ntfy' | 'email' | 'youtube' | 'cal'): Promise<TestResult> {
       return post<TestResult>(`/api/settings/test/${service}`)
     },
   },

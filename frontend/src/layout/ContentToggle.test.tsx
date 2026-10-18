@@ -60,3 +60,28 @@ describe('ContentToggle while the page is hidden', () => {
     expect(screen.getByRole('button', { name: 'Hide page' })).not.toHaveClass('content-toggle-idle')
   })
 })
+
+describe('ContentToggle on a phone', () => {
+  it('is an icon in the header, and waits in the bottom-right corner while the page is hidden', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width'), addEventListener() {}, removeEventListener() {} }))
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { top: this.classList.contains('content-toggle-slot') ? 40 : 0, left: this.classList.contains('content-toggle-slot') ? 200 : 0, width: 36, height: 36, right: 0, bottom: 0, x: 0, y: 0, toJSON() {} } as DOMRect
+    })
+    renderApp('/')
+
+    const button = screen.getByRole('button', { name: 'Hide page' })
+    expect(button).toHaveClass('content-toggle-compact')
+    expect(button).toHaveStyle({ top: '40px', left: '200px' })
+
+    await userEvent.click(button)
+    const show = screen.getByRole('button', { name: 'Show page' })
+    expect(show).toHaveClass('content-toggle-cornered')
+    expect(show.style.top).toBe('')
+
+    await userEvent.click(show)
+    // Back over its slot at once (it used to wait for a scroll).
+    expect(screen.getByRole('button', { name: 'Hide page' })).toHaveStyle({ top: '40px', left: '200px' })
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+})

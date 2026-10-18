@@ -10,6 +10,7 @@ import { ContentToggle } from './ContentToggle'
 import { PageTransition } from './PageTransition'
 import { SiteFooter } from './SiteFooter'
 import { SlowSceneNotice } from './SlowSceneNotice'
+import { useScrollMemory } from './useScrollMemory'
 import { TabNav } from './TabNav'
 import { ThemeSwitch } from './ThemeSwitch'
 import { useTheme } from './theme'
@@ -23,6 +24,7 @@ export function AppLayout() {
   const preview = isAuthenticated ? previewMode : 'normal'
   applyPreview(preview)
   const theme = useTheme()
+  useScrollMemory()
   // Vice can hide the page to show off the scene; leaving Vice always brings the page back.
   const [hideContent, setHideContent] = useState(false)
   const contentHidden = theme === 'vice' && hideContent

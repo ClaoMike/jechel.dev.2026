@@ -8,8 +8,12 @@ public sealed class FakeEmailSender : IEmailSender
     public List<EmailMessage> Sent { get; } = [];
     public bool Fail { get; set; }
 
+    /// <summary>Thrown instead of sending, when set.</summary>
+    public Exception? FailWith { get; set; }
+
     public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
+        if (FailWith is not null) throw FailWith;
         if (Fail) throw new HttpRequestException("Resend is down.");
         Sent.Add(message);
         return Task.CompletedTask;

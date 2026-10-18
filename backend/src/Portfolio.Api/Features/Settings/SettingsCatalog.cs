@@ -21,6 +21,9 @@ public static class SettingsCatalog
         new("Alerts:NtfyTopic", "Topic", IsSecret: false, Kind: "topic", MaxLength: 64),
         new("Alerts:NtfyServer", "Server", IsSecret: false, Kind: "url"),
         new("Alerts:NtfyToken", "Access token (optional)", IsSecret: true),
+        new("Cal:Link", "Booking page", IsSecret: false, Kind: "cal-link", MaxLength: 200),
+        new("Cal:ApiKey", "API key", IsSecret: true),
+        new("Cal:WebhookSecret", "Webhook secret", IsSecret: true),
     ];
 
     public static SettingDefinition? Find(string key) => All.FirstOrDefault(d => d.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
@@ -34,6 +37,7 @@ public static class SettingsCatalog
         {
             "url" when !(Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http") => "Enter an http(s) link.",
             "email-sender" when !IsSender(value) => "Enter an address, or a name and address like: jechel.dev <updates@jechel.dev>",
+            "cal-link" when Meetings.CalOptions.NormalizeLink(value).Length == 0 => "Enter your Cal.com link, e.g. https://cal.com/you/30min or you/30min.",
             "topic" when !value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_') => "Use letters, digits, - and _ only.",
             _ => null,
         };

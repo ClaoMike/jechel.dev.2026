@@ -1,9 +1,10 @@
 import { SignedIn, SignedOut, useAuth } from '../auth'
-import { ContactForm } from '../features/contact/ContactForm'
 import { MessagesInbox } from '../features/contact/MessagesInbox'
+import { MeetingsCalendar } from '../features/meetings/MeetingsCalendar'
+import { VisitorContact } from '../features/meetings/VisitorContact'
 import { Loading, Skeleton } from '../components/Skeleton'
 
-/** Visitors get the contact form; the signed-in admin gets the messages sent through it. */
+/** Visitors get the contact form (and booking a meeting); the signed-in admin gets the meetings calendar and the messages. */
 export function ContactPage() {
   const { isLoading } = useAuth()
 
@@ -24,10 +25,13 @@ export function ContactPage() {
         </Loading>
       )}
       <SignedOut>
-        <ContactForm />
+        <VisitorContact />
       </SignedOut>
       <SignedIn>
-        <MessagesInbox />
+        <div className="admin-contact">
+          <MeetingsCalendar />
+          <MessagesInbox />
+        </div>
       </SignedIn>
     </>
   )

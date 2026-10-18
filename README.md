@@ -137,6 +137,12 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | PUT    | `/api/resume/contact`       | cookie  | `{ phone, email, headline }` (edited with About Me's profile): **200**, or **400** with field errors |
 | PUT    | `/api/resume/choices`       | cookie  | `{ sections, excludedSkills }` without generating: **200**, or **400** |
 | POST   | `/api/resume/generate`      | cookie  | `{ sections, excludedSkills }`: saves them, makes both PDFs, and points About Me's résumé link at the public one: **200**, or **400** |
+| GET    | `/api/meetings/info`        | public  | `{ calLink }`: the Cal.com booking page ("user/event") for **Book a meeting**, or `""` |
+| POST   | `/api/meetings/cal`         | signature | Cal.com's webhook (HMAC-SHA256 of the body, hex, in `x-cal-signature-256`): keeps bookings up to date, alerts the phone. **401** bad signature, **503** until the secret is set |
+| GET    | `/api/meetings?from=&to=`   | cookie  | Meetings overlapping the range (a calendar month), soonest first |
+| POST   | `/api/meetings/{id}/accept` | cookie or token | `{ message? }`: confirms a requested meeting with Cal.com and emails the message: **200** `{ status, emailSent }`, **502** when Cal.com refuses |
+| POST   | `/api/meetings/{id}/decline` | cookie or token | The same, declining (the message is also Cal.com's reason) |
+| POST   | `/api/contact/messages/{id}/reply` | cookie | `{ text }`: emails the answer to the sender (their message quoted, your address to reply to): **200**, **400**, **503** when it can't be sent |
 | GET    | `/api/settings`             | cookie  | The connection settings (secrets only as set/not set and their last 4 characters), how Google sign-in is set up, and the site's address |
 | PUT    | `/api/settings/{key}`       | cookie  | `{ value }`: saves one (encrypted if secret) and applies it at once; `""` clears it. **400** for a bad value, **404** for an unknown key |
 | POST   | `/api/settings/test/{service}` | cookie | `ntfy` (test alert), `email` (test email to you) or `youtube` (lists the videos): **200** `{ ok, message }` |
@@ -473,11 +479,48 @@ Google sign-in, YouTube Data API, Resend, ntfy, and (later) hosting.
   sign in would lock you out. Change it in user secrets or environment variables.
 - Which keys can be set is a fixed list (`SettingsCatalog.cs`); each is checked (links, sender address, topic characters).
 
+## Meetings (Cal.com) and replies
+
+**Visitors** choose between **Send a message** and **Book a meeting** on the Contact page (the second once a Cal.com page is
+set in Settings). Booking shows Cal.com's own calendar inline (`features/meetings/CalBooking.tsx`, Cal.com's embed script from
+`app.cal.com`), so they see when you're free and pick a slot.
+
+**You decide:** with **Requires confirmation** on the Cal.com event type, a booking is a *request*:
+- your phone gets **Meeting request: Grace** with **Accept** / **Decline** buttons (a one-time token in their links)
+- the Contact tab has a **Meetings** calendar above the messages: the month with each day's meetings marked (amber waiting,
+  green accepted), and the chosen day's meetings, each request with **Accept** / **Decline** and an optional message
+- a message from someone who also booked shows that meeting in its popup, with the same buttons
+
+Accepting or declining goes through Cal.com's API (`/v2/bookings/{uid}/confirm` or `/decline`, `cal-api-version: 2026-02-25`),
+so Cal.com sends its usual emails and calendar invites; your message, if any, is emailed too (Resend, with your address to reply
+to; for a decline it's also Cal.com's reason). Cal.com's webhook (`/api/meetings/cal`) keeps each booking up to date: requested,
+created, rescheduled (the old one is marked cancelled), cancelled, rejected.
+
+**Reminders** for accepted meetings go to your phone a day before, 2 hours before, 5 minutes before and when it starts
+(`MeetingReminders`, checked every 30 seconds by the site itself; ntfy only keeps scheduled messages for 3 days). If a reminder's
+time passed while a later one is due (a meeting accepted an hour before), only the latest goes out. Times in alerts use
+`Site:TimeZone` (default Europe/London).
+
+**Replies:** a message's popup has a reply box: the answer is emailed to the sender with their message quoted and your own
+address to reply to, and kept with the message. Until a domain is verified in Resend, it only reaches your own address.
+
+**Setting up Cal.com** (Settings → Cal.com has the links and the URL to paste):
+1. An event type (e.g. 30 minutes) with your availability, and **Advanced → Requires confirmation** on. Its link goes in Settings.
+2. Connect your calendar in Cal.com (Google, Outlook…) so busy times are blocked and accepted meetings land in it.
+3. **Settings → Developer → Webhooks:** `https://<your-domain>/api/meetings/cal`, a secret (also in Settings), and the booking
+   events: requested, created, rescheduled, cancelled, rejected. Cal.com can't reach `localhost`, so this needs the site online.
+4. **Settings → Developer → API keys:** a key, pasted in Settings, so this site can accept and decline for you
+   (**Check the API key** tests it).
+
 ## Vice on phones and on weak devices
 
 - **Phones** (≤ 640 px): Vice's hide / show button is an icon in the header, left of **Buy me a coffee**. It's pinned over an empty
   slot there (`ContentToggle`'s `anchor`), not inside the header, because the header slides away with the page and the button must
-  stay to bring it back. The neon title gets some room from the screen's edge.
+  stay to bring it back. While the page is hidden it waits in the bottom-right corner; when the page comes back it returns to the
+  slot once the header has landed. The neon title gets some room from the screen's edge.
+
+**Scrolling:** each page remembers how far down it was (for this tab, `layout/useScrollMemory.ts`): a page you haven't opened
+yet starts at the top, and going back to one returns to where you were, retried while its content loads.
 - **First visit, no theme chosen yet:** Vice, unless the device can't show it smoothly (`layout/device.ts`): the browser asks to save
   data or is on a slow connection, under 4 GB of memory (Chrome reports it), two cores or fewer, no WebGL 2, or WebGL drawn in
   software (SwiftShader, llvmpipe: no real graphics card). Then the device's own light or dark (`prefers-color-scheme`).
@@ -565,8 +608,12 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Updates:SubscribeLimitPer10Minutes` | Subscribe attempts per IP per 10 minutes (default 5) |
 | `Alerts:NtfyTopic`            | The ntfy topic phone alerts go to (secret). Empty: alerts are written to the log |
 | `Alerts:NtfyToken` / `Alerts:NtfyServer` | Optional ntfy access token, and server (default `https://ntfy.sh`) |
+| `Cal:Link`                    | The Cal.com booking page (`you/30min` or its link). Empty hides **Book a meeting** |
+| `Cal:ApiKey`                  | Cal.com API key (secret), to accept and decline from this site |
+| `Cal:WebhookSecret`           | The Cal.com webhook's secret. The webhook answers 503 until it's set |
+| `Site:TimeZone`               | Your time zone for times in phone alerts (default `Europe/London`) |
 
-Every key above from `Support`, `YouTube`, `Email` and `Alerts` can also be set in the **Settings** tab, which overrides these.
+Every key above from `Support`, `YouTube`, `Email`, `Alerts` and `Cal` can also be set in the **Settings** tab, which overrides these.
 Secrets are never committed. Locally, use [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets):
 `dotnet user-secrets set "<Key>" "<value>" --project backend/src/Portfolio.Api`.
 

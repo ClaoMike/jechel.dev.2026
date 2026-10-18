@@ -36,6 +36,9 @@ public class SiteOptions
     /// <summary>E.g. "https://jechel.dev", without a trailing slash.</summary>
     public string PublicUrl { get; set; } = "http://localhost:5173";
 
+    /// <summary>The admin's time zone, for times in phone alerts (IANA, e.g. "Europe/London").</summary>
+    public string TimeZone { get; set; } = "Europe/London";
+
     public string UrlFor(string path) => PublicUrl.TrimEnd('/') + path;
 }
 

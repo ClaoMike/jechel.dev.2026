@@ -128,13 +128,14 @@ public static class SettingsEndpoints
         return TypedResults.Ok((await GetSettings(db, store, configuration, admins, site, http, cancellationToken)).Value!);
     }
 
-    /// <summary>Tries a service with the current settings: "ntfy" sends a test alert, "email" a test email to the admin, "youtube" lists the videos.</summary>
+    /// <summary>Tries a service with the current settings: "ntfy" sends a test alert, "email" a test email to the admin, "youtube" lists the videos, "cal" checks the Cal.com API key.</summary>
     public static async Task<Results<Ok<TestResult>, NotFound>> TestService(
         string service,
         NtfySender ntfy,
         IEmailSender emails,
         IYouTubeClient youTube,
         IOptionsMonitor<YouTubeOptions> youTubeOptions,
+        Meetings.ICalClient cal,
         ClaimsPrincipal user,
         CancellationToken cancellationToken)
     {
@@ -159,6 +160,9 @@ public static class SettingsEndpoints
                         return TypedResults.Ok(new TestResult(false, "Set the channel and the API key first."));
                     var videos = await youTube.FetchVideosAsync(cancellationToken);
                     return TypedResults.Ok(new TestResult(true, $"Found {videos.Count} public {(videos.Count == 1 ? "video" : "videos")}."));
+
+                case "cal":
+                    return TypedResults.Ok(new TestResult(true, $"The API key works, for {await cal.WhoAmIAsync(cancellationToken)}."));
 
                 default:
                     return TypedResults.NotFound();

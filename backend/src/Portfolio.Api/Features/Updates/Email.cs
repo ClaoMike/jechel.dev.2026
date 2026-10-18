@@ -7,7 +7,8 @@ using Portfolio.Api.Features.Settings;
 namespace Portfolio.Api.Features.Updates;
 
 /// <param name="UnsubscribeUrl">Sent as List-Unsubscribe (one click, RFC 8058), which Gmail and Yahoo require for bulk mail. Optional.</param>
-public record EmailMessage(string To, string Subject, string Html, string Text, string? UnsubscribeUrl = null);
+/// <param name="ReplyTo">Where answers go, e.g. the admin's own address for a reply to a contact message. Optional.</param>
+public record EmailMessage(string To, string Subject, string Html, string Text, string? UnsubscribeUrl = null, string? ReplyTo = null);
 
 public interface IEmailSender
 {
@@ -47,6 +48,7 @@ public class ResendEmailSender(HttpClient http, IOptionsMonitor<EmailOptions> op
             ["html"] = message.Html,
             ["text"] = message.Text,
         };
+        if (message.ReplyTo is { Length: > 0 } replyTo) body["reply_to"] = replyTo;
         if (message.UnsubscribeUrl is { } unsubscribe)
         {
             body["headers"] = new Dictionary<string, string>

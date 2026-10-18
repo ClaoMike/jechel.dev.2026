@@ -10,7 +10,13 @@ public record SendMessageRequest(string? Name, string? Email, string? Message);
 
 public record ContactMessageSummary(int Id, string Name, DateTimeOffset ReceivedAt, bool IsRead);
 
-public record ContactMessageDetails(int Id, string Name, string Email, string Message, DateTimeOffset ReceivedAt, DateTimeOffset? ReadAt);
+/// <param name="Replies">What the admin answered, oldest first.</param>
+/// <param name="Meetings">Meetings the same address booked with Cal.com (not cancelled), soonest first: to accept or decline from the message.</param>
+public record ContactMessageDetails(int Id, string Name, string Email, string Message, DateTimeOffset ReceivedAt, DateTimeOffset? ReadAt, IReadOnlyList<ContactReplyDto> Replies, IReadOnlyList<Meetings.MeetingDto> Meetings);
+
+public record ContactReplyDto(int Id, string Text, DateTimeOffset SentAt);
+
+public record ReplyRequest(string? Text);
 
 public static class ContactEndpoints
 {
@@ -30,6 +36,7 @@ public static class ContactEndpoints
         messages.MapGet("/{id:int}", GetMessage).WithName("GetContactMessage");
         messages.MapPost("/{id:int}/read", MarkAsRead).WithName("MarkContactMessageAsRead");
         messages.MapDelete("/{id:int}", DeleteMessage).WithName("DeleteContactMessage");
+        messages.MapPost("/{id:int}/reply", Reply).WithName("ReplyToContactMessage");
 
         return app;
     }
@@ -91,13 +98,66 @@ public static class ContactEndpoints
         PortfolioDbContext db,
         CancellationToken cancellationToken)
     {
-        var message = await db.ContactMessages
-            .AsNoTracking()
-            .Where(m => m.Id == id)
-            .Select(m => new ContactMessageDetails(m.Id, m.Name, m.Email, m.Message, m.ReceivedAt, m.ReadAt))
-            .FirstOrDefaultAsync(cancellationToken);
+        var message = await db.ContactMessages.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
+        if (message is null) return TypedResults.NotFound();
 
-        return message is null ? TypedResults.NotFound() : TypedResults.Ok(message);
+        var replies = await db.ContactReplies.AsNoTracking()
+            .Where(r => r.MessageId == id)
+            .OrderBy(r => r.SentAt)
+            .Select(r => new ContactReplyDto(r.Id, r.Text, r.SentAt))
+            .ToListAsync(cancellationToken);
+        var email = message.Email.ToLower();
+        var meetings = await db.Meetings.AsNoTracking()
+            .Where(m => m.AttendeeEmail.ToLower() == email && m.Status != Meetings.MeetingStatus.Cancelled)
+            .OrderBy(m => m.StartTime)
+            .Select(m => new Meetings.MeetingDto(m.Id, m.Title, m.StartTime, m.EndTime, m.AttendeeName, m.AttendeeEmail, m.AttendeeTimeZone, m.Notes, m.Status))
+            .ToListAsync(cancellationToken);
+
+        return TypedResults.Ok(new ContactMessageDetails(message.Id, message.Name, message.Email, message.Message, message.ReceivedAt, message.ReadAt, replies, meetings));
+    }
+
+    public const int ReplyMaxLength = 5000;
+
+    /// <summary>
+    /// Admin only. Emails an answer to whoever sent the message (Resend), with the admin's own address
+    /// to reply to and the message quoted under it, and keeps it with the message. 503 when it can't be sent.
+    /// </summary>
+    public static async Task<Results<Ok<ContactReplyDto>, NotFound, ValidationProblem, ProblemHttpResult>> Reply(
+        int id,
+        ReplyRequest request,
+        PortfolioDbContext db,
+        Updates.IEmailSender emails,
+        Microsoft.Extensions.Options.IOptionsMonitor<Auth.AdminOptions> admins,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var text = request.Text?.Trim() ?? "";
+        if (text.Length == 0 || text.Length > ReplyMaxLength)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["text"] = [text.Length == 0 ? "Write the reply first." : $"At most {ReplyMaxLength} characters."] });
+        }
+
+        var message = await db.ContactMessages.FindAsync([id], cancellationToken);
+        if (message is null) return TypedResults.NotFound();
+
+        try
+        {
+            await emails.SendAsync(Meetings.PersonalEmails.Reply(message.Email, message.Name, text, message.Message, admins.CurrentValue.AdminEmails.FirstOrDefault() ?? ""), cancellationToken);
+        }
+        catch (Settings.ServiceException e)
+        {
+            return TypedResults.Problem(e.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (HttpRequestException)
+        {
+            return TypedResults.Problem("The email service couldn't be reached. Please try again.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var reply = new ContactReply { MessageId = id, Text = text, SentAt = time.GetUtcNow() };
+        db.ContactReplies.Add(reply);
+        message.ReadAt ??= reply.SentAt;
+        await db.SaveChangesAsync(cancellationToken);
+        return TypedResults.Ok(new ContactReplyDto(reply.Id, reply.Text, reply.SentAt));
     }
 
     /// <summary>Idempotent: keeps the time it was first read.</summary>

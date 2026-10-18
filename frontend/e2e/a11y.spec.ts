@@ -89,6 +89,15 @@ test.describe('the admin', () => {
     await page.route('**/api/contact/messages?*', (route) =>
       route.fulfill({ json: { items: [{ id: 1, name: 'Ada', receivedAt: '2026-10-18T10:00:00Z', isRead: false }], page: 1, pageSize: 10, totalCount: 1 } }),
     )
+    const today = new Date()
+    today.setHours(15, 0, 0, 0)
+    await page.route('**/api/meetings?*', (route) =>
+      route.fulfill({
+        json: [
+          { id: 1, title: '30 min', startTime: today.toISOString(), endTime: new Date(today.getTime() + 1_800_000).toISOString(), attendeeName: 'Grace', attendeeEmail: 'grace@example.com', attendeeTimeZone: 'Europe/London', notes: 'About an app', status: 'requested' },
+        ],
+      }),
+    )
     await page.route('**/api/updates/subscribers?*', (route) => route.fulfill({ json: page1([{ id: 1, email: 'ada@example.com', createdAt: '2026-10-01T10:00:00Z', confirmedAt: null }]) }))
     await page.route('**/api/updates/announcements?*', (route) =>
       route.fulfill({ json: page1([{ id: 1, kind: 'app', title: 'Space Game', status: 'pending', createdAt: '2026-10-05T10:00:00Z', sentAt: null, recipientCount: 0 }]) }),
@@ -110,6 +119,9 @@ test.describe('the admin', () => {
             setting('Alerts:NtfyTopic', 'Topic', false),
             setting('Alerts:NtfyServer', 'Server', false),
             setting('Alerts:NtfyToken', 'Access token (optional)', true),
+            setting('Cal:Link', 'Booking page', false, 'claomike/30min'),
+            setting('Cal:ApiKey', 'API key', true),
+            setting('Cal:WebhookSecret', 'Webhook secret', true),
           ],
           google: { isConfigured: true, clientIdHint: '1234…', adminEmailCount: 1, redirectUri: 'https://jechel.dev/api/auth/signin-google' },
           siteUrl: 'https://jechel.dev',

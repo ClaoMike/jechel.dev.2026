@@ -464,13 +464,25 @@ html {
     height: 36px;
   }
 
-  .content-toggle.content-toggle-compact {
+  .content-toggle.content-toggle-compact:not(.content-toggle-cornered) {
     right: auto;
     bottom: auto;
+  }
+
+  .content-toggle.content-toggle-compact {
     width: 36px;
     min-height: 36px;
     height: 36px;
     padding: 0;
+  }
+
+  /* While the page is hidden: the bottom-right corner, clear of the phone's home bar, and a bigger target. */
+  .content-toggle.content-toggle-cornered {
+    right: max(20px, env(safe-area-inset-right));
+    bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
+    width: 48px;
+    min-height: 48px;
+    height: 48px;
   }
 
   /* The neon j's tail reaches left of its box: keep it off the screen's edge. */

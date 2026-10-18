@@ -11,6 +11,7 @@ using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.Contact;
 using Portfolio.Api.Features.Files;
 using Portfolio.Api.Features.LeetCode;
+using Portfolio.Api.Features.Meetings;
 using Portfolio.Api.Features.Places;
 using Portfolio.Api.Features.Profile;
 using Portfolio.Api.Features.Resume;
@@ -80,6 +81,16 @@ builder.Services.AddHttpClient<ResendEmailSender>(http =>
 builder.Services.AddSingleton<LogEmailSender>();
 builder.Services.AddTransient<IEmailSender, SwitchingEmailSender>();
 builder.Services.AddSingleton<UpdatesTrigger>();
+
+// Meetings booked with Cal.com: accepting / declining through its API, and phone reminders.
+builder.Services.BindWithSettings<CalOptions>(builder.Configuration, CalOptions.Section);
+builder.Services.AddHttpClient<ICalClient, CalClient>(http =>
+{
+    http.BaseAddress = CalClient.BaseAddress;
+    http.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddScoped<MeetingReminders>();
+builder.Services.AddHostedService<MeetingRemindersWorker>();
 builder.Services.AddScoped<UpdatesAnnouncer>();
 builder.Services.AddHostedService<UpdatesWorker>();
 
@@ -142,5 +153,6 @@ api.MapSupportEndpoints();
 api.MapUpdatesEndpoints();
 api.MapResumeEndpoints();
 api.MapSettingsEndpoints();
+api.MapMeetingsEndpoints();
 
 app.Run();

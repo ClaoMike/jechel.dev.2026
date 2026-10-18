@@ -87,7 +87,7 @@ test('the admin sees the inbox instead of the form, and pages through it', async
   await expect(page.getByRole('table').getByRole('row')).toHaveCount(11) // header + 10
   await expect(page.getByText('Page 1 of 2')).toBeVisible()
 
-  await page.getByRole('button', { name: 'Next' }).click()
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
 
   await expect(page).toHaveURL('/contact?page=2')
   await expect(page.getByRole('button', { name: 'Sender 15', exact: true })).toBeVisible()

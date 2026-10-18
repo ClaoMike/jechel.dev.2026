@@ -23,6 +23,8 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<UpdatesState> UpdatesStates => Set<UpdatesState>();
     public DbSet<ResumeSettings> ResumeSettings => Set<ResumeSettings>();
     public DbSet<SiteSetting> SiteSettings => Set<SiteSetting>();
+    public DbSet<Meeting> Meetings => Set<Meeting>();
+    public DbSet<ContactReply> ContactReplies => Set<ContactReply>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -257,6 +259,44 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(s => s.Value).HasColumnName("value").IsRequired();
             entity.Property(s => s.IsEncrypted).HasColumnName("is_encrypted");
             entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<Meeting>(entity =>
+        {
+            entity.ToTable("meetings");
+            entity.HasKey(m => m.Id);
+            entity.Property(m => m.Id).HasColumnName("id");
+            entity.Property(m => m.Uid).HasColumnName("uid").HasMaxLength(100).IsRequired();
+            entity.Property(m => m.Title).HasColumnName("title").HasMaxLength(300).IsRequired();
+            entity.Property(m => m.StartTime).HasColumnName("start_time");
+            entity.Property(m => m.EndTime).HasColumnName("end_time");
+            entity.Property(m => m.AttendeeName).HasColumnName("attendee_name").HasMaxLength(200).IsRequired();
+            entity.Property(m => m.AttendeeEmail).HasColumnName("attendee_email").HasMaxLength(320).IsRequired();
+            entity.Property(m => m.AttendeeTimeZone).HasColumnName("attendee_time_zone").HasMaxLength(64);
+            entity.Property(m => m.Notes).HasColumnName("notes").HasMaxLength(2000);
+            entity.Property(m => m.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(m => m.DecisionTokenHash).HasColumnName("decision_token_hash").HasMaxLength(64);
+            entity.Property(m => m.RemindersSent).HasColumnName("reminders_sent");
+            entity.Property(m => m.CreatedAt).HasColumnName("created_at");
+            entity.Property(m => m.UpdatedAt).HasColumnName("updated_at");
+
+            entity.HasIndex(m => m.Uid).IsUnique();
+            // The calendar and the reminders read by time.
+            entity.HasIndex(m => m.StartTime);
+        });
+
+        modelBuilder.Entity<ContactReply>(entity =>
+        {
+            entity.ToTable("contact_replies");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).HasColumnName("id");
+            entity.Property(r => r.MessageId).HasColumnName("message_id");
+            entity.Property(r => r.Text).HasColumnName("text").HasMaxLength(Features.Contact.ContactEndpoints.ReplyMaxLength).IsRequired();
+            entity.Property(r => r.SentAt).HasColumnName("sent_at");
+
+            // Deleting a message deletes its replies.
+            entity.HasOne<ContactMessage>().WithMany().HasForeignKey(r => r.MessageId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(r => r.MessageId);
         });
     }
 }

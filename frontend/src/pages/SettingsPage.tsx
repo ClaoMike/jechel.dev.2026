@@ -132,6 +132,35 @@ function Settings() {
       </ServiceCard>
 
       <ServiceCard
+        title="Cal.com (meetings)"
+        status={status('Cal:Link', 'Cal:ApiKey', 'Cal:WebhookSecret')}
+        what="Book a meeting on the Contact page, the calendar above your messages, accepting or declining requests (here or from your phone), and the reminders."
+        links={[
+          ['Event types', 'https://app.cal.com/event-types'],
+          ['Webhooks', 'https://app.cal.com/settings/developer/webhooks'],
+          ['API keys', 'https://app.cal.com/settings/developer/api-keys'],
+        ]}
+        test={{ service: 'cal', label: 'Check the API key' }}
+      >
+        <Steps>
+          <li>
+            In <strong>Event types</strong>, make one (e.g. 30 minutes), set your availability, and under <strong>Advanced</strong> turn on <strong>Requires confirmation</strong>, so you
+            accept each request. Paste its link below.
+          </li>
+          <li>
+            In <strong>Webhooks</strong>, add this link, with a secret of your choice, for Booking requested, created, rescheduled, cancelled and rejected:
+            <Copyable value={`${data.siteUrl}/api/meetings/cal`} />
+          </li>
+          <li>
+            Paste the same secret below, then make an <strong>API key</strong> (Settings → Developer) and paste it too: it lets this site accept and decline for you.
+          </li>
+        </Steps>
+        {field('Cal:Link', { placeholder: 'https://cal.com/you/30min' })}
+        {field('Cal:WebhookSecret')}
+        {field('Cal:ApiKey')}
+      </ServiceCard>
+
+      <ServiceCard
         title="Resend (email)"
         status={status('Email:ResendApiKey', 'Email:From')}
         what="Confirmation emails for subscribers, and the emails about new apps and videos."
@@ -198,7 +227,7 @@ function ServiceCard({
   status: ServiceStatus
   what: string
   links: [string, string][]
-  test?: { service: 'ntfy' | 'email' | 'youtube'; label: string }
+  test?: { service: 'ntfy' | 'email' | 'youtube' | 'cal'; label: string }
   children: ReactNode
 }) {
   const id = useId()
@@ -244,7 +273,7 @@ function Copyable({ value }: { value: string }) {
   )
 }
 
-function TestButton({ service, label }: { service: 'ntfy' | 'email' | 'youtube'; label: string }) {
+function TestButton({ service, label }: { service: 'ntfy' | 'email' | 'youtube' | 'cal'; label: string }) {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<TestResult | null>(null)
 

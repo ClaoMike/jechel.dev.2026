@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import type { AboutContent, AnalyticsRange, AnalyticsSummary, BucketSize, AppCategory, AppCategoryRequest, AppDetails, AppRequest, ResumeContact, ResumeSettingsDetails, TermsContent, TermsDocument, VisitDetails, VisitSummary } from '../services/api'
+import type { AboutContent, AnalyticsRange, AnalyticsSummary, BucketSize, AppCategory, AppCategoryRequest, AppDetails, AppRequest, Meeting, ResumeContact, ResumeSettingsDetails, TermsContent, TermsDocument, VisitDetails, VisitSummary } from '../services/api'
 
 export const API = 'http://api.test'
 
@@ -139,6 +139,9 @@ export const handlers = [
   http.get(`${API}/api/apps`, () => HttpResponse.json({ items: [], page: 1, pageSize: 9, totalCount: 0 })),
   // The admin's résumé generator on About Me: never generated.
   http.get(`${API}/api/resume/settings`, () => HttpResponse.json(resumeSettings())),
+  // Meetings (Cal.com): not offered by default; the admin's calendar is empty.
+  http.get(`${API}/api/meetings/info`, () => HttpResponse.json({ calLink: '' })),
+  http.get(`${API}/api/meetings`, () => HttpResponse.json([])),
   // The header's "Buy me a coffee": hidden by default (no URL configured).
   http.get(`${API}/api/support`, () => HttpResponse.json({ url: '' })),
   // The visitor tracker (features/analytics) sends here; its own tests look at what it sends.
@@ -309,6 +312,8 @@ export interface TestMessage {
   message: string
   receivedAt: string
   readAt: string | null
+  replies: { id: number; text: string; sentAt: string }[]
+  meetings: Meeting[]
 }
 
 /** `count` messages, newest first (id 1 is the newest); every third one already read. */
@@ -320,6 +325,8 @@ export function makeMessages(count: number): TestMessage[] {
     message: `${LONG_MESSAGE} (#${i + 1})`,
     receivedAt: new Date(Date.UTC(2026, 9, 8, 12, 0) - i * 3_600_000).toISOString(),
     readAt: i % 3 === 2 ? '2026-10-08T13:00:00.000Z' : null,
+    replies: [],
+    meetings: [],
   }))
 }
 
@@ -328,8 +335,22 @@ export function makeMessages(count: number): TestMessage[] {
  * tests can inspect it afterwards. `calls` records the "read" and delete requests.
  */
 export function inbox(messages: TestMessage[]) {
-  const calls = { markAsRead: [] as number[], deleted: [] as number[] }
+  const calls = { markAsRead: [] as number[], deleted: [] as number[], replies: [] as { id: number; text: string }[], decisions: [] as { id: number; decision: string; message: string }[] }
   const handlers = [
+    http.post(`${API}/api/contact/messages/:id/reply`, async ({ params, request }) => {
+      const message = messages.find((m) => m.id === Number(params.id))
+      if (!message) return new HttpResponse(null, { status: 404 })
+      const { text } = (await request.json()) as { text: string }
+      calls.replies.push({ id: message.id, text })
+      const reply = { id: message.replies.length + 1, text, sentAt: '2026-10-20T10:00:00Z' }
+      message.replies.push(reply)
+      return HttpResponse.json(reply)
+    }),
+    http.post(`${API}/api/meetings/:id/:decision`, async ({ params, request }) => {
+      const { message } = (await request.json()) as { message: string }
+      calls.decisions.push({ id: Number(params.id), decision: String(params.decision), message })
+      return HttpResponse.json({ status: params.decision === 'accept' ? 'accepted' : 'declined', emailSent: message.length > 0 })
+    }),
     http.get(`${API}/api/contact/messages`, ({ request }) => {
       const url = new URL(request.url)
       const page = Number(url.searchParams.get('page') ?? 1)

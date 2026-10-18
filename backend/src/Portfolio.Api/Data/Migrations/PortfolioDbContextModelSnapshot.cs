@@ -228,6 +228,36 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("contact_messages", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.ContactReply", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("MessageId")
+                        .HasColumnType("integer")
+                        .HasColumnName("message_id");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId");
+
+                    b.ToTable("contact_replies", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.Donation", b =>
                 {
                     b.Property<int>("Id")
@@ -314,6 +344,90 @@ namespace Portfolio.Api.Data.Migrations
                     b.HasKey("Username");
 
                     b.ToTable("leetcode_stats", (string)null);
+                });
+
+            modelBuilder.Entity("Portfolio.Api.Data.Meeting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AttendeeEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("attendee_email");
+
+                    b.Property<string>("AttendeeName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("attendee_name");
+
+                    b.Property<string>("AttendeeTimeZone")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("attendee_time_zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DecisionTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("decision_token_hash");
+
+                    b.Property<DateTimeOffset>("EndTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_time");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("notes");
+
+                    b.Property<int>("RemindersSent")
+                        .HasColumnType("integer")
+                        .HasColumnName("reminders_sent");
+
+                    b.Property<DateTimeOffset>("StartTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_time");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Uid")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("uid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StartTime");
+
+                    b.HasIndex("Uid")
+                        .IsUnique();
+
+                    b.ToTable("meetings", (string)null);
                 });
 
             modelBuilder.Entity("Portfolio.Api.Data.Profile", b =>
@@ -730,6 +844,15 @@ namespace Portfolio.Api.Data.Migrations
                     b.HasIndex("StartedAt");
 
                     b.ToTable("visit_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("Portfolio.Api.Data.ContactReply", b =>
+                {
+                    b.HasOne("Portfolio.Api.Data.ContactMessage", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Portfolio.Api.Data.VisitEvent", b =>
