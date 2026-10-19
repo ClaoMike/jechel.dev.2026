@@ -1,6 +1,6 @@
 import type { Qualification } from '../../services/api'
-import { EditableSection } from './EditableSection'
-import { AddButton, ItemControls, MonthField, TextField, type EditorProps } from './fields'
+import { EditableSection } from './EditableSection/EditableSection'
+import { AddButton, ItemControls, MonthField, TextField, type EditorProps } from './fields/fields'
 import { currentMonth, formatMonth } from './format'
 import { move, removeAt, replaceAt } from './list'
 import { RichText } from './RichText'

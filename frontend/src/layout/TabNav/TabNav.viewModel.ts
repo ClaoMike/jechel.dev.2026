@@ -1,0 +1,164 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router'
+import { useAppSelector } from '../../store'
+import { TABS, type Tab } from '../tabs'
+
+/** Where the highlight is, in the tab bar's own coordinates (it scrolls with the tabs). */
+interface Box {
+  left: number
+  width: number
+}
+
+interface Drag {
+  pointerId: number
+  startX: number
+  startLeft: number
+  moved: boolean
+}
+
+/** A drag starts once the pointer has moved this far, so a tap stays a tap. */
+const DRAG_THRESHOLD = 5
+
+export interface TabItem extends Tab {
+  /** The admin sees hidden pages too, marked. */
+  hiddenFromVisitors: boolean
+}
+
+/**
+ * The tabs that show (visitors: the pages that are switched on, none until that's known; the admin:
+ * them all, hidden ones marked), the highlight that glides to the current one, dragging it across,
+ * and the arrows for tabs out of view.
+ */
+export function useTabNavViewModel() {
+  const navRef = useRef<HTMLElement>(null)
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const isAuthenticated = useAppSelector((state) => state.auth.status === 'authenticated')
+  const site = useAppSelector((state) => state.site)
+  const hidden = (tab: Tab) => tab.page !== undefined && site.status === 'loaded' && !site.site.pages[tab.page]
+  const tabs: TabItem[] = TABS.filter((tab) => (isAuthenticated ? true : !tab.adminOnly && site.status === 'loaded' && !hidden(tab))).map((tab) => ({
+    ...tab,
+    hiddenFromVisitors: isAuthenticated && hidden(tab),
+  }))
+
+  const [box, setBox] = useState<Box | null>(null)
+  // Off for the first placement, so the highlight doesn't fly in from the left on load.
+  const [animate, setAnimate] = useState(false)
+  const [dragBox, setDragBox] = useState<Box | null>(null)
+  // Whether there are more tabs out of view on each side (narrow windows, phones): then an arrow shows there.
+  const [more, setMore] = useState({ left: false, right: false })
+  const drag = useRef<Drag | null>(null)
+  const suppressClick = useRef(false)
+
+  const tabElements = useCallback(() => [...(navRef.current?.querySelectorAll<HTMLAnchorElement>('.tab') ?? [])], [])
+
+  const updateMore = useCallback(() => {
+    const nav = navRef.current
+    if (!nav) return
+    const left = nav.scrollLeft > 1
+    const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1
+    setMore((current) => (current.left === left && current.right === right ? current : { left, right }))
+  }, [])
+
+  const measure = useCallback(() => {
+    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
+    setBox(active ? { left: active.offsetLeft, width: active.offsetWidth } : null)
+    updateMore()
+  }, [updateMore])
+
+  useLayoutEffect(measure, [measure, pathname, tabs.length])
+
+  // Tabs change size with the window and once the font loads.
+  useEffect(() => {
+    const nav = navRef.current
+    if (!nav || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(nav)
+    for (const tab of tabElements()) observer.observe(tab)
+    return () => observer.disconnect()
+  }, [measure, tabElements, tabs.length])
+
+  useEffect(() => {
+    if (!box || animate) return
+    const frame = requestAnimationFrame(() => setAnimate(true))
+    return () => cancelAnimationFrame(frame)
+  }, [box, animate])
+
+  // On narrow screens the tabs scroll sideways: keep the current one in view.
+  useEffect(() => {
+    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [pathname])
+
+  /** Scrolls the bar most of its width that way, so the next tabs come into view. */
+  function scrollTabs(direction: -1 | 1) {
+    const nav = navRef.current
+    nav?.scrollBy?.({ left: direction * nav.clientWidth * 0.7, behavior: 'smooth' })
+  }
+
+  /** The tab whose middle is closest to `center`. */
+  function nearestTab(center: number) {
+    let best: HTMLAnchorElement | undefined
+    for (const tab of tabElements()) {
+      if (!best || Math.abs(tab.offsetLeft + tab.offsetWidth / 2 - center) < Math.abs(best.offsetLeft + best.offsetWidth / 2 - center)) best = tab
+    }
+    return best
+  }
+
+  function onPointerDown(event: PointerEvent<HTMLElement>) {
+    // Only the current tab is a handle: dragging elsewhere scrolls the bar (phones) or does nothing.
+    if (!box || !event.isPrimary || event.button !== 0 || !(event.target as HTMLElement).closest('[aria-current="page"]')) return
+    drag.current = { pointerId: event.pointerId, startX: event.clientX, startLeft: box.left, moved: false }
+  }
+
+  function onPointerMove(event: PointerEvent<HTMLElement>) {
+    const current = drag.current
+    const nav = navRef.current
+    if (!current || !nav || !box || event.pointerId !== current.pointerId) return
+    const dx = event.clientX - current.startX
+    if (!current.moved) {
+      if (Math.abs(dx) < DRAG_THRESHOLD) return
+      current.moved = true
+      nav.setPointerCapture(event.pointerId)
+    }
+    const left = Math.min(Math.max(current.startLeft + dx, 0), nav.scrollWidth - box.width)
+    // The highlight takes the width of the tab it's over.
+    const under = nearestTab(left + box.width / 2)
+    setDragBox({ left, width: under?.offsetWidth ?? box.width })
+  }
+
+  function onPointerUp(event: PointerEvent<HTMLElement>) {
+    const current = drag.current
+    drag.current = null
+    if (!current?.moved || event.pointerId !== current.pointerId) return
+    suppressClick.current = true
+    const target = dragBox && nearestTab(dragBox.left + dragBox.width / 2)
+    setDragBox(null)
+    const to = target?.getAttribute('href')
+    if (to && to !== pathname) navigate(to)
+  }
+
+  function onPointerCancel() {
+    drag.current = null
+    setDragBox(null)
+  }
+
+  // A drag ends with a click on whatever is under the pointer: it mustn't open that too.
+  function onClickCapture(event: MouseEvent<HTMLElement>) {
+    if (!suppressClick.current) return
+    suppressClick.current = false
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  const shown = dragBox ?? box
+  return {
+    navRef,
+    tabs,
+    more,
+    dragging: dragBox !== null,
+    indicator: shown && { animate, style: { width: shown.width, transform: `translateX(${shown.left}px)` } satisfies CSSProperties },
+    scrollLeft: () => scrollTabs(-1),
+    scrollRight: () => scrollTabs(1),
+    navHandlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClickCapture, onScroll: updateMore },
+  }
+}

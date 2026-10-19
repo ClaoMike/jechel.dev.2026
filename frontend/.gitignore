@@ -8,6 +8,12 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+
+# Tests: the coverage report (npm test); screenshots that didn't match (the reference ones are committed)
+coverage
+.vitest
+__screenshots__/**/*-actual-*.png
+__screenshots__/**/*-diff-*.png
 dist
 dist-ssr
 *.local
@@ -23,10 +29,3 @@ dist-ssr
 *.sln
 *.sw?
 
-# Testing
-coverage
-test-results
-playwright-report
-blob-report
-playwright/.cache
-e2e/.state

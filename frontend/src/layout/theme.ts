@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from 'react'
 import { isLowPowerDevice, systemTheme } from './device'
 
 /** The site's colour themes. Vice is dark glass over the animated Riviera scene. */
@@ -9,8 +8,6 @@ export type Theme = (typeof THEMES)[number]
 const STORAGE_KEY = 'theme'
 /** Set once Vice turned out too slow here: later visits start in light or dark straight away. */
 const SLOW_KEY = 'theme.slowDevice'
-const listeners = new Set<() => void>()
-const slowListeners = new Set<(theme: Theme) => void>()
 
 function isTheme(value: unknown): value is Theme {
   return THEMES.includes(value as Theme)
@@ -44,55 +41,25 @@ function wasSlow(): boolean {
   }
 }
 
-/**
- * Vice is drawing too slowly here. Unless the visitor chose Vice themselves, switches to their
- * light or dark (without making it their choice) and remembers it for next time. Listeners
- * (onSlowSceneSwitch) hear which theme it switched to, to say so.
- */
-export function reportSlowScene() {
-  if (chosenTheme() !== null) return
+/** Vice was too slow here: next visit starts in light or dark. */
+export function rememberSlowDevice() {
   try {
     localStorage.setItem(SLOW_KEY, '1')
   } catch {
     // Not remembered: next visit tries Vice again.
   }
-  const theme = systemTheme()
-  show(theme)
-  slowListeners.forEach((listener) => listener(theme))
 }
 
-export function onSlowSceneSwitch(listener: (theme: Theme) => void): () => void {
-  slowListeners.add(listener)
-  return () => slowListeners.delete(listener)
-}
-
-/** The theme on show: <html data-theme> (set in main.tsx before the first render), else the stored one. */
-function currentTheme(): Theme {
-  const shown = document.documentElement.dataset.theme
-  return isTheme(shown) ? shown : storedTheme()
-}
-
-/** Shows the theme (glass.css keys off <html data-theme>), remembers it, and tells useTheme() users. */
-export function setTheme(theme: Theme) {
+/** Makes it the visitor's choice. */
+export function rememberTheme(theme: Theme) {
   try {
     localStorage.setItem(STORAGE_KEY, theme)
   } catch {
     // Not remembered; the page still switches.
   }
-  show(theme)
 }
 
-function show(theme: Theme) {
+/** Shows the theme: glass.css keys off <html data-theme> (and the tracker reads it). */
+export function showTheme(theme: Theme) {
   document.documentElement.dataset.theme = theme
-  listeners.forEach((listener) => listener())
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-/** The current theme; re-renders when it changes. */
-export function useTheme(): Theme {
-  return useSyncExternalStore(subscribe, currentTheme)
 }

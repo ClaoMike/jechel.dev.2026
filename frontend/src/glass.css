@@ -170,11 +170,6 @@ a {
   opacity: 1;
 }
 
-/* Headings that sit straight on the picture. */
-:root[data-theme='vice'] .page-title {
-  text-shadow: 0 2px 12px rgb(0 0 0 / 0.6);
-}
-
 /* ---------- Neon: the Vice look (the Vice mark always; the site name in Vice) ---------- */
 
 /*

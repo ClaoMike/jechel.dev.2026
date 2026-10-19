@@ -1,11 +1,12 @@
-import { useId, useState } from 'react'
-import { SortIcon } from '../../components/icons'
+import { SortIcon } from '../../components/icons/icons'
 import type { EducationItem, ExperienceItem } from '../../services/api'
 import { BulletsEditor } from './BulletsSection'
-import { EditableSection } from './EditableSection'
-import { AddButton, ItemControls, MonthField, TextField, type FieldErrors } from './fields'
+import { EditableSection } from './EditableSection/EditableSection'
+import { AddButton, ItemControls, MonthField, TextField, type FieldErrors } from './fields/fields'
+import { useFieldIdViewModel } from './fields/fields.viewModel'
 import { currentMonth, formatPeriod, isUpcoming } from './format'
 import { move, removeAt, replaceAt, sortByEndDate } from './list'
+import { useSortableListViewModel } from './list.viewModel'
 import { RichText } from './RichText'
 
 /** What experience and education have in common; `organization` is the company or the institution. */
@@ -129,11 +130,8 @@ function TimelineItem({ entry }: { entry: TimelineEntry }) {
 
 function TimelineEditor<T>({ config, value, onChange, errors }: { config: TimelineConfig<T>; value: TimelineEntry[]; onChange: (value: TimelineEntry[]) => void; errors: FieldErrors }) {
   const newEntry = (): TimelineEntry => ({ title: '', organization: '', location: '', start: currentMonth(), end: null, ...(config.withBullets ? { bullets: [''] } : {}) })
-  const [sorted, setSorted] = useState(false)
-  const change = (entries: TimelineEntry[]) => {
-    setSorted(false)
-    onChange(entries)
-  }
+  const vm = useSortableListViewModel(value, onChange, sortByEndDate)
+  const { change } = vm
 
   return (
     <div className="editor-list">
@@ -142,18 +140,15 @@ function TimelineEditor<T>({ config, value, onChange, errors }: { config: Timeli
         <button
           type="button"
           className="button button-secondary button-small"
-          disabled={value.length < 2}
-          onClick={() => {
-            onChange(sortByEndDate(value))
-            setSorted(true)
-          }}
+          disabled={!vm.canSort}
+          onClick={vm.sort}
         >
           <SortIcon size={16} />
           Sort by end date
         </button>
       </div>
-      <p role="status" className={sorted ? 'editor-status' : 'visually-hidden'}>
-        {sorted ? 'Sorted by end date, ongoing first. Save to keep this order, or Cancel to undo.' : ''}
+      <p role="status" className={vm.sorted ? 'editor-status' : 'visually-hidden'}>
+        {vm.sorted ? 'Sorted by end date, ongoing first. Save to keep this order, or Cancel to undo.' : ''}
       </p>
       {value.map((entry, i) => (
         <TimelineEntryEditor
@@ -188,7 +183,7 @@ interface EntryEditorProps<T> {
 }
 
 function TimelineEntryEditor<T>({ config, index, count, entry, errorAt, errors, onChange, onMove, onRemove }: EntryEditorProps<T>) {
-  const ongoingId = useId()
+  const { id: ongoingId } = useFieldIdViewModel()
   const name = `${config.itemName} ${index + 1}`
   const set = (patch: Partial<TimelineEntry>) => onChange({ ...entry, ...patch })
 

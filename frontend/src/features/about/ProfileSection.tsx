@@ -1,15 +1,15 @@
 import type { ReactNode } from 'react'
-import { ErrorState } from '../../components/ErrorState'
-import { DownloadIcon, GitHubIcon, InstagramIcon, LeetCodeIcon, LinkedInIcon, PersonIcon, PhoneIcon } from '../../components/icons'
-import { useId } from 'react'
-import { api, type AboutLinks, type ResumeContact, type Status } from '../../services/api'
-import { EditableSection } from './EditableSection'
-import { FileUpload } from './FileUpload'
-import { TextField, type EditorProps } from './fields'
+import { ErrorState } from '../../components/ErrorState/ErrorState'
+import { DownloadIcon, GitHubIcon, InstagramIcon, LeetCodeIcon, LinkedInIcon, PersonIcon, PhoneIcon } from '../../components/icons/icons'
+import type { AboutLinks, ResumeContact, Status } from '../../services/api'
+import { useFieldIdViewModel } from './fields/fields.viewModel'
+import { EditableSection } from './EditableSection/EditableSection'
+import { FileUpload } from './FileUpload/FileUpload'
+import { TextField, type EditorProps } from './fields/fields'
 import { isSafeUrl } from './format'
 import { Flag } from './Flag'
 import { FLAG_CHOICES, flagName, guessFlag } from './flags'
-import { AddButton, ItemControls } from './fields'
+import { AddButton, ItemControls } from './fields/fields'
 import { move, removeAt, replaceAt } from './list'
 import { leetCodeProfileUrl } from './problemSolving'
 import { RichText } from './RichText'
@@ -138,7 +138,7 @@ function ProfileEditor({ value, onChange, update, errors }: EditorProps<Profile>
           accept="image/jpeg,image/png,image/webp,image/gif"
           maxBytes={PHOTO_MAX_BYTES}
           hint="JPEG, PNG, WebP or GIF, up to 15 MB. It's resized, and its location data is removed."
-          upload={api.files.uploadPhoto}
+          kind="photo"
           onUploaded={(file) => update((current) => ({ ...current, photoUrl: file.url }))}
           onRemove={value.photoUrl ? () => onChange({ ...value, photoUrl: '' }) : undefined}
           error={errors.photoUrl}
@@ -204,7 +204,7 @@ interface StatusEditorProps {
 }
 
 function StatusEditor({ index, count, status, error, onChange, onMove, onRemove }: StatusEditorProps) {
-  const flagId = useId()
+  const { id: flagId } = useFieldIdViewModel()
   return (
     <div className="status-editor" role="group" aria-label={`Label ${index + 1}`}>
       <div className="field">

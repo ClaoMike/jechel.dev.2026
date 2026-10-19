@@ -1,7 +1,8 @@
 import react from '@vitejs/plugin-react'
+import { playwright } from '@vitest/browser-playwright'
 import { defineConfig } from 'vitest/config'
 
-// WEB_PORT and API_URL run a second copy next to the usual one (e.g. for E2E tests); see playwright.config.ts.
+// WEB_PORT and API_URL run a second copy next to the usual one (other ports, another API).
 const webPort = Number(process.env.WEB_PORT ?? 5173)
 const apiUrl = process.env.API_URL ?? 'http://localhost:5105'
 
@@ -18,17 +19,34 @@ export default defineConfig({
       '/api': { target: apiUrl, xfwd: true },
     },
   },
+  // Tests run in a real browser (headless Chromium), so views get the site's own CSS: layout, themes
+  // and screenshots are the real thing. The API is never called: tests stub `api` (src/test/).
   test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
-    env: {
-      VITE_API_BASE_URL: 'http://api.test',
+    setupFiles: ['src/test/setup.ts'],
+    browser: {
+      enabled: true,
+      provider: playwright(),
+      headless: true,
+      instances: [{ browser: 'chromium' }],
+      viewport: { width: 1280, height: 900 },
+      expect: {
+        toMatchScreenshot: {
+          // Small anti-aliasing differences between runs aren't changes.
+          comparatorName: 'pixelmatch',
+          comparatorOptions: { threshold: 0.2, allowedMismatchedPixelRatio: 0.002 },
+        },
+      },
     },
+    // Every source file counts, tested or not, so the report shows what isn't covered yet.
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/main.tsx', 'src/vite-env.d.ts'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/**/*.d.ts', 'src/main.tsx'],
+      reporter: ['text-summary', 'html', 'json-summary'],
+      reportsDirectory: 'coverage',
+      // Written even when a test fails, so every run shows what's covered.
+      reportOnFailure: true,
     },
   },
 })

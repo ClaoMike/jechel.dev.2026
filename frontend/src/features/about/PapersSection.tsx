@@ -1,8 +1,8 @@
-import { DownloadIcon } from '../../components/icons'
-import { api, type Paper } from '../../services/api'
-import { EditableSection } from './EditableSection'
-import { AddButton, ItemControls, TextField, type EditorProps } from './fields'
-import { FileUpload } from './FileUpload'
+import { DownloadIcon } from '../../components/icons/icons'
+import type { Paper } from '../../services/api'
+import { EditableSection } from './EditableSection/EditableSection'
+import { AddButton, ItemControls, TextField, type EditorProps } from './fields/fields'
+import { FileUpload } from './FileUpload/FileUpload'
 import { fileNameOf, isSafeUrl } from './format'
 import { move, removeAt, replaceAt } from './list'
 import { RichText } from './RichText'
@@ -56,7 +56,7 @@ function PapersEditor({ value, onChange, update, errors }: EditorProps<Paper[]>)
               accept="application/pdf,.pdf"
               maxBytes={PAPER_MAX_BYTES}
               hint="Up to 200 MB. With a PDF, the title becomes its download link."
-              upload={api.files.uploadPaper}
+              kind="paper"
               onUploaded={(file) => setFile(file.url)}
               onRemove={paper.fileUrl ? () => setFile('') : undefined}
               error={errors[`papers[${i}].fileUrl`]}

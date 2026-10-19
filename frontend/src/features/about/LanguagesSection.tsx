@@ -1,7 +1,7 @@
-import { useId } from 'react'
 import { LANGUAGE_LEVELS, type Language, type LanguageLevel } from '../../services/api'
-import { EditableSection } from './EditableSection'
-import { AddButton, ItemControls, TextField, type EditorProps } from './fields'
+import { EditableSection } from './EditableSection/EditableSection'
+import { AddButton, ItemControls, TextField, type EditorProps } from './fields/fields'
+import { useFieldIdViewModel } from './fields/fields.viewModel'
 import { LANGUAGE_LEVEL_LABELS } from './legend'
 import { move, removeAt, replaceAt } from './list'
 
@@ -67,7 +67,7 @@ interface LanguageEditorProps {
 }
 
 function LanguageEditor({ index, count, language, nameError, levelError, onChange, onMove, onRemove }: LanguageEditorProps) {
-  const levelId = useId()
+  const { id: levelId } = useFieldIdViewModel()
   return (
     <fieldset className="editor-item editor-item-inline">
       <legend className="visually-hidden">Language {index + 1}</legend>

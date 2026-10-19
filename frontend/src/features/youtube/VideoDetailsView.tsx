@@ -1,4 +1,4 @@
-import { ExternalLinkIcon } from '../../components/icons'
+import { ExternalLinkIcon } from '../../components/icons/icons'
 import { LinkifiedText } from '../../components/LinkifiedText'
 import type { YouTubeVideo } from '../../services/api'
 import { youTubeEmbedUrl } from '../apps/media'

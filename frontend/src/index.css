@@ -381,11 +381,6 @@ h2 {
 
 /* ---------- Grids of cards (YouTube, Apps) ---------- */
 
-.page-title {
-  margin-bottom: 16px;
-  font-size: 22px;
-}
-
 .paged-grid {
   scroll-margin-top: 16px;
 }
@@ -749,12 +744,13 @@ button.media-card {
   border: 0;
 }
 
-.page-title-row {
+/* The admin's page commands (Apps → Categories), above the content: the tab bar already names the page. */
+.page-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
+  margin-bottom: 16px;
 }
 
 .app-heading {
@@ -2792,7 +2788,7 @@ button.media-card {
   }
 }
 
-/* ---------- Engagement (admin): pages/EngagementPage, features/analytics ---------- */
+/* ---------- Engagement (admin): pages/EngagementPage/EngagementPage, features/analytics ---------- */
 
 .engagement {
   display: grid;
@@ -3636,7 +3632,7 @@ button.media-card {
   }
 }
 
-/* ---------- When loading fails (components/ErrorState.tsx) ---------- */
+/* ---------- When loading fails (components/ErrorState/ErrorState.tsx) ---------- */
 
 .error-state {
   display: flex;
@@ -3753,7 +3749,7 @@ button.media-card {
   }
 }
 
-/* ---------- When Vice was too slow (layout/SlowSceneNotice.tsx) ---------- */
+/* ---------- When Vice was too slow (layout/SlowSceneNotice/SlowSceneNotice.tsx) ---------- */
 
 .slow-scene-notice {
   position: fixed;
@@ -3786,7 +3782,7 @@ button.media-card {
   gap: 8px;
 }
 
-/* ---------- Contact: message or meeting (features/meetings/VisitorContact.tsx) ---------- */
+/* ---------- Contact: message or meeting (features/meetings/VisitorContact/VisitorContact.tsx) ---------- */
 
 .visitor-contact,
 .admin-contact {

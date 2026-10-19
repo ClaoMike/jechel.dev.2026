@@ -1,4 +1,4 @@
-import { AddButton, ItemControls, TextField } from './fields'
+import { AddButton, ItemControls, TextField } from './fields/fields'
 import { move, removeAt, replaceAt } from './list'
 
 interface BulletsEditorProps {

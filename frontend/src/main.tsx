@@ -4,15 +4,15 @@ import { BrowserRouter } from 'react-router'
 import '@fontsource/mr-dafoe/latin.css'
 import './index.css'
 import './glass.css'
-import App from './App.tsx'
+import App from './App/App.tsx'
 import { Provider } from 'react-redux'
-import { AuthProvider } from './auth'
 import { tracker } from './features/analytics'
-import { storedTheme } from './layout/theme'
+import { showTheme } from './layout/theme'
 import { makeStore } from './store'
 
+const store = makeStore()
 // Before the first render, so the page never flashes the wrong theme.
-document.documentElement.dataset.theme = storedTheme()
+showTheme(store.getState().theme.theme)
 
 // React's own error reports, recorded for the Engagement tab (and still logged, as React would).
 createRoot(document.getElementById('root')!, {
@@ -26,11 +26,9 @@ createRoot(document.getElementById('root')!, {
   },
 }).render(
   <StrictMode>
-    <Provider store={makeStore()}>
+    <Provider store={store}>
       <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
+        <App />
       </BrowserRouter>
     </Provider>
   </StrictMode>,

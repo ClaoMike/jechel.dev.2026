@@ -29,9 +29,9 @@ WAIT_FOR_API = (
 # viewer in the browser and rebuilds it whenever the code changes. npm install only runs once.
 REPO_MAP = "cd tools/repomap && ([ -d node_modules ] || npm install) && npm start"
 BACKEND_TESTS = "cd backend && dotnet test"
-# E2E boots the API itself, but it needs the database to be up.
-FRONTEND_TESTS = f"{START_DB} && cd frontend && npm run test:run && npm run test:e2e"
-ALL_TESTS = f"({BACKEND_TESTS}) && ({FRONTEND_TESTS})"
+# Vitest in headless Chromium, with coverage of all of frontend/src; the report opens in the browser
+# afterwards, whether the tests passed or not.
+FRONTEND_TESTS = "cd frontend && npm test; open coverage/index.html"
 
 
 def open_terminal(title: str, command: str) -> None:
@@ -52,7 +52,6 @@ ACTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     ("Open repo map", [("Repo map", REPO_MAP)]),
     ("Run backend tests", [("Backend tests", BACKEND_TESTS)]),
     ("Run frontend tests", [("Frontend tests", FRONTEND_TESTS)]),
-    ("Run all tests", [("All tests", ALL_TESTS)]),
 ]
 
 

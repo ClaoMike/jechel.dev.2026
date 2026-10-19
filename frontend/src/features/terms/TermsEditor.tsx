@@ -1,4 +1,4 @@
-import { AddButton, ItemControls, TextField, type FieldErrors } from '../about/fields'
+import { AddButton, ItemControls, TextField, type FieldErrors } from '../about/fields/fields'
 import { BulletsEditor } from '../about/BulletsSection'
 import { move, removeAt, replaceAt } from '../about/list'
 import type { TermsBlock, TermsContent, TermsSection } from '../../services/api'

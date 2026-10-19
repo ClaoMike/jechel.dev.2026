@@ -1,2 +1,2 @@
-export { TermsProvider } from './TermsProvider'
-export { useTerms } from './useTerms'
+export { TermsHost } from './TermsHost/TermsHost'
+export { useTerms, type TermsValue } from './useTerms'
