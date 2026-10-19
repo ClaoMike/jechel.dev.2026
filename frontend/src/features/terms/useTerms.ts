@@ -2,8 +2,8 @@ import { useCallback } from 'react'
 import { useLocation } from 'react-router'
 import type { TermsDocument } from '../../services/api'
 import { useAppDispatch, useAppSelector } from '../../store'
-import { useGetTermsQuery } from '../../store/api/termsApi'
-import { toLoadable, type Loadable } from '../../store/loadable'
+import { termsApi, useGetTermsQuery } from '../../store/api/termsApi'
+import type { Loadable } from '../../store/loadable'
 import { termsOpened } from '../../store/termsSlice'
 import { termsVersion } from './acceptance'
 
@@ -22,11 +22,23 @@ export interface TermsValue {
   reload: () => void
 }
 
+const selectTerms = termsApi.endpoints.getTerms.select()
+
+/**
+ * Loads the terms for the whole site: the one subscriber (TermsHost, always mounted). Everything else
+ * reads them with useTerms, without subscribing: RTK Query asks again for a query that failed each
+ * time something new subscribes, so the welcome popup coming up while they can't be loaded would ask
+ * again, go while that's pending, come back when it fails, and so on, in a loop.
+ */
+export function useLoadTerms() {
+  useGetTermsQuery()
+}
+
 /** The terms and conditions and what this visitor did with them, for view models: `const { openTerms } = useTerms()`. */
 export function useTerms(): TermsValue {
   const dispatch = useAppDispatch()
-  const query = useGetTermsQuery()
-  const state = toLoadable(query)
+  const result = useAppSelector(selectTerms)
+  const state: Loadable<TermsDocument> = result.status === 'fulfilled' ? { status: 'loaded', data: result.data! } : result.status === 'rejected' ? { status: 'error' } : { status: 'loading' }
   const authStatus = useAppSelector((s) => s.auth.status)
   const accepted = useAppSelector((s) => s.terms.accepted)
   const version = termsVersion(state.status === 'loaded' ? state.data : null)
@@ -34,7 +46,6 @@ export function useTerms(): TermsValue {
   // Not on the admin's sign-in page (/admin): nothing there is for visitors.
   const onSignIn = useLocation().pathname.replace(/\/+$/, '') === '/admin'
   const mustAccept = !onSignIn && authStatus === 'anonymous' && (state.status === 'loaded' ? accepted !== version : state.status === 'error' && accepted === null)
-  const { refetch } = query
 
   return {
     state,
@@ -42,6 +53,7 @@ export function useTerms(): TermsValue {
     mustAccept,
     welcomeOpen: mustAccept || authStatus === 'loading' || state.status === 'loading',
     openTerms: useCallback(() => dispatch(termsOpened()), [dispatch]),
-    reload: useCallback(() => void refetch(), [refetch]),
+    // Asks once more (not a subscription: see useLoadTerms).
+    reload: useCallback(() => void dispatch(termsApi.endpoints.getTerms.initiate(undefined, { forceRefetch: true, subscribe: false })), [dispatch]),
   }
 }

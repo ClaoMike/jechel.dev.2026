@@ -5,7 +5,7 @@ import { ApiError } from '../services/api'
 import { a11yViolations } from '../test/a11y'
 import { stubApi } from '../test/api'
 import { SITE } from '../test/fixtures/site'
-import { ADMIN, forever, renderApp, shootWhole, textOf } from '../test/render'
+import { ADMIN, forever, renderApp, shootWhole } from '../test/render'
 
 const tabs = () => page.getByRole('navigation', { name: 'Sections' })
 
@@ -157,7 +157,8 @@ describe('the site frame, screenshots and accessibility', () => {
       await expect.element(page.getByRole('heading', { name: "We'll be right back" })).toBeVisible()
       expect(await a11yViolations()).toEqual([])
       await shootWhole(page.getByRole('main'), `${theme}-maintenance`)
-      await expect.poll(() => textOf(page.getByRole('heading', { level: 1 }))).toBe('jechel.dev')
+      // The name stays: read out once, though it's drawn in layers.
+      await expect.element(page.getByRole('heading', { level: 1, name: 'jechel.dev', exact: true })).toBeVisible()
     })
   }
 })

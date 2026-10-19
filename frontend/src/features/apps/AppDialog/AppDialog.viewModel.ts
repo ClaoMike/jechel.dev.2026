@@ -68,7 +68,8 @@ export function useAppDialogViewModel({ app, categories, canEdit, onClose, onSav
     titleId,
     header: {
       titleId,
-      heading: draft ? (app ? `Edit ${app.title}` : 'Add an app') : app!.title,
+      // A new app just saved has no draft for a moment, until the page shows it in its own popup.
+      heading: app ? (draft ? `Edit ${app.title}` : app.title) : 'Add an app',
       // The app's labels by its title while it's shown, not while it's edited.
       categories: draft === null && app ? app.categories : [],
       /** Escape, × or a click outside: ask first if there are unsaved changes. */

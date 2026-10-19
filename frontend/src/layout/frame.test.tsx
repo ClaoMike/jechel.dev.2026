@@ -1,0 +1,169 @@
+import { describe, expect, it } from 'vitest'
+import { page, userEvent } from 'vitest/browser'
+import { ApiError } from '../services/api'
+import { slowSceneSwitched } from '../store/themeSlice'
+import { stubApi } from '../test/api'
+import { SITE, SUPPORT_URL } from '../test/fixtures/site'
+import { ADMIN, forever, renderApp, textOf } from '../test/render'
+
+const theme = () => page.getByRole('group', { name: 'Theme' })
+const coffee = () => page.getByRole('link', { name: 'Buy me a coffee (opens in a new tab)' })
+const tabs = () => page.getByRole('navigation', { name: 'Sections' })
+
+describe('the header', () => {
+  it('names the site, linking home', async () => {
+    stubApi()
+    const app = await renderApp({ path: '/apps' })
+    await page.getByRole('link', { name: 'jechel.dev' }).click()
+    expect(app.location()).toBe('/')
+  })
+
+  it('switches between dark, light and Vice, remembering the choice', async () => {
+    stubApi()
+    await renderApp({ theme: 'dark' })
+    await expect.element(theme().getByRole('radio', { name: 'Dark mode' })).toBeChecked()
+    await theme().getByTitle('Light mode').click()
+    await expect.element(theme().getByRole('radio', { name: 'Light mode' })).toBeChecked()
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(localStorage.getItem('theme')).toBe('light')
+    await theme().getByTitle('Vice mode').click()
+    expect(document.documentElement.dataset.theme).toBe('vice')
+    await expect.poll(() => document.querySelector('.scene-background')).not.toBeNull()
+  })
+
+  it('moves between themes with the arrow keys', async () => {
+    stubApi()
+    await renderApp({ theme: 'dark' })
+    ;(theme().getByRole('radio', { name: 'Dark mode' }).element() as HTMLElement).focus()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(theme().getByRole('radio', { name: 'Light mode' })).toBeChecked()
+    expect(document.documentElement.dataset.theme).toBe('light')
+  })
+
+  it('links "Buy me a coffee" to the donation page, in a new tab', async () => {
+    stubApi()
+    await renderApp()
+    await expect.element(coffee()).toHaveAttribute('href', SUPPORT_URL)
+    await expect.element(coffee()).toHaveAttribute('target', '_blank')
+    await expect.element(coffee()).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('holds the place of "Buy me a coffee" while it loads, and leaves it out with no page or no answer', async () => {
+    const api = stubApi()
+    api.support.get.mockReturnValue(forever())
+    const loading = await renderApp()
+    await expect.poll(() => document.querySelector('.header-button-skeleton')).not.toBeNull()
+    await loading.unmount()
+    api.support.get.mockResolvedValue({ url: '' })
+    const none = await renderApp()
+    await expect.element(tabs()).toBeVisible()
+    await expect.element(coffee()).not.toBeInTheDocument()
+    await none.unmount()
+    api.support.get.mockRejectedValue(new ApiError('/api/support', 500))
+    await renderApp()
+    await expect.element(tabs()).toBeVisible()
+    await expect.poll(() => document.querySelector('.header-button-skeleton')).toBeNull()
+    await expect.element(coffee()).not.toBeInTheDocument()
+  })
+
+  it('marks the current tab', async () => {
+    stubApi()
+    await renderApp({ path: '/about' })
+    await expect.element(tabs().getByRole('link', { name: 'About Me' })).toHaveAttribute('aria-current', 'page')
+    await expect.element(tabs().getByRole('link', { name: 'Apps' })).not.toHaveAttribute('aria-current')
+  })
+})
+
+describe('the admin bar', () => {
+  it('shows who is signed in, and is only there for the admin', async () => {
+    stubApi({ user: ADMIN })
+    const admin = await renderApp()
+    await expect.element(page.getByText('Signed in as admin@example.com')).toBeVisible()
+    await expect.element(page.getByText('Admin', { exact: true })).toBeVisible()
+    // The preview switch is there in development (where tests run).
+    await expect.element(page.getByRole('group', { name: 'Preview the site as' })).toBeVisible()
+    await admin.unmount()
+    stubApi()
+    await renderApp()
+    await expect.element(tabs()).toBeVisible()
+    await expect.element(page.getByText(/Signed in as/)).not.toBeInTheDocument()
+  })
+
+  it('warns while maintenance is on, linking to Settings', async () => {
+    const api = stubApi({ user: ADMIN })
+    api.site.status.mockResolvedValue({ ...SITE, maintenance: true })
+    const app = await renderApp()
+    await page.getByRole('link', { name: 'Maintenance on: visitors see the maintenance page' }).click()
+    expect(app.location()).toBe('/settings')
+  })
+
+  it('signs out: the site goes back to what visitors see', async () => {
+    const api = stubApi({ user: ADMIN })
+    await renderApp({ path: '/apps' })
+    await page.getByRole('button', { name: 'Sign out' }).click()
+    expect(api.auth.logout).toHaveBeenCalledOnce()
+    await expect.element(page.getByText(/Signed in as/)).not.toBeInTheDocument()
+    await expect.element(tabs().getByRole('link', { name: 'Settings' })).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', { name: 'Add an app' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Vice: hiding the page to see the scene', () => {
+  it('hides the page and the header (they can no longer be used), and brings them back with the button or Escape', async () => {
+    stubApi()
+    await renderApp({ theme: 'vice' })
+    await page.getByRole('button', { name: 'Hide page' }).click()
+    expect(document.querySelector('main.page')?.hasAttribute('inert')).toBe(true)
+    expect(document.querySelector('header.site-header')?.hasAttribute('inert')).toBe(true)
+    await page.getByRole('button', { name: 'Show page' }).click()
+    expect(document.querySelector('main.page')?.hasAttribute('inert')).toBe(false)
+    await page.getByRole('button', { name: 'Hide page' }).click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('button', { name: 'Hide page' })).toBeVisible()
+  })
+
+  it('is only there in Vice; leaving Vice always brings the page back', async () => {
+    stubApi()
+    await renderApp({ theme: 'dark' })
+    await expect.element(tabs()).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Hide page' })).not.toBeInTheDocument()
+    await page.getByRole('group', { name: 'Theme' }).getByTitle('Vice mode').click()
+    await page.getByRole('button', { name: 'Hide page' }).click()
+    ;(document.querySelector('input[value="dark"]') as HTMLInputElement).click()
+    await expect.poll(() => document.querySelector('main.page')?.hasAttribute('inert')).toBe(false)
+  })
+})
+
+describe('when Vice is too slow', () => {
+  it('says why the theme changed, and offers to keep Vice', async () => {
+    stubApi()
+    const app = await renderApp({ theme: 'vice' })
+    app.store.dispatch(slowSceneSwitched('dark'))
+    await expect.poll(() => textOf(page.getByText(/Vice was running slowly/))).toBe('Vice was running slowly on this device, so the site switched to dark mode.')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    await page.getByRole('button', { name: 'Use Vice anyway' }).click()
+    expect(document.documentElement.dataset.theme).toBe('vice')
+    expect(localStorage.getItem('theme')).toBe('vice')
+    await expect.element(page.getByText(/Vice was running slowly/)).not.toBeInTheDocument()
+  })
+
+  it('goes with OK, keeping the new theme', async () => {
+    stubApi()
+    const app = await renderApp({ theme: 'vice' })
+    app.store.dispatch(slowSceneSwitched('light'))
+    await expect.element(page.getByText(/switched to light mode/)).toBeVisible()
+    await page.getByRole('button', { name: 'OK' }).click()
+    await expect.element(page.getByText(/switched to light mode/)).not.toBeInTheDocument()
+    expect(document.documentElement.dataset.theme).toBe('light')
+  })
+})
+
+describe('the footer', () => {
+  it('has the copyright and opens the terms', async () => {
+    stubApi()
+    await renderApp()
+    await expect.poll(() => textOf(page.getByRole('contentinfo'))).toBe(`© ${new Date().getFullYear()} jechel.dev·Terms and Conditions`)
+    await page.getByRole('contentinfo').getByRole('button', { name: 'Terms and Conditions' }).click()
+    await expect.element(page.getByRole('dialog', { name: 'Terms and Conditions' })).toBeVisible()
+  })
+})

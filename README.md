@@ -743,9 +743,18 @@ the report shows what isn't covered yet: `coverage/index.html` (and a summary in
   left it, and a hovered card is drawn raised); `textOf(locator)` for text checks (poll it:
   `expect.poll(() => textOf(x)).toContain(…)`); `a11yViolations()` runs axe (WCAG 2.1 A + AA), expect `[]`.
   Test data in `src/test/fixtures/` (apps with local images, so screenshots never depend on the network).
-- **The API is never called:** a test stubs what the view loads, e.g. `vi.spyOn(api.apps, 'list').mockResolvedValue(…)`;
-  a never-settling promise shows the loading state, `new ApiError(path, 500)` the error state.
-- **Screenshots** (`toMatchScreenshot`): the references are in `__screenshots__/` next to the test, one per browser and OS
+- **The API is never called:** `stubApi()` (`src/test/api.ts`) stubs everything the visitor-facing views ask for, with
+  realistic answers from `src/test/fixtures/` (About Me, terms, site, videos, LeetCode, résumé); a test changes what it needs,
+  e.g. `api.about.get.mockRejectedValue(new ApiError('/api/about', 500))`, or `forever()` for the loading state.
+  `stubApi({ user: ADMIN })` signs the admin in.
+- **The whole site:** `renderApp({ path, theme, acceptedTerms })` renders App as main.tsx does (store, router, terms already
+  accepted unless `acceptedTerms: null`), for routing, the frame, the popups and the email-link pages.
+- **The browser is fixed for tests:** headless Chromium with reduced motion (Vice's scene draws one still frame), the en-GB
+  locale and the London time zone, so dates and screenshots are the same on every machine. Tests that show "now" (the
+  skills chart, timelines) fix the date with `vi.useFakeTimers({ toFake: ['Date'] })`.
+- **Screenshots** (`shootWhole(locator, name)`, around `toMatchScreenshot`): the browser only paints what's inside its
+  window, so the helper grows the window to fit the element first. The references are in `__screenshots__/` next to the
+  test, one per browser and OS
   (`…-chromium-darwin.png`), and are committed. Animations and transitions are switched off in tests so they never catch
   one halfway. Vice is shot without its animated Riviera scene (that's the layout's, not the page's). A missing reference
   is written on the first run (that run fails: look at the new image, then run again).
