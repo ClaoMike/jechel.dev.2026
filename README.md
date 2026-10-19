@@ -739,7 +739,9 @@ the report shows what isn't covered yet: `coverage/index.html` (and a summary in
 - **Where tests live:** next to what they test (`pages/AppsPage/AppsPage.test.tsx`). Shared helpers in `src/test/`:
   `renderView(ui, { path, user, theme })` renders a view the way the site does (store, router, `<main className="page">`,
   a theme, signed in as `ADMIN` or a visitor) and gives `location()` for URL checks; `forever()` keeps a request loading;
-  `imagesLoaded()` before a screenshot; `textOf(locator)` for text checks (poll it: `expect.poll(() => textOf(x)).toContain(…)`).
+  `imagesLoaded()` before a screenshot; `restMouse()` moves the mouse off everything (the mouse stays where the last test
+  left it, and a hovered card is drawn raised); `textOf(locator)` for text checks (poll it:
+  `expect.poll(() => textOf(x)).toContain(…)`); `a11yViolations()` runs axe (WCAG 2.1 A + AA), expect `[]`.
   Test data in `src/test/fixtures/` (apps with local images, so screenshots never depend on the network).
 - **The API is never called:** a test stubs what the view loads, e.g. `vi.spyOn(api.apps, 'list').mockResolvedValue(…)`;
   a never-settling promise shows the loading state, `new ApiError(path, 500)` the error state.

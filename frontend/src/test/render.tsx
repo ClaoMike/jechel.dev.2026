@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react'
 import { Provider } from 'react-redux'
 import { MemoryRouter } from 'react-router'
-import type { Locator } from 'vitest/browser'
+import { page, userEvent, type Locator } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import { showTheme, type Theme } from '../layout/theme'
 import type { CurrentUser } from '../services/api'
@@ -32,9 +32,12 @@ export async function renderView(ui: ReactNode, { path = '/', user = null, theme
       <MemoryRouter initialEntries={[path]}>
         <main className="page">{ui}</main>
         <LocationProbe />
+        <span data-testid="mouse-rest" style={{ position: 'fixed', left: 0, top: 0, width: 2, height: 2, zIndex: 2147483647 }} />
       </MemoryRouter>
     </Provider>,
   )
+  // The mouse stays where the last test left it: move it off the cards, or one is drawn hovered.
+  await restMouse()
   return { ...screen, store, location: () => document.querySelector<HTMLElement>('[data-testid="location"]')!.dataset.location! }
 }
 
@@ -48,3 +51,6 @@ export async function imagesLoaded() {
 
 /** The text in what the locator finds ('' while it isn't there): poll it, e.g. `expect.poll(() => textOf(alert)).toContain(…)`. */
 export const textOf = (locator: Locator) => locator.query()?.textContent ?? ''
+
+/** Moves the mouse to the page's top-left corner, off everything (no hover effects in a screenshot or a measurement). */
+export const restMouse = () => userEvent.hover(page.getByTestId('mouse-rest').last())

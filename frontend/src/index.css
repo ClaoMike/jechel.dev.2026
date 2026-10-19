@@ -455,6 +455,19 @@ h2 {
   outline: none;
 }
 
+/*
+ * A button can't be cut by its heading's line clamp (it's one box, not lines of text, unlike a link),
+ * so a button title clamps itself. Its overflow doesn't clip the ::after cover: that one is placed
+ * against the card, not the button.
+ */
+button.media-card-action {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
 .add-tile:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -558,7 +571,8 @@ button.media-card {
   border-style: dashed;
   border-width: 2px;
   background: transparent;
-  color: var(--accent);
+  /* Text colour that reads on every theme's surfaces (the accent alone is too light on light glass). */
+  color: var(--link, var(--accent));
   font-weight: 600;
 }
 
