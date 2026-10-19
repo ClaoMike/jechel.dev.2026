@@ -2,7 +2,7 @@
  * Indexes a graph.json for fast lookups: adjacency, hierarchy, positions, planes, vocabulary.
  * Graphs without baked positions (e.g. produced by another tool) are laid out here.
  */
-import { computeLayout, layerHeights, type Vec3 } from '../../../src/shared/layout.ts'
+import { computeLayout, layerHeights, treeParents, vocabularyOptions, type Vec3 } from '../../../src/shared/layout.ts'
 import type {
   EdgeTypeDef,
   GraphEdge,
@@ -56,6 +56,8 @@ export interface GraphIndex {
   extent: number
   unresolvedByNode: Map<number, UnresolvedLink[]>
   added: Set<number>
+  /** 1 for an edge between two nodes of tree layers that isn't a link of the tree (hidden in "tree edges only"). */
+  offTree: Uint8Array
 }
 
 const FALLBACK_KIND: KindDef = { id: 'unknown', label: 'Unknown', color: '#9ca3af', shape: 'sphere', size: 0.8 }
@@ -154,13 +156,10 @@ export function indexGraph(graph: RepoGraph): GraphIndex {
   const positions = new Float32Array(n * 3)
   if (missing) {
     const computed = computeLayout(
-      nodes.map((node) => ({ id: node.id, layer: node.layer, role: node.role, parent: node.parent, tags: node.tags, size: kinds.get(node.kind)?.size })),
+      nodes.map((node) => ({ id: node.id, layer: node.layer, role: node.role, parent: node.parent, tags: node.tags, size: kinds.get(node.kind)?.size, kind: node.kind })),
       edges,
       {
-        layers: layerIds,
-        flatLayers: layers.filter((l) => l.flat).map((l) => l.id),
-        roleOffsets: Object.fromEntries(meta.roles.filter((r) => r.planeOffset !== undefined).map((r) => [r.id, r.planeOffset!])),
-        roleParents: Object.fromEntries(meta.roles.filter((r) => r.parent).map((r) => [r.id, r.parent!])),
+        ...vocabularyOptions(layers, meta.roles),
         layerGap: gap,
         seed: meta.layout?.seed ?? 7,
       },
@@ -179,7 +178,7 @@ export function indexGraph(graph: RepoGraph): GraphIndex {
 
   // Layer planes share one footprint (the bounds of every node), so the stack reads like floors of a
   // building and filtering never resizes anything.
-  const heights = layerHeights(layerIds, gap)
+  const heights = layerHeights(layerIds, gap, vocabularyOptions(layers, []).layerGaps)
   const planes: Plane[] = []
   let fx0 = Infinity
   let fx1 = -Infinity
@@ -232,10 +231,32 @@ export function indexGraph(graph: RepoGraph): GraphIndex {
     if (i !== undefined) added.add(i)
   }
 
+  // Tree layers: the same spanning tree the layout drew, so the other edges between them can be left out.
+  const treeLayers = new Set(layers.filter((l) => l.arrange === 'tree').map((l) => l.id))
+  const offTree = new Uint8Array(edges.length)
+  if (treeLayers.size > 0) {
+    const inTree = nodes.filter((node) => treeLayers.has(node.layer))
+    const tree = treeParents(
+      inTree.map((node) => ({ id: node.id, layer: node.layer, role: node.role, parent: node.parent, kind: node.kind })),
+      edges,
+      layerIds,
+    )
+    // The tree reaches a contained node's outermost container instead (hook → api.about.get hangs `api` under the hook).
+    const top = (id: string) => {
+      for (let i = byId.get(id)!, up = parent[i]; up >= 0 && treeLayers.has(nodes[up].layer); i = up, up = parent[up]) id = nodes[up].id
+      return id
+    }
+    edges.forEach((edge, e) => {
+      if (!treeLayers.has(nodes[edgeFrom[e]].layer) || !treeLayers.has(nodes[edgeTo[e]].layer)) return
+      const link = tree.get(edge.to) === edge.from || tree.get(edge.from) === edge.to || tree.get(top(edge.to)) === edge.from || tree.get(top(edge.from)) === edge.to
+      if (!link) offTree[e] = 1
+    })
+  }
+
   return {
     graph, nodes, edges, byId, edgeFrom, edgeTo, outEdges, inEdges, parent, children, positions, radius, degree,
     layers, layerById, kinds, roles, roleChain, edgeTypes, layerKinds, presentRoles, presentEdgeTypes,
-    features: featureList, featureOf, planes, center, extent, unresolvedByNode, added,
+    features: featureList, featureOf, planes, center, extent, unresolvedByNode, added, offTree,
   }
 }
 

@@ -22,7 +22,7 @@ tools/repomap/
   src/shared/                graph types, layout, route matching (used by CLI, plugins and viewer)
   plugins/
     extract-dotnet/          C# (Roslyn): endpoints, services, DI, entities, tests…  + EF Core snapshot/migrations
-    extract-ts/              TypeScript/React (ts-morph): routes, pages, components, hooks, API client, tests
+    extract-ts/              TypeScript/React (ts-morph): routes, pages, components, hooks, API client, Redux, tests
     extract-files/           any file no other plugin claimed (config, CI, docs, scripts)
     link-http/               calls/mocks/requests/links → endpoints and routes
     link-contracts/          frontend types ↔ backend DTOs
@@ -64,6 +64,12 @@ The CLI is `node src/cli.ts <command>` (`node src/cli.ts help` lists the options
 - **Planes are layers** (from config): Frontend, Backend, Database, Infra & tooling. Tests, config, migrations
   and generated code of a layer float on thin sub-planes just **below** it, right under what they test or
   configure — so hiding them never leaves holes.
+- **This repository's frontend is three planes** (its MVVM, `repomap.config.json`): **Views** (`*.tsx`) on top,
+  **View models** (`*.viewModel.ts`) under them, then **Model & the rest** (Redux store, RTK Query, the API
+  service, utilities). The three are laid out together as one **radial tree**: `main.tsx` in the centre, each
+  ring one step further along renders/uses/calls, so a page's view model sits one ring out on the plane below,
+  and its query hooks and API calls further out below that. Only the tree's own links are drawn there
+  (*Display → Tree edges only*); hover or click a node to see all its edges.
 - **Shapes and colours are kinds** (◆ routes/endpoints, ● pages/components, ▲ hooks/API calls, ■ services,
   classes, cylinders for tables, rings for tests…). The side menu doubles as the legend.
 - **Edges between planes** are S-curves: when you look from the side (`S`), a chain reads top to bottom.
@@ -253,7 +259,10 @@ confidence slider filters them.
   mapping; which tables/columns each migration changed.
 - **TypeScript/React (ts-morph)**: React Router routes (JSX and object routes), pages, components, providers,
   hooks, contexts, types; any HTTP client: functions that call `fetch`/axios/ky with a parameter as the URL are
-  found automatically, as are wrappers of wrappers, so `api.auth.me()` → `GET /api/auth/me`; links,
+  found automatically, as are wrappers of wrappers, so `api.auth.me()` → `GET /api/auth/me`; Redux Toolkit:
+  slices and their actions, async thunks, listener middleware, and RTK Query APIs whose generated hooks
+  (`export const { useGetXQuery } = xApi`) scan their endpoint, so `useGetXQuery` → `api.x.get` → the endpoint;
+  `a.b.c()` on a library member (`slice.actions.x`, `baseApi.util…`) counts as a use of `a`; links,
   `<Navigate>` and `navigate()`; test files with their test names, MSW handlers (`mocks`), Playwright
   `page.goto`/`request.get`/`page.route`; `X.test.tsx` tests `X.tsx`.
 - **Files**: config, CI workflows, docs, scripts; `.csproj` project references; requests in `.http` files and
@@ -275,7 +284,10 @@ confidence slider filters them.
 
 The preset defines everything the viewer shows — nothing is hard-coded:
 
-- `layers` (top to bottom), `roles` (tree via `parent`; `planeOffset` = sub-plane depth, `style: "ghost"`),
+- `layers` (top to bottom; `gap` = distance to the layer above, `arrange: "tree"` = laid out with the other
+  tree layers as one radial tree from the `entrypoint`, `flat` = no sub-planes; in a child config,
+  `"before": "<id>"` inserts a new layer above that one), `roles` (tree via `parent`; `planeOffset` =
+  sub-plane depth, `style: "ghost"`),
   `kinds` (colour, `shape`, size, label priority), `edgeTypes` (`flow` = followed by traces, `context` =
   shown one hop around the selection), `presets` (filters; `"*"` wildcards; parent roles cover children).
 - `layerRules` (globs, or `marker`: every file under a folder containing e.g. a `package.json` with React) and
@@ -312,7 +324,7 @@ The history tab has its own (optional) section; these are the defaults:
   graph.json records what was added/removed since the previous build (the viewer highlights it).
 - Layout positions are baked into graph.json and warm-started from the previous build, so the picture stays
   put as the code evolves; when nothing that shapes the layout changed, positions are kept exactly.
-  `--relayout` starts fresh.
+  `--relayout` starts fresh. Tree layers don't need it: the same graph always gives the same tree.
 
 ## Putting it on the web
 

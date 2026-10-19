@@ -11,7 +11,7 @@ import { dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { stringifyGraph } from '../src/core/build.ts'
 import { loadConfig, TOOL_ROOT } from '../src/core/config.ts'
-import { computeLayout } from '../src/shared/layout.ts'
+import { computeLayout, vocabularyOptions } from '../src/shared/layout.ts'
 import type { GraphEdge, GraphNode, RepoGraph, UnresolvedLink } from '../src/shared/types.ts'
 
 const { values } = parseArgs({
@@ -230,13 +230,10 @@ for (const n of nodes) n.roleReason ??= 'synthetic demo'
 const kinds = new Map(config.kinds.map((k) => [k.id, k]))
 const started = performance.now()
 const positions = computeLayout(
-  nodes.map((n) => ({ id: n.id, layer: n.layer, role: n.role, parent: n.parent, tags: n.tags, size: kinds.get(n.kind)?.size })),
+  nodes.map((n) => ({ id: n.id, layer: n.layer, role: n.role, parent: n.parent, tags: n.tags, size: kinds.get(n.kind)?.size, kind: n.kind })),
   edges,
   {
-    layers: config.layers.map((l) => l.id),
-    flatLayers: config.layers.filter((l) => l.flat).map((l) => l.id),
-    roleOffsets: Object.fromEntries(config.roles.filter((r) => r.planeOffset !== undefined).map((r) => [r.id, r.planeOffset!])),
-    roleParents: Object.fromEntries(config.roles.filter((r) => r.parent).map((r) => [r.id, r.parent!])),
+    ...vocabularyOptions(config.layers, config.roles),
     layerGap: config.layout.layerGap,
     seed: config.layout.seed,
   },

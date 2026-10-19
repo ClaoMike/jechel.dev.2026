@@ -4,7 +4,9 @@
  * Production files → symbol-level nodes:
  *   components / pages / providers (functions returning JSX), hooks (use*), contexts (createContext),
  *   API clients (objects whose members call HTTP wrappers) and their API calls, exported functions,
- *   classes and types, React Router routes, and the entry module (createRoot).
+ *   classes and types, React Router routes, and the entry module (createRoot); Redux Toolkit: slices and
+ *   their actions, async thunks, listener middleware, and RTK Query APIs with their generated hooks
+ *   (each hook scans its endpoint's definition, so a view model's useGetXQuery reaches the API call).
  * Test files → one node per file (suite or helper) with `tests` edges to what they exercise, plus
  *   facts for MSW handlers, Playwright page.goto/request/route calls.
  *
@@ -41,6 +43,8 @@ interface Decl {
   fn?: Node
   /** Subtree scanned for references (defaults to decl). */
   scan?: Node
+  /** Scanned instead of `scan`/`fn`/`decl` when set (possibly nothing), e.g. an RTK Query hook's endpoint. */
+  scanNodes?: Node[]
   file: FileEntry
   sourceFile: SourceFile
   exported: boolean
@@ -105,6 +109,7 @@ class Extractor {
     this.collectDeclarations()
     this.detectWrappers()
     this.detectApiClients()
+    this.detectRedux()
     this.classifyDeclarations()
     this.detectEntries()
     this.extractRoutes()
@@ -166,6 +171,14 @@ class Extractor {
       }
     }
     return symbol.getDeclarations()[0]
+  }
+
+  /** a.b.c whose member isn't one of ours (a library API): the Decl `a` refers to, if it is one. */
+  private resolveRoot(node: Node): Decl | undefined {
+    if (!Node.isPropertyAccessExpression(node)) return undefined
+    let root: Node = node
+    while (Node.isPropertyAccessExpression(root)) root = root.getExpression()
+    return Node.isIdentifier(root) ? this.resolve(root) : undefined
   }
 
   private featureOf(path: string): string | undefined {
@@ -244,6 +257,16 @@ class Extractor {
         } else if (Node.isVariableStatement(statement)) {
           for (const declaration of statement.getDeclarations()) {
             const nameNode = declaration.getNameNode()
+            // export const { useGetXQuery, useSaveXMutation } = xApi / { opened, closed } = slice.actions
+            if (Node.isObjectBindingPattern(nameNode)) {
+              for (const element of nameNode.getElements()) {
+                const elementName = element.getNameNode()
+                if (!Node.isIdentifier(elementName)) continue
+                const name = elementName.getText()
+                this.addDecl({ name, decl: element, entry, sourceFile, exported: isExported(name, statement.isExported()), docNode: statement })
+              }
+              continue
+            }
             if (!Node.isIdentifier(nameNode)) continue
             const name = nameNode.getText()
             const initializer = declaration.getInitializer()
@@ -442,6 +465,69 @@ class Extractor {
     return !!path && this.options.apiPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
   }
 
+  // ---------------------------------------------------------------- Redux Toolkit
+
+  private detectRedux(): void {
+    const extended: [Decl, Node][] = []
+    for (const decl of this.decls) {
+      if (decl.kind || !Node.isVariableDeclaration(decl.decl)) continue
+      const init = unwrap(decl.decl.getInitializer())
+      if (!init || !Node.isCallExpression(init)) continue
+      const callee = init.getExpression()
+      const name = Node.isPropertyAccessExpression(callee) ? callee.getName() : callee.getText()
+      const args = init.getArguments()
+      if (name === 'createSlice') {
+        decl.kind = 'slice'
+        decl.scan = init
+      } else if (name === 'createAsyncThunk' && args[1]) {
+        decl.kind = 'thunk'
+        decl.fn = functionOf(args[1]) ?? args[1]
+      } else if (name === 'createApi' || ((name === 'injectEndpoints' || name === 'enhanceEndpoints') && Node.isPropertyAccessExpression(callee))) {
+        decl.kind = 'store-api'
+        // The endpoints belong to the hooks; what it extends (baseApi.injectEndpoints) is linked below.
+        decl.scanNodes = []
+        if (Node.isPropertyAccessExpression(callee)) extended.push([decl, callee.getExpression()])
+      } else if (name === 'createListenerMiddleware') {
+        decl.kind = 'middleware'
+        // listeners.startListening({ … }) anywhere in the file, also through an alias
+        // (const startListening = listeners.startListening.withTypes<…>()).
+        const callers = [`${decl.name}.`]
+        for (const other of decl.sourceFile.getVariableDeclarations()) {
+          if (other.getInitializer()?.getText().startsWith(`${decl.name}.`)) callers.push(`${other.getName()}(`)
+        }
+        decl.scanNodes = decl.sourceFile.getStatements().filter((s) => Node.isExpressionStatement(s) && callers.some((c) => s.getText().startsWith(c)))
+      }
+    }
+    for (const [decl, receiver] of extended) {
+      const base = this.resolve(receiver)
+      if (base?.kind) this.addEdge(decl.id, base.id, 'uses', receiver)
+    }
+    for (const decl of this.decls) {
+      if (decl.kind || !Node.isBindingElement(decl.decl)) continue
+      const source = unwrap(decl.decl.getParent()?.getParent()?.asKind(SyntaxKind.VariableDeclaration)?.getInitializer())
+      if (!source) continue
+      const hook = /^use(?:Lazy)?(\w+?)(?:Infinite)?(?:Query|Mutation|QueryState|QuerySubscription)$/.exec(decl.name)
+      const api = Node.isIdentifier(source) ? this.resolve(source) : undefined
+      if (hook && api?.kind === 'store-api') {
+        decl.kind = 'hook'
+        decl.parent = api.id
+        decl.attrs.endpoint = lowerFirst(hook[1])
+        const endpoint = endpointDefinition(api.decl, lowerFirst(hook[1]))
+        decl.scanNodes = endpoint ? [endpoint] : []
+        continue
+      }
+      // { opened, closed } = slice.actions
+      if (Node.isPropertyAccessExpression(source) && source.getName() === 'actions') {
+        const slice = this.resolve(source.getExpression())
+        if (slice?.kind !== 'slice') continue
+        decl.kind = 'action'
+        decl.parent = slice.id
+        const reducer = sliceReducer(slice.decl, decl.name)
+        decl.scanNodes = reducer ? [reducer] : []
+      }
+    }
+  }
+
   // ---------------------------------------------------------------- classification
 
   private classifyDeclarations(): void {
@@ -607,6 +693,10 @@ class Extractor {
   private scanProduction(): void {
     for (const decl of this.decls) {
       if (!decl.kind) continue
+      if (decl.scanNodes) {
+        for (const node of decl.scanNodes) this.scanReferences(node, decl.id, 'production')
+        continue
+      }
       const root = decl.scan ?? decl.fn ?? (decl.kind === 'api-client' ? undefined : decl.decl)
       if (!root) continue
       this.scanReferences(root, decl.id, 'production')
@@ -713,7 +803,7 @@ class Extractor {
         if (parent && (Node.isJsxOpeningElement(parent) || Node.isJsxSelfClosingElement(parent) || Node.isJsxClosingElement(parent))) return
         if (Node.isIdentifier(node) && parent && isDeclarationName(node, parent)) return
         if (Node.isIdentifier(node) && parent && (Node.isImportSpecifier(parent) || Node.isImportClause(parent) || Node.isExportSpecifier(parent))) return
-        const target = this.resolve(node)
+        const target = this.resolve(node) ?? this.resolveRoot(node)
         if (target?.kind && target.id !== ownerId) {
           this.addEdge(ownerId, target.id, refEdge(target.kind, target.kind === 'type' || target.kind === 'interface' ? 'uses-type' : 'uses'), node)
         } else if (!target) {
@@ -827,7 +917,10 @@ class Extractor {
       const type = target.kind === 'hook' || target.kind === 'context' ? 'uses' : 'calls'
       this.addEdge(ownerId, target.id, refEdge(target.kind, type), call)
     } else if (!target) {
-      this.referenceToSupport(callee, ownerId, call)
+      // slice.actions.opened(), baseApi.util.resetApiState(): a library member of one of ours.
+      const root = this.resolveRoot(callee)
+      if (root?.kind) this.addEdge(ownerId, root.id, refEdge(root.kind, 'uses'), call)
+      else this.referenceToSupport(callee, ownerId, call)
     }
     // useContext(Ctx) / use(Ctx)
     if (/(^|\.)(useContext|use)$/.test(calleeText) && args[0]) {
@@ -975,6 +1068,54 @@ function functionOf(initializer: Node | undefined): Node | undefined {
     return functionOf(initializer.getExpression())
   }
   return undefined
+}
+
+/** Strips parentheses, `as` and `satisfies`. */
+function unwrap(node: Node | undefined): Node | undefined {
+  while (node && (Node.isParenthesizedExpression(node) || Node.isAsExpression(node) || Node.isSatisfiesExpression(node))) node = node.getExpression()
+  return node
+}
+
+function lowerFirst(text: string): string {
+  return text.charAt(0).toLowerCase() + text.slice(1)
+}
+
+/** The object a function returns: `() => ({ … })` or `() => { return { … } }`. */
+function returnedObject(fn: Node | undefined): Node | undefined {
+  if (!fn || !(Node.isArrowFunction(fn) || Node.isFunctionExpression(fn) || Node.isMethodDeclaration(fn))) return undefined
+  const body = fn.getBody()
+  if (body && !Node.isBlock(body)) return unwrap(body)
+  const ret = body?.getStatements().find((s) => Node.isReturnStatement(s))
+  return ret && Node.isReturnStatement(ret) ? unwrap(ret.getExpression()) : undefined
+}
+
+/** An object literal's property (assignment, method or shorthand) by name. */
+function property(object: Node | undefined, name: string): Node | undefined {
+  if (!object || !Node.isObjectLiteralExpression(object)) return undefined
+  return object.getProperty(name)
+}
+
+function propertyValue(object: Node | undefined, name: string): Node | undefined {
+  const prop = property(object, name)
+  if (prop && Node.isPropertyAssignment(prop)) return unwrap(prop.getInitializer())
+  return prop && Node.isMethodDeclaration(prop) ? prop : undefined
+}
+
+/** createApi({ endpoints: (build) => ({ getX: build.query(…) }) }) / api.injectEndpoints(…) → the getX property. */
+function endpointDefinition(api: Node, endpoint: string): Node | undefined {
+  const init = Node.isVariableDeclaration(api) ? unwrap(api.getInitializer()) : undefined
+  if (!init || !Node.isCallExpression(init)) return undefined
+  const endpoints = propertyValue(unwrap(init.getArguments()[0]), 'endpoints')
+  return property(returnedObject(endpoints), endpoint)
+}
+
+/** createSlice({ reducers: { opened(state) { … } } }) → the `opened` reducer. */
+function sliceReducer(slice: Node, action: string): Node | undefined {
+  const init = Node.isVariableDeclaration(slice) ? unwrap(slice.getInitializer()) : undefined
+  if (!init || !Node.isCallExpression(init)) return undefined
+  // reducers: { … } or reducers: (create) => ({ … })
+  const reducers = propertyValue(unwrap(init.getArguments()[0]), 'reducers')
+  return property(reducers && Node.isObjectLiteralExpression(reducers) ? reducers : returnedObject(reducers), action)
 }
 
 function collectMembers(object: Node, path: string[], out: { path: string[]; node: Node; fn: Node }[]): void {

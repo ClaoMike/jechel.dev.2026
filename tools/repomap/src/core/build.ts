@@ -3,7 +3,7 @@
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { computeLayout, type Vec3 } from '../shared/layout.ts'
+import { computeLayout, vocabularyOptions, type Vec3 } from '../shared/layout.ts'
 import { hashString } from '../shared/rng.ts'
 import { edgeKey, GRAPH_VERSION, PROTOCOL_VERSION } from '../shared/types.ts'
 import type {
@@ -112,12 +112,9 @@ export async function buildGraph(config: RepoMapConfig, options: BuildOptions): 
   const previousPositions = new Map<string, Vec3>()
   if (!options.relayout) for (const node of previous?.nodes ?? []) if (node.pos) previousPositions.set(node.id, node.pos)
   const layoutStarted = performance.now()
-  const layoutNodes = nodes.map((n) => ({ id: n.id, layer: n.layer, role: n.role, parent: n.parent, tags: n.tags, size: kindSize(meta.kinds, n.kind) }))
+  const layoutNodes = nodes.map((n) => ({ id: n.id, layer: n.layer, role: n.role, parent: n.parent, tags: n.tags, size: kindSize(meta.kinds, n.kind), kind: n.kind }))
   const layoutOptions = {
-    layers: meta.layers.map((l) => l.id),
-    flatLayers: meta.layers.filter((l) => l.flat).map((l) => l.id),
-    roleOffsets: Object.fromEntries(meta.roles.filter((r) => r.planeOffset !== undefined).map((r) => [r.id, r.planeOffset!])),
-    roleParents: Object.fromEntries(meta.roles.filter((r) => r.parent).map((r) => [r.id, r.parent!])),
+    ...vocabularyOptions(meta.layers, meta.roles),
     layerGap: config.layout.layerGap,
     seed: config.layout.seed,
   }

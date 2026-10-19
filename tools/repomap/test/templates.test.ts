@@ -44,7 +44,9 @@ describe('where a new file lands', () => {
   const config = loadConfig(join(TOOL_ROOT, 'repomap.config.json'))
 
   it("follows this repository's config", () => {
-    assert.equal(classifyPath(config, 'frontend/src/pages/NewPage.tsx')?.layer, 'frontend')
+    assert.equal(classifyPath(config, 'frontend/src/pages/NewPage/NewPage.tsx')?.layer, 'frontend-views')
+    assert.equal(classifyPath(config, 'frontend/src/pages/NewPage/NewPage.viewModel.ts')?.layer, 'frontend-viewmodels')
+    assert.equal(classifyPath(config, 'frontend/src/store/newSlice.ts')?.layer, 'frontend')
     assert.equal(classifyPath(config, 'frontend/src/pages/NewPage.test.tsx')?.role.startsWith('test'), true)
     assert.equal(classifyPath(config, 'README-new.md')?.layer, config.defaultLayer)
     assert.equal(classifyPath(config, 'tools/repomap/src/x.ts'), undefined, 'excluded: not in the map')
