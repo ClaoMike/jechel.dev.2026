@@ -26,7 +26,8 @@ export default defineConfig({
     setupFiles: ['src/test/setup.ts'],
     browser: {
       enabled: true,
-      provider: playwright(),
+      // Reduced motion, as some visitors have it (Vice's scene draws one still frame), and a fixed locale and time zone: stable screenshots.
+      provider: playwright({ contextOptions: { reducedMotion: 'reduce', locale: 'en-GB', timezoneId: 'Europe/London' } }),
       headless: true,
       instances: [{ browser: 'chromium' }],
       viewport: { width: 1280, height: 900 },

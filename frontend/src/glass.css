@@ -90,9 +90,12 @@
   /* 0.78, not 0.65: on the light background that's 5.2:1 instead of 3.8:1. */
   --text-muted: rgb(60 60 67 / 0.78);
   --accent: #007aff;
+  /* The accent as text: #007aff on the light glass is 4:1, under WCAG AA's 4.5:1 for small text. */
+  --accent-ink: #0062cc;
   --accent-fill: #0062cc;
   --accent-text: #fff;
-  --error: #ff3b30;
+  /* Darker than iOS's #ff3b30 (3.3:1 on the light background): error text and danger buttons read at 5:1+. */
+  --error: #d70015;
   --success: #248a3d;
   --link: #0062cc;
 

@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router'
-import { ArrowLeftIcon, ArrowRightIcon, EyeOffIcon } from '../../components/icons/icons'
+import { ArrowLeftIcon, ArrowRightIcon } from '../../components/icons/icons'
+import { TabLink } from '../TabLink/TabLink'
 import { useTabNavViewModel } from './TabNav.viewModel'
 
 /**
@@ -21,18 +21,7 @@ export function TabNav() {
       <nav ref={navRef} className="tabs" aria-label="Sections" data-dragging={vm.dragging ? '' : undefined} {...vm.navHandlers}>
         {vm.indicator && <span className="tab-indicator" aria-hidden="true" data-animate={vm.indicator.animate ? '' : undefined} style={vm.indicator.style} />}
         {vm.tabs.map((tab) => (
-          <NavLink key={tab.to} to={tab.to} end className="tab" draggable={false} title={tab.hiddenFromVisitors ? 'Hidden from visitors' : undefined}>
-            {tab.label}
-            {tab.hiddenFromVisitors && (
-              <>
-                {' '}
-                <span className="tab-hidden">
-                  <EyeOffIcon size={14} />
-                  <span className="visually-hidden">(hidden from visitors)</span>
-                </span>
-              </>
-            )}
-          </NavLink>
+          <TabLink key={tab.to} to={tab.to} label={tab.label} hiddenFromVisitors={!!tab.hiddenFromVisitors} />
         ))}
       </nav>
       {vm.more.right && (

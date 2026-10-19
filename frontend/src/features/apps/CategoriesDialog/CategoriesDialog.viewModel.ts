@@ -33,16 +33,27 @@ export function useCategoriesDialogViewModel({ categories, onClose, onSaved }: C
 
   return {
     titleId: useId(),
-    draft,
-    errors,
+    rows: draft.map((category, i) => ({
+      key: category.id ?? `new-${i}`,
+      label: `Category ${i + 1}`,
+      name: category.name.trim() || `category ${i + 1}`,
+      value: category.name,
+      error: errors[`[${i}].name`] ?? errors[`[${i}].id`],
+      index: i,
+      count: draft.length,
+      onRename: (name: string) => setDraft(replaceAt(draft, i, { ...draft[i], name })),
+      onMove: (from: number, to: number) => setDraft(move(draft, from, to)),
+      onRemove: () => setDraft(removeAt(draft, i)),
+    })),
     message,
     saving,
     requestClose: () => (dirty ? setAskDiscard(true) : onClose()),
-    rename: (index: number, name: string) => setDraft(replaceAt(draft, index, { ...draft[index], name })),
-    move: (from: number, to: number) => setDraft(move(draft, from, to)),
-    remove: (index: number) => setDraft(removeAt(draft, index)),
     add: () => setDraft([...draft, { id: null, name: '' }]),
-    save: () => void save(),
+    submit: (event: { preventDefault: () => void }) => {
+      event.preventDefault()
+      void save()
+    },
+    saveLabel: saving ? 'Saving…' : 'Save',
     askDiscard,
     stopAskingDiscard: () => setAskDiscard(false),
   }

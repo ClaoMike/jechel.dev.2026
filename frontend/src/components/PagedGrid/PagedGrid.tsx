@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import type { PageArgs } from '../../store/api/appsApi'
 import type { PagedQueryHook } from '../../store/usePagedQuery'
 import { ErrorState } from '../ErrorState/ErrorState'
@@ -6,13 +6,16 @@ import { usePagedGridViewModel, type PagedGridTexts } from './PagedGrid.viewMode
 import { Pagination } from '../Pagination'
 import { Loading, SkeletonMediaGrid } from '../Skeleton'
 
-export interface PagedGridProps<T> {
+export interface PagedGridProps<T, P extends object = object> {
   /** The list's RTK Query hook, e.g. `useListAppsQuery`: loads one page (1-based). */
   useItems: PagedQueryHook<T, PageArgs>
   /** Items per page; 9 fills a 3 × 3 grid. */
   pageSize?: number
   itemKey: (item: T) => string | number
-  renderItem: (item: T) => ReactNode
+  /** Each item's tile: a component given the item, and `tileProps`. */
+  Tile: ComponentType<{ item: T } & P>
+  /** What every tile gets besides its item, e.g. what clicking it does. */
+  tileProps: P
   /** Its label, loading, empty and error texts. */
   texts: PagedGridTexts
   /** A tile before the items on the first page, e.g. the admin's "Add" button. Shown even when there are no items. */
@@ -25,15 +28,16 @@ export interface PagedGridProps<T> {
  * Items in a grid (3 columns, fewer on narrow screens), a page at a time, with Previous / Next
  * under it. The page is in the URL (?page=2), so it survives a reload and can be shared.
  */
-export function PagedGrid<T>({
+export function PagedGrid<T, P extends object = object>({
   useItems,
   pageSize = 9,
   itemKey,
-  renderItem,
+  Tile,
+  tileProps,
   texts,
   leading,
   children,
-}: PagedGridProps<T>) {
+}: PagedGridProps<T, P>) {
   const { topRef, ...vm } = usePagedGridViewModel(useItems, pageSize)
   const { state } = vm
   const { label, loading, empty, error } = texts
@@ -52,7 +56,9 @@ export function PagedGrid<T>({
           <ul className="paged-grid-items" aria-label={label}>
             {leading && vm.page === 1 && <li>{leading}</li>}
             {state.data.items.map((item) => (
-              <li key={itemKey(item)}>{renderItem(item)}</li>
+              <li key={itemKey(item)}>
+                <Tile item={item} {...tileProps} />
+              </li>
             ))}
           </ul>
           <Pagination page={vm.page} totalPages={vm.totalPages} onPageChange={vm.goToPage} />

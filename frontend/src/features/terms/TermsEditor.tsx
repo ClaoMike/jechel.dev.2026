@@ -1,5 +1,5 @@
-import { AddButton, ItemControls, TextField, type FieldErrors } from '../about/fields/fields'
-import { BulletsEditor } from '../about/BulletsSection'
+import { AddButton, ItemControls, TextField, type FieldErrors } from '../../components/fields'
+import { BulletsEditor } from '../about/section/BulletsEditor/BulletsEditor'
 import { move, removeAt, replaceAt } from '../about/list'
 import type { TermsBlock, TermsContent, TermsSection } from '../../services/api'
 

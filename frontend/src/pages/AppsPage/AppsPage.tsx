@@ -1,12 +1,8 @@
-import { MediaCard } from '../../components/MediaCard'
 import { PagedGrid } from '../../components/PagedGrid/PagedGrid'
-import { plainText } from '../../features/about/textLinks'
-import { CategoryLabels } from '../../features/apps/AppFields/AppFields'
 import { AddAppTile } from '../../features/apps/AddAppTile/AddAppTile'
 import { AppDialog } from '../../features/apps/AppDialog/AppDialog'
+import { AppTile } from '../../features/apps/AppTile/AppTile'
 import { CategoriesButton } from '../../features/apps/CategoriesButton/CategoriesButton'
-import { tileImage } from '../../features/apps/media'
-import type { AppDetails } from '../../services/api'
 import { useListAppsQuery } from '../../store/api/appsApi'
 import { useAppsPageViewModel } from './AppsPage.viewModel'
 
@@ -20,22 +16,14 @@ export function AppsPage() {
   return (
     <section className="apps" aria-label="Apps">
       {vm.canEdit && <CategoriesButton />}
-        
-      <PagedGrid<AppDetails>
+      <PagedGrid
         useItems={useListAppsQuery}
         pageSize={vm.pageSize}
-        itemKey={(app) => app.id}
+        itemKey={vm.itemKey}
         texts={vm.texts}
         leading={vm.canEdit && <AddAppTile onAdd={vm.addApp} />}
-        renderItem={(app) => (
-          <MediaCard
-            onClick={() => vm.openApp(app)}
-            imageUrl={tileImage(app)}
-            title={app.title}
-            meta={app.categories.length > 0 && <CategoryLabels categories={app.categories} />}
-            description={plainText(app.description)}
-          />
-        )}
+        Tile={AppTile}
+        tileProps={vm.tileProps}
       >
         {vm.open !== undefined && (
           <AppDialog

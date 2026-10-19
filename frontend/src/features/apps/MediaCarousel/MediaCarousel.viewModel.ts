@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { AppMedia } from '../../../services/api'
 
 /** The slide on show: moved to by swiping or scrolling the track, the arrows, the dots or the arrow keys. Moving away pauses videos. */
-export function useMediaCarouselViewModel(media: AppMedia[]) {
+export function useMediaCarouselViewModel({ media, title }: { media: AppMedia[]; title: string }) {
   const track = useRef<HTMLDivElement>(null)
   const [index, setIndex] = useState(0)
 
@@ -21,10 +21,27 @@ export function useMediaCarouselViewModel(media: AppMedia[]) {
 
   return {
     trackRef: track,
-    index,
-    goTo,
-    previous: () => goTo(index - 1),
-    next: () => goTo(index + 1),
+    label: `${title}: images and videos`,
+    slides: media.map((item, i) => ({
+      key: `${item.url}-${i}`,
+      position: `${i + 1} of ${media.length}`,
+      item,
+      index: i,
+      active: i === index,
+      label: `${title}, ${item.kind === 'image' ? 'image' : 'video'} ${i + 1} of ${media.length}`,
+      show: () => goTo(i),
+    })),
+    controls:
+      media.length > 1
+        ? {
+            dots: media.map((_, i) => ({ key: i, label: `Show ${i + 1} of ${media.length}`, current: i === index, show: () => goTo(i) })),
+            count: `${index + 1} / ${media.length}`,
+            canGoBack: index > 0,
+            canGoOn: index < media.length - 1,
+            previous: () => goTo(index - 1),
+            next: () => goTo(index + 1),
+          }
+        : null,
     // Swiping or scrolling the track itself.
     onScroll: () => {
       const el = track.current

@@ -1,6 +1,7 @@
-import { ConfirmDialog } from '../../../components/ConfirmDialog/ConfirmDialog'
+import { DiscardChangesDialog } from '../../../components/DiscardChangesDialog/DiscardChangesDialog'
+import { AddButton } from '../../../components/fields'
 import { Modal } from '../../../components/Modal/Modal'
-import { AddButton, ItemControls, TextField } from '../../about/fields/fields'
+import { CategoryRow } from '../CategoryRow/CategoryRow'
 import { useCategoriesDialogViewModel, type CategoriesDialogProps } from './CategoriesDialog.viewModel'
 
 /**
@@ -18,21 +19,11 @@ export function CategoriesDialog(props: CategoriesDialogProps) {
           <span aria-hidden="true">×</span>
         </button>
       </div>
-      <form
-        className="app-form"
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault()
-          vm.save()
-        }}
-      >
+      <form className="app-form" noValidate onSubmit={vm.submit}>
         <p className="muted editor-note">Apps show their categories as labels, in this order. Removing one takes it off every app.</p>
         <ol className="category-list">
-          {vm.draft.map((category, i) => (
-            <li key={category.id ?? `new-${i}`} className="category-row">
-              <TextField label={`Category ${i + 1}`} value={category.name} onChange={(name) => vm.rename(i, name)} error={vm.errors[`[${i}].name`] ?? vm.errors[`[${i}].id`]} />
-              <ItemControls name={category.name.trim() || `category ${i + 1}`} index={i} count={vm.draft.length} onMove={vm.move} onRemove={() => vm.remove(i)} />
-            </li>
+          {vm.rows.map(({ key, ...row }) => (
+            <CategoryRow key={key} {...row} />
           ))}
         </ol>
         <AddButton onClick={vm.add}>Add category</AddButton>
@@ -46,15 +37,11 @@ export function CategoriesDialog(props: CategoriesDialogProps) {
             Cancel
           </button>
           <button type="submit" className="button" disabled={vm.saving}>
-            {vm.saving ? 'Saving…' : 'Save'}
+            {vm.saveLabel}
           </button>
         </div>
       </form>
-      {vm.askDiscard && (
-        <ConfirmDialog title="Discard your changes?" confirmLabel="Discard" onConfirm={props.onClose} onClose={vm.stopAskingDiscard}>
-          <p>Your changes to the categories aren't saved.</p>
-        </ConfirmDialog>
-      )}
+      {vm.askDiscard && <DiscardChangesDialog detail="Your changes to the categories aren't saved." onDiscard={props.onClose} onClose={vm.stopAskingDiscard} />}
     </Modal>
   )
 }

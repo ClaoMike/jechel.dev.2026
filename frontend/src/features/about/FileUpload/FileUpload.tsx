@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { DeleteButton } from '../../../components/DeleteButton/DeleteButton'
 import { TrashIcon, UploadIcon } from '../../../components/icons/icons'
 import type { UploadedFile } from '../../../services/api'
-import { REMOVE_DETAIL } from '../fields/fields'
+import { REMOVE_DETAIL } from '../../../components/fields'
 import { useFileUploadViewModel, type UploadKind } from './FileUpload.viewModel'
 
 interface FileUploadProps {

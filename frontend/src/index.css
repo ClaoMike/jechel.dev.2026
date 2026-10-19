@@ -111,7 +111,7 @@ h2 {
 
 .tab[aria-current='page'] {
   border-bottom-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
 }
 
 .page {
@@ -192,7 +192,7 @@ h2 {
 }
 
 .link-button:hover {
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   text-decoration: underline;
 }
 
@@ -571,8 +571,8 @@ button.media-card {
   border-style: dashed;
   border-width: 2px;
   background: transparent;
-  /* Text colour that reads on every theme's surfaces (the accent alone is too light on light glass). */
-  color: var(--link, var(--accent));
+  /* Text in the accent colour reads on every theme's surfaces (see --accent-ink). */
+  color: var(--accent-ink, var(--accent));
   font-weight: 600;
 }
 
@@ -736,7 +736,7 @@ button.media-card {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
 }
 
 .video-details {
@@ -784,7 +784,7 @@ button.media-card {
   padding: 2px 10px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   font-size: 12px;
   font-weight: 600;
   line-height: 1.6;
@@ -1113,7 +1113,7 @@ button.media-card {
 }
 
 .detail-row dd a {
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
 }
 
 .detail-row-multiline {
@@ -1777,7 +1777,7 @@ button.media-card {
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   text-decoration: none;
 }
 
@@ -2024,7 +2024,7 @@ button.media-card {
   padding: 1px 8px;
   border-radius: 10px;
   background: light-dark(#e8f0fe, #283142);
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   font-size: 12px;
   font-weight: 500;
 }
@@ -2277,7 +2277,7 @@ button.media-card {
   padding: 2px 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   font: inherit;
   font-size: 13px;
   cursor: pointer;
@@ -2591,7 +2591,7 @@ button.media-card {
 }
 
 .terms-number {
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   font-variant-numeric: tabular-nums;
 }
 

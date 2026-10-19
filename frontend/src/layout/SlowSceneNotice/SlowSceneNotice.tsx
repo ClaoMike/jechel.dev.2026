@@ -11,7 +11,7 @@ export function SlowSceneNotice() {
     <div className="slow-scene-notice" role="status" hidden={!vm.shown}>
       {vm.shown && (
         <>
-          <p>Vice was running slowly on this device, so the site switched to {vm.themeName}.</p>
+          <p>{vm.message}</p>
           <div className="slow-scene-actions">
             <button type="button" className="button button-secondary button-small" onClick={vm.keepVice}>
               Use Vice anyway

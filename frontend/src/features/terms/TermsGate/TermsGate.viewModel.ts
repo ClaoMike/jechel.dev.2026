@@ -17,9 +17,10 @@ export function useTermsGateViewModel() {
 
   return {
     titleId: useId(),
-    consents: CONSENTS.map((text, i) => ({ text, ticked: ticked[i] })),
+    consents: CONSENTS.map((text, i) => ({ text, ticked: ticked[i], setTicked: (on: boolean) => setTicked(ticked.map((value, k) => (k === i ? on : value))) })),
     allTicked: ticked.every(Boolean),
-    setTicked: (index: number, on: boolean) => setTicked(ticked.map((value, k) => (k === index ? on : value))),
+    // It can't be closed: Escape and clicks outside do nothing.
+    stayOpen: () => {},
     openTerms,
     accept: () => dispatch(termsAccepted(version)),
   }

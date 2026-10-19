@@ -1,8 +1,7 @@
-import { Link } from 'react-router'
-import { SignedIn } from '../../auth'
-import { PreviewSwitch } from '../../features/preview/PreviewSwitch/PreviewSwitch'
 import { SupportButton } from '../../features/support/SupportButton/SupportButton'
 import { SubscribeButton } from '../../features/updates/SubscribeButton/SubscribeButton'
+import { AdminBar } from '../AdminBar/AdminBar'
+import { Brand } from '../Brand/Brand'
 import { useAppLayoutViewModel } from './AppLayout.viewModel'
 import { RivieraBackground } from '../background/RivieraBackground/RivieraBackground'
 import { ContentToggle } from '../ContentToggle/ContentToggle'
@@ -32,43 +31,9 @@ export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
     <div className="app" data-content-hidden={vm.contentHidden || undefined}>
       {vm.vice && <RivieraBackground />}
       <header className="site-header" inert={vm.contentHidden}>
-        <SignedIn>
-          {(user) => (
-            <div className="admin-bar">
-              <div className="admin-bar-inner">
-                <span className="admin-bar-badge">Admin</span>
-                {vm.maintenance && (
-                  <Link to="/settings" className="admin-bar-maintenance">
-                    Maintenance on: visitors see the maintenance page
-                  </Link>
-                )}
-                {vm.showPreviewSwitch && <PreviewSwitch />}
-                <span className="admin-bar-user">Signed in as {user.email}</span>
-                <button type="button" className="button button-secondary button-small" onClick={vm.signOut}>
-                  Sign out
-                </button>
-              </div>
-            </div>
-          )}
-        </SignedIn>
+        <AdminBar />
         <div className="site-header-top">
-          <h1 className="brand">
-            {/* In Vice it's written in neon (glass.css): a still shadow layer under the moving colours, and a drawn j (BrandJ). */}
-            {/* Screen readers get the name once, as plain text; the drawn layers are decoration (and would read "j echel.dev"). */}
-            <Link to="/" className="brand-link">
-              <span className="visually-hidden">jechel.dev</span>
-              <span className="brand-text" aria-hidden="true">
-                <span className="brand-shadow">
-                  <BrandJ />
-                  echel<span className="brand-dot">.</span>dev
-                </span>
-                <span className="brand-fill">
-                  <BrandJ />
-                  echel<span className="brand-dot">.</span>dev
-                </span>
-              </span>
-            </Link>
-          </h1>
+          <Brand />
           <div className="header-actions">
             {vm.vice && <span ref={toggleSlotRef} className="content-toggle-slot" aria-hidden="true" />}
             {!downtime && <SupportButton key={vm.preview} />}
@@ -85,17 +50,5 @@ export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
       {vm.vice && <ContentToggle hidden={vm.contentHidden} onToggle={vm.toggleContent} anchor={toggleSlotRef} />}
       <SlowSceneNotice />
     </div>
-  )
-}
-
-/**
- * The title's "j". In Vice, glass.css draws it (scripts/build_brand_j.py: Mr Dafoe's own j closes its
- * loop up) and shrinks the letter to nothing; the letter stays, so the heading still reads "jechel.dev".
- */
-function BrandJ() {
-  return (
-    <span className="brand-j">
-      <span className="brand-j-letter">j</span>
-    </span>
   )
 }

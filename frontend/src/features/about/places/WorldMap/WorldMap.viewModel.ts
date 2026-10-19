@@ -198,7 +198,8 @@ export function useWorldMapViewModel({ places, colors, highlight, onSelect }: Wo
     card:
       shown && !onSelect
         ? {
-            place: shown.place,
+            title: placeLabel(shown.place),
+            visits: shown.place.visits.map((visit) => ({ key: visit.kind, color: colors[visit.kind], note: visit.note, label: VISIT_LABELS[visit.kind] })),
             style: { left: `${((shown.at[0] - view.x) / view.width) * 100}%`, top: `${((shown.at[1] - view.y) / height) * 100}%` },
             keepOpen: () => window.clearTimeout(closeTimer.current),
             hideSoon,
@@ -214,7 +215,12 @@ export function useWorldMapViewModel({ places, colors, highlight, onSelect }: Wo
       },
     },
     onKeyDown: (e: KeyboardEvent) => e.key === 'Escape' && setActive(null),
-    zoomBy,
-    reset: () => setView(FULL),
+    controls: {
+      canZoomIn: zoom < MAX_ZOOM,
+      canZoomOut: zoom > 1,
+      zoomIn: () => zoomBy(2),
+      zoomOut: () => zoomBy(0.5),
+      reset: () => setView(FULL),
+    },
   }
 }

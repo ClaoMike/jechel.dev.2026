@@ -1,8 +1,8 @@
 import { PencilIcon } from '../../components/icons/icons'
 import { ErrorState } from '../../components/ErrorState/ErrorState'
-import { TermsDocumentView } from '../../features/terms/TermsDocumentView'
+import { TermsDocumentView } from '../../features/terms/TermsDocumentView/TermsDocumentView'
 import { TermsEditor } from '../../features/terms/TermsEditor'
-import { TermsSkeleton } from '../../features/terms/TermsDialog/TermsDialog'
+import { TermsSkeleton } from '../../features/terms/TermsSkeleton/TermsSkeleton'
 import { useTermsPageViewModel } from './TermsPage.viewModel'
 
 /**

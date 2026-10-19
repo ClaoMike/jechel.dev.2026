@@ -1,9 +1,7 @@
 import { DeleteButton } from '../../../components/DeleteButton/DeleteButton'
-import { FittedImage } from '../../../components/FittedImage'
-import { GripIcon, PlayIcon, UploadIcon } from '../../../components/icons/icons'
-import type { AppMedia } from '../../../services/api'
-import { AddButton, TextField } from '../../about/fields/fields'
-import { youTubeIdIn, youTubeThumbnail } from '../media'
+import { GripIcon, UploadIcon } from '../../../components/icons/icons'
+import { AddButton, TextField } from '../../../components/fields'
+import { MediaThumbnail } from '../MediaThumbnail/MediaThumbnail'
 import { useMediaListEditorViewModel, type MediaListEditorProps } from './MediaListEditor.viewModel'
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm,.mov'
@@ -59,7 +57,7 @@ export function MediaListEditor(props: MediaListEditorProps) {
           {vm.progress ?? 'Upload images or videos'}
         </button>
       </div>
-      <div className="app-inline-add" onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), vm.addLink())}>
+      <div className="app-inline-add" onKeyDown={vm.onLinkKeyDown}>
         <TextField label="Or add from a link" type="url" value={vm.link} onChange={vm.setLink} placeholder="https://www.youtube.com/watch?v=…" error={vm.linkError ?? undefined} />
         <AddButton onClick={vm.addLink}>Add link</AddButton>
       </div>
@@ -70,16 +68,5 @@ export function MediaListEditor(props: MediaListEditorProps) {
       ))}
       {props.error && <p className="field-error">{props.error}</p>}
     </fieldset>
-  )
-}
-
-function MediaThumbnail({ item }: { item: AppMedia }) {
-  if (item.kind === 'image') return <FittedImage className="media-list-thumb" src={item.url} alt="" />
-  const youTube = item.kind === 'youtube' ? youTubeIdIn(item.url) : null
-  return (
-    <span className="media-list-thumb media-list-video">
-      {youTube ? <img src={youTubeThumbnail(youTube)} alt="" draggable={false} /> : <video src={item.url} muted preload="metadata" aria-hidden="true" />}
-      <PlayIcon size={20} />
-    </span>
   )
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api, RESUME_SECTIONS, type ResumeChoices, type ResumeSection } from '../../../services/api'
 import { useGenerateResumeMutation, useGetResumeSettingsQuery, useSaveResumeChoicesMutation } from '../../../store/api/resumeApi'
 import { toLoadable } from '../../../store/loadable'
+import { formatDateTime } from '../../../utils/formatDate'
 
 const SECTION_LABELS: Record<ResumeSection, string> = {
   statuses: 'Citizenship and residence',
@@ -63,6 +64,7 @@ export function useResumePanelViewModel(skills: string[]) {
     status: state.status,
     retry: () => void query.refetch(),
     draft,
+    errorMessage: "The résumé settings couldn't be loaded.",
     sectionOptions: RESUME_SECTIONS,
     sectionLabel: (section: ResumeSection) => SECTION_LABELS[section],
     setSections: (sections: ResumeSection[]) => draft && setChanged({ ...draft, sections }),
@@ -70,10 +72,13 @@ export function useResumePanelViewModel(skills: string[]) {
     shownSkills: draft ? skills.filter((skill) => !draft.excludedSkills.some((excluded) => sameSkill(excluded, skill))) : [],
     setShownSkills: (shown: string[]) => draft && setChanged({ ...draft, excludedSkills: skills.filter((skill) => !shown.includes(skill)) }),
     busy,
+    generateLabel: busy === 'generating' ? 'Generating…' : 'Generate résumés',
+    saveLabel: busy === 'saving' ? 'Saving…' : 'Save without generating',
     message,
     generate: () => void run('generating'),
     save: () => void run('saving'),
-    generatedAt,
+    generated: generatedAt ? `Last generated ${formatDateTime(generatedAt)}.` : null,
+    skillLabel: (skill: string) => skill,
     privateUrl: `${api.resume.privateUrl}${version}`,
     publicUrl: `${api.resume.publicUrl}${version}`,
   }

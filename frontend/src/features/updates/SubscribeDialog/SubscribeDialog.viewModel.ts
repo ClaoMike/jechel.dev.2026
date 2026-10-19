@@ -36,5 +36,33 @@ export function useSubscribeDialogViewModel() {
     }
   }
 
-  return { id: useId(), inputRef, email, setEmail, error, status, sending, submit: (event: FormEvent<HTMLFormElement>) => void submit(event) }
+  const id = useId()
+  const done = status.kind === 'done' ? status : null
+  const sent: Record<SubscribeStatus, [string, string]> = {
+    sent: ['Almost there: check ', ' and click the link in the email to confirm.'],
+    pending: ['We already sent a confirmation to ', '. Click the link in that email to confirm.'],
+    alreadySubscribed: ['', " is already subscribed: you'll get an email when there's something new."],
+  }
+
+  return {
+    titleId: `${id}-title`,
+    inputRef,
+    form: {
+      emailId: `${id}-email`,
+      errorId: `${id}-error`,
+      email,
+      setEmail,
+      error,
+      failure: status.kind === 'failed' ? status.message : null,
+      sending,
+      submitLabel: sending ? 'Subscribing…' : 'Subscribe',
+      submit: (event: FormEvent<HTMLFormElement>) => void submit(event),
+    },
+    sent: done && {
+      before: sent[done.result][0],
+      email: done.email,
+      after: sent[done.result][1],
+      hint: done.result === 'alreadySubscribed' ? null : 'Nothing arrived? Look in spam, or try again in 10 minutes.',
+    },
+  }
 }

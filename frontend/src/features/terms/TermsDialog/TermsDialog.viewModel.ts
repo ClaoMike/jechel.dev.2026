@@ -12,6 +12,7 @@ export function useTermsDialogViewModel() {
     state,
     title: state.status === 'loaded' ? state.data.title : 'Terms and Conditions',
     reload,
+    errorMessage: "The terms couldn't be loaded.",
     close: () => dispatch(termsClosed()),
   }
 }

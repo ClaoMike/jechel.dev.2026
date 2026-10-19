@@ -6,7 +6,7 @@ import { formatMegabytes } from '../format'
 export type UploadKind = 'photo' | 'paper'
 
 // Uploads go to the API service directly: their progress isn't the store's to keep.
-const UPLOADS = { photo: api.files.uploadPhoto, paper: api.files.uploadPaper }
+const upload = (kind: UploadKind, file: File, onProgress: (fraction: number) => void) => (kind === 'photo' ? api.files.uploadPhoto(file, onProgress) : api.files.uploadPaper(file, onProgress))
 
 export interface FileUploadOptions {
   label: string
@@ -22,7 +22,6 @@ type Status = { state: 'idle' } | { state: 'uploading'; percent: number } | { st
 
 /** One file's upload: refused here if too big, then sent at once with its progress; the page only uses it once the section is saved. */
 export function useFileUploadViewModel({ label, context, maxBytes, kind, onUploaded, onRemove, error }: FileUploadOptions) {
-  const upload = UPLOADS[kind]
   const input = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<Status>({ state: 'idle' })
   // "Photo" → "photo", but an acronym like "PDF" stays as it is.
@@ -40,7 +39,7 @@ export function useFileUploadViewModel({ label, context, maxBytes, kind, onUploa
     }
     setStatus({ state: 'uploading', percent: 0 })
     try {
-      onUploaded(await upload(file, (fraction) => setStatus({ state: 'uploading', percent: Math.floor(fraction * 100) })))
+      onUploaded(await upload(kind, file, (fraction) => setStatus({ state: 'uploading', percent: Math.floor(fraction * 100) })))
       setStatus({ state: 'idle' })
     } catch (e) {
       const { status: code, validationErrors } = failureOf(e)

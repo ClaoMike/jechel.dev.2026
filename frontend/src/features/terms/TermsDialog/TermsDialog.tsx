@@ -1,8 +1,8 @@
 import { ErrorState } from '../../../components/ErrorState/ErrorState'
 import { Modal } from '../../../components/Modal/Modal'
-import { Loading, SkeletonText } from '../../../components/Skeleton'
+import { TermsSkeleton } from '../TermsSkeleton/TermsSkeleton'
 import { useTermsDialogViewModel } from './TermsDialog.viewModel'
-import { TermsDocumentView } from '../TermsDocumentView'
+import { TermsDocumentView } from '../TermsDocumentView/TermsDocumentView'
 
 /** The terms in a popup. It sits above every other popup, the welcome one included. */
 export function TermsDialog() {
@@ -17,7 +17,7 @@ export function TermsDialog() {
         </button>
       </div>
       {vm.state.status === 'loading' && <TermsSkeleton />}
-      {vm.state.status === 'error' && <ErrorState message="The terms couldn't be loaded." onRetry={vm.reload} />}
+      {vm.state.status === 'error' && <ErrorState message={vm.errorMessage} onRetry={vm.reload} />}
       {vm.state.status === 'loaded' && <TermsDocumentView terms={vm.state.data} hideTitle />}
       <div className="terms-modal-actions">
         <button type="button" className="button" onClick={vm.close}>
@@ -25,20 +25,5 @@ export function TermsDialog() {
         </button>
       </div>
     </Modal>
-  )
-}
-
-/** The terms' shape while they load: an introduction, then numbered sections of paragraphs. */
-export function TermsSkeleton() {
-  return (
-    <Loading label="Loading the terms…">
-      <SkeletonText lines={2} />
-      {[4, 3, 5].map((lines, i) => (
-        <div key={i} className="skeleton-text">
-          <SkeletonText lines={1} lineHeight={20} />
-          <SkeletonText lines={lines} />
-        </div>
-      ))}
-    </Loading>
   )
 }

@@ -20,6 +20,8 @@ export function useAppsPageViewModel() {
 
   return {
     texts: TEXTS,
+    tileProps: { onOpen: setOpen },
+    itemKey: (app: AppDetails) => app.id,
     canEdit: isAuthenticated,
     // The admin's "Add" tile takes one place, so the first page is still 3 × 3.
     pageSize: isAuthenticated ? 8 : 9,

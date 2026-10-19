@@ -20,7 +20,7 @@ export function useSlowSceneNoticeViewModel() {
 
   return {
     shown: switchedTo !== null,
-    themeName: switchedTo ? NAMES[switchedTo] : '',
+    message: switchedTo ? `Vice was running slowly on this device, so the site switched to ${NAMES[switchedTo]}.` : '',
     // Makes Vice their choice, so it isn't switched off again.
     keepVice: () => dispatch(themeChosen('vice')),
     dismiss: () => dispatch(slowNoticeDismissed()),

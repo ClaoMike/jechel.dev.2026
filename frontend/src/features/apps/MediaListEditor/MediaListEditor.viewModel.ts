@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type KeyboardEvent } from 'react'
 import { useDragSort } from '../../../components/useDragSort'
 import { api, failureOf, type AppMedia } from '../../../services/api'
 import { formatMegabytes } from '../../about/format'
@@ -93,5 +93,12 @@ export function useMediaListEditorViewModel({ value, update }: MediaListEditorPr
       setLinkError(null)
     },
     addLink,
+    // Enter adds the link instead of submitting the app's form.
+    onLinkKeyDown: (event: KeyboardEvent) => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        addLink()
+      }
+    },
   }
 }

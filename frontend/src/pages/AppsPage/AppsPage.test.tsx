@@ -5,7 +5,7 @@ import { api, ApiError, type AppDetails, type Page } from '../../services/api'
 import { signOut } from '../../store/authSlice'
 import { a11yViolations } from '../../test/a11y'
 import { APPS, CATEGORIES, makeApp, pageOf } from '../../test/fixtures/apps'
-import { ADMIN, forever, imagesLoaded, renderView, restMouse, textOf, type RenderViewOptions } from '../../test/render'
+import { ADMIN, forever, imagesLoaded, renderView, restMouse, shootWhole, textOf, type RenderViewOptions } from '../../test/render'
 import { AppsPage } from './AppsPage'
 
 const renderApps = (options: RenderViewOptions = {}) => renderView(<AppsPage />, { path: '/apps', ...options })
@@ -395,11 +395,7 @@ describe('Apps page, screenshots', () => {
     await page.viewport(1280, 900)
   })
 
-  const shot = async (name: string) => {
-    await restMouse()
-    await imagesLoaded()
-    await expect.element(page.getByRole('main')).toMatchScreenshot(name)
-  }
+  const shot = (name: string) => shootWhole(page.getByRole('main'), name)
 
   for (const theme of THEMES) {
     describe(`${theme} theme`, () => {
