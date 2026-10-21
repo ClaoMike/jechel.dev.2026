@@ -204,39 +204,86 @@ Summaries are worked out in memory from the period's rows: plenty for a personal
 
 ## Authentication (Google, admin only)
 
-Only the site owner signs in, to reach the future admin area. There are no public accounts.
+Only the site owner signs in, to reach the admin parts of the site. There are no public accounts.
 
-**Flow** (server-side OAuth: tokens never reach the browser):
+```
+ You, on /admin             API (jechel.dev/api, through the Cloudflare proxy)              Google
+ ──────────────             ──────────────────────────────────────────────                  ──────
+ "Sign in with Google" ───▶ GET /api/auth/login?returnUrl=/
+                            correlation cookie + state, PKCE; redirect ─────────────────────▶ choose account
+                            GET /api/auth/signin-google?code=… ◀───────────────────────────── redirect back
+                            1. correlation cookie and state checked (no forged sign-ins)
+                            2. code swapped for the profile, server to server (no token reaches the browser)
+                            3. GoogleSignIn: email verified, on Auth:AdminEmails (and Auth:AdminGoogleIds, if set)?
+                                 no  → /admin?error=not_authorized, no cookie, phone alert "Sign-in refused"
+                                 yes → a session for this device (admin_sessions: the token's hash, device, IP,
+                                       country), cookie __Host-portfolio.auth with the token, phone alert
+                                       "Signed in to jechel.dev"
+ signed in ◀─────────────── redirect to returnUrl (local paths only)
 
-1. The visitor opens `/admin` and clicks **Sign in with Google**, a plain link to `/api/auth/login?returnUrl=/`.
-2. The API challenges the Google handler, which redirects to Google (authorization code flow with PKCE, a `state` parameter and a correlation cookie).
-3. Google redirects back to `/api/auth/signin-google`. ASP.NET Core exchanges the code and reads the email, name and picture.
-4. `OnTicketReceived` checks the email against `Auth:AdminEmails`:
-   - allowed: the API starts a new database session (see below), issues the `portfolio.auth` cookie (HttpOnly, SameSite=Lax, Secure outside Development) and redirects to `returnUrl` (the home page)
-   - not allowed: no cookie; redirects to `/admin?error=not_authorized`
-   - cancelled or failed on Google: redirects to `/admin?error=login_failed`
-5. The frontend (`useSessionKeeper`, into the store's `auth` slice) calls `/api/auth/me` on load. Signed in, the header shows "Signed in as ... · Sign out", the Contact tab shows the inbox instead of the form, and `/admin` redirects to `/`.
+ every later request with the cookie: token hash looked up → not expired, not past 12 hours, email still allowed?
+   yes → the request is the admin's (expiry pushed to now + 10 min, at most once a minute, never past 12 hours)
+   no  → a visitor's (the cookie is cleared; an account taken off the list loses its sessions for good)
+```
 
-### Sessions (stored in the database)
+**Flow**: the visitor opens `/admin` and clicks **Sign in with Google**, a plain link to `/api/auth/login?returnUrl=/`. The API
+redirects to Google (authorization code flow with PKCE, a `state` parameter and a correlation cookie), Google redirects back to
+`/api/auth/signin-google`, ASP.NET Core swaps the code for the profile, and `GoogleSignIn.OnTicketReceivedAsync` decides:
 
-There is exactly one admin, so there is exactly one session, stored on the profile row (`profiles.session_token_hash`, `profiles.session_expires_at`). The logic is in `AdminSessionService`.
+- **allowed** (the email is verified by Google, is in `Auth:AdminEmails`, and, if `Auth:AdminGoogleIds` is set, the account's
+  permanent Google id is in it): a new session for this device, the cookie, a phone alert, and a redirect to `returnUrl`
+- **anyone else**: no cookie, a redirect to `/admin?error=not_authorized`, and a phone alert (throttled per email)
+- **cancelled or failed on Google** (or a callback without this browser's correlation cookie): `/admin?error=login_failed`
 
-- **Sign-in** creates a random 256-bit token. The encrypted cookie carries the token; the database stores only its SHA-256 hash and the expiry. Signing in again replaces it, so **signing in somewhere new signs you out everywhere else**.
-- **Every request that carries the cookie** is validated against the database (`OnValidatePrincipal`): the token hash must match and the session must not have expired. Otherwise the request is anonymous and the cookie is cleared.
-- **10-minute idle timeout** (`Auth:SessionIdleTimeout`, default `00:10:00`). Any request is activity: at most once a minute, the expiry is pushed to now + 10 minutes and the cookie is re-issued with the same expiry. So the session ends 10 minutes (±1 minute) after the last request.
-- **Sign out** clears the database session, which **signs out every browser**. Anonymous calls to `/api/auth/logout` only clear their own cookie; they can't end the admin's session.
+The frontend (`useSessionKeeper`, into the store's `auth` slice) calls `/api/auth/me` on load. Signed in, the admin bar shows
+"Signed in as ... · Sign out", and the admin's tabs and editing appear.
+
+### Sessions (one per device, in the database)
+
+Each device signed in has its own row in `admin_sessions` (`AdminSessionService`): the SHA-256 of a random 256-bit token (the
+encrypted cookie carries the token itself), the email, when it signed in and was last active, its idle expiry and its absolute
+end, the browser (User-Agent), IP address and country.
+
+- **Idle timeout, 10 minutes** (`Auth:SessionIdleTimeout`). Any request is activity: at most once a minute, the expiry moves to
+  now + 10 minutes and the cookie is re-issued.
+- **Absolute limit, 12 hours** (`Auth:SessionMaxLifetime`): however active, a session ends 12 hours after signing in; then it's
+  Google again. Activity never pushes the expiry past it.
+- **Sign out** (the admin bar) ends this device's session. **Settings → Signed-in devices** lists every device (this one marked)
+  with its address, country and times, and signs one out (`DELETE /api/auth/sessions/{id}`) or all the others
+  (`POST /api/auth/sessions/end-others`). Anonymous calls to `/api/auth/logout` only clear their own cookie.
+- **Other tabs**: signing out in one tab signs this browser's other tabs out at once, and signing in makes them check
+  (`auth/authChannel.ts`, a BroadcastChannel). Activity in one tab keeps them all going (they share the cookie).
+- **Taken off the list**: removing an email from `Auth:AdminEmails` (or its id from `Auth:AdminGoogleIds`) ends its sessions on
+  their next request, for good.
+- Ended sessions are cleared out of the table whenever someone signs in.
 - **No answer isn't "signed out":** only the API's answer decides (signed in, or 401). If the first check gets no answer (the API
   down or restarting, a network error, a 5xx), the page keeps waiting and asks again (after 2, 4, 8, then every 15 seconds), so
   restarting the API doesn't sign the admin out of an open page.
-- **Frontend** (`src/auth/useSessionKeeper.ts`): while signed in, clicks, key presses, scrolling and mouse movement call `/api/auth/me` (at most once a minute) to keep the session alive. A timer re-checks just after `sessionExpiresInSeconds`, so the UI shows you as signed out once the session ends. The expiry is sent as *seconds remaining*, not a timestamp, so the browser's clock doesn't matter.
+- **Frontend** (`src/auth/useSessionKeeper.ts`): while signed in, clicks, key presses, scrolling and mouse movement call
+  `/api/auth/me` (at most once a minute) to keep the session alive. A timer re-checks just after `sessionExpiresInSeconds`, so the
+  UI shows you as signed out once the session ends. The expiry is sent as *seconds remaining*, not a timestamp, so the browser's
+  clock doesn't matter.
 
-Details:
-- Removing an email from `Auth:AdminEmails` also kills existing sessions for it on the next request (`OnValidatePrincipal`).
+### Protections
+
+- **The cookie**: `__Host-portfolio.auth` in production (browsers keep it only if it's Secure, for the whole site, and for
+  exactly this host: a subdomain can't set or overwrite it), HttpOnly (scripts can't read it), SameSite=Lax. Locally
+  `portfolio.auth`, over http.
+- **Cross-site writes** (`SameOriginWrites`): a POST, PUT, PATCH or DELETE carrying the cookie must come from the site itself
+  (its `Origin` header); otherwise **403**. A second guard after SameSite. Requests without the cookie (visitors, webhooks) aren't
+  checked.
+- **The keys** that encrypt the cookie and the Settings secrets (ASP.NET Core Data Protection) are kept in the database
+  (`data_protection_keys`), and encrypted there with AES-256-GCM when `DataProtection:KeyEncryptionKey` is set (production;
+  `KeyRingEncryption.cs`). Locally they're stored as they are.
+- **Headers**: the site's pages (`frontend/public/_headers`, Cloudflare Pages) get a Content-Security-Policy (only the site's own
+  scripts and Cal.com's embed run; only YouTube and Cal.com can be framed; the site can't be framed), HSTS, a Permissions-Policy
+  (no camera, microphone or location), `nosniff` and a Referrer-Policy. The API's own responses get `nosniff`,
+  `X-Frame-Options: DENY` and the Referrer-Policy.
 - `returnUrl` must be a local path (`/...`); anything else falls back to `/` (no open redirects).
-- API calls without a valid cookie get a plain **401** (or **403**), never a redirect to a login page.
-- To protect a new endpoint, add `.RequireAuthorization()`.
-- If Google credentials aren't configured, the API still runs and `/api/auth/login` returns **503**. This is how tests and CI run.
-- Cookie encryption uses ASP.NET Core Data Protection. Locally keys live in your user profile. In production, persist the keys (e.g. to the database or a volume), or every deploy logs you out.
+- API calls without a valid cookie get a plain **401** (or **403**), never a redirect to a login page. To protect a new endpoint,
+  add `.RequireAuthorization()`.
+- If Google credentials aren't configured, the API still runs and `/api/auth/login` returns **503**.
+- **Your Google account is the gate**: give it 2-step verification or a passkey.
 
 ### Setting up Google sign-in
 
@@ -736,6 +783,9 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Site:TimeZone`               | Your time zone for times in phone alerts (default `Europe/London`) |
 | `Site:PagesVisibleByDefault`  | Whether visitor pages and features not yet switched in Settings show (default `false`: everything starts hidden) |
 | `Proxy:Secret`                | The secret the site's `/api` proxy sends (production; see Deployment). Empty: no proxy check |
+| `Auth:AdminGoogleIds`         | Optional array: the admin Google accounts' permanent ids ("sub"). When set, an account needs one as well as an allowed email |
+| `Auth:SessionMaxLifetime`     | A session's absolute limit, however active (default `12:00:00`) |
+| `DataProtection:KeyEncryptionKey` | 32 bytes in base64 (`openssl rand -base64 32`): encrypts the Data Protection keys in the database. Production; losing it signs everyone out and loses the Settings secrets |
 | `ConnectionStrings:Redis`     | Redis for the API's cache, e.g. `localhost:6380,abortConnect=false` (set in appsettings.Development). Empty: memory only |
 
 Every key above from `Support`, `YouTube`, `Email`, `Alerts` and `Cal` can also be set in the **Settings** tab, which overrides these.
@@ -873,7 +923,10 @@ the host (Google's callback URL) and the visitor's IP (rate limits, analytics) f
 So the auth cookie stays first-party and there's no CORS, as with the Vite proxy locally.
 
 **Data Protection keys** (they encrypt the sign-in cookie and the secrets saved in Settings) are kept in the
-database (`data_protection_keys`), so they survive redeploys.
+database (`data_protection_keys`), so they survive redeploys, encrypted with `DataProtection:KeyEncryptionKey`.
+
+**The proxy also forwards the visitor's country** (`X-Client-Country`, from Cloudflare's `CF-IPCountry`), for analytics and the
+sign-in alerts and device list.
 
 ### Settings in production
 
@@ -885,6 +938,7 @@ Railway, on the API service (`__` separates sections):
 | `Proxy__Secret` | A long random string (`openssl rand -hex 32`), the same as the Pages project's `PROXY_SECRET` |
 | `Authentication__Google__ClientId` / `__ClientSecret` | The Google OAuth client. Its redirect URI: `https://jechel.dev/api/auth/signin-google` |
 | `Auth__AdminEmails__0` | Your Google email |
+| `DataProtection__KeyEncryptionKey` | `openssl rand -base64 32`. Keep a copy somewhere safe: without it the stored keys can't be read |
 | Anything else from [Configuration](#configuration) | Or set it in the Settings tab |
 
 Cloudflare Pages project (Settings → Variables and secrets, Production): `API_ORIGIN` (the API's Railway address,

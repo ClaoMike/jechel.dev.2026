@@ -10,7 +10,7 @@ export interface AuthValue {
   isAuthenticated: boolean
   /** The signed-in user, or null. */
   user: CurrentUser | null
-  /** Ends the session everywhere. */
+  /** Signs out this device (and this browser's other tabs). */
   signOut: () => Promise<void>
 }
 

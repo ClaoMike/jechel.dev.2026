@@ -4,14 +4,15 @@ import { CopyButton } from '../../components/CopyButton/CopyButton'
 import { ErrorState } from '../../components/ErrorState/ErrorState'
 import { Loading, Skeleton } from '../../components/Skeleton'
 import { ArrowDownIcon, ExternalLinkIcon } from '../../components/icons/icons'
+import { SignedInDevices } from '../../features/auth/SignedInDevices/SignedInDevices'
 import { SiteVisibility } from '../../features/site/SiteVisibility/SiteVisibility'
 import type { Setting } from '../../services/api'
 import type { TestableService } from '../../store/api/settingsApi'
 import { newNtfyTopic, useServiceCardViewModel, useSettingFieldViewModel, useSettingsViewModel, useTestButtonViewModel, type ServiceStatus } from './SettingsPage.viewModel'
 
 /**
- * Settings (an admin-only tab): every service the site connects to, with its links, its keys and a
- * test button. Keys saved here are stored encrypted, apply at once, and override the server's
+ * Settings (an admin-only tab): what visitors see, the devices signed in as the admin, and every
+ * service the site connects to, with its links, its keys and a test button. Keys saved here are stored encrypted, apply at once, and override the server's
  * configuration; secrets are never shown again, only their last 4 characters. Visitors go home.
  */
 export function SettingsPage() {
@@ -20,6 +21,7 @@ export function SettingsPage() {
       <div className="settings">
         <h2 className="visually-hidden">Settings</h2>
         <SiteVisibility />
+        <SignedInDevices />
         <h3 className="settings-section-title">Connections</h3>
         <Settings />
       </div>

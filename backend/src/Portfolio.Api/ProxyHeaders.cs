@@ -7,7 +7,7 @@ namespace Portfolio.Api;
 /// <summary>
 /// In production the site's own address forwards /api to this API (a Cloudflare Pages Function, see
 /// frontend/functions/api), so the browser only ever talks to one origin. The proxy proves itself with
-/// a shared secret (Proxy:Secret) and says what the browser saw: the host and the visitor's IP.
+/// a shared secret (Proxy:Secret) and says what the browser saw: the host, the visitor's IP and country.
 /// With a secret set, any request without it is answered 404, so the API's own address shows nothing.
 /// Without one (locally, in tests) nothing changes.
 /// </summary>
@@ -16,6 +16,7 @@ public static class ProxyHeaders
     public const string SecretHeader = "X-Proxy-Secret";
     public const string HostHeader = "X-Site-Host";
     public const string ClientIpHeader = "X-Client-IP";
+    public const string ClientCountryHeader = "X-Client-Country";
 
     /// <summary>The hosting platform checks this one directly, not through the proxy.</summary>
     public const string HealthPath = "/api/health";
@@ -45,6 +46,8 @@ public static class ProxyHeaders
             request.Scheme = "https";
             if (request.Headers[HostHeader].ToString() is { Length: > 0 } host) request.Host = new HostString(host);
             if (IPAddress.TryParse(request.Headers[ClientIpHeader].ToString(), out var ip)) context.Connection.RemoteIpAddress = ip;
+            // As Cloudflare names it, where the rest of the API reads it (analytics, sign-in alerts).
+            request.Headers["CF-IPCountry"] = request.Headers[ClientCountryHeader];
             await next();
         });
     }

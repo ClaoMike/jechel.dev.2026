@@ -1,8 +1,10 @@
-import { createListenerMiddleware } from '@reduxjs/toolkit'
+import { createListenerMiddleware, isAnyOf } from '@reduxjs/toolkit'
+import { tellOtherTabs } from '../auth/authChannel'
 import { trackEvent } from '../features/analytics/tracker'
 import { rememberAcceptance } from '../features/terms/acceptance'
 import { rememberTheme, showTheme } from '../layout/theme'
 import { setRequestPreview } from '../services/api'
+import { checkSession, refreshSession, signOut } from './authSlice'
 import { baseApi } from './baseApi'
 import type { AppDispatch, RootState } from './index'
 import { activePreview, PREVIEW_STORAGE_KEY, previewModeChanged } from './previewSlice'
@@ -65,4 +67,16 @@ startListening({
   effect: (_, api) => {
     api.dispatch(baseApi.util.resetApiState())
   },
+})
+
+// The admin's other tabs: signed out here, signed out there; signed in here (after Google), they check.
+startListening({
+  actionCreator: signOut.fulfilled,
+  effect: () => tellOtherTabs('signedOut'),
+})
+
+const sessionAnswered = isAnyOf(checkSession.fulfilled, refreshSession.fulfilled)
+startListening({
+  predicate: (action, state, before) => sessionAnswered(action) && state.auth.status === 'authenticated' && before.auth.status !== 'authenticated',
+  effect: () => tellOtherTabs('signedIn'),
 })

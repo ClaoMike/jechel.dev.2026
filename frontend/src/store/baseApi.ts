@@ -21,6 +21,7 @@ export const baseApi = createApi({
     'Message',
     'Messages',
     'Resume',
+    'Sessions',
     'Settings',
     'Subscribers',
     'Summary',

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api.Features.Analytics;
+using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.Contact;
 using Portfolio.Api.Features.Files;
 
@@ -9,6 +10,7 @@ namespace Portfolio.Api.Data;
 public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : DbContext(options), IDataProtectionKeyContext
 {
     public DbSet<Profile> Profiles => Set<Profile>();
+    public DbSet<AdminSession> AdminSessions => Set<AdminSession>();
     public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
     public DbSet<AboutPage> AboutPages => Set<AboutPage>();
     public DbSet<TermsPage> TermsPages => Set<TermsPage>();
@@ -40,10 +42,27 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.HasKey(p => p.Id);
             entity.Property(p => p.Id).HasColumnName("id");
             entity.Property(p => p.FirstName).HasColumnName("first_name").HasMaxLength(100).IsRequired();
-            entity.Property(p => p.SessionTokenHash).HasColumnName("session_token_hash").HasMaxLength(64);
-            entity.Property(p => p.SessionExpiresAt).HasColumnName("session_expires_at");
 
             entity.HasData(new Profile { Id = 1, FirstName = "Claudiu" });
+        });
+
+        modelBuilder.Entity<AdminSession>(entity =>
+        {
+            entity.ToTable("admin_sessions");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(s => s.TokenHash).HasColumnName("token_hash").HasMaxLength(64).IsRequired();
+            entity.Property(s => s.Email).HasColumnName("email").HasMaxLength(320).IsRequired();
+            entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+            entity.Property(s => s.LastSeenAt).HasColumnName("last_seen_at");
+            entity.Property(s => s.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(s => s.EndsAt).HasColumnName("ends_at");
+            entity.Property(s => s.UserAgent).HasColumnName("user_agent").HasMaxLength(AdminSessionService.UserAgentMaxLength).IsRequired();
+            entity.Property(s => s.IpAddress).HasColumnName("ip_address").HasMaxLength(45);
+            entity.Property(s => s.Country).HasColumnName("country").HasMaxLength(2);
+
+            // Every request with the cookie finds its session by the token's hash.
+            entity.HasIndex(s => s.TokenHash).IsUnique();
         });
 
         modelBuilder.Entity<ContactMessage>(entity =>

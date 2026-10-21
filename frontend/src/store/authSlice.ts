@@ -48,7 +48,7 @@ export const refreshSession = createAsyncThunk('auth/refresh', () => {
   return api.auth.me()
 })
 
-/** Ends the session everywhere. */
+/** Signs out this device (others stay signed in; Settings → Signed-in devices ends them). */
 export const signOut = createAsyncThunk('auth/signOut', () => api.auth.logout())
 
 const toState = (user: CurrentUser | null): AuthState => (user ? { status: 'authenticated', user } : { status: 'anonymous' })
@@ -56,7 +56,10 @@ const toState = (user: CurrentUser | null): AuthState => (user ? { status: 'auth
 export const authSlice = createSlice({
   name: 'auth',
   initialState: { status: 'loading' } as AuthState,
-  reducers: {},
+  reducers: {
+    /** Another tab of this browser signed out: the session it shared with this one is over. */
+    signedOutElsewhere: (): AuthState => ({ status: 'anonymous' }),
+  },
   extraReducers: (builder) => {
     builder
       .addCase(checkSession.fulfilled, (_, action) => toState(action.payload))
@@ -64,3 +67,5 @@ export const authSlice = createSlice({
       .addCase(signOut.fulfilled, () => ({ status: 'anonymous' }))
   },
 })
+
+export const { signedOutElsewhere } = authSlice.actions

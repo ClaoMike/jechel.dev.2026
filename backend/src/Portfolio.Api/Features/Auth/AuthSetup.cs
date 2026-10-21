@@ -13,8 +13,15 @@ public static class AuthSetup
     public const string AdminLoginPage = "/admin";
 
     /// <summary>
-    /// Cookie session backed by <see cref="AdminSessionService"/> (token hash + expiry in the
-    /// database) + Google as the external login provider.
+    /// The session cookie. "__Host-" (production) makes browsers keep it only if it's Secure, for the
+    /// whole site and for exactly this host: a subdomain can't set or overwrite it. Plain over http://localhost.
+    /// </summary>
+    public const string CookieName = "__Host-portfolio.auth";
+    public const string DevelopmentCookieName = "portfolio.auth";
+
+    /// <summary>
+    /// Cookie sessions backed by <see cref="AdminSessionService"/> (one per device: token hash + expiry in
+    /// the database) + Google as the external login provider (<see cref="GoogleSignIn"/>).
     /// Google is only registered when a ClientId/ClientSecret are configured, so the API
     /// (and its tests) still run without Google credentials.
     /// </summary>
@@ -39,7 +46,8 @@ public static class AuthSetup
             .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
             {
-                options.Cookie.Name = "portfolio.auth";
+                options.Cookie.Name = builder.Environment.IsDevelopment() ? DevelopmentCookieName : CookieName;
+                options.Cookie.Path = "/";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
                 options.Cookie.SecurePolicy = cookieSecurePolicy;
@@ -63,10 +71,17 @@ public static class AuthSetup
                     var admins = services.GetRequiredService<IOptionsMonitor<AdminOptions>>();
                     var principal = context.Principal!;
 
-                    var status = admins.CurrentValue.IsAdmin(principal.FindFirstValue(ClaimTypes.Email))
-                        ? await services.GetRequiredService<AdminSessionService>()
-                            .ValidateAsync(principal, context.HttpContext.RequestAborted)
-                        : SessionStatus.Invalid;
+                    var sessions = services.GetRequiredService<AdminSessionService>();
+                    var status = SessionStatus.Invalid;
+                    if (admins.CurrentValue.IsAdmin(principal.FindFirstValue(ClaimTypes.Email), principal.FindFirstValue(ClaimTypes.NameIdentifier)))
+                    {
+                        status = await sessions.ValidateAsync(principal, context.HttpContext.RequestAborted);
+                    }
+                    else
+                    {
+                        // Taken off the list: its session ends for good, not just for now.
+                        await sessions.EndAsync(principal, context.HttpContext.RequestAborted);
+                    }
 
                     if (status == SessionStatus.Invalid)
                     {
@@ -89,34 +104,13 @@ public static class AuthSetup
                 options.ClientSecret = google["ClientSecret"]!;
                 options.CallbackPath = CallbackPath;
                 options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                options.ClaimActions.MapJsonKey("picture", "picture");
+                GoogleSignIn.MapClaims(options);
 
                 // Google redirects back with a top-level GET, so Lax is enough and also works on http://localhost.
                 options.CorrelationCookie.SameSite = SameSiteMode.Lax;
                 options.CorrelationCookie.SecurePolicy = cookieSecurePolicy;
 
-                options.Events.OnTicketReceived = async context =>
-                {
-                    var services = context.HttpContext.RequestServices;
-                    var admins = services.GetRequiredService<IOptionsMonitor<AdminOptions>>();
-                    if (!admins.CurrentValue.IsAdmin(context.Principal?.FindFirstValue(ClaimTypes.Email)))
-                    {
-                        context.Response.Redirect($"{AdminLoginPage}?error=not_authorized");
-                        context.HandleResponse();
-                        return;
-                    }
-
-                    // New session in the database; this signs out every other browser/device.
-                    var sessions = services.GetRequiredService<AdminSessionService>();
-                    if (!await sessions.StartAsync(context.Principal!, context.HttpContext.RequestAborted))
-                    {
-                        context.Response.Redirect($"{AdminLoginPage}?error=login_failed");
-                        context.HandleResponse();
-                        return;
-                    }
-
-                    context.Properties!.IsPersistent = true;
-                };
+                options.Events.OnTicketReceived = GoogleSignIn.OnTicketReceivedAsync;
                 options.Events.OnRemoteFailure = context =>
                 {
                     // e.g. the user cancelled on Google's consent screen

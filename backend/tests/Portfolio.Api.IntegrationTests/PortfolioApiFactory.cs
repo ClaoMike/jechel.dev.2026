@@ -60,6 +60,10 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         {
             services.AddSingleton<TimeProvider>(Time);
             services.AddSingleton<ILeetCodeClient>(LeetCode);
+            // Google's token and user-info endpoints answer from FakeGoogle (the browser's redirects are the test's).
+            services.PostConfigure<Microsoft.AspNetCore.Authentication.Google.GoogleOptions>(
+                Microsoft.AspNetCore.Authentication.Google.GoogleDefaults.AuthenticationScheme,
+                options => options.Backchannel = new HttpClient(Google));
             services.AddSingleton<IYouTubeClient>(YouTube);
             // Refreshing runs on a timer; tests that need it call YouTubeVideoStore.RefreshAsync.
             services.Remove(services.Single(s => s.ImplementationType == typeof(YouTubeRefreshWorker)));
@@ -83,6 +87,9 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
 
     /// <summary>Every email the API sent.</summary>
     public RecordingEmailSender Emails { get; } = new();
+
+    /// <summary>Stands in for Google's sign-in servers: who signs in is <see cref="FakeGoogle.User"/>.</summary>
+    public FakeGoogle Google { get; } = new();
 
     /// <summary>Stands in for YouTube's API, so tests never call it.</summary>
     public FakeYouTubeClient YouTube { get; } = new();
@@ -120,7 +127,7 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
                 var principal = new ClaimsPrincipal(identity);
 
                 var sessions = context.RequestServices.GetRequiredService<AdminSessionService>();
-                await sessions.StartAsync(principal);
+                await sessions.StartAsync(principal, context);
                 await context.SignInAsync(
                     CookieAuthenticationDefaults.AuthenticationScheme,
                     principal,
@@ -206,4 +213,42 @@ public sealed class RecordingCalClient : Portfolio.Api.Features.Meetings.ICalCli
     }
 
     public Task<string> WhoAmIAsync(CancellationToken cancellationToken) => Task.FromResult("claomike");
+}
+
+/// <summary>
+/// Google's token endpoint (any code gets a token) and user-info endpoint (answers <see cref="User"/>).
+/// Records the token requests, e.g. to check the code and PKCE verifier were sent.
+/// </summary>
+public sealed class FakeGoogle : HttpMessageHandler
+{
+    public const string Subject = "110000000000000000001";
+
+    public static System.Text.Json.Nodes.JsonObject Account(string email = PortfolioApiFactory.AdminEmail, bool verified = true, string subject = Subject) => new()
+    {
+        ["sub"] = subject,
+        ["email"] = email,
+        ["email_verified"] = verified,
+        ["name"] = "The Admin",
+        ["picture"] = "https://lh3.googleusercontent.com/a/admin",
+    };
+
+    /// <summary>Who signs in.</summary>
+    public System.Text.Json.Nodes.JsonObject User { get; set; } = Account();
+
+    public System.Collections.Concurrent.ConcurrentQueue<string> TokenRequests { get; } = new();
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        string json;
+        if (request.RequestUri!.AbsolutePath.EndsWith("/token", StringComparison.Ordinal))
+        {
+            TokenRequests.Enqueue(await request.Content!.ReadAsStringAsync(cancellationToken));
+            json = "{\"access_token\":\"fake-access-token\",\"token_type\":\"Bearer\",\"expires_in\":3600}";
+        }
+        else
+        {
+            json = User.ToJsonString();
+        }
+        return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json") };
+    }
 }

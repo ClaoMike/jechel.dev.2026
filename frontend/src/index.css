@@ -3378,6 +3378,39 @@ button.media-card {
   margin: 0;
 }
 
+/* Settings → Signed-in devices */
+.device-list {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.device-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.device-what {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.device-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
 .settings-ok {
   color: var(--success, #188038);
   margin: 0;
@@ -4040,12 +4073,14 @@ button.media-card {
 
 /* ---------- Settings → Visitor pages: switches ---------- */
 
-.site-visibility {
+.site-visibility,
+.signed-in-devices {
   display: grid;
   gap: 14px;
 }
 
 .site-visibility h3,
+.signed-in-devices h3,
 .settings-section-title {
   margin: 0;
 }

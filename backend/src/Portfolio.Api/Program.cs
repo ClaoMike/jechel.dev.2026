@@ -32,8 +32,13 @@ builder.Services.AddDbContext<PortfolioDbContext>(options =>
 
 builder.Services.AddHealthChecks().AddDbContextCheck<PortfolioDbContext>();
 
-// Keys for cookies and saved secrets live in the database, so redeploys (new containers) keep them.
-builder.Services.AddDataProtection().PersistKeysToDbContext<PortfolioDbContext>();
+// Keys for cookies and saved secrets live in the database, so redeploys (new containers) keep them;
+// encrypted there when DataProtection:KeyEncryptionKey is set (production).
+var dataProtection = builder.Services.AddDataProtection().PersistKeysToDbContext<PortfolioDbContext>();
+if (KeyRingEncryption.KeyFrom(builder.Configuration) is { } keyEncryptionKey)
+{
+    dataProtection.AddKeyManagementOptions(options => options.XmlEncryptor = new KeyRingEncryptor(keyEncryptionKey));
+}
 
 builder.AddPortfolioAuth();
 
@@ -148,6 +153,15 @@ using (var scope = app.Services.CreateScope())
 
 app.UseForwardedHeaders();
 app.UseProxyHeaders(app.Configuration["Proxy:Secret"]);
+// The API answers JSON and files: browsers mustn't guess other types, frame it, or leak its addresses.
+app.Use((context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers.XContentTypeOptions = "nosniff";
+    headers.XFrameOptions = "DENY";
+    headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    return next();
+});
 app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
@@ -155,6 +169,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseSameOriginWrites();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();

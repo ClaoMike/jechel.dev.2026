@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useAppDispatch, useAppSelector } from '../store'
-import { checkSession, refreshSession, sessionCheckedAt } from '../store/authSlice'
+import { checkSession, refreshSession, sessionCheckedAt, signedOutElsewhere } from '../store/authSlice'
+import { listenToOtherTabs } from './authChannel'
 
 /** The API extends a session at most once a minute, so pinging more often is pointless. */
 export const ACTIVITY_REFRESH_MS = 60_000
@@ -11,7 +12,7 @@ const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'scroll', 'mousemove'] as con
 /**
  * Keeps the store's session up to date, for the whole app (App's view model): checks it when the page
  * opens; then, while signed in, activity in the page extends it, and without activity it signs out in
- * the UI when it ends.
+ * the UI when it ends. Signing in or out in another tab of this browser shows here at once.
  */
 export function useSessionKeeper() {
   const dispatch = useAppDispatch()
@@ -21,6 +22,17 @@ export function useSessionKeeper() {
     const check = dispatch(checkSession())
     return () => check.abort()
   }, [dispatch])
+
+  // Another tab signed out (the shared cookie is gone): so is this one. Another signed in: check.
+  const signedIn = user !== null
+  useEffect(
+    () =>
+      listenToOtherTabs((message) => {
+        if (message === 'signedOut') dispatch(signedOutElsewhere())
+        else if (!signedIn) void dispatch(refreshSession())
+      }),
+    [signedIn, dispatch],
+  )
 
   // Re-armed after every refresh, since each one returns a fresh user object and expiry.
   useEffect(() => {

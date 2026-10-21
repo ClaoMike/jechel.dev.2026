@@ -1,6 +1,6 @@
 // Cloudflare Pages Function: every /api/* request on the site is forwarded to the API on Railway, so the
 // browser only talks to one origin (the auth cookie stays first-party, no CORS), as the Vite proxy does locally.
-// The API trusts what this says (host, visitor IP) because of the shared secret (backend ProxyHeaders.cs).
+// The API trusts what this says (host, visitor IP and country) because of the shared secret (backend ProxyHeaders.cs).
 // Set in the Pages project: API_ORIGIN (e.g. https://api-production-1234.up.railway.app) and PROXY_SECRET.
 
 interface Env {
@@ -14,6 +14,7 @@ export const onRequest = async ({ request, env }: { request: Request; env: Env }
   headers.set('X-Proxy-Secret', env.PROXY_SECRET)
   headers.set('X-Site-Host', url.host)
   headers.set('X-Client-IP', request.headers.get('CF-Connecting-IP') ?? '')
+  headers.set('X-Client-Country', request.headers.get('CF-IPCountry') ?? '')
 
   return fetch(new URL(url.pathname + url.search, env.API_ORIGIN), {
     method: request.method,
