@@ -55,35 +55,3 @@ jobs:
             frontend/src/**/__screenshots__/**/*-actual-*.png
             frontend/src/**/__screenshots__/**/*-diff-*.png
           retention-days: 7
-
-  repomap:
-    name: Repo map tool (typecheck + unit + browser)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: tools/repomap
-    steps:
-      - uses: actions/checkout@v4
-      # The C# extractor is built and run by the whole-repository pipeline test.
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: backend/global.json
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: tools/repomap/package-lock.json
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npx playwright install --with-deps chromium webkit firefox
-      - run: npx playwright test --project=chromium --project=phone
-      # Headless WebGL varies between engines on Linux runners: report, don't block.
-      - run: npx playwright test --project=webkit --project=firefox
-        continue-on-error: true
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: repomap-playwright-report
-          path: tools/repomap/playwright-report
-          retention-days: 7

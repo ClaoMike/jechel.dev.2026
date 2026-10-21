@@ -768,13 +768,13 @@ the report shows what isn't covered yet: `coverage/index.html` (and a summary in
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every pull request and on pushes to `develop`:
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `develop` (the repo map tool in `tools/repomap`
+isn't tested on GitHub: it will move to its own repository; run its tests locally):
 
 1. **backend**: restore, build, `dotnet test` (Testcontainers uses the runner's Docker)
 2. **frontend**: in Playwright's image (`mcr.microsoft.com/playwright:v1.63.0-noble`, keep it in step with the
    `playwright` package): `npm ci`, lint, build, `npm test`. On failure, the coverage report and the screenshots that
    didn't match are uploaded as the run's `frontend-test-report`.
-3. **repomap**: the repo map tool's tests. Not required for `main` (two of its whole-repo pipeline tests fail).
 
 **Linux screenshots.** Screenshot references are per OS: `…-chromium-darwin.png` for your Mac, `…-chromium-linux.png`
 for CI. The Linux ones are taken on GitHub, never locally: Actions → **Update Linux screenshots** → Run workflow on
@@ -791,7 +791,8 @@ after an intended visual change (after `npm run test:update` locally), then re-r
 | Database | Railway PostgreSQL | Migrations run when the API starts (`appsettings.Production.json`) |
 
 **Branches.** Work happens on `develop`. `main` is production: whatever is on `main` is live. `main` only changes
-through pull requests whose **Backend** and **Frontend** checks passed (a GitHub ruleset), and every change to it runs
+through pull requests whose **Backend** and **Frontend** checks passed (a GitHub ruleset,
+`.github/rulesets/main.json`: Settings → Rules → Rulesets → New ruleset → Import a ruleset), and every change to it runs
 `.github/workflows/deploy.yml`: the API first, then the site.
 
 **Deploying:** the launcher's **Deploy to production** (only on `develop`, with everything committed), or
