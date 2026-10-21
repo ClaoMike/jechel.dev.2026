@@ -104,6 +104,29 @@ describe('the terms popup', () => {
     await expect.element(termsDialog()).not.toBeInTheDocument()
   })
 
+  it('closes with × at the top only (no button at the bottom), Escape or a click outside', async () => {
+    stubApi()
+    await renderApp()
+    const footerLink = page.getByRole('contentinfo').getByRole('button', { name: 'Terms and Conditions' })
+
+    await footerLink.click()
+    await expect.element(termsDialog()).toBeVisible()
+    expect(termsDialog().getByRole('button').all().map((b) => b.element().getAttribute('aria-label') ?? b.element().textContent)).toEqual(['Close'])
+    await termsDialog().getByRole('button', { name: 'Close' }).click()
+    await expect.element(termsDialog()).not.toBeInTheDocument()
+
+    await footerLink.click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(termsDialog()).not.toBeInTheDocument()
+
+    await footerLink.click()
+    await expect.element(termsDialog()).toBeVisible()
+    const backdrop = document.querySelector<HTMLElement>('.modal-backdrop')!
+    backdrop.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await expect.element(termsDialog()).not.toBeInTheDocument()
+  })
+
   it('leaves out the date of terms never saved, and an empty introduction', async () => {
     const api = stubApi()
     api.terms.get.mockResolvedValue({ ...TERMS, intro: '', updatedAt: null })
