@@ -342,6 +342,30 @@ While a page slides, the grid's height goes from the old page's to the new one's
 Animation from `PagedGrid.viewModel`), so Previous / Next glide up to a shorter page (or down to a taller one)
 instead of jumping.
 
+How the videos get to the page:
+
+```
+  YouTube Data API v3  (≈2 units per fetch, of 10,000 free a day)
+          ▲
+          │ asks for the channel's videos:
+          │   · when the API starts, then every hour (YouTubeRefreshWorker; 5 min after a failure)
+          │   · when the admin presses "Refresh from YouTube" (POST /api/youtube/refresh)
+          │   · when a visitor comes and nothing is saved yet (the very first time)
+          │
+  YouTubeVideoStore ───── memory: the list on hand
+          │        └───── database: youtube_videos, one row per channel (survives restarts;
+          │                shown while YouTube is down)
+          ▼
+  GET /api/youtube/videos?page=&pageSize=   a page of the list
+          │   Cache-Control: private, max-age=300 for visitors · no-store for the admin
+          ▼
+  Browser: RTK Query (listVideos; the pages next to the one on show loaded ahead)
+          ├──▶ YouTube page (3 × 3 grid, sliding between pages)
+          └──▶ What's new? (the newest video, if YouTube is a page visitors may see)
+
+  The same store also feeds the email updates (UpdatesAnnouncer: new videos go to subscribers).
+```
+
 - `GET /api/youtube/videos?page=1&pageSize=9` (public) reads the uploads with the YouTube Data API v3. It needs `YouTube:Channel` (`@handle` or `UC…` id) and `YouTube:ApiKey`; until both are set it answers 503 and the page says the videos can't be loaded.
 - The list is kept by `YouTubeVideoStore`: in memory, and in the database (`youtube_videos`, one row per channel), so a
   restart or a YouTube outage still shows the last list; visitors only wait for YouTube when there's no list at all yet.
