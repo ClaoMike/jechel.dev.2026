@@ -53,6 +53,9 @@ public class TermsEndpointsTests
     [InlineData("youtube-nocookie.com")]
     [InlineData("Cal.com")]
     [InlineData("Buy Me a Coffee")]
+    // Apps: their media from elsewhere, and the stores they're offered in.
+    [InlineData("an app's images and videos may come from")]
+    [InlineData("App Store, Google Play and Steam")]
     // How to use your rights, and where to complain.
     [InlineData("[Contact](/contact)")]
     [InlineData("ico.org.uk")]

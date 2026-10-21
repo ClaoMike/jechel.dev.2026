@@ -39,8 +39,14 @@ export function mediaFromLink(link: string): AppMedia | string {
   const id = youTubeIdIn(url)
   if (id) return { url: youTubeWatchUrl(id), kind: 'youtube' }
   if (!/^https?:\/\//i.test(url) || !isSafeUrl(url)) return 'That should be a link starting with https://.'
-  return { url, kind: /\.(mp4|m4v|webm|mov)([?#]|$)/i.test(new URL(url).pathname) ? 'video' : 'image' }
+  return { url, kind: VIDEO_EXTENSION.test(new URL(url).pathname) ? 'video' : 'image' }
 }
+
+/** The extensions of the videos an app can have (the API checks the file itself): MP4, MOV and WebM. */
+const VIDEO_EXTENSION = /\.(mp4|m4v|webm|mov)$/i
+
+/** Whether a file to upload is a video (its larger limit applies): by its type, or its name when the browser gives no type. */
+export const isVideoFile = (file: File) => file.type.startsWith('video/') || VIDEO_EXTENSION.test(file.name)
 
 /** The picture on an app's tile: its first image, or else its first YouTube video's thumbnail. */
 export function tileImage(app: AppDetails): string | undefined {

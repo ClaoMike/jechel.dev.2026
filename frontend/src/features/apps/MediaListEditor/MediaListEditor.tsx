@@ -56,6 +56,10 @@ export function MediaListEditor(props: MediaListEditorProps) {
           <UploadIcon size={16} />
           {vm.progress ?? 'Upload images or videos'}
         </button>
+        {/* The button says how far it got; this tells screen readers too. */}
+        <span className="visually-hidden" role="status">
+          {vm.progress}
+        </span>
       </div>
       <div className="app-inline-add" onKeyDown={vm.onLinkKeyDown}>
         <TextField label="Or add from a link" type="url" value={vm.link} onChange={vm.setLink} placeholder="https://www.youtube.com/watch?v=…" error={vm.linkError ?? undefined} />

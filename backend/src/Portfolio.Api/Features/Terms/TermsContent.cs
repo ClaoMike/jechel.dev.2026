@@ -37,7 +37,7 @@ public static class TermsDefaults
     /// When these defaults last changed: shown as "Last updated", and the version visitors accept. Move it
     /// whenever the text below changes, so everyone is asked to accept the new terms.
     /// </summary>
-    public static readonly DateTimeOffset UpdatedAt = new(2026, 10, 21, 0, 0, 0, TimeSpan.Zero);
+    public static readonly DateTimeOffset UpdatedAt = new(2026, 10, 21, 18, 0, 0, TimeSpan.Zero);
 
     /// <summary>How long a visit's record is kept (AnalyticsRetention deletes older ones).</summary>
     public const int VisitRetentionMonths = 12;
@@ -132,7 +132,7 @@ public static class TermsDefaults
                     "YouTube: videos play in YouTube's privacy-enhanced player (youtube-nocookie.com), which may store information in your browser once you play a video, and thumbnails come from YouTube's servers, which see your IP address;",
                     "Cal.com and Buy Me a Coffee, as described above;",
                     "Google, only for the site owner's own sign-in;",
-                    "other websites that images in the Apps section may come from, which see your IP address when they load."),
+                    "other websites that an app's images and videos may come from (the Apps page can show them from elsewhere), which see your IP address when they load."),
                 Paragraph("Some of these services may handle information outside the United Kingdom. They protect it under their own terms, with the safeguards UK law requires."),
             ]),
             new TermsSection("Your rights",
@@ -143,7 +143,7 @@ public static class TermsDefaults
             ]),
             new TermsSection("Other websites",
             [
-                Paragraph("The website links to and embeds content from other websites, such as YouTube, GitHub and LinkedIn. Those websites have their own terms and privacy policies, and I am not responsible for their content."),
+                Paragraph("The website links to and embeds content from other websites, such as YouTube, GitHub and LinkedIn, and the stores where my apps are offered, such as the App Store, Google Play and Steam. Those websites have their own terms and privacy policies, and I am not responsible for their content. Anything you buy or download there is between you and that store."),
             ]),
             new TermsSection("No warranty",
             [

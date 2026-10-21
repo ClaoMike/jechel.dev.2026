@@ -172,6 +172,26 @@ on the icon links in `index.html` (browsers keep tab icons cached).
 
 ## Terms and conditions
 
+```
+  The terms (GET /api/terms)
+     saved by the admin in the Terms tab ──▶ terms_page (title, intro, sections), dated when saved
+     never saved ─────────────────────────▶ TermsDefaults (dated TermsDefaults.UpdatedAt: move it when they change)
+          │
+          ▼  their date is the version a visitor accepts
+  A visitor opens any page (not /admin)
+     this browser accepted that version? (localStorage "terms.accepted")
+        yes ──▶ the site; visits are recorded (AnalyticsTracker: "on")
+        no  ──▶ the welcome popup (TermsGate): one box, Continue
+                   the terms can be read above it (TermsDialog)
+                   nothing is recorded meanwhile ("waiting"; a visitor who never accepts is never sent)
+                   Continue ──▶ the version is remembered ──▶ the site; recording starts
+  The signed-in admin: never asked, never recorded.
+
+  Anywhere: the footer's "Terms and Conditions" opens TermsDialog (× / Escape / a click outside close it;
+  a link in them to a page of the site goes there and closes it).
+  Locally (npm run dev, not signed in): the User bar's "Reset terms acceptance" forgets it and reloads.
+```
+
 - **Welcome popup:** a visitor who hasn't accepted the terms (anywhere but the sign-in page, `/admin`) gets a popup that can't be closed: one box, "I have read and I accept the Terms and Conditions of this website", then **Continue**. Everything else is in the terms themselves. Accepting is remembered in the browser (`localStorage["terms.accepted"]`) against the terms' date (`updatedAt`), so new terms ask everyone again. The signed-in admin isn't asked.
 - **The default terms** (`backend/.../Features/Terms/TermsContent.cs`, `TermsDefaults`) are shown until the admin saves terms in the Terms tab. They describe, from the code, what the site records and keeps, who handles it and visitors' rights (UK GDPR), and point to the Contact page for requests. They have their own date (`TermsDefaults.UpdatedAt`): **move it whenever their text changes**, so visitors are asked again. Tests check they still name every browser-storage key and outside service (`TermsEndpointsTests`); add to both when the site starts keeping something new. They're a starting point, not legal advice.
 - **Reading them:** the footer on every page, and the welcome popup, have a **Terms and Conditions** link that opens them in a popup above anything else that's open. It closes with **×** at the top (or Escape, or a click outside).
@@ -373,6 +393,34 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 **What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later; the admin sees everything); if one fails (e.g. YouTube isn't set up), the other is shown.
 
 **Apps** (`src/pages/AppsPage/AppsPage.tsx`, `src/features/apps/`, API in `backend/.../Features/Apps/`):
+
+```
+  Admin (signed in)                         API                                       Database
+  ─────────────────                         ───                                       ────────
+  Upload an image or video ──▶ POST /api/files/app-media
+                                 image: checked, turned upright, fitted to 1920 px,
+                                        WebP without metadata (SkiaSharp)  ─────────▶ stored_files
+                                 video (MP4, MOV, WebM, ≤ 200 MB): kept as it is ──▶ stored_files
+                               ◀─ its /api/files/… address
+  Or a link: a YouTube video, an image or video elsewhere (kept as a link)
+  Save the app ──────────────▶ POST /api/apps, PUT /api/apps/{id}
+                                 AppRules: title, description (≤ 5000, safe links),
+                                 ≤ 30 media, categories that exist, platforms, ≤ 10 links ──▶ apps
+                                 YouTube links stored as their watch link
+                                 uploads no app or About Me uses any more: deleted a day later (FileCleanup)
+                                 a new app: the phone asks whether to email the subscribers (AnnouncementDecisions)
+  Categories ────────────────▶ PUT /api/apps/categories (rename, reorder, add, remove) ─▶ app_categories
+                                 a removed one is taken off every app
+
+  Visitor                                   API
+  ───────                                   ───
+  Apps page ─────────────────▶ GET /api/apps?page=&pageSize= (newest first; 9, or 8 next to the admin's Add tile)
+     grid of tiles (PagedGrid: pages next to it loaded ahead, sliding between pages)
+     a tile ──▶ its popup: the slider (MediaCarousel: uploads from /api/files, links from other sites,
+                YouTube in its privacy-enhanced player), labels, description, "Runs on", store links
+  What's new? shows the newest app if it came after the newest video (and Apps is a page visitors may see).
+```
+
 
 - The same paged 3 × 3 grid as YouTube, newest first. A tile shows the app's first image (whatever comes before it), its title and the start of its description. Clicking it opens a popup with every image and video in a sideways slider (swipe, arrows, dots or the arrow keys; moving on pauses a video; a YouTube video gets YouTube's privacy-enhanced player on its own slide and a thumbnail elsewhere, so moving on stops it too). The tile uses the first image, or else a YouTube video's thumbnail and the full description, which may hold `[text](url)` links.
 - **The admin** gets an **Add an app** tile first (the first page then holds 8 apps, so it stays 3 × 3), and an **Edit** button in each popup that turns it into the form used for adding: title, description, and the images and videos, which can be uploaded several at once, added from a link (a YouTube video such as a trailer, or an image or video file elsewhere), dragged to reorder and removed. Dragging uses pointer events (`components/useDragSort.ts`): a mouse drags a whole tile, a finger its handle (so the popup still scrolls), and the handle also takes the arrow keys. Closing with unsaved changes asks first. **Delete app** asks too.

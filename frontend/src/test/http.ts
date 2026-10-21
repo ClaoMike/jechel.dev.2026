@@ -10,7 +10,7 @@ export interface SentRequest {
 }
 
 /** How the fake server answers: a status and JSON body, a network failure (no answer at all), or never. */
-export type Answer = { status: number; body?: unknown; headers?: Record<string, string> } | 'network-error' | 'never'
+export type Answer = { status: number; body?: unknown; headers?: Record<string, string>; uploadProgress?: [loaded: number, total: number][] } | 'network-error' | 'never'
 
 /**
  * Stands in for the network, below axios: replaces XMLHttpRequest (what axios uses in browsers), so the
@@ -31,7 +31,12 @@ export function fakeHttp(answer: (request: SentRequest) => Answer) {
     responseURL = ''
     timeout = 0
     withCredentials = false
-    upload = { addEventListener() {} }
+    private uploadListeners: ((event: ProgressEvent) => void)[] = []
+    upload = {
+      addEventListener: (type: string, listener: (event: ProgressEvent) => void) => {
+        if (type === 'progress') this.uploadListeners.push(listener)
+      },
+    }
     onloadend: (() => void) | null = null
     onerror: ((event: ProgressEvent) => void) | null = null
     onabort: (() => void) | null = null
@@ -71,6 +76,9 @@ export function fakeHttp(answer: (request: SentRequest) => Answer) {
         if (reply === 'network-error') {
           this.onerror?.(new ProgressEvent('error'))
           return
+        }
+        for (const [loaded, total] of reply.uploadProgress ?? []) {
+          for (const listener of this.uploadListeners) listener(new ProgressEvent('progress', { lengthComputable: true, loaded, total }))
         }
         this.status = reply.status
         this.statusText = String(reply.status)

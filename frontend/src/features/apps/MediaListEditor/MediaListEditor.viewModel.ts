@@ -4,7 +4,7 @@ import { api, failureOf, type AppMedia } from '../../../services/api'
 import { formatMegabytes } from '../../about/format'
 import { move, removeAt } from '../../about/list'
 import { APP_IMAGE_MAX_BYTES, APP_VIDEO_MAX_BYTES } from '../../about/uploadLimits'
-import { mediaFromLink } from '../media'
+import { isVideoFile, mediaFromLink } from '../media'
 
 const noun = (item: AppMedia) => ({ image: 'image', video: 'video', youtube: 'YouTube video' })[item.kind]
 const LABELS = { image: 'Image', video: 'Video', youtube: 'YouTube' }
@@ -42,7 +42,7 @@ export function useMediaListEditorViewModel({ value, update }: MediaListEditorPr
   async function upload(files: File[]) {
     const failed: string[] = []
     for (const [i, file] of files.entries()) {
-      const max = file.type.startsWith('video/') || file.name.toLowerCase().endsWith('.mov') ? APP_VIDEO_MAX_BYTES : APP_IMAGE_MAX_BYTES
+      const max = isVideoFile(file) ? APP_VIDEO_MAX_BYTES : APP_IMAGE_MAX_BYTES
       if (file.size > max) {
         failed.push(`${file.name} is ${formatMegabytes(file.size)}; the limit is ${formatMegabytes(max)}.`)
         continue
