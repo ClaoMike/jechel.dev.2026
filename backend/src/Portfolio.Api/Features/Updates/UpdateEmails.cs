@@ -16,48 +16,62 @@ public record UpdateItem(string Title, string Summary, string Url, string? Image
 /// </summary>
 public static class UpdateEmails
 {
-    public static EmailMessage Confirmation(string to, string confirmUrl, UpdateEmailWording wording, SiteOptions site)
+    /// <summary>The site's icon, sent inside every email (mail apps can't fetch a picture from a site that isn't online, e.g. while testing locally).</summary>
+    public static readonly InlineImage Icon = new("jechel-icon", "jechel.png", "image/png", ReadIcon());
+
+    /// <param name="token">The subscriber's: the button confirms it.</param>
+    public static EmailMessage Confirmation(string to, string token, UpdateEmailWording wording, SiteOptions site)
     {
         var words = wording.Confirm;
-        var note = words.Note.Length == 0 ? "" : $"""<div style="color:{Grey}">{Paragraphs(words.Note, site)}</div>""";
+        var confirmUrl = site.UrlFor($"/updates/confirm?token={Uri.EscapeDataString(token)}");
         return new EmailMessage(
             to,
             words.Subject,
             Layout(
-                site,
                 $"""
                 {Paragraphs(words.Intro, site)}
                 <p style="margin:24px 0">{Button(words.Button, confirmUrl)}</p>
-                {note}
+                {Note(words.Note, site)}
                 """,
-                Footer(wording.Footer, site, unsubscribeUrl: null)),
+                Footer(wording.Footer, site, unsubscribeUrl: null),
+                site),
             Join(PlainText(words.Intro, site), $"{words.Button}: {confirmUrl}", PlainText(words.Note, site), PlainFooter(wording.Footer, site, unsubscribeUrl: null)),
-            FromUpdates: true);
+            FromUpdates: true,
+            Images: [Icon]);
     }
 
     /// <param name="what">"app" or "video": whose wording it uses.</param>
-    public static EmailMessage NewItem(string to, string what, UpdateItem item, string unsubscribeUrl, UpdateEmailWording wording, SiteOptions site)
+    /// <param name="token">The subscriber's: the Unsubscribe link (a page on the site) and the one-click unsubscribe mail apps offer (the API) use it.</param>
+    public static EmailMessage NewItem(string to, string what, UpdateItem item, string token, UpdateEmailWording wording, SiteOptions site)
     {
         var words = what == UpdatesAnnouncer.VideoKind ? wording.Video : wording.App;
-        var heading = Fill(words.Heading, item.Title);
+        var intro = Fill(words.Intro, item.Title);
+        var unsubscribePage = site.UrlFor($"/updates/unsubscribe?token={Uri.EscapeDataString(token)}");
         var picture = item.ImageUrl is null ? "" : $"""<p><a href="{Attr(item.Url)}"><img src="{Attr(item.ImageUrl)}" alt="" width="512" style="display:block;max-width:100%;height:auto;border:0;border-radius:12px"></a></p>""";
         return new EmailMessage(
             to,
             Fill(words.Subject, item.Title),
             Layout(
-                site,
                 $"""
-                <p style="color:{Grey};margin:0">{Html(heading)}</p>
-                <h1 style="font-size:22px;line-height:1.3;margin:4px 0 16px">{Html(item.Title)}</h1>
+                {Paragraphs(intro, site)}
+                <h1 style="font-size:22px;line-height:1.3;margin:16px 0">{Html(item.Title)}</h1>
                 {picture}
                 <p>{Html(item.Summary)}</p>
-                <p style="margin:24px 0 0">{Button(words.Button, item.Url)}</p>
+                <p style="margin:24px 0">{Button(words.Button, item.Url)}</p>
+                {Note(words.Note, site)}
                 """,
-                Footer(wording.Footer, site, unsubscribeUrl)),
-            Join($"{heading}\n{item.Title}", item.Summary, $"{words.Button}: {item.Url}", PlainFooter(wording.Footer, site, unsubscribeUrl)),
-            unsubscribeUrl,
-            FromUpdates: true);
+                Footer(wording.Footer, site, unsubscribePage),
+                site),
+            Join(PlainText(intro, site), item.Title, item.Summary, $"{words.Button}: {item.Url}", PlainText(words.Note, site), PlainFooter(wording.Footer, site, unsubscribePage)),
+            // RFC 8058: mail apps' own Unsubscribe button posts here, to the API, not to a page.
+            site.UrlFor($"/api/updates/unsubscribe?token={Uri.EscapeDataString(token)}"),
+            FromUpdates: true,
+            Images: [Icon]);
     }
+
+    /// <summary>The HTML with its inline pictures written into it, for a browser to show (it can't read <c>cid:</c> links).</summary>
+    public static string ForBrowser(EmailMessage message) =>
+        (message.Images ?? []).Aggregate(message.Html, (html, image) => html.Replace($"cid:{image.ContentId}", $"data:{image.ContentType};base64,{Convert.ToBase64String(image.Content)}"));
 
     /// <summary>The start of a description, without [text](url) link syntax, cut at a word.</summary>
     public static string Summary(string description, int max = 300)
@@ -78,7 +92,7 @@ public static class UpdateEmails
     /// The jechel.dev look: a dark header with the icon and the name in pink and violet, a sunset stripe,
     /// a white card. Email apps ignore much of CSS, so every gradient sits on a plain colour of its own.
     /// </summary>
-    private static string Layout(SiteOptions site, string body, string footer)
+    private static string Layout(string body, string footer, SiteOptions site)
     {
         var home = site.UrlFor("/");
         return $"""
@@ -88,7 +102,7 @@ public static class UpdateEmails
             <div style="max-width:560px;margin:0 auto;padding:24px 12px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a">
             <div style="background:#ffffff;border-radius:16px;overflow:hidden">
             <div style="background-color:#1c0a33;background-image:linear-gradient(135deg,#2a0f4d,#14061f);padding:16px 24px">
-            <a href="{Attr(home)}" style="text-decoration:none;font-size:20px;font-weight:800;letter-spacing:-0.01em"><img src="{Attr(site.UrlFor("/apple-touch-icon.png"))}" width="32" height="32" alt="" style="vertical-align:middle;border:0;border-radius:8px;margin-right:10px"><span style="color:#ff3ea5;vertical-align:middle">jechel</span><span style="color:#b98cff;vertical-align:middle">.dev</span></a>
+            <a href="{Attr(home)}" style="text-decoration:none;font-size:20px;font-weight:800;letter-spacing:-0.01em"><img src="cid:{Icon.ContentId}" width="32" height="32" alt="" style="vertical-align:middle;border:0;border-radius:8px;margin-right:10px"><span style="color:#ff3ea5;vertical-align:middle">jechel</span><span style="color:#b98cff;vertical-align:middle">.dev</span></a>
             </div>
             <div style="height:4px;line-height:4px;font-size:0;background-color:#d91289;background-image:linear-gradient(90deg,#ff3ea5,#ff8a5c,#ffd36e,#ff5fc4,#9b5cff,#4fa3ff)">&nbsp;</div>
             <div style="padding:24px">
@@ -119,6 +133,16 @@ public static class UpdateEmails
         if (unsubscribeUrl is not null) lines.Add(Join(PlainText(words.Reason, site), $"Unsubscribe: {unsubscribeUrl}"));
         if (words.NoReply.Length > 0) lines.Add(PlainText(words.NoReply, site));
         return lines.Count == 0 ? "" : "--\n" + string.Join("\n\n", lines);
+    }
+
+    private static string Note(string text, SiteOptions site) => text.Length == 0 ? "" : $"""<div style="color:{Grey}">{Paragraphs(text, site)}</div>""";
+
+    private static byte[] ReadIcon()
+    {
+        using var stream = typeof(UpdateEmails).Assembly.GetManifestResourceStream("email-icon.png")!;
+        using var copy = new MemoryStream();
+        stream.CopyTo(copy);
+        return copy.ToArray();
     }
 
     private static string Button(string label, string url) =>

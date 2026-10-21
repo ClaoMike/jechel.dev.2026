@@ -89,10 +89,9 @@ public class UpdatesAnnouncer(
 
             foreach (var subscriber in subscribers)
             {
-                var unsubscribe = site.Value.UrlFor($"/updates/unsubscribe?token={subscriber.Token}");
                 try
                 {
-                    await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item, unsubscribe, wording, site.Value), cancellationToken);
+                    await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item, subscriber.Token, wording, site.Value), cancellationToken);
                     announcement.RecipientCount++;
                 }
                 catch (Exception e) when (!cancellationToken.IsCancellationRequested)

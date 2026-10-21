@@ -29,9 +29,9 @@ export const communityApi = baseApi.injectEndpoints({
     subscribe: build.mutation<SubscribeStatus, string>({ queryFn: (email) => run(api.updates.subscribe(email)) }),
 
     /** The link in the confirmation email; resolves with the address. */
-    confirmSubscription: build.mutation<string, string>({ queryFn: (token) => run(api.updates.confirm(token)) }),
+    confirmSubscription: build.mutation<string, string>({ queryFn: (token) => run(api.updates.confirm(token)), invalidatesTags: ['Subscribers'] }),
 
-    unsubscribe: build.mutation<void, string>({ queryFn: (token) => run(api.updates.unsubscribe(token)) }),
+    unsubscribe: build.mutation<void, string>({ queryFn: (token) => run(api.updates.unsubscribe(token)), invalidatesTags: ['Subscribers'] }),
 
     listSubscribers: build.query<Page<Subscriber>, PageArgs>({
       queryFn: ({ page, pageSize }, { signal }) => run(api.updates.listSubscribers(page, pageSize, signal)),

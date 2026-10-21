@@ -1,5 +1,6 @@
 import { AdminOnly } from '../../components/AdminOnly/AdminOnly'
 import { DeleteButton } from '../../components/DeleteButton/DeleteButton'
+import { EmptyState } from '../../components/EmptyState/EmptyState'
 import { ErrorState } from '../../components/ErrorState/ErrorState'
 import { Loading, SkeletonList, SkeletonTable } from '../../components/Skeleton'
 import { Pagination } from '../../components/Pagination'
@@ -35,14 +36,13 @@ function Subscribers() {
         <h3 id="subscribers-title">Email subscribers</h3>
         {state.status === 'loaded' && <span className="muted">{state.data.totalCount} in all</span>}
       </div>
-      <p className="muted">They get an email about each new app you choose to send, and each new YouTube video. Only confirmed addresses get them.</p>
       {state.status === 'loading' && (
         <Loading label="Loading subscribers…">
           <SkeletonTable rows={4} columns={3} />
         </Loading>
       )}
       {state.status === 'error' && <ErrorState message="Subscribers couldn't be loaded." onRetry={vm.retry} />}
-      {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">No subscribers yet.</p>}
+      {state.status === 'loaded' && state.data.totalCount === 0 && <EmptyState />}
       {state.status === 'loaded' && state.data.items.length > 0 && (
         <div className="table-scroll" role="region" aria-label="Subscribers table" tabIndex={0}>
           <table className="messages-table">
@@ -87,17 +87,13 @@ function Announcements() {
   return (
     <section className="card community-card" aria-labelledby="announcements-title">
       <h3 id="announcements-title">Update emails</h3>
-      <p className="muted">
-        A new app waits for you: send or ignore it here, or from the alert on your phone. New videos are emailed by themselves. Only what visitors can see goes out: nothing while
-        Get updates is off, no apps while Apps is hidden, no videos while YouTube is (Settings → Visitor pages).
-      </p>
       {state.status === 'loading' && (
         <Loading label="Loading the update emails…">
           <SkeletonList rows={3} pill />
         </Loading>
       )}
       {state.status === 'error' && <ErrorState message="The update emails couldn't be loaded." onRetry={vm.retry} />}
-      {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">Nothing yet. The next new app or video shows up here.</p>}
+      {state.status === 'loaded' && state.data.totalCount === 0 && <EmptyState />}
       {vm.failed && <p role="alert">{vm.failed}</p>}
       {state.status === 'loaded' && state.data.items.length > 0 && (
         <ul className="community-list">
@@ -146,7 +142,7 @@ function Donations() {
         </Loading>
       )}
       {state.status === 'error' && <ErrorState message="Coffees couldn't be loaded." onRetry={vm.retry} />}
-      {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">No coffees yet. They appear here once the Buy Me a Coffee webhook is set up (Settings).</p>}
+      {state.status === 'loaded' && state.data.totalCount === 0 && <EmptyState />}
       {state.status === 'loaded' && state.data.items.length > 0 && (
         <div className="table-scroll" role="region" aria-label="Donations table" tabIndex={0}>
           <table className="messages-table">

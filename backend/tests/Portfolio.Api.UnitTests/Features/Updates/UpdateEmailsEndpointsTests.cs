@@ -18,7 +18,7 @@ public class UpdateEmailsEndpointsTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 21, 20, 0, 0, TimeSpan.Zero);
     private static readonly UpdateEmailWording Defaults = UpdateEmailDefaults.Wording;
-    private static readonly UpdateEmailWording Mine = Defaults with { Confirm = Defaults.Confirm with { Subject = "Say yes to jechel.dev" }, App = new ItemWording("Out now: {title}", "Just shipped", "Try it") };
+    private static readonly UpdateEmailWording Mine = Defaults with { Confirm = Defaults.Confirm with { Subject = "Say yes to jechel.dev" }, App = new ItemWording("Out now: {title}", "Just shipped", "Try it", "") };
 
     private readonly FakeTimeProvider _time = new(Now);
     private readonly FakeEmailSender _emails = new();
@@ -232,8 +232,56 @@ public class UpdateEmailsEndpointsTests
         Assert.Equal("admin@example.com", email.To);
         Assert.Equal("[Test] Out now: Space Game", email.Subject);
         Assert.True(email.FromUpdates);
-        Assert.Equal("https://jechel.dev/updates/unsubscribe?token=preview", email.UnsubscribeUrl);
+        Assert.Equal("https://jechel.dev/api/updates/unsubscribe?token=preview", email.UnsubscribeUrl);
+        Assert.Equal([UpdateEmails.Icon], email.Images);
         Assert.Empty(_db.Subscribers);
+    }
+
+    [Fact]
+    public async Task A_test_to_a_subscribed_admin_carries_their_own_code_so_unsubscribing_from_it_works()
+    {
+        _db.Subscribers.Add(new Subscriber { Email = "admin@example.com", Token = "admins-own", CreatedAt = Now, ConfirmedAt = Now });
+        await _db.SaveChangesAsync();
+
+        await Test(UpdateEmailKinds.Video, admin: Admin("Admin@Example.com"));
+        var email = Assert.Single(_emails.Sent);
+        Assert.Equal("https://jechel.dev/api/updates/unsubscribe?token=admins-own", email.UnsubscribeUrl);
+        Assert.Contains("https://jechel.dev/updates/unsubscribe?token=admins-own", email.Html);
+
+        await UpdatesEndpoints.Unsubscribe("admins-own", _db, default);
+        Assert.Empty(_db.Subscribers);
+    }
+
+    [Fact]
+    public async Task The_preview_shows_the_icon_written_into_the_page()
+    {
+        var preview = Shown(await Preview(UpdateEmailKinds.Confirm));
+
+        Assert.Contains("<img src=\"data:image/png;base64,", preview.Html);
+        Assert.DoesNotContain("cid:", preview.Html);
+    }
+
+    [Fact]
+    public async Task Wording_saved_before_new_items_had_a_message_reads_its_heading_as_the_message()
+    {
+        _db.UpdateEmailsPages.Add(new UpdateEmailsPage
+        {
+            Id = UpdateEmailsPage.SingletonId,
+            UpdatedAt = Now,
+            Content = """
+                {"confirm":{"subject":"S","intro":"I","button":"B","note":"N"},
+                 "video":{"subject":"V {title}","heading":"A new video is up","button":"Watch it"},
+                 "app":{"subject":"A {title}","heading":"A new app is out","button":"Take a look"},
+                 "footer":{"reason":"R","noReply":"X"}}
+                """,
+        });
+        await _db.SaveChangesAsync();
+
+        var wording = (await Get()).Wording;
+
+        Assert.Equal(new ItemWording("V {title}", "A new video is up", "Watch it", ""), wording.Video);
+        Assert.Equal(new ItemWording("A {title}", "A new app is out", "Take a look", ""), wording.App);
+        Assert.Empty(UpdateEmailRules.Validate(wording));
     }
 
     [Fact]

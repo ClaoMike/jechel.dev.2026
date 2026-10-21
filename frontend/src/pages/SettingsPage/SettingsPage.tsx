@@ -150,7 +150,6 @@ function Settings() {
       <ServiceCard
         title="Resend (email)"
         status={status('Email:ResendApiKey', 'Email:From')}
-        what="Confirmation emails for subscribers, the emails about new apps and videos (their wording is in the Community tab), and your replies to messages."
         links={[
           ['API keys', 'https://resend.com/api-keys'],
           ['Domains', 'https://resend.com/domains'],
@@ -158,14 +157,8 @@ function Settings() {
         test={{ service: 'email', label: 'Send me a test email' }}
       >
         {field('Email:ResendApiKey')}
-        {field('Email:From', {
-          placeholder: 'Claudiu from jechel.dev <hello@jechel.dev>',
-          hint: "Every email's sender, unless one below is set. Its domain must be verified in Resend (Domains); until then Resend only sends from onboarding@resend.dev, and only to your own address.",
-        })}
-        {field('Email:UpdatesFrom', {
-          placeholder: 'jechel.dev <updates@jechel.dev>',
-          hint: "For subscribers: confirmations and updates. Use an address with no mailbox, so replies go nowhere. Your replies to messages keep the sender above, and people's answers come to you.",
-        })}
+        {field('Email:From', { placeholder: 'Claudiu from jechel.dev <hello@jechel.dev>' })}
+        {field('Email:UpdatesFrom', { placeholder: 'jechel.dev <updates@jechel.dev>' })}
       </ServiceCard>
 
       <ServiceCard
@@ -215,7 +208,8 @@ function ServiceCard({
 }: {
   title: string
   status: ServiceStatus
-  what: string
+  /** What the service is for. Optional. */
+  what?: string
   links: [string, string][]
   test?: { service: TestableService; label: string }
   children: ReactNode
@@ -232,7 +226,7 @@ function ServiceCard({
         </button>
       </h3>
       <div id={`${id}-body`} className="settings-card-body" hidden={!vm.open}>
-        <p className="muted">{what}</p>
+        {what && <p className="muted">{what}</p>}
         {links.length > 0 && (
           <div className="settings-links">
             {links.map(([label, href]) => (

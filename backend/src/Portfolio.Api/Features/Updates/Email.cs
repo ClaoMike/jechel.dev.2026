@@ -9,7 +9,11 @@ namespace Portfolio.Api.Features.Updates;
 /// <param name="UnsubscribeUrl">Sent as List-Unsubscribe (one click, RFC 8058), which Gmail and Yahoo require for bulk mail. Optional.</param>
 /// <param name="ReplyTo">Where answers go, e.g. the admin's own address for a reply to a contact message. Optional.</param>
 /// <param name="FromUpdates">An email to subscribers: sent from <see cref="EmailOptions.UpdatesFrom"/> (when set), an address that takes no replies.</param>
-public record EmailMessage(string To, string Subject, string Html, string Text, string? UnsubscribeUrl = null, string? ReplyTo = null, bool FromUpdates = false);
+/// <param name="Images">Pictures sent inside the email, shown by the HTML as <c>cid:</c> + their id: they show without the mail app fetching anything.</param>
+public record EmailMessage(string To, string Subject, string Html, string Text, string? UnsubscribeUrl = null, string? ReplyTo = null, bool FromUpdates = false, IReadOnlyList<InlineImage>? Images = null);
+
+/// <summary>A picture inside an email: the HTML shows it as <c>cid:{ContentId}</c>.</summary>
+public record InlineImage(string ContentId, string FileName, string ContentType, byte[] Content);
 
 public interface IEmailSender
 {
@@ -59,6 +63,16 @@ public class ResendEmailSender(HttpClient http, IOptionsMonitor<EmailOptions> op
             ["text"] = message.Text,
         };
         if (message.ReplyTo is { Length: > 0 } replyTo) body["reply_to"] = replyTo;
+        if (message.Images is { Count: > 0 } images)
+        {
+            body["attachments"] = images.Select(i => new Dictionary<string, string>
+            {
+                ["filename"] = i.FileName,
+                ["content"] = Convert.ToBase64String(i.Content),
+                ["content_type"] = i.ContentType,
+                ["content_id"] = i.ContentId,
+            }).ToArray();
+        }
         if (message.UnsubscribeUrl is { } unsubscribe)
         {
             body["headers"] = new Dictionary<string, string>

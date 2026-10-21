@@ -72,6 +72,20 @@ public class EmailSendingTests
     }
 
     [Fact]
+    public async Task Sends_pictures_inside_the_email_for_its_cid_links_and_none_when_there_are_none()
+    {
+        var api = new FakeResend();
+        var plain = new FakeResend();
+
+        await Resend(api).SendAsync(Update with { Images = [new InlineImage("logo", "logo.png", "image/png", [1, 2, 3])] }, default);
+        await Resend(plain).SendAsync(Update, default);
+
+        var attachment = Assert.Single(api.Body!["attachments"]!.AsArray())!;
+        Assert.Equal(("logo", "logo.png", "image/png", "AQID"), ((string?)attachment["content_id"], (string?)attachment["filename"], (string?)attachment["content_type"], (string?)attachment["content"]));
+        Assert.Null(plain.Body!["attachments"]);
+    }
+
+    [Fact]
     public async Task Says_why_Resend_refused_it()
     {
         var api = new FakeResend(HttpStatusCode.Forbidden, """{"statusCode":403,"message":"The jechel.dev domain is not verified."}""");

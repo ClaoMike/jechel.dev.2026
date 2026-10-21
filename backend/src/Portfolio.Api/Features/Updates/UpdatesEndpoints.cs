@@ -115,7 +115,7 @@ public static class UpdatesEndpoints
         try
         {
             var wording = await UpdateEmailsEndpoints.LoadAsync(db, cancellationToken);
-            await emails.SendAsync(UpdateEmails.Confirmation(email, site.Value.UrlFor($"/updates/confirm?token={subscriber.Token}"), wording, site.Value), cancellationToken);
+            await emails.SendAsync(UpdateEmails.Confirmation(email, subscriber.Token, wording, site.Value), cancellationToken);
         }
         catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {

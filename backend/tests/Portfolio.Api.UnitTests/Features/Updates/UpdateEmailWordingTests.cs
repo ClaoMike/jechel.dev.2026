@@ -11,8 +11,8 @@ public class UpdateEmailWordingTests
     private static readonly UpdateItem Item = new("Space Game", "Dodge the asteroids.", "https://jechel.dev/apps", "https://jechel.dev/api/files/1/a.webp");
     private const string Unsubscribe = "https://jechel.dev/updates/unsubscribe?token=t";
 
-    private static EmailMessage Confirmation(UpdateEmailWording wording) => UpdateEmails.Confirmation("ada@example.com", "https://jechel.dev/updates/confirm?token=c", wording, Site);
-    private static EmailMessage NewItem(string kind, UpdateEmailWording wording, UpdateItem? item = null) => UpdateEmails.NewItem("ada@example.com", kind, item ?? Item, Unsubscribe, wording, Site);
+    private static EmailMessage Confirmation(UpdateEmailWording wording) => UpdateEmails.Confirmation("ada@example.com", "c", wording, Site);
+    private static EmailMessage NewItem(string kind, UpdateEmailWording wording, UpdateItem? item = null) => UpdateEmails.NewItem("ada@example.com", kind, item ?? Item, "t", wording, Site);
 
     private static string[] ErrorKeys(UpdateEmailWording wording) => [.. UpdateEmailRules.Validate(wording).Keys.Order()];
     private static string Error(UpdateEmailWording wording, string key) => Assert.Single(UpdateEmailRules.Validate(wording)[key]);
@@ -36,12 +36,12 @@ public class UpdateEmailWordingTests
     }
 
     [Fact]
-    public void Subjects_buttons_headings_and_the_intro_are_required_the_note_and_footer_are_not()
+    public void Subjects_messages_and_buttons_are_required_the_notes_and_footer_are_not()
     {
-        var empty = new UpdateEmailWording(new ConfirmWording(" ", "", "", ""), new ItemWording("", "", ""), new ItemWording("", " ", ""), new FooterWording("", ""));
+        var empty = new UpdateEmailWording(new ConfirmWording(" ", "", "", ""), new ItemWording("", "", "", ""), new ItemWording("", " ", "", " "), new FooterWording("", ""));
 
         Assert.Equal(
-            ["app.button", "app.heading", "app.subject", "confirm.button", "confirm.intro", "confirm.subject", "video.button", "video.heading", "video.subject"],
+            ["app.button", "app.intro", "app.subject", "confirm.button", "confirm.intro", "confirm.subject", "video.button", "video.intro", "video.subject"],
             ErrorKeys(empty));
         Assert.Equal("Required.", Error(empty, "confirm.subject"));
     }
@@ -65,19 +65,20 @@ public class UpdateEmailWordingTests
     }
 
     [Fact]
-    public void Only_the_new_items_subject_and_heading_can_hold_its_title()
+    public void Only_the_new_items_subject_and_message_can_hold_its_title()
     {
-        Assert.Empty(UpdateEmailRules.Validate(Defaults with { App = new ItemWording("{title}!", "New: {title}", "Open") }));
+        Assert.Empty(UpdateEmailRules.Validate(Defaults with { App = new ItemWording("{title}!", "New:\n\n{title}", "Open", "") }));
 
         var wording = Defaults with
         {
             Confirm = Defaults.Confirm with { Subject = "Confirm {title}", Intro = "Hi {name}" },
-            Video = Defaults.Video with { Heading = "{Title} is up", Button = "Watch {title}" },
+            Video = new ItemWording("New", "{Title} is up", "Watch {title}", "About {title}"),
         };
         Assert.Equal("Nothing is filled in here; remove {title}.", Error(wording, "confirm.subject"));
         Assert.Equal("Nothing is filled in here; remove {name}.", Error(wording, "confirm.intro"));
-        Assert.Equal("Only {title} can be filled in; remove {Title}.", Error(wording, "video.heading"));
+        Assert.Equal("Only {title} can be filled in; remove {Title}.", Error(wording, "video.intro"));
         Assert.Equal("Nothing is filled in here; remove {title}.", Error(wording, "video.button"));
+        Assert.Equal("Nothing is filled in here; remove {title}.", Error(wording, "video.note"));
     }
 
     [Fact]
@@ -135,20 +136,26 @@ public class UpdateEmailWordingTests
     }
 
     [Fact]
-    public void A_new_video_or_app_fills_its_title_into_the_subject_and_heading_in_each_ones_wording()
+    public void A_new_video_or_app_fills_its_title_into_the_subject_and_message_in_each_ones_wording()
     {
-        var wording = Defaults with { Video = new ItemWording("🎬 {title}", "Fresh from the channel: {title}", "Play"), App = new ItemWording("New app — {title}", "Just shipped", "Try it") };
+        var wording = Defaults with
+        {
+            Video = new ItemWording("🎬 {title}", "Fresh from the channel:\n\n{title} is up.", "Play", "Made with [Unity](https://unity.com)."),
+            App = new ItemWording("New app — {title}", "Just shipped", "Try it", ""),
+        };
 
         var video = NewItem(UpdatesAnnouncer.VideoKind, wording);
         var app = NewItem(UpdatesAnnouncer.AppKind, wording);
 
         Assert.Equal("🎬 Space Game", video.Subject);
-        Assert.Contains("Fresh from the channel: Space Game</p>", video.Html);
+        Assert.Contains("<p>Fresh from the channel:</p><p>Space Game is up.</p>", video.Html);
         Assert.Contains(">Play</a>", video.Html);
-        Assert.StartsWith("Fresh from the channel: Space Game\nSpace Game\n\nDodge the asteroids.", video.Text);
+        Assert.Contains("<a href=\"https://unity.com\" style=\"color:#b0106f\">Unity</a>", video.Html);
+        Assert.StartsWith("Fresh from the channel:\n\nSpace Game is up.\n\nSpace Game\n\nDodge the asteroids.\n\nPlay: https://jechel.dev/apps\n\nMade with Unity (https://unity.com).", video.Text);
         Assert.Equal("New app — Space Game", app.Subject);
-        Assert.Contains(">Just shipped</p>", app.Html);
+        Assert.Contains("<p>Just shipped</p>", app.Html);
         Assert.Contains("Try it: https://jechel.dev/apps", app.Text);
+        Assert.DoesNotContain("Unity", app.Html);
     }
 
     [Fact]
@@ -161,7 +168,8 @@ public class UpdateEmailWordingTests
         Assert.EndsWith(
             $"--\nYou get these because you subscribed on jechel.dev.\n\nUnsubscribe: {Unsubscribe}\n\nReplies to this address aren't read. To get in touch, use the contact page (https://jechel.dev/contact).",
             email.Text);
-        Assert.Equal(Unsubscribe, email.UnsubscribeUrl);
+        // Mail apps' own Unsubscribe button posts to the API: a page can't take a POST.
+        Assert.Equal("https://jechel.dev/api/updates/unsubscribe?token=t", email.UnsubscribeUrl);
     }
 
     [Fact]
@@ -181,7 +189,7 @@ public class UpdateEmailWordingTests
     [Fact]
     public void What_the_admin_wrote_and_what_the_item_says_are_encoded()
     {
-        var wording = Defaults with { App = new ItemWording("<b>{title}</b>", "<img src=x onerror=alert(1)>", "<script>") };
+        var wording = Defaults with { App = new ItemWording("<b>{title}</b>", "<img src=x onerror=alert(1)>", "<script>", "<style>") };
 
         var email = NewItem(UpdatesAnnouncer.AppKind, wording, Item with { Title = "<i>Game</i>", Summary = "Fish & chips" });
 
@@ -189,6 +197,7 @@ public class UpdateEmailWordingTests
         Assert.DoesNotContain("<img src=x", email.Html);
         Assert.DoesNotContain("<i>Game", email.Html);
         Assert.Contains("&lt;script&gt;", email.Html);
+        Assert.Contains("&lt;style&gt;", email.Html);
         Assert.Contains("Fish &amp; chips", email.Html);
         // The subject is plain text: mail apps show it as written.
         Assert.Equal("<b><i>Game</i></b>", email.Subject);
@@ -201,7 +210,9 @@ public class UpdateEmailWordingTests
         {
             Assert.True(email.FromUpdates);
             Assert.Null(email.ReplyTo);
-            Assert.Contains("<img src=\"https://jechel.dev/apple-touch-icon.png\"", email.Html);
+            // The icon travels inside the email, so it shows even while the site isn't online.
+            Assert.Contains("<img src=\"cid:jechel-icon\"", email.Html);
+            Assert.Equal([UpdateEmails.Icon], email.Images);
             Assert.Contains(">jechel</span><span style=\"color:#b98cff;vertical-align:middle\">.dev</span>", email.Html);
             // Each gradient sits on a plain colour, for the mail apps that drop gradients.
             Assert.Contains("background-color:#d91289;background-image:linear-gradient(90deg,#d91289,#9942f0)", email.Html);
@@ -217,5 +228,31 @@ public class UpdateEmailWordingTests
 
         Assert.Contains("<a href=\"https://jechel.dev/apps\"><img src=\"https://jechel.dev/api/files/1/a.webp\"", with.Html);
         Assert.DoesNotContain("api/files", without.Html);
+    }
+
+    [Fact]
+    public void The_icon_is_the_sites_own_png_small_enough_for_every_email()
+    {
+        Assert.Equal(("jechel-icon", "image/png"), (UpdateEmails.Icon.ContentId, UpdateEmails.Icon.ContentType));
+        Assert.Equal([0x89, (byte)'P', (byte)'N', (byte)'G'], UpdateEmails.Icon.Content[..4]);
+        Assert.InRange(UpdateEmails.Icon.Content.Length, 1_000, 20_000);
+    }
+
+    [Fact]
+    public void For_a_browser_the_icon_is_written_into_the_html_since_browsers_cant_read_cid_links()
+    {
+        var html = UpdateEmails.ForBrowser(Confirmation(Defaults));
+
+        Assert.DoesNotContain("cid:", html);
+        Assert.Contains($"<img src=\"data:image/png;base64,{Convert.ToBase64String(UpdateEmails.Icon.Content)}\"", html);
+    }
+
+    [Fact]
+    public void Codes_in_links_are_escaped()
+    {
+        var email = UpdateEmails.NewItem("ada@example.com", UpdatesAnnouncer.AppKind, Item, "a+b/c", Defaults, Site);
+
+        Assert.Equal("https://jechel.dev/api/updates/unsubscribe?token=a%2Bb%2Fc", email.UnsubscribeUrl);
+        Assert.Contains("https://jechel.dev/updates/unsubscribe?token=a%2Bb%2Fc", email.Text);
     }
 }

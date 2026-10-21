@@ -134,11 +134,11 @@ public class UpdatesEndpointsTests
     [Fact]
     public void The_new_item_email_encodes_what_it_shows_and_offers_unsubscribing()
     {
-        var email = UpdateEmails.NewItem("a@example.com", "app", new UpdateItem("<script>", "Fish & chips", "https://jechel.dev/", null), "https://jechel.dev/updates/unsubscribe?token=t", UpdateEmailDefaults.Wording, _site.Value);
+        var email = UpdateEmails.NewItem("a@example.com", "app", new UpdateItem("<script>", "Fish & chips", "https://jechel.dev/", null), "t", UpdateEmailDefaults.Wording, _site.Value);
 
         Assert.Contains("&lt;script&gt;", email.Html);
         Assert.DoesNotContain("<script>", email.Html);
         Assert.Contains("Fish &amp; chips", email.Html);
-        Assert.Equal("https://jechel.dev/updates/unsubscribe?token=t", email.UnsubscribeUrl);
+        Assert.Equal("https://jechel.dev/api/updates/unsubscribe?token=t", email.UnsubscribeUrl);
     }
 }

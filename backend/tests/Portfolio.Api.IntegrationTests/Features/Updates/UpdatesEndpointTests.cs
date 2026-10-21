@@ -141,6 +141,31 @@ public partial class UpdatesEndpointTests(PortfolioApiFactory factory)
         Assert.Null((await admin.GetFromJsonAsync<UpdateEmailsDocument>("/api/updates/emails"))!.UpdatedAt);
     }
 
+    [Fact]
+    public async Task A_subscribed_admin_unsubscribes_from_a_test_email_with_the_mail_apps_button_or_the_link()
+    {
+        var admin = await SignedInClientAsync();
+        foreach (var how in new[] { "mail app", "link" })
+        {
+            await admin.PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest(PortfolioApiFactory.AdminEmail));
+            var token = ConfirmLink().Match(factory.Emails.To(PortfolioApiFactory.AdminEmail).Last().Text).Groups[1].Value;
+            await admin.PostAsync($"/api/updates/confirm?token={token}", null);
+
+            var test = await admin.PostAsJsonAsync("/api/updates/emails/test", new UpdateEmailPreviewRequest(UpdateEmailKinds.Video, UpdateEmailDefaults.Wording));
+            Assert.True((await test.Content.ReadFromJsonAsync<Portfolio.Api.Features.Settings.TestResult>())!.Ok);
+            var email = factory.Emails.To(PortfolioApiFactory.AdminEmail).Last();
+            Assert.Contains($"/updates/unsubscribe?token={token}", email.Text);
+
+            // The mail app's button posts to the email's List-Unsubscribe address; the link opens the page, which calls the API.
+            var unsubscribe = how == "mail app"
+                ? await factory.CreateBrowserClient().PostAsync(new Uri(email.UnsubscribeUrl!).PathAndQuery, new FormUrlEncodedContent([new("List-Unsubscribe", "One-Click")]))
+                : await factory.CreateBrowserClient().PostAsync($"/api/updates/unsubscribe?token={token}", null);
+            Assert.Equal(HttpStatusCode.NoContent, unsubscribe.StatusCode);
+            var list = await admin.GetFromJsonAsync<PagedResponse<SubscriberDto>>("/api/updates/subscribers?pageSize=50");
+            Assert.DoesNotContain(list!.Items, s => s.Email == PortfolioApiFactory.AdminEmail);
+        }
+    }
+
     [Theory]
     [InlineData("GET", "/api/updates/emails")]
     [InlineData("PUT", "/api/updates/emails")]

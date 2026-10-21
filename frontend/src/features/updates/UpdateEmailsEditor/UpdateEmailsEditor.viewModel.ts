@@ -14,6 +14,9 @@ import { fieldErrorsOf, saveFailedMessage, type FieldErrors } from '../../../uti
 /** How long typing pauses before the preview follows. */
 export const PREVIEW_DELAY_MS = 400
 
+/** Until the email inside has loaded and been measured. */
+const DEFAULT_FRAME_HEIGHT = 560
+
 export const KIND_NAMES: Record<UpdateEmailKind, string> = { confirm: 'Confirmation', video: 'New video', app: 'New app' }
 
 const same = (a: UpdateEmailWording, b: UpdateEmailWording) => JSON.stringify(a) === JSON.stringify(b)
@@ -31,8 +34,8 @@ function useSettled<T>(value: T, delay: number): T {
 
 /**
  * The admin's wording of the emails subscribers get: a draft of all three, one shown at a time with a
- * live preview from the API (the same code that sends them), saved as a whole, and a test of the draft
- * sent to the admin. Saving the defaults unchanged goes back to them, so later defaults apply too.
+ * live preview from the API (the same code that sends them, under glass: only to look at), saved as a whole,
+ * and a test of the draft sent to the admin. Saving the defaults unchanged goes back to them, so later defaults apply too.
  */
 export function useUpdateEmailsEditorViewModel() {
   const query = useGetUpdateEmailsQuery()
@@ -45,6 +48,7 @@ export function useUpdateEmailsEditorViewModel() {
   const [message, setMessage] = useState('')
   const [failed, setFailed] = useState('')
   const [testResult, setTestResult] = useState<TestResult | null>(null)
+  const [frameHeight, setFrameHeight] = useState(DEFAULT_FRAME_HEIGHT)
   const [save, { isLoading: saving }] = useSaveUpdateEmailsMutation()
   const [reset, { isLoading: resetting }] = useResetUpdateEmailsMutation()
   const [test, { isLoading: testing }] = useTestUpdateEmailMutation()
@@ -113,19 +117,21 @@ export function useUpdateEmailsEditorViewModel() {
     change,
     errors,
     changed,
-    isDefault,
     updatedAt: document?.updatedAt ?? null,
     busy: saving || resetting,
     message,
     failed,
     save: () => void saveDraft(),
     discard: () => change(document!.wording),
-    useDefaults: () => change(document!.defaults),
     preview: {
       data: preview.data ?? null,
       /** The draft has changed since: the preview catches up after a pause. */
       stale: !!preview.data && (shown !== current || preview.isFetching || preview.isError),
       failed: preview.isError && !fieldErrorsOf(preview.error),
+      /** The email's own height, so the whole of it shows under the glass, with nothing to scroll inside. */
+      height: frameHeight,
+      // The document's own box: its scroll height is never less than the frame's.
+      fit: (frame: HTMLIFrameElement) => setFrameHeight(Math.ceil(frame.contentDocument?.documentElement.getBoundingClientRect().height ?? 0) || DEFAULT_FRAME_HEIGHT),
     },
     testing,
     testResult,

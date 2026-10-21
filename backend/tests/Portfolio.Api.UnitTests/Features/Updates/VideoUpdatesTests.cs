@@ -85,7 +85,8 @@ public class VideoUpdatesTests
         Assert.Contains("https://www.youtube.com/watch?v=new", email.Html);
         Assert.Contains("https://i.ytimg.com/vi/new/hqdefault.jpg", email.Html);
         Assert.Contains("How it was made. More", email.Text);
-        Assert.Equal("https://jechel.dev/updates/unsubscribe?token=t-ana", email.UnsubscribeUrl);
+        Assert.Equal("https://jechel.dev/api/updates/unsubscribe?token=t-ana", email.UnsubscribeUrl);
+        Assert.Contains("https://jechel.dev/updates/unsubscribe?token=t-ana", email.Html);
 
         var announcement = Assert.Single(Announcements());
         Assert.Equal((UpdatesAnnouncer.VideoKind, "new", AnnouncementStatus.Sent, 2), (announcement.Kind, announcement.ItemKey, announcement.Status, announcement.RecipientCount));

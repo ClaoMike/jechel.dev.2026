@@ -61,7 +61,7 @@ const updatesSender = () => resend().getByRole('textbox', { name: /^Updates send
 const saveNextTo = (input: ReturnType<typeof sender>) => input.element().closest('.settings-field')!.querySelector<HTMLButtonElement>('button.button:not(.button-secondary)')!
 
 describe('Settings: who emails come from', () => {
-  it('has a sender for everything, and one for subscribers that takes no replies', async () => {
+  it('has a sender for everything, and one for subscribers that takes no replies, without descriptions', async () => {
     stub({ 'Email:ResendApiKey': 're_123456789abcd', 'Email:From': 'jechel.dev <updates@jechel.dev>' })
     await renderView(<SettingsPage />, { user: ADMIN })
     await openResend()
@@ -69,9 +69,9 @@ describe('Settings: who emails come from', () => {
     await expect.element(sender()).toHaveValue('jechel.dev <updates@jechel.dev>')
     await expect.element(updatesSender()).toHaveValue('')
     expect(updatesSender().element().getAttribute('placeholder')).toBe('jechel.dev <updates@jechel.dev>')
-    expect(textOf(resend())).toContain('Use an address with no mailbox, so replies go nowhere.')
-    expect(textOf(resend())).toContain("Every email's sender, unless one below is set.")
-    expect(textOf(resend())).toContain('their wording is in the Community tab')
+    // Just the fields: no descriptions or hints.
+    expect(textOf(resend())).not.toMatch(/Confirmation emails for subscribers|Every email's sender|no mailbox/)
+    expect(resend().element().querySelectorAll('.field-hint, .settings-card-body > p.muted')).toHaveLength(0)
   })
 
   it('saves the updates sender on its own', async () => {

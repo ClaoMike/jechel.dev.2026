@@ -8,8 +8,8 @@ export const DEFAULT_WORDING: UpdateEmailWording = {
     button: 'Yes, send me updates',
     note: "If it wasn't you, ignore this email: you won't hear from us again.",
   },
-  video: { subject: 'A new video is up: {title}', heading: 'A new video is up', button: 'Watch it' },
-  app: { subject: 'A new app is out: {title}', heading: 'A new app is out', button: 'Take a look' },
+  video: { subject: 'A new video is up: {title}', intro: 'A new video is up', button: 'Watch it', note: '' },
+  app: { subject: 'A new app is out: {title}', intro: 'A new app is out', button: 'Take a look', note: '' },
   footer: { reason: 'You get these because you subscribed on jechel.dev.', noReply: "Replies to this address aren't read. To get in touch, use the [contact page](/contact)." },
 }
 

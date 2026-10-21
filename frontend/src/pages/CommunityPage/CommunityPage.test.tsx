@@ -74,7 +74,8 @@ describe('Community: email subscribers', () => {
     const api = stub()
     api.subscribers.mockResolvedValue(pageOf([]))
     await show()
-    await expect.element(subscribers().getByText('No subscribers yet.')).toBeVisible()
+    await expect.element(subscribers().getByText('Nothing here yet')).toBeVisible()
+    expect(subscribers().element().querySelector('.empty-state svg')).not.toBeNull()
   })
 
   it("says when they couldn't be loaded, and tries again", async () => {
@@ -141,17 +142,12 @@ describe('Community: update emails', () => {
     await expect.poll(() => textOf(updates().getByRole('alert'))).toBe("That didn't work. Please try again.")
   })
 
-  it('explains what goes out: only what visitors can see', async () => {
-    stub()
-    await show()
-    await expect.poll(() => textOf(updates())).toContain('Only what visitors can see goes out')
-  })
-
   it('says when there are none yet, and when they could not be loaded', async () => {
     const api = stub()
     api.announcements.mockResolvedValueOnce(pageOf([]))
     const empty = await show()
-    await expect.element(updates().getByText('Nothing yet. The next new app or video shows up here.')).toBeVisible()
+    await expect.element(updates().getByText('Nothing here yet')).toBeVisible()
+    expect(updates().element().querySelector('.empty-state svg')).not.toBeNull()
     await empty.unmount()
     api.announcements.mockRejectedValueOnce(new ApiError('/api/updates/announcements', 500))
     await show()
@@ -178,11 +174,24 @@ describe('Community: coffees', () => {
     const api = stub()
     api.donations.mockResolvedValueOnce(pageOf([]))
     const empty = await show()
-    await expect.element(coffees().getByText(/No coffees yet/)).toBeVisible()
+    await expect.element(coffees().getByText('Nothing here yet')).toBeVisible()
+    expect(textOf(coffees())).not.toContain('webhook')
     await empty.unmount()
     api.donations.mockRejectedValueOnce(new ApiError('/api/support/donations', 500))
     await show()
     await expect.poll(() => textOf(coffees().getByRole('alert'))).toContain("Coffees couldn't be loaded.")
+  })
+})
+
+describe('Community: no explanations, only what is there', () => {
+  it('has no descriptions under the headings', async () => {
+    stub()
+    await show()
+    await expect.element(row('ada@example.com')).toBeVisible()
+    await expect.element(item('Space Game')).toBeVisible()
+    expect(textOf(subscribers())).not.toContain('They get an email')
+    expect(textOf(updates())).not.toContain('A new app waits for you')
+    await expect.element(section('Preview update emails')).toBeVisible()
   })
 })
 

@@ -24,7 +24,7 @@ function stub() {
 }
 
 const show = (theme?: 'dark' | 'light' | 'vice') => renderView(<UpdateEmailsEditor />, { user: ADMIN, theme })
-const card = () => page.getByRole('region', { name: 'Emails to subscribers' })
+const card = () => page.getByRole('region', { name: 'Preview update emails' })
 const field = (name: string) => card().getByRole('textbox', { name, exact: true })
 const choose = (name: string) =>
   card()
@@ -32,10 +32,11 @@ const choose = (name: string) =>
     .click()
 const button = (name: string | RegExp) => card().getByRole('button', { name })
 const frame = () => document.querySelector<HTMLIFrameElement>('.email-wording-frame')
+const glass = () => document.querySelector<HTMLElement>('.email-wording-glass')!
 const envelope = () => textOf(page.getByRole('definition').first()) + ' | ' + textOf(page.getByRole('definition').nth(1))
 const lastPreview = (stubs: ReturnType<typeof stub>) => stubs.preview.mock.calls.at(-1)!
 
-describe('Emails to subscribers: the wording', () => {
+describe('Preview update emails: the wording', () => {
   it('shows the confirmation first, its fields filled in, beside its preview from the updates sender', async () => {
     const stubs = stub()
     await show()
@@ -44,12 +45,55 @@ describe('Emails to subscribers: the wording', () => {
     await expect.element(field('About replies')).toHaveValue(DEFAULT_WORDING.footer.noReply)
     await expect.poll(() => frame()?.srcdoc).toContain('Yes, send me updates')
     expect(envelope()).toBe('jechel.dev <updates@jechel.dev> | Confirm your jechel.dev updates')
-    expect(frame()!.getAttribute('sandbox')).toBe('')
+    // Scripts off; same origin only so the frame can be measured.
+    expect(frame()!.getAttribute('sandbox')).toBe('allow-same-origin')
     expect(frame()!.title).toBe('Preview of the confirmation email')
     expect(lastPreview(stubs)[0]).toBe('confirm')
-    expect(textOf(card())).toContain('The default wording')
+    expect(textOf(card())).not.toContain('Saved')
     await expect.element(button('Save')).toBeDisabled()
-    expect(card().getByRole('button', { name: 'Use the default wording' }).query()).toBeNull()
+  })
+
+  it('says only what each field is: no descriptions, hints or defaults button', async () => {
+    stub()
+    await show()
+    await expect.element(field('Subject')).toBeVisible()
+    expect(card().element().querySelectorAll('.field-hint')).toHaveLength(0)
+    expect(textOf(card())).not.toMatch(/What subscribers get|default wording|in grey|Optional|becomes the name/)
+    expect(
+      card()
+        .getByRole('button', { name: /default/ })
+        .query(),
+    ).toBeNull()
+  })
+
+  it('shows the preview under glass: its links can be neither clicked nor reached with Tab', async () => {
+    stub()
+    await show()
+    await expect.poll(() => frame()?.contentDocument?.querySelector('a')?.textContent).toBe('Yes, send me updates')
+    expect(glass().inert).toBe(true)
+    const before = location.href
+    const box = frame()!.getBoundingClientRect()
+    const link = frame()!.contentDocument!.querySelector('a')!.getBoundingClientRect()
+    // What a pointer over the link hits is the glass, outside the frame's page.
+    expect(document.elementFromPoint(box.left + link.left + 2, box.top + link.top + 2)).not.toBe(frame())
+    await page.elementLocator(glass()).click({ force: true })
+    expect(location.href).toBe(before)
+
+    ;(button('Save').element() as HTMLElement).focus()
+    for (let i = 0; i < 6; i++) await userEvent.tab({ shift: true })
+    expect(frame()!.contains(document.activeElement)).toBe(false)
+    expect(document.activeElement).not.toBe(frame())
+  })
+
+  it('makes the frame as tall as the email, so nothing scrolls inside it', async () => {
+    stub()
+    await show()
+    await expect.poll(() => frame()?.contentDocument?.querySelector('a')).toBeTruthy()
+    const email = () => frame()!.contentDocument!.documentElement
+    await expect.poll(() => Math.round(frame()!.getBoundingClientRect().height)).toBe(Math.ceil(email().getBoundingClientRect().height))
+    // Shorter than the frame starts out: it shrinks to the email, no empty space under it, nothing to scroll.
+    expect(frame()!.getBoundingClientRect().height).toBeLessThan(560)
+    expect(email().scrollHeight).toBeLessThanOrEqual(email().clientHeight)
   })
 
   it('switches between the three emails, each with its own fields and preview', async () => {
@@ -59,8 +103,9 @@ describe('Emails to subscribers: the wording', () => {
 
     await choose('New video')
     await expect.element(field('Subject')).toHaveValue('A new video is up: {title}')
-    await expect.element(field('Heading')).toHaveValue('A new video is up')
-    expect(field('Message').query()).toBeNull()
+    await expect.element(field('Message')).toHaveValue('A new video is up')
+    await expect.element(field('Note')).toHaveValue('')
+    await expect.element(field('Button')).toHaveValue('Watch it')
     await expect.element(button('New video')).toHaveAttribute('aria-pressed', 'true')
     await expect.poll(() => envelope()).toContain('A new video is up: Devlog 1')
     expect(lastPreview(stubs)[0]).toBe('video')
@@ -102,7 +147,7 @@ describe('Emails to subscribers: the wording', () => {
       confirm: { ...DEFAULT_WORDING.confirm, subject: 'Say yes to jechel.dev' },
       app: { ...DEFAULT_WORDING.app, button: 'Try it' },
     })
-    expect(textOf(card())).toContain(`Your wording, saved ${formatDateTime('2026-10-21T20:00:00Z')}`)
+    expect(textOf(card())).toContain(`Saved ${formatDateTime('2026-10-21T20:00:00Z')}`)
     await expect.element(button('Save')).toBeDisabled()
     expect(textOf(card())).not.toContain('Unsaved changes')
   })
@@ -117,21 +162,30 @@ describe('Emails to subscribers: the wording', () => {
     expect(button('Discard changes').query()).toBeNull()
   })
 
-  it('goes back to the defaults: saving them forgets the own wording, so later defaults apply too', async () => {
+  it('saving words back to the defaults forgets the own wording, so later defaults apply too', async () => {
     const stubs = stub()
     stubs.get.mockResolvedValue({ wording: MINE, defaults: DEFAULT_WORDING, updatedAt: '2026-10-20T10:00:00Z' })
     await show()
     await expect.element(field('Subject')).toHaveValue('Say yes to jechel.dev')
-    expect(textOf(card())).toContain('Your wording, saved')
+    expect(textOf(card())).toContain('Saved')
 
-    await button('Use the default wording').click()
-    await expect.element(field('Subject')).toHaveValue('Confirm your jechel.dev updates')
+    await field('Subject').fill('Confirm your jechel.dev updates')
     await button('Save').click()
 
     await expect.poll(() => stubs.reset.mock.calls.length).toBe(1)
     expect(stubs.save).not.toHaveBeenCalled()
-    await expect.poll(() => textOf(card())).toContain('The default wording')
-    expect(button('Use the default wording').query()).toBeNull()
+    // No date of an own wording any more.
+    await expect.poll(() => card().element().querySelector('.inbox-header .muted')).toBeNull()
+  })
+
+  it('a new video or app has a note too, empty at first, and it is saved with the rest', async () => {
+    const stubs = stub()
+    await show()
+    await choose('New video')
+    await field('Note').fill('Filmed in one take.')
+    await field('Message').fill('Fresh from the channel:\n\n{title}')
+    await button('Save').click()
+    await expect.poll(() => stubs.save.mock.calls.at(-1)?.[0].video).toEqual({ ...DEFAULT_WORDING.video, intro: 'Fresh from the channel:\n\n{title}', note: 'Filmed in one take.' })
   })
 
   it("marks what the API wouldn't save, next to the field, and opens that email", async () => {
@@ -142,7 +196,7 @@ describe('Emails to subscribers: the wording', () => {
     await button('Save').click()
 
     await expect.element(card().getByRole('alert')).toHaveTextContent('Some fields need a look.')
-    await expect.element(field('Heading')).toBeVisible()
+    await expect.element(field('Button')).toHaveValue('Watch it')
     await expect.element(card().getByText('Only {title} can be filled in; remove {name}.')).toBeVisible()
     await expect.element(field('Subject')).toHaveAttribute('aria-invalid', 'true')
     expect(textOf(button(/^New video/))).toContain('needs a look')
@@ -156,13 +210,13 @@ describe('Emails to subscribers: the wording', () => {
 
     await field('Button').fill('')
     await expect.element(card().getByText('Required.')).toBeVisible()
-    await expect.poll(() => frame()!.classList.contains('is-stale')).toBe(true)
+    await expect.poll(() => glass().classList.contains('is-stale')).toBe(true)
 
     stubs.preview.mockImplementation(async (kind, wording) => previewOf(kind, wording))
     await field('Button').fill('Go')
     await expect.poll(() => frame()?.srcdoc).toContain('>Go<')
     expect(card().getByText('Required.').query()).toBeNull()
-    expect(frame()!.classList.contains('is-stale')).toBe(false)
+    expect(glass().classList.contains('is-stale')).toBe(false)
   })
 
   it("says when the preview couldn't be made", async () => {
@@ -230,7 +284,7 @@ describe('Emails to subscribers: the wording', () => {
     await expect.element(field('Subject')).toBeVisible()
     ;(button(/^New app/).element() as HTMLElement).focus()
     await userEvent.keyboard('{Enter}')
-    await expect.element(field('Heading')).toHaveValue('A new app is out')
+    await expect.element(field('Message')).toHaveValue('A new app is out')
     await userEvent.tab()
     expect(document.activeElement).toBe(field('Subject').element())
     await userEvent.keyboard('{End}{Backspace>40/}Out now: {{title}')

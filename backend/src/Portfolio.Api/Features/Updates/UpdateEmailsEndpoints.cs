@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -100,10 +101,13 @@ public static class UpdateEmailsEndpoints
         if (errors.Count > 0) return TypedResults.ValidationProblem(errors);
 
         var message = await SampleAsync(request.Kind!, UpdateEmailRules.Normalize(request.Wording!), user.FindFirstValue(ClaimTypes.Email) ?? "you@example.com", db, site.Value, youTubeOptions, videos, cancellationToken);
-        return TypedResults.Ok(new UpdateEmailPreview(emailOptions.CurrentValue.SenderOf(message), message.Subject, message.Html, message.Text));
+        return TypedResults.Ok(new UpdateEmailPreview(emailOptions.CurrentValue.SenderOf(message), message.Subject, UpdateEmails.ForBrowser(message), message.Text));
     }
 
-    /// <summary>Sends the preview to the signed-in admin, marked as a test; its links work, but on a token that belongs to nobody.</summary>
+    /// <summary>
+    /// Sends the preview to the signed-in admin, marked as a test. When the admin's address is subscribed, its links carry
+    /// the admin's own code, so Unsubscribe in it really unsubscribes; otherwise a code that belongs to nobody.
+    /// </summary>
     public static async Task<Results<Ok<TestResult>, ValidationProblem>> SendTest(
         UpdateEmailPreviewRequest request,
         PortfolioDbContext db,
@@ -141,7 +145,24 @@ public static class UpdateEmailsEndpoints
             .FirstOrDefaultAsync(cancellationToken);
         return page is null
             ? new UpdateEmailsDocument(UpdateEmailDefaults.Wording, UpdateEmailDefaults.Wording, null)
-            : new UpdateEmailsDocument(JsonSerializer.Deserialize<UpdateEmailWording>(page.Content, Json)!, UpdateEmailDefaults.Wording, page.UpdatedAt);
+            : new UpdateEmailsDocument(Read(page.Content), UpdateEmailDefaults.Wording, page.UpdatedAt);
+    }
+
+    /// <summary>
+    /// The stored wording. Saved before a new video or app had a message and a note, it had a one-line heading instead:
+    /// that becomes the message, and the note stays empty.
+    /// </summary>
+    public static UpdateEmailWording Read(string content)
+    {
+        var json = JsonNode.Parse(content)!.AsObject();
+        foreach (var kind in new[] { UpdateEmailKinds.Video, UpdateEmailKinds.App })
+        {
+            if (json[kind] is not JsonObject item) continue;
+            if (item["intro"] is null && item["heading"] is { } heading) item["intro"] = heading.GetValue<string>();
+            item["note"] ??= "";
+            item.Remove("heading");
+        }
+        return json.Deserialize<UpdateEmailWording>(Json)!;
     }
 
     private static Dictionary<string, string[]> Check(UpdateEmailPreviewRequest request)
@@ -151,7 +172,7 @@ public static class UpdateEmailsEndpoints
         return errors;
     }
 
-    /// <summary>A placeholder token: the preview's links lead to the real pages, which find no one for it.</summary>
+    /// <summary>For an address that isn't subscribed: the links lead to the real pages, which find no one for it.</summary>
     private const string SampleToken = "preview";
 
     private static async Task<EmailMessage> SampleAsync(
@@ -164,7 +185,9 @@ public static class UpdateEmailsEndpoints
         YouTubeVideoStore videos,
         CancellationToken cancellationToken)
     {
-        if (kind == UpdateEmailKinds.Confirm) return UpdateEmails.Confirmation(to, site.UrlFor($"/updates/confirm?token={SampleToken}"), wording, site);
+        var address = to.Trim().ToLowerInvariant();
+        var token = await db.Subscribers.AsNoTracking().Where(s => s.Email == address).Select(s => s.Token).FirstOrDefaultAsync(cancellationToken) ?? SampleToken;
+        if (kind == UpdateEmailKinds.Confirm) return UpdateEmails.Confirmation(to, token, wording, site);
 
         UpdateItem? item = null;
         if (kind == UpdateEmailKinds.Video)
@@ -179,6 +202,6 @@ public static class UpdateEmailsEndpoints
             item = newest is null ? null : UpdatesAnnouncer.AppItem(newest, site);
             item ??= new UpdateItem("Space Game", "A small arcade game: dodge the asteroids, collect the stars.", site.UrlFor("/apps"), null);
         }
-        return UpdateEmails.NewItem(to, kind, item, site.UrlFor($"/updates/unsubscribe?token={SampleToken}"), wording, site);
+        return UpdateEmails.NewItem(to, kind, item, token, wording, site);
     }
 }

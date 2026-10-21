@@ -679,25 +679,34 @@ require of bulk senders).
 - **Setting up Resend:** add and verify your domain in Resend (Domains: a DKIM `TXT` record, two `CNAME`s for sending, set to
   **DNS only** in Cloudflare, and optionally `_dmarc`), then set the senders in Settings and press **Send me a test email**. Until
   then the sender is `jechel.dev <onboarding@resend.dev>`, which Resend only delivers to the Resend account's own address.
-- **The wording** (Community → **Emails to subscribers**, `features/updates/UpdateEmailsEditor/`, API in
-  `UpdateEmailsEndpoints.cs`): the subject, text and button of each email (the confirmation, a new video, a new app) and the
-  footer (why they get it; that replies aren't read, with a link to the contact page). Subjects and headings can hold `{title}`;
-  longer texts take paragraphs and `[text](url)` links (http(s), or a path on the site). Beside the fields is a live preview,
-  made by the API with the same code that sends the emails (in a sandboxed frame), about your newest app or video. **Send me a
-  test** emails the draft to you, marked `[Test]`, from the updates sender. Saved as one JSON row (`update_emails`); saving the
-  defaults unchanged deletes it, so improved defaults reach the emails too.
+- **The wording** (Community → **Preview update emails**, `features/updates/UpdateEmailsEditor/`, API in
+  `UpdateEmailsEndpoints.cs`): the same four fields for each email (the confirmation, a new video, a new app): **Subject**,
+  **Message**, **Button** and **Note** (optional, in grey under the button), plus the footer (why they get it; that replies aren't
+  read, with a link to the contact page). A new item's subject and message can hold `{title}`; the longer texts take paragraphs
+  and `[text](url)` links (http(s), or a path on the site). Beside the fields is a live preview, made by the API with the same
+  code that sends the emails, about your newest app or video. It sits under glass: the frame is `inert` and as tall as the email,
+  so nothing in it can be clicked, focused or scrolled. **Send me a test** emails the draft to you, marked `[Test]`, from the
+  updates sender; when your address is subscribed, its links carry your own code, so its Unsubscribe really unsubscribes you.
+  Saved as one JSON row (`update_emails`); saving the defaults unchanged deletes it, so improved defaults reach the emails too.
+  (Wording saved when a new item still had a one-line heading reads that heading as its message.)
+- **Unsubscribing:** the link in the footer opens the site's page (`/updates/unsubscribe`), which calls the API; the
+  `List-Unsubscribe` header that Gmail's own **Unsubscribe** button uses points straight at the API (`/api/updates/unsubscribe`),
+  since one-click unsubscribing is a `POST` (RFC 8058) and a static page can't take one.
 - **The look** (`UpdateEmails.cs`): a dark header with the site's icon and the name in pink and violet, the sunset stripe, a white
-  card, and a pink-to-violet button. Email apps drop much of CSS (Gmail ignores gradients on text), so it's plain inline styles,
-  every gradient on a solid colour of its own, and a light colour scheme so dark-mode mail apps don't invert it.
+  card, and a pink-to-violet button. The icon (`email-icon.png`, 96 px) travels *inside* each email as an inline attachment
+  (`cid:jechel-icon`): Gmail fetches linked pictures through its own servers, which can't reach a site that isn't online (such as
+  `localhost`). The preview writes it into the page as a `data:` URL instead, since browsers can't read `cid:`. Email apps drop
+  much of CSS (Gmail ignores gradients on text), so it's plain inline styles, every gradient on a solid colour of its own, and a
+  light colour scheme so dark-mode mail apps don't invert it.
 
 ```mermaid
 flowchart LR
   subgraph Admin["You (Community tab)"]
-    edit["Emails to subscribers<br/>subject · text · button · footer"]
+    edit["Preview update emails<br/>subject · message · button · note · footer"]
     test["Send me a test"]
   end
   edit -- "draft, as you type" --> preview["POST /api/updates/emails/preview"]
-  preview -- "the email's HTML" --> frame["Preview (sandboxed frame)"]
+  preview -- "the email's HTML" --> frame["Preview under glass<br/>(inert frame)"]
   edit -- "Save" --> row[("update_emails<br/>one JSON row")]
   test --> testApi["POST /api/updates/emails/test"] --> resend
   row --> render["UpdateEmails<br/>wording + jechel.dev look"]
@@ -706,6 +715,8 @@ flowchart LR
   render -- "FromUpdates" --> resend["Resend<br/>from updates@jechel.dev"]
   resend --> inbox["Subscriber's inbox"]
   inbox -. "reply" .-> nowhere["updates@ has no mailbox:<br/>bounced or dropped"]
+  inbox -- "Gmail's Unsubscribe (POST)" --> unsub["/api/updates/unsubscribe"]
+  inbox -- "footer link" --> unsubPage["/updates/unsubscribe page"] --> unsub
   replies["Your reply to a message"] -- "from the main sender,<br/>Reply-To: you" --> resend2["Resend"] --> them["Visitor"] -. "reply" .-> you["Your inbox"]
 ```
 

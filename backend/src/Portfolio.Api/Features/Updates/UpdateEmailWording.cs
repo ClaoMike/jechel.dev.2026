@@ -5,7 +5,7 @@ namespace Portfolio.Api.Features.Updates;
 
 /// <summary>
 /// The words of the emails subscribers get, edited in the Community tab. Longer texts may hold paragraphs
-/// (split by a blank line) and [text](url) links; subjects and headings may hold {title}, the new item's title.
+/// (split by a blank line) and [text](url) links; a new item's subject and message may hold {title}, its name.
 /// </summary>
 public record UpdateEmailWording(ConfirmWording Confirm, ItemWording Video, ItemWording App, FooterWording Footer);
 
@@ -14,8 +14,9 @@ public record UpdateEmailWording(ConfirmWording Confirm, ItemWording Video, Item
 public record ConfirmWording(string Subject, string Intro, string Button, string Note);
 
 /// <summary>The email about a new video or app.</summary>
-/// <param name="Heading">Above the item's title, in grey.</param>
-public record ItemWording(string Subject, string Heading, string Button);
+/// <param name="Intro">Before the item's title.</param>
+/// <param name="Note">Under the button, in grey. Optional.</param>
+public record ItemWording(string Subject, string Intro, string Button, string Note);
 
 /// <summary>Under every email, in small grey text. Both optional.</summary>
 /// <param name="Reason">Why they get it, before the Unsubscribe link (update emails only).</param>
@@ -34,8 +35,8 @@ public static class UpdateEmailDefaults
             "Hi,\n\nSomeone (hopefully you) asked to get an email from jechel.dev when there's a new app or video.",
             "Yes, send me updates",
             "If it wasn't you, ignore this email: you won't hear from us again."),
-        new ItemWording("A new video is up: {title}", "A new video is up", "Watch it"),
-        new ItemWording("A new app is out: {title}", "A new app is out", "Take a look"),
+        new ItemWording("A new video is up: {title}", "A new video is up", "Watch it", ""),
+        new ItemWording("A new app is out: {title}", "A new app is out", "Take a look", ""),
         new FooterWording(
             "You get these because you subscribed on jechel.dev.",
             "Replies to this address aren't read. To get in touch, use the [contact page](/contact)."));
@@ -63,17 +64,18 @@ public static partial class UpdateEmailRules
         }
 
         Line(wording.Confirm.Subject, "confirm.subject", SubjectMaxLength, title: false, Add);
-        Text(wording.Confirm.Intro, "confirm.intro", required: true, Add);
+        Text(wording.Confirm.Intro, "confirm.intro", required: true, title: false, Add);
         Line(wording.Confirm.Button, "confirm.button", ButtonMaxLength, title: false, Add);
-        Text(wording.Confirm.Note, "confirm.note", required: false, Add);
+        Text(wording.Confirm.Note, "confirm.note", required: false, title: false, Add);
         foreach (var (item, key) in new[] { (wording.Video, "video"), (wording.App, "app") })
         {
             Line(item.Subject, $"{key}.subject", SubjectMaxLength, title: true, Add);
-            Line(item.Heading, $"{key}.heading", SubjectMaxLength, title: true, Add);
+            Text(item.Intro, $"{key}.intro", required: true, title: true, Add);
             Line(item.Button, $"{key}.button", ButtonMaxLength, title: false, Add);
+            Text(item.Note, $"{key}.note", required: false, title: false, Add);
         }
-        Text(wording.Footer.Reason, "footer.reason", required: false, Add);
-        Text(wording.Footer.NoReply, "footer.noReply", required: false, Add);
+        Text(wording.Footer.Reason, "footer.reason", required: false, title: false, Add);
+        Text(wording.Footer.NoReply, "footer.noReply", required: false, title: false, Add);
         return errors;
     }
 
@@ -81,7 +83,7 @@ public static partial class UpdateEmailRules
     public static UpdateEmailWording Normalize(UpdateEmailWording wording)
     {
         static string Clean(string value) => value.Replace("\r\n", "\n").Trim();
-        static ItemWording Item(ItemWording item) => new(Clean(item.Subject), Clean(item.Heading), Clean(item.Button));
+        static ItemWording Item(ItemWording item) => new(Clean(item.Subject), Clean(item.Intro), Clean(item.Button), Clean(item.Note));
         return new UpdateEmailWording(
             new ConfirmWording(Clean(wording.Confirm.Subject), Clean(wording.Confirm.Intro), Clean(wording.Confirm.Button), Clean(wording.Confirm.Note)),
             Item(wording.Video),
@@ -89,7 +91,7 @@ public static partial class UpdateEmailRules
             new FooterWording(Clean(wording.Footer.Reason), Clean(wording.Footer.NoReply)));
     }
 
-    /// <summary>A subject, heading or button: one line, required, {title} only where it's known.</summary>
+    /// <summary>A subject or button: one line, required, {title} only where it's known.</summary>
     private static void Line(string? value, string key, int maxLength, bool title, Action<string, string> add)
     {
         var text = value?.Trim() ?? "";
@@ -99,14 +101,14 @@ public static partial class UpdateEmailRules
         else CheckPlaceholders(text, key, title, add);
     }
 
-    /// <summary>A longer text: paragraphs and links to http(s) addresses or this site's pages, no placeholders.</summary>
-    private static void Text(string? value, string key, bool required, Action<string, string> add)
+    /// <summary>A longer text: paragraphs and links to http(s) addresses or this site's pages; {title} only where it's known.</summary>
+    private static void Text(string? value, string key, bool required, bool title, Action<string, string> add)
     {
         var text = value?.Trim() ?? "";
         if (required && text.Length == 0) add(key, "Required.");
         else if (text.Length > TextMaxLength) add(key, $"Must be at most {TextMaxLength} characters.");
         else if (AboutRules.LinksIn(text).Any(url => !AboutRules.IsSafeUrl(url) || url.Length > AboutRules.UrlMaxLength)) add(key, "Links must be http(s) links, or paths on this site starting with /.");
-        else CheckPlaceholders(text, key, title: false, add);
+        else CheckPlaceholders(text, key, title, add);
     }
 
     private static void CheckPlaceholders(string text, string key, bool title, Action<string, string> add)

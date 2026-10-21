@@ -28,6 +28,7 @@
   <ItemGroup>
     <!-- GeoNames places with 1,000+ people, built by scripts/build_cities.py. -->
     <EmbeddedResource Include="Features/Places/cities.tsv.gz" LogicalName="cities.tsv.gz" />
+    <EmbeddedResource Include="Features/Updates/email-icon.png" LogicalName="email-icon.png" />
   </ItemGroup>
 
 </Project>

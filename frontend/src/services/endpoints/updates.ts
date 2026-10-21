@@ -39,12 +39,14 @@ export interface ConfirmWording {
   note: string
 }
 
-/** The email about a new video or app. The subject and heading may hold {title}. */
+/** The email about a new video or app. The subject and message may hold {title}. */
 export interface ItemWording {
   subject: string
-  /** Above the item's title, in grey. */
-  heading: string
+  /** Before the item's title. */
+  intro: string
   button: string
+  /** Under the button, in grey. Optional. */
+  note: string
 }
 
 /** Under every email, in small grey text. Both optional. */
