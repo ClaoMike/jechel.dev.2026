@@ -2856,11 +2856,6 @@ button.media-card {
   gap: 6px;
 }
 
-.engagement-note {
-  margin: 0;
-  font-size: 13px;
-}
-
 .stat-tiles {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -3374,12 +3369,12 @@ button.media-card {
 }
 
 .settings-card {
-  padding: 8px 20px;
+  padding: 2px 14px;
 }
 
 .settings-card-heading {
   margin: 0;
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .settings-card-heading .accordion-toggle {
@@ -3931,7 +3926,7 @@ button.media-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 64px;
+  min-height: 52px;
 }
 
 @media (max-width: 640px) {
@@ -4213,20 +4208,22 @@ button.media-card {
 /* ---------- Settings → Visitor pages: switches ---------- */
 
 .site-visibility,
-.signed-in-devices {
+.signed-in-devices,
+.settings-connections {
   display: grid;
   gap: 14px;
 }
 
 .site-visibility h3,
 .signed-in-devices h3,
-.settings-section-title {
+.settings-connections h3 {
   margin: 0;
 }
 
-.settings-section-title {
-  margin-top: 8px;
-  font-size: 18px;
+/* Settings → Connections: each service a bordered accordion row inside the card, as the skills are in the editor. */
+.settings-connection-list {
+  display: grid;
+  gap: 8px;
 }
 
 .switch-list {

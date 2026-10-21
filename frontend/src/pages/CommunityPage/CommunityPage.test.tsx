@@ -24,8 +24,28 @@ const ANNOUNCEMENTS: Announcement[] = [
   { id: 14, kind: 'app', title: 'Next Game', status: 'approved', createdAt: '2026-10-16T09:00:00Z', sentAt: null, recipientCount: 0 },
 ]
 const DONATIONS: Donation[] = [
-  { id: 1, type: 'donation.created', fromName: 'Ada', message: 'Thanks!', amount: '3.00', currency: 'GBP', email: 'ada@example.com', receivedAt: '2026-10-10T09:00:00Z' },
-  { id: 2, type: 'membership.started', fromName: 'Bob', message: null, amount: '5.00', currency: 'USD', email: null, receivedAt: '2026-10-11T09:00:00Z' },
+  {
+    id: 1,
+    type: 'donation.created',
+    fromName: 'Ada',
+    message: 'Thanks!',
+    amount: '3.00',
+    currency: 'GBP',
+    email: 'ada@example.com',
+    receivedAt: '2026-10-10T09:00:00Z',
+    isTest: false,
+  },
+  { id: 2, type: 'membership.started', fromName: 'Bob', message: null, amount: '5.00', currency: 'USD', email: null, receivedAt: '2026-10-11T09:00:00Z', isTest: false },
+]
+/** One of each other kind of event Buy Me a Coffee sends, and a test. */
+const EVENTS: Donation[] = [
+  { ...DONATIONS[0], id: 3, type: 'donation.refunded', fromName: 'Cyra', message: null },
+  { ...DONATIONS[0], id: 4, type: 'membership.updated', fromName: 'Dina' },
+  { ...DONATIONS[0], id: 5, type: 'membership.cancelled', fromName: 'Ezra' },
+  { ...DONATIONS[0], id: 6, type: 'extra_purchase.created', fromName: 'Fiona' },
+  { ...DONATIONS[0], id: 7, type: 'wishlist.payment.created', fromName: 'Gus' },
+  { ...DONATIONS[0], id: 8, type: 'donation.created', fromName: 'John', isTest: true },
+  { ...DONATIONS[0], id: 9, type: 'coffee-purchase', fromName: 'Hal' },
 ]
 
 function stub() {
@@ -164,10 +184,31 @@ describe('Community: coffees', () => {
     await expect.element(coffee('Ada').getByRole('link', { name: 'Ada' })).toHaveAttribute('href', 'mailto:ada@example.com')
     expect(textOf(coffee('Ada'))).toContain('3.00 GBP')
     expect(textOf(coffee('Ada'))).toContain('Thanks!')
-    expect(textOf(coffee('Bob'))).toContain('membership.started')
+    expect(textOf(coffee('Bob'))).toContain('Bob · membership started')
     expect(textOf(coffee('Bob'))).toContain('No message')
     expect(coffee('Bob').getByRole('link').query()).toBeNull()
     expect(textOf(coffees())).toContain('2 in all')
+    // A plain coffee needs no word about what it was.
+    expect(textOf(coffee('Ada'))).not.toContain('·')
+  })
+
+  it('names every other kind of event, and marks a test from Send test', async () => {
+    const api = stub()
+    api.donations.mockResolvedValue(pageOf(EVENTS))
+    await show()
+    const coffee = (name: string) => coffees().getByRole('row').filter({ hasText: name })
+    await expect.element(coffee('Cyra')).toBeVisible()
+    expect(
+      ['Cyra', 'Dina', 'Ezra', 'Fiona', 'Gus'].map((name) =>
+        textOf(coffee(name))
+          .split('·')[1]
+          ?.replace(/3\.00 GBP.*/, '')
+          .trim(),
+      ),
+    ).toEqual(['refunded', 'membership changed', 'membership cancelled', 'extra', 'wishlist.payment.created'])
+    await expect.element(coffee('John').getByText('Test', { exact: true })).toBeVisible()
+    expect(coffee('Cyra').getByText('Test', { exact: true }).query()).toBeNull()
+    expect(textOf(coffee('Hal'))).not.toContain('·')
   })
 
   it('says when there are none yet, and when they could not be loaded', async () => {

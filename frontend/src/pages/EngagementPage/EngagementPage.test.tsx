@@ -28,7 +28,11 @@ beforeEach(() => {
 
 const renderEngagement = () => renderView(<EngagementPage />, { path: '/engagement', user: ADMIN })
 const list = (title: string) => page.getByRole('region', { name: title })
-const rows = (title: string) => list(title).getByRole('listitem').elements().map((li) => `${li.querySelector('.ranked-name')!.textContent} ${li.querySelector('.ranked-count')!.textContent}`)
+const rows = (title: string) =>
+  list(title)
+    .getByRole('listitem')
+    .elements()
+    .map((li) => `${li.querySelector('.ranked-name')!.textContent} ${li.querySelector('.ranked-count')!.textContent}`)
 const tile = (label: string) => [...document.querySelectorAll('.stat-tile')].find((t) => t.querySelector('dt')?.textContent === label)?.querySelector('dd')?.textContent
 const dialog = () => page.getByRole('dialog', { name: /^Visit on/ })
 const timeline = () => dialog().getByRole('list', { name: 'What happened' })
@@ -128,6 +132,34 @@ describe('the numbers', () => {
     await expect.element(chart.getByRole('img')).toHaveAccessibleName('Errors per day: 3 in total')
   })
 
+  it("keeps the chart's numbers for screen readers out of sight: no stray title under the chart", async () => {
+    await renderEngagement()
+    const chart = page.getByRole('region', { name: /per day/ })
+    // Still there for screen readers, named by its caption…
+    await expect.element(chart.getByRole('table', { name: 'Visitors per day' })).toBeInTheDocument()
+    const caption = chart.element().querySelector('caption')!
+    // …but hidden around the table: a caption sits outside the table's own box, so hiding the table itself let it show.
+    expect(caption.closest('.visually-hidden')).not.toBe(caption.closest('table'))
+    expect(caption.closest('table')!.classList.contains('visually-hidden')).toBe(false)
+    const hidden = caption.closest<HTMLElement>('.visually-hidden')!
+    expect(hidden.getBoundingClientRect().width).toBeLessThanOrEqual(1)
+    expect(getComputedStyle(hidden).overflow).toBe('hidden')
+    // Nothing of it is drawn: the caption's text is nowhere a pointer can land on it.
+    const box = caption.getBoundingClientRect()
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+    expect(hit === caption || caption.contains(hit)).toBe(false)
+
+    await chart.getByRole('button', { name: 'Errors' }).click()
+    await expect.element(chart.getByRole('table', { name: 'Errors per day' })).toBeInTheDocument()
+  })
+
+  it('has no note under the lists', async () => {
+    await renderEngagement()
+    await expect.poll(() => rows('Countries').length).toBeGreaterThan(0)
+    expect(document.body.textContent).not.toMatch(/Preferred theme is the one|Visitors are counted once a day|is a bounce/)
+    expect(document.querySelector('.engagement-note')).toBeNull()
+  })
+
   it('loads the numbers and the visits again with Refresh, and a visit seen before when it opens again', async () => {
     await renderEngagement()
     await expect.element(page.getByRole('region', { name: 'Visits table' })).toBeVisible()
@@ -167,13 +199,51 @@ describe('the visits', () => {
   })
 
   it('keeps only the visits with errors, from the first page', async () => {
-    calls.list.mockImplementation(async (pageNumber = 1, _size, errorsOnly) => ({ ...pageOfVisits(errorsOnly ? [VISIT_SUMMARY] : undefined, errorsOnly ? 1 : 45), page: pageNumber }))
+    calls.list.mockImplementation(async (pageNumber = 1, _size, errorsOnly) => ({
+      ...pageOfVisits(errorsOnly ? [VISIT_SUMMARY] : undefined, errorsOnly ? 1 : 45),
+      page: pageNumber,
+    }))
     await renderEngagement()
     await page.getByRole('button', { name: 'Next' }).click()
     expect(calls.list).toHaveBeenLastCalledWith(2, 20, false, expect.anything())
     await page.getByRole('checkbox', { name: 'Only visits with errors' }).click()
     await expect.poll(() => calls.list.mock.calls.at(-1)?.slice(0, 3)).toEqual([1, 20, true])
     await expect.poll(() => table().element().querySelectorAll('tbody tr').length).toBe(1)
+  })
+
+  it('pages through many visits, 20 at a time, and back, and says where it is', async () => {
+    calls.list.mockImplementation(async (pageNumber = 1) => ({
+      ...pageOfVisits(
+        Array.from({ length: pageNumber === 3 ? 5 : 20 }, (_, i) => ({ ...VISIT_SUMMARY, id: `${pageNumber}-${i}`, entryPath: `/page-${pageNumber}` })),
+        45,
+      ),
+      page: pageNumber,
+    }))
+    await renderEngagement()
+    const visits = page.getByRole('region', { name: 'Visits' })
+    const pager = visits.getByRole('navigation', { name: 'Pagination' })
+    await expect.poll(() => textOf(pager)).toContain('Page 1 of 3')
+    await expect.element(pager.getByRole('button', { name: 'Previous' })).toBeDisabled()
+    expect(table().element().querySelectorAll('tbody tr')).toHaveLength(20)
+
+    await pager.getByRole('button', { name: 'Next' }).click()
+    await expect.poll(() => textOf(pager)).toContain('Page 2 of 3')
+    await pager.getByRole('button', { name: 'Next' }).click()
+    await expect.poll(() => textOf(pager)).toContain('Page 3 of 3')
+    await expect.element(pager.getByRole('button', { name: 'Next' })).toBeDisabled()
+    await expect.poll(() => table().element().querySelectorAll('tbody tr').length).toBe(5)
+    expect(table().element().querySelector('.visits-path')!.textContent).toBe('/page-3')
+
+    await pager.getByRole('button', { name: 'Previous' }).click()
+    await expect.poll(() => textOf(pager)).toContain('Page 2 of 3')
+    expect(calls.list.mock.calls.map((c) => c[0])).toEqual(expect.arrayContaining([1, 2, 3]))
+  })
+
+  it('shows no pager while every visit fits on one page', async () => {
+    calls.list.mockResolvedValue(pageOfVisits(undefined, 20))
+    await renderEngagement()
+    await expect.element(table()).toBeVisible()
+    expect(page.getByRole('region', { name: 'Visits' }).getByRole('navigation', { name: 'Pagination' }).query()).toBeNull()
   })
 
   it('says so when there are none, or none with errors', async () => {
@@ -210,7 +280,8 @@ describe('a visit, replayed', () => {
     await expect.element(timeline()).toBeVisible()
   }
   const table = () => page.getByRole('region', { name: 'Visits table' })
-  const facts = () => Object.fromEntries([...dialog().element().querySelectorAll('.visit-facts > div')].map((d) => [d.querySelector('dt')!.textContent, d.querySelector('dd')!.textContent]))
+  const facts = () =>
+    Object.fromEntries([...dialog().element().querySelectorAll('.visit-facts > div')].map((d) => [d.querySelector('dt')!.textContent, d.querySelector('dd')!.textContent]))
 
   afterEach(() => vi.restoreAllMocks())
 

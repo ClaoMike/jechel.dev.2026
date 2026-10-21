@@ -635,12 +635,42 @@ uses **[Buy Me a Coffee](https://buymeacoffee.com/claomike)** (it keeps 5% of ea
 
 **Coffee alerts** come from its webhook (`Features/Support/SupportEndpoints.cs`): in the Buy Me a Coffee dashboard add a webhook to
 `https://<your-domain>/api/support/buymeacoffee`, and paste its secret into Settings. Each request must be signed (HMAC-SHA256 of the
-body with the secret, in hex, in `X-Signature-Sha256`, or `X-Bmc-Signature` as older webhooks did). Payments are stored once (unique on
-their id, or a hash of the body) and alert the phone.
+body with the secret, in hex, in `X-Signature-Sha256`, or `X-Bmc-Signature` as older webhooks did). Each **event on a payment** is
+stored once: unique on the event and the payment's id (`donation.created:58`), or a hash of the body, so a retried webhook isn't
+stored twice, while a coffee's **refund** or a membership's **change** or **cancellation** (same id, another event) is kept too. Two
+deliveries of the same event at once store it once.
+
+- **Each kind of event** gets its own words on the phone and in Community → Coffees: ☕ a coffee (`5 GBP from Jo`, with their note),
+  **Refunded**, ⭐ **New member**, **Membership changed** / **cancelled**, 🛍️ an **extra**; anything else is named by its event.
+- **Send test** (`live_mode: false`) is stored marked **Test** and alerts quietly, saying no money moved.
+- **The note** is the supporter's own (`support_note`), never Buy Me a Coffee's line ("Jo bought you a coffee", in `message`).
+
+```
+ Buy Me a Coffee                              API (/api/support/buymeacoffee)                       You
+ ───────────────                              ───────────────────────────────                       ───
+ a coffee, a refund, a membership     ──►  no secret set? ─► 503 (it retries)
+ starting / changing / ending, an           body > 64 KB? ─► 400
+ extra, or "Send test" (live_mode false)    HMAC-SHA256(body, secret) ≠ X-Signature-Sha256? ─► 401
+ POST, signed; retried until a 200          not a JSON object? ─► 400
+                                                  │
+                                                  ▼
+                                   key = "{event}:{payment id}"  (or SHA-256 of the body)
+                                   seen before ─► 200, nothing more   (also two at once: the unique key)
+                                                  │ new
+                                                  ▼
+                                   donations row: event, name, note (support_note only), amount,
+                                   currency, email, is_test, the whole body ─────────────────────► Community → Coffees
+                                                  │                                                (newest first, paged;
+                                                  ▼                                                 "refunded", "Test", …)
+                                   phone alert (ntfy): ☕ / Refunded / ⭐ New member / … ──────────► your phone
+                                   "Test: …", quietly, for Send test
+
+ Header: GET /api/support ─► the page's link, or "" while Buy me a coffee is off (Settings → Visitor pages) or no link is set
+```
 
 Buy Me a Coffee doesn't document its webhook's JSON well, so the API reads the common field names (`supporter_name`, `amount`,
-`currency`, `support_note`, `supporter_email`, under `data` or `response`) and keeps the whole body in `donations.payload`. **To do:**
-after the first real (or "Send test") webhook, check that payload and tighten the parsing. Locally, the webhook can't be reached from
+`currency`, `support_note`, `supporter_email`, under `data` or `response`) and keeps the whole body in `donations.payload`. After the
+first real webhook, check that payload against these names. Locally, the webhook can't be reached from
 Buy Me a Coffee: it needs the site to be online.
 
 ## Email updates
@@ -709,6 +739,26 @@ require of bulk senders).
   much of CSS (Gmail ignores gradients on text), so it's plain inline styles, every gradient on a solid colour of its own, and a
   light colour scheme so dark-mode mail apps don't invert it.
 
+**A subscriber, and an update email, from start to end:**
+
+```
+ Visitor                          Subscriber row                              Update email (announcements)
+ ───────                          ──────────────                              ────────────────────────────
+ Get updates ─► address ─► unconfirmed ──(7 days, never confirmed)──► deleted   new app ─► pending ──Ignore──► not sent
+   (twice at once: stored once)  │  confirmation email (updates@, no replies)      │ Send email (here or the phone)
+                                 │  again only after 10 minutes                    ▼
+ the email's button ───────────► confirmed ─► 📱 New subscriber               new video ─► to be sent
+                                 │                                                 │ every 10 min, or at once after Send
+ Unsubscribe (link, or the       │                                                 ▼
+ mail app's own button: POST;    ▼                                             sending ─► each confirmed subscriber
+ a GET goes to the page) ─────► deleted                                            │
+                                                                                   ├─ some went out ─► sent (count kept,
+                                                                                   │                   also if stopped halfway)
+                                                                                   └─ none went out ─► to be sent again
+                                                                                                       + 📱 "Emails aren't going out"
+ Deleting an app whose email waits ─► that email: not sent (its phone buttons stop working)
+```
+
 ```mermaid
 flowchart LR
   subgraph Admin["You (Community tab)"]
@@ -775,9 +825,29 @@ Optionally reserve the topic with an ntfy account (access token), or use your ow
 
 ## Settings (connections)
 
-The admin's **Settings** tab (`pages/SettingsPage/SettingsPage.tsx`, API in `Features/Settings/`) lists every service the site connects to, with
-links to their dashboards, the keys, the URLs to paste into them (webhook, OAuth callback), and a test button: Buy Me a Coffee,
-Google sign-in, YouTube Data API, Resend, ntfy, plus quick links: Hosting (Cloudflare, Railway) and Porkbun (the domain).
+The admin's **Settings** tab (`pages/SettingsPage/SettingsPage.tsx`, API in `Features/Settings/`) has three cards: **Visitor pages**,
+**Signed-in devices** and **Connections**. Connections lists every service the site connects to, **A to Z**, each a folded row (an
+accordion, as the skills are in the About Me editor) with links to its dashboard, its keys, the URLs to paste into it (webhook, OAuth
+callback), and a test button: Buy Me a Coffee, Cal.com, Google sign-in, ntfy, Resend, YouTube Data API, plus quick links: Hosting
+(Cloudflare, Railway) and Porkbun (the domain).
+
+**What a change reaches, without a reload:**
+
+```
+ Settings                                   Store (RTK Query)                          On the site
+ ────────                                   ─────────────────                          ───────────
+ Visitor pages: a switch ──► PUT /api/site ──► site state ──────────────────────────► tabs, Get updates (at once)
+                                     │         saveSite fulfilled ─► Support, MeetingsLink stale
+                                     │                                   │ asked again (once nothing else is in flight)
+                                     ▼                                   ▼
+                       Buy me a coffee / Book a meeting: off ─► gone at once (they read the switch too)
+                                                         on  ─► GET /api/support, /api/meetings/info ─► back, with the link
+ Connections: a key or link ──► PUT /api/settings/{key} ──► Settings answer kept
+                                     │  Support:* saved ─► Support stale ─► the header's coffee link
+                                     │  Cal:* saved     ─► MeetingsLink stale ─► Book a meeting's link
+                                     ▼
+                       the API applies it at once (SettingsStore ─► IOptionsMonitor)
+```
 
 - **Storage:** the `site_settings` table, one row per key. Secrets are encrypted with ASP.NET Core Data Protection (the same keys as
   the session cookie; persist them in production, or saved secrets can't be read after a deploy and have to be entered again).
@@ -911,6 +981,16 @@ Measured in Chromium (GPU on, 1512×945 at 2×, the home page), as CPU used by t
   and the neon colours pause (`<html data-idle>`); the next input carries on where they stopped, with no jump. This is the case
   that matters most: a tab left open on screen while working in another window (unfocused, the scene still drew 15 frames a
   second), where every frame also re-blurred each frosted card over it.
+```
+ Page open                     After 60 s with no pointer, key, scroll or touch           The next input
+ ─────────                     ───────────────────────────────────────────────           ──────────────
+ Vice scene: ~30 frames/s ───► stops asking for frames (idleClock holds its time) ──────► carries on where it was
+   neon colours: 8 steps/s,    neon colours: paused (<html data-idle>, glass.css)        (no jump), frames again
+   on the neon elements only   frosted cards: nothing behind them moves, no re-blur
+ Other themes: the Vice mark's neon ───► paused too
+ Network: one batch of visit events after load, then nothing (no polling while the API is up)
+```
+
 - **What stays the same:** the scene's own GPU cost is small (Vice without the neon and the blur measured 8%, like dark); the
   frosted blur over the moving scene is most of what's left while it moves, and it's the look.
 - **Network while open:** after loading, one batch of visit events, then nothing (no polling, unless the API is unreachable:

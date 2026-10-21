@@ -5,6 +5,7 @@ import { ErrorState } from '../../components/ErrorState/ErrorState'
 import { Loading, SkeletonList, SkeletonTable } from '../../components/Skeleton'
 import { Pagination } from '../../components/Pagination'
 import { UpdateEmailsEditor } from '../../features/updates/UpdateEmailsEditor/UpdateEmailsEditor'
+import { donationKind } from '../../services/api'
 import { formatDate, formatDateTime } from '../../utils/formatDate'
 import { useAnnouncementsViewModel, useDonationsViewModel, useSubscribersViewModel } from './CommunityPage.viewModel'
 
@@ -159,7 +160,8 @@ function Donations() {
                 <tr key={donation.id}>
                   <td>
                     {donation.email ? <a href={`mailto:${donation.email}`}>{donation.fromName}</a> : donation.fromName}
-                    {!donation.type.startsWith('donation') && <span className="muted"> · {donation.type}</span>}
+                    {donationKind(donation.type) && <span className="muted"> · {donationKind(donation.type)}</span>}
+                    {donation.isTest && <span className="chip chip-muted">Test</span>}
                   </td>
                   <td>
                     {donation.amount} {donation.currency}

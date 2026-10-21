@@ -65,9 +65,7 @@ function Dashboard() {
           </div>
         </Loading>
       )}
-      {state.status === 'error' && (
-        <ErrorState message="The numbers couldn't be loaded." onRetry={vm.retry} />
-      )}
+      {state.status === 'error' && <ErrorState message="The numbers couldn't be loaded." onRetry={vm.retry} />}
       {state.status === 'loaded' && (
         <>
           <StatTiles totals={state.data.totals} />
@@ -85,10 +83,6 @@ function Dashboard() {
             <RankedList title="Countries" items={vm.countries} />
             <RankedList title="Time zones" items={state.data.timeZones} />
           </div>
-          <p className="muted engagement-note">
-            Preferred theme is the one a visit ended in (first-time visitors start in Vice). Days, months and years are UTC; minutes and hours are shown in your time zone. Visitors are counted once a day without cookies, so the same person on two days counts twice. A visit that saw one page and
-            did nothing else (scrolling aside) is a bounce. Only visitors who accepted the terms are recorded, and your own visits while signed in aren't.
-          </p>
         </>
       )}
 

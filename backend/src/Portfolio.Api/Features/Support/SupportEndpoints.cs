@@ -25,10 +25,13 @@ public class SupportOptions
 /// <param name="Url">Empty when the button should be hidden.</param>
 public record SupportInfo(string Url);
 
-public record DonationDto(int Id, string Type, string FromName, string? Message, string Amount, string Currency, string? Email, DateTimeOffset ReceivedAt);
+/// <param name="Type">The event, e.g. "donation.created", "donation.refunded", "membership.started".</param>
+/// <param name="IsTest">Sent with Buy Me a Coffee's "Send test": no money moved.</param>
+public record DonationDto(int Id, string Type, string FromName, string? Message, string Amount, string Currency, string? Email, DateTimeOffset ReceivedAt, bool IsTest);
 
 /// <summary>What the site reads from a webhook's JSON.</summary>
-public record ParsedDonation(string? Id, string? Type, string? FromName, string? Message, string? Amount, string? Currency, string? Email);
+/// <param name="LiveMode">False for a test event; null when the body doesn't say (older webhooks).</param>
+public record ParsedDonation(string? Id, string? Type, string? FromName, string? Message, string? Amount, string? Currency, string? Email, bool? LiveMode = null);
 
 public static class SupportEndpoints
 {
@@ -64,9 +67,9 @@ public static class SupportEndpoints
 
     /// <summary>
     /// Buy Me a Coffee's webhook. The body is signed: an HMAC-SHA256 of it with the webhook's secret,
-    /// in hex, in X-Signature-Sha256 (or X-Bmc-Signature, as older webhooks did). Stores each payment
-    /// once and alerts the phone. Its JSON isn't well documented, so the common field names are read
-    /// and the whole body is kept (the Community tab shows it).
+    /// in hex, in X-Signature-Sha256 (or X-Bmc-Signature, as older webhooks did). Stores each event on a
+    /// payment once (a coffee, then its refund, are two) and alerts the phone, saying what happened. Its
+    /// JSON isn't well documented, so the common field names are read and the whole body is kept.
     /// </summary>
     public static async Task<Results<Ok, BadRequest, UnauthorizedHttpResult, ProblemHttpResult>> BuyMeACoffeeWebhook(
         HttpRequest request,
@@ -92,13 +95,14 @@ public static class SupportEndpoints
         var parsed = ParseBuyMeACoffee(json, request.Headers["X-Bmc-Event"].FirstOrDefault());
         if (parsed is null) return TypedResults.BadRequest();
 
-        var transactionId = Cut(parsed.Id, 100) ?? Convert.ToHexStringLower(SHA256.HashData(body));
+        var type = Cut(parsed.Type, 40) ?? "donation";
+        var transactionId = parsed.Id is { Length: > 0 } id ? Cut($"{type}:{id}", 100)! : Convert.ToHexStringLower(SHA256.HashData(body));
         if (await db.Donations.AnyAsync(d => d.TransactionId == transactionId, cancellationToken)) return TypedResults.Ok();
 
         var donation = new Donation
         {
             TransactionId = transactionId,
-            Type = Cut(parsed.Type, 40) ?? "donation",
+            Type = type,
             FromName = Cut(parsed.FromName, 200) ?? "Someone",
             Message = Cut(parsed.Message, 2000),
             Amount = Cut(parsed.Amount, 20) ?? "",
@@ -106,19 +110,46 @@ public static class SupportEndpoints
             Email = Cut(parsed.Email, 320),
             Payload = json.Length <= 20_000 ? json : json[..20_000],
             ReceivedAt = time.GetUtcNow(),
+            IsTest = parsed.LiveMode == false,
         };
         db.Donations.Add(donation);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
+        {
+            // The same event delivered twice at once (a retry): the other request stored it and rang the phone.
+            return TypedResults.Ok();
+        }
 
-        var amount = $"{donation.Amount} {donation.Currency}".Trim();
-        alerts.Send(new PhoneAlert(
-            amount.Length > 0 ? $"☕ {amount} from {donation.FromName}" : $"☕ {donation.FromName} bought you a coffee",
-            donation.Message ?? $"New on Buy Me a Coffee: {donation.Type}.",
-            "/community",
-            AlertPriority.High,
-            "coffee"));
+        alerts.Send(AlertFor(donation));
         return TypedResults.Ok();
     }
+
+    /// <summary>The phone alert for an event: what happened, for how much, from whom. A test says so, quietly.</summary>
+    public static PhoneAlert AlertFor(Donation donation)
+    {
+        var amount = $"{donation.Amount} {donation.Currency}".Trim();
+        var from = donation.FromName;
+        var (title, message, priority, tag) = donation.Type switch
+        {
+            "donation.refunded" => ($"Refunded: {Join(amount, "to", from)}", "A coffee was refunded on Buy Me a Coffee.", AlertPriority.Default, "leftwards_arrow_with_hook"),
+            "membership.started" => ($"⭐ New member: {from}", donation.Message ?? (amount.Length > 0 ? $"{amount} a month." : "A membership started."), AlertPriority.High, "star"),
+            "membership.updated" => ($"Membership changed: {from}", amount.Length > 0 ? $"Now {amount}." : "A membership changed.", AlertPriority.Default, "star"),
+            "membership.cancelled" => ($"Membership cancelled: {from}", "They won't be charged again.", AlertPriority.Default, "star"),
+            "extra_purchase.created" => ($"🛍️ {Join(amount, "from", from)}", donation.Message ?? "Someone bought an extra.", AlertPriority.High, "shopping_bags"),
+            _ when donation.Type.StartsWith("donation") || donation.Type.Contains("coffee") =>
+                (amount.Length > 0 ? $"☕ {amount} from {from}" : $"☕ {from} bought you a coffee", donation.Message ?? "No message.", AlertPriority.High, "coffee"),
+            _ => ($"Buy Me a Coffee: {from}", $"New event: {donation.Type}{(amount.Length > 0 ? $", {amount}" : "")}.", AlertPriority.Default, "coffee"),
+        };
+        return donation.IsTest
+            ? new PhoneAlert($"Test: {title}", $"{message} (Sent with Send test: no money moved.)", "/community", AlertPriority.Low, tag)
+            : new PhoneAlert(title, message, "/community", priority, tag);
+    }
+
+    /// <summary>"5 GBP from Jo", or just "Jo" without an amount.</summary>
+    private static string Join(string amount, string word, string name) => amount.Length > 0 ? $"{amount} {word} {name}" : name;
 
     /// <summary>The HMAC-SHA256 of the body with the secret, as hex (any case), compared in constant time.</summary>
     public static bool SignatureMatches(byte[] body, string? signature, string secret)
@@ -149,15 +180,18 @@ public static class SupportEndpoints
 
         var data = root["data"] as JsonObject ?? root["response"] as JsonObject ?? root;
         string? Read(params string[] names) => names.Select(n => Text(data[n]) ?? Text(root[n])).FirstOrDefault(v => v is { Length: > 0 });
+        // The newer shape's "message" is Buy Me a Coffee's own line ("Jo bought you a coffee"), not the supporter's words.
+        var newer = root["data"] is JsonObject;
 
         return new ParsedDonation(
             Read("id", "support_id", "transaction_id", "event_id"),
             Text(root["type"]) ?? eventHeader,
             Read("supporter_name", "payer_name", "name"),
-            Read("support_note", "note", "message"),
+            newer ? Read("support_note", "note") : Read("support_note", "note", "message"),
             Read("amount", "total_amount", "support_coffee_price"),
             Read("currency", "support_currency"),
-            Read("supporter_email", "payer_email", "email"));
+            Read("supporter_email", "payer_email", "email"),
+            root["live_mode"] is JsonValue live && live.TryGetValue<bool>(out var isLive) ? isLive : null);
     }
 
     /// <summary>A string or a number as text; null for anything else.</summary>
@@ -182,7 +216,7 @@ public static class SupportEndpoints
             .ThenByDescending(d => d.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(d => new DonationDto(d.Id, d.Type, d.FromName, d.Message, d.Amount, d.Currency, d.Email, d.ReceivedAt))
+            .Select(d => new DonationDto(d.Id, d.Type, d.FromName, d.Message, d.Amount, d.Currency, d.Email, d.ReceivedAt, d.IsTest))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new PagedResponse<DonationDto>(items, page, pageSize, totalCount));

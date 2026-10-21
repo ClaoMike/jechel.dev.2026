@@ -312,6 +312,37 @@ public class AnalyticsEndpointsTests
     }
 
     [Fact]
+    public async Task ListSessions_pages_through_many_visits_with_every_one_on_exactly_one_page()
+    {
+        var ids = new List<Guid>();
+        for (var i = 0; i < 45; i++)
+        {
+            var id = Guid.NewGuid();
+            ids.Add(id);
+            await Collect(id, null, Event(1, "pageview"));
+            _time.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        var pages = new List<PagedResponse<SessionSummary>>();
+        for (var page = 1; page <= 3; page++) pages.Add((await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None, page, 20)).Value!);
+
+        Assert.Equal([20, 20, 5], pages.Select(p => p.Items.Count));
+        Assert.All(pages, p => Assert.Equal(45, p.TotalCount));
+        Assert.Equal(Enumerable.Reverse(ids), pages.SelectMany(p => p.Items).Select(s => s.Id));
+        Assert.Empty((await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None, 4, 20)).Value!.Items);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 1, 1)]
+    [InlineData(-5, 10_000, 1, AnalyticsEndpoints.MaxPageSize)]
+    public async Task ListSessions_brings_page_numbers_and_sizes_into_range(int page, int pageSize, int expectedPage, int expectedSize)
+    {
+        var list = (await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None, page, pageSize)).Value!;
+
+        Assert.Equal((expectedPage, expectedSize), (list.Page, list.PageSize));
+    }
+
+    [Fact]
     public async Task GetSession_returns_every_event_in_order_with_its_detail()
     {
         var id = Guid.NewGuid();

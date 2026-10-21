@@ -370,6 +370,10 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("from_name");
 
+                    b.Property<bool>("IsTest")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_test");
+
                     b.Property<string>("Message")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")

@@ -22,180 +22,193 @@ export function SettingsPage() {
         <h2 className="visually-hidden">Settings</h2>
         <SiteVisibility />
         <SignedInDevices />
-        <h3 className="settings-section-title">Connections</h3>
-        <Settings />
+        <Connections />
       </div>
     </AdminOnly>
   )
 }
 
-function Settings() {
+/** Every service the site connects to, A to Z, each an accordion inside one card (as the skills are in the editor). */
+function Connections() {
   const vm = useSettingsViewModel()
   const { state, setting, status } = vm
 
   if (state.status === 'loading')
     return (
-      // The folded list of services, each a name and a status.
-      <Loading label="Loading the settings…" className="settings">
-        <Skeleton width="80%" height={14} />
-        {[46, 38, 42, 34, 40, 26].map((width, i) => (
-          <div key={i} className="card settings-card skeleton-settings-row">
-            <Skeleton width={`${width}%`} height={18} />
-            <Skeleton width={90} height={22} radius={999} />
-          </div>
-        ))}
-      </Loading>
+      <ConnectionsCard>
+        {/* The folded list of services, each a name and a status. */}
+        <Loading label="Loading the settings…" className="settings-connection-list">
+          {[46, 38, 42, 34, 40, 26, 36, 30].map((width, i) => (
+            <div key={i} className="editor-item settings-card skeleton-settings-row">
+              <Skeleton width={`${width}%`} height={18} />
+              <Skeleton width={90} height={22} radius={999} />
+            </div>
+          ))}
+        </Loading>
+      </ConnectionsCard>
     )
-  if (state.status === 'error') return <ErrorState message="The settings couldn't be loaded." onRetry={vm.retry} />
+  if (state.status === 'error')
+    return (
+      <ConnectionsCard>
+        <ErrorState message="The settings couldn't be loaded." onRetry={vm.retry} />
+      </ConnectionsCard>
+    )
 
   const { data } = state
   const field = (key: string, extra?: Omit<FieldProps, 'setting'>) => <SettingField setting={setting(key)} {...extra} />
 
   return (
-    <div className="settings">
-      <p className="muted">
-        The services this site connects to. Keys saved here are stored encrypted, apply at once and replace the server's configuration; a secret is never shown again, only its last
-        4 characters.
-      </p>
+    <ConnectionsCard>
+      <div className="settings-connection-list">
+        <ServiceCard
+          title="Buy Me a Coffee"
+          status={status('Support:Url', 'Support:BuyMeACoffeeWebhookSecret')}
+          links={[
+            ['Your page', setting('Support:Url').value || 'https://buymeacoffee.com'],
+            ['Dashboard', 'https://studio.buymeacoffee.com'],
+          ]}
+        >
+          {field('Support:Url', { placeholder: 'https://buymeacoffee.com/you' })}
+          <Steps>
+            <li>
+              In the dashboard, open <strong>Integrations → Webhooks</strong> and add this link for donations:
+              <Copyable value={`${data.siteUrl}/api/support/buymeacoffee`} />
+            </li>
+            <li>
+              Copy the webhook's secret into the field below, save, then press its <strong>Send test</strong>: a coffee should land in the Community tab and on your phone.
+            </li>
+          </Steps>
+          {field('Support:BuyMeACoffeeWebhookSecret')}
+        </ServiceCard>
 
-      <ServiceCard
-        title="Buy Me a Coffee"
-        status={status('Support:Url', 'Support:BuyMeACoffeeWebhookSecret')}
-        links={[
-          ['Your page', setting('Support:Url').value || 'https://buymeacoffee.com'],
-          ['Dashboard', 'https://studio.buymeacoffee.com'],
-        ]}
-      >
-        {field('Support:Url', { placeholder: 'https://buymeacoffee.com/you' })}
-        <Steps>
-          <li>
-            In the dashboard, open <strong>Integrations → Webhooks</strong> and add this link for donations:
-            <Copyable value={`${data.siteUrl}/api/support/buymeacoffee`} />
-          </li>
-          <li>
-            Copy the webhook's secret into the field below, save, then press its <strong>Send test</strong>: a coffee should land in the Community tab and on your phone.
-          </li>
-        </Steps>
-        {field('Support:BuyMeACoffeeWebhookSecret')}
-      </ServiceCard>
+        <ServiceCard
+          title="Cal.com (meetings)"
+          status={status('Cal:Link', 'Cal:ApiKey', 'Cal:WebhookSecret')}
+          what="Book a meeting on the Contact page, the calendar above your messages, accepting or declining requests (here or from your phone), and the reminders."
+          links={[
+            ['Event types', 'https://app.cal.com/event-types'],
+            ['Webhooks', 'https://app.cal.com/settings/developer/webhooks'],
+            ['API keys', 'https://app.cal.com/settings/developer/api-keys'],
+          ]}
+          test={{ service: 'cal', label: 'Check the API key' }}
+        >
+          <Steps>
+            <li>
+              In <strong>Event types</strong>, make one (e.g. 30 minutes), set your availability, and under <strong>Advanced</strong> turn on <strong>Requires confirmation</strong>
+              , so you accept each request. Paste its link below.
+            </li>
+            <li>
+              In <strong>Webhooks</strong>, add this link, with a secret of your choice, for Booking requested, created, rescheduled, cancelled and rejected:
+              <Copyable value={`${data.siteUrl}/api/meetings/cal`} />
+            </li>
+            <li>
+              Paste the same secret below, then make an <strong>API key</strong> (Settings → Developer) and paste it too: it lets this site accept and decline for you.
+            </li>
+          </Steps>
+          {field('Cal:Link', { placeholder: 'https://cal.com/you/30min' })}
+          {field('Cal:WebhookSecret')}
+          {field('Cal:ApiKey')}
+        </ServiceCard>
 
-      <ServiceCard
-        title="Google sign-in"
-        status={data.google.isConfigured ? 'ready' : 'off'}
-        links={[['Google Cloud: OAuth clients', 'https://console.cloud.google.com/auth/clients']]}
-      >
-        <dl className="settings-facts">
-          <dt>Status</dt>
-          <dd>
-            {data.google.isConfigured ? (
-              <span className="chip">Set up{data.google.clientIdHint ? ` · client ${data.google.clientIdHint}` : ''}</span>
-            ) : (
-              <span className="chip chip-muted">Not set up</span>
-            )}
-          </dd>
-          <dt>Admins</dt>
-          <dd>{data.google.adminEmailCount === 1 ? '1 email allowed' : `${data.google.adminEmailCount} emails allowed`}</dd>
-          <dt>Redirect URI to register</dt>
-          <dd>
-            <Copyable value={data.google.redirectUri} />
-          </dd>
-        </dl>
-      </ServiceCard>
+        <ServiceCard
+          title="Google sign-in"
+          status={data.google.isConfigured ? 'ready' : 'off'}
+          links={[['Google Cloud: OAuth clients', 'https://console.cloud.google.com/auth/clients']]}
+        >
+          <dl className="settings-facts">
+            <dt>Status</dt>
+            <dd>
+              {data.google.isConfigured ? (
+                <span className="chip">Set up{data.google.clientIdHint ? ` · client ${data.google.clientIdHint}` : ''}</span>
+              ) : (
+                <span className="chip chip-muted">Not set up</span>
+              )}
+            </dd>
+            <dt>Admins</dt>
+            <dd>{data.google.adminEmailCount === 1 ? '1 email allowed' : `${data.google.adminEmailCount} emails allowed`}</dd>
+            <dt>Redirect URI to register</dt>
+            <dd>
+              <Copyable value={data.google.redirectUri} />
+            </dd>
+          </dl>
+        </ServiceCard>
 
-      <ServiceCard
-        title="YouTube Data API"
-        status={status('YouTube:Channel', 'YouTube:ApiKey')}
-        links={[
-          ['Google Cloud: API keys', 'https://console.cloud.google.com/apis/credentials'],
-          ['YouTube Studio', 'https://studio.youtube.com'],
-        ]}
-        test={{ service: 'youtube', label: 'List my videos' }}
-      >
-        {field('YouTube:Channel', { placeholder: '@yourhandle' })}
-        {field('YouTube:ApiKey')}
-      </ServiceCard>
+        <ServiceCard
+          title="Hosting"
+          links={[
+            ['Cloudflare', 'https://dash.cloudflare.com'],
+            ['Railway', 'https://railway.com/dashboard'],
+          ]}
+        />
 
-      <ServiceCard
-        title="Cal.com (meetings)"
-        status={status('Cal:Link', 'Cal:ApiKey', 'Cal:WebhookSecret')}
-        what="Book a meeting on the Contact page, the calendar above your messages, accepting or declining requests (here or from your phone), and the reminders."
-        links={[
-          ['Event types', 'https://app.cal.com/event-types'],
-          ['Webhooks', 'https://app.cal.com/settings/developer/webhooks'],
-          ['API keys', 'https://app.cal.com/settings/developer/api-keys'],
-        ]}
-        test={{ service: 'cal', label: 'Check the API key' }}
-      >
-        <Steps>
-          <li>
-            In <strong>Event types</strong>, make one (e.g. 30 minutes), set your availability, and under <strong>Advanced</strong> turn on <strong>Requires confirmation</strong>,
-            so you accept each request. Paste its link below.
-          </li>
-          <li>
-            In <strong>Webhooks</strong>, add this link, with a secret of your choice, for Booking requested, created, rescheduled, cancelled and rejected:
-            <Copyable value={`${data.siteUrl}/api/meetings/cal`} />
-          </li>
-          <li>
-            Paste the same secret below, then make an <strong>API key</strong> (Settings → Developer) and paste it too: it lets this site accept and decline for you.
-          </li>
-        </Steps>
-        {field('Cal:Link', { placeholder: 'https://cal.com/you/30min' })}
-        {field('Cal:WebhookSecret')}
-        {field('Cal:ApiKey')}
-      </ServiceCard>
+        <ServiceCard
+          title="ntfy (phone alerts)"
+          status={status('Alerts:NtfyTopic')}
+          links={[
+            ['ntfy', 'https://ntfy.sh'],
+            ['Phone app guide', 'https://docs.ntfy.sh/subscribe/phone/'],
+          ]}
+          test={{ service: 'ntfy', label: 'Send a test alert' }}
+        >
+          <Steps>
+            <li>
+              Press <strong>Generate</strong> below for a private topic name, and <strong>Save</strong>.
+            </li>
+            <li>
+              In the ntfy app, tap <strong>+</strong>, type the same topic (server: ntfy.sh), and <strong>Subscribe</strong>.
+            </li>
+            <li>
+              Press <strong>Send a test alert</strong>. Anyone who knows the topic can read it, so keep it long and random.
+            </li>
+          </Steps>
+          {field('Alerts:NtfyTopic', { generate: newNtfyTopic })}
+          <details className="settings-more">
+            <summary>Your own ntfy server, or a reserved topic</summary>
+            {field('Alerts:NtfyServer', { placeholder: 'https://ntfy.sh' })}
+            {field('Alerts:NtfyToken')}
+          </details>
+        </ServiceCard>
 
-      <ServiceCard
-        title="Resend (email)"
-        status={status('Email:ResendApiKey', 'Email:From')}
-        links={[
-          ['API keys', 'https://resend.com/api-keys'],
-          ['Domains', 'https://resend.com/domains'],
-        ]}
-        test={{ service: 'email', label: 'Send me a test email' }}
-      >
-        {field('Email:ResendApiKey')}
-        {field('Email:From', { placeholder: 'Claudiu from jechel.dev <hello@jechel.dev>' })}
-        {field('Email:UpdatesFrom', { placeholder: 'jechel.dev <updates@jechel.dev>' })}
-      </ServiceCard>
+        <ServiceCard title="Porkbun (domain)" links={[['Porkbun', 'https://porkbun.com/account/domainsSpeedy']]} />
 
-      <ServiceCard
-        title="ntfy (phone alerts)"
-        status={status('Alerts:NtfyTopic')}
-        links={[
-          ['ntfy', 'https://ntfy.sh'],
-          ['Phone app guide', 'https://docs.ntfy.sh/subscribe/phone/'],
-        ]}
-        test={{ service: 'ntfy', label: 'Send a test alert' }}
-      >
-        <Steps>
-          <li>
-            Press <strong>Generate</strong> below for a private topic name, and <strong>Save</strong>.
-          </li>
-          <li>
-            In the ntfy app, tap <strong>+</strong>, type the same topic (server: ntfy.sh), and <strong>Subscribe</strong>.
-          </li>
-          <li>
-            Press <strong>Send a test alert</strong>. Anyone who knows the topic can read it, so keep it long and random.
-          </li>
-        </Steps>
-        {field('Alerts:NtfyTopic', { generate: newNtfyTopic })}
-        <details className="settings-more">
-          <summary>Your own ntfy server, or a reserved topic</summary>
-          {field('Alerts:NtfyServer', { placeholder: 'https://ntfy.sh' })}
-          {field('Alerts:NtfyToken')}
-        </details>
-      </ServiceCard>
+        <ServiceCard
+          title="Resend (email)"
+          status={status('Email:ResendApiKey', 'Email:From')}
+          links={[
+            ['API keys', 'https://resend.com/api-keys'],
+            ['Domains', 'https://resend.com/domains'],
+          ]}
+          test={{ service: 'email', label: 'Send me a test email' }}
+        >
+          {field('Email:ResendApiKey')}
+          {field('Email:From', { placeholder: 'Claudiu from jechel.dev <hello@jechel.dev>' })}
+          {field('Email:UpdatesFrom', { placeholder: 'jechel.dev <updates@jechel.dev>' })}
+        </ServiceCard>
 
-      <ServiceCard
-        title="Hosting"
-        links={[
-          ['Cloudflare', 'https://dash.cloudflare.com'],
-          ['Railway', 'https://railway.com/dashboard'],
-        ]}
-      />
+        <ServiceCard
+          title="YouTube Data API"
+          status={status('YouTube:Channel', 'YouTube:ApiKey')}
+          links={[
+            ['Google Cloud: API keys', 'https://console.cloud.google.com/apis/credentials'],
+            ['YouTube Studio', 'https://studio.youtube.com'],
+          ]}
+          test={{ service: 'youtube', label: 'List my videos' }}
+        >
+          {field('YouTube:Channel', { placeholder: '@yourhandle' })}
+          {field('YouTube:ApiKey')}
+        </ServiceCard>
+      </div>
+    </ConnectionsCard>
+  )
+}
 
-      <ServiceCard title="Porkbun (domain)" links={[['Porkbun', 'https://porkbun.com/account/domainsSpeedy']]} />
-    </div>
+/** The Connections card: its title inside, like Visitor pages. */
+function ConnectionsCard({ children }: { children: ReactNode }) {
+  return (
+    <section className="card settings-connections" aria-labelledby="connections-title">
+      <h3 id="connections-title">Connections</h3>
+      {children}
+    </section>
   )
 }
 
@@ -220,14 +233,14 @@ function ServiceCard({
   const vm = useServiceCardViewModel(status)
   const { id } = vm
   return (
-    <section className="card settings-card" aria-labelledby={id}>
-      <h3 className="settings-card-heading">
+    <section className="editor-item settings-card" aria-labelledby={id}>
+      <h4 className="settings-card-heading">
         <button type="button" id={id} className="accordion-toggle" aria-expanded={vm.open} aria-controls={`${id}-body`} onClick={vm.toggle}>
           <ArrowDownIcon size={18} />
           <span className="accordion-title">{title}</span>
           {status && <span className={`chip settings-status settings-status-${status}`}>{vm.statusText}</span>}
         </button>
-      </h3>
+      </h4>
       <div id={`${id}-body`} className="settings-card-body" hidden={!vm.open}>
         {what && <p className="muted">{what}</p>}
         {links.length > 0 && (

@@ -3,7 +3,8 @@ import { page } from 'vitest/browser'
 import { api, ApiError } from '../../services/api'
 import { stubApi } from '../../test/api'
 import { settings } from '../../test/fixtures/settings'
-import { ADMIN, renderView, textOf } from '../../test/render'
+import { SITE } from '../../test/fixtures/site'
+import { ADMIN, forever, renderView, textOf } from '../../test/render'
 import { SettingsPage } from './SettingsPage'
 
 // Settings → Resend: one sender people can answer, and one for subscribers that takes no replies.
@@ -98,5 +99,88 @@ describe('Settings: quick links', () => {
       expect(opened.element().querySelectorAll('.settings-status, p, input')).toHaveLength(0)
       expect(textOf(opened)).not.toMatch(/Nothing to set|Not connected|Later/)
     }
+  })
+})
+
+describe('Settings: Connections', () => {
+  const connections = () => page.getByRole('region', { name: 'Connections', exact: true })
+  const services = () =>
+    connections()
+      .getByRole('button', { expanded: false })
+      .or(connections().getByRole('button', { expanded: true }))
+  const ORDER = ['Buy Me a Coffee', 'Cal.com (meetings)', 'Google sign-in', 'Hosting', 'ntfy (phone alerts)', 'Porkbun (domain)', 'Resend (email)', 'YouTube Data API']
+
+  it('is one card with its title inside, the services in it A to Z, with no description', async () => {
+    stub()
+    await renderView(<SettingsPage />, { user: ADMIN })
+    await expect.element(connections()).toBeVisible()
+    expect(connections().element().classList.contains('card')).toBe(true)
+    expect(connections().element().querySelector('h3')!.textContent).toBe('Connections')
+    const titles = [...connections().element().querySelectorAll('.accordion-title')].map((t) => t.textContent)
+    expect(titles).toEqual(ORDER)
+    expect(titles).toEqual([...titles].sort((a, b) => a!.localeCompare(b!, 'en', { sensitivity: 'base' })))
+    expect(textOf(connections())).not.toContain('The services this site connects to')
+    // Each service is a row inside the card, not a card of its own.
+    for (const row of connections().element().querySelectorAll('.settings-card')) expect(row.classList.contains('card')).toBe(false)
+  })
+
+  it('keeps every service folded until opened, one at a time as clicked', async () => {
+    stub()
+    await renderView(<SettingsPage />, { user: ADMIN })
+    await expect.element(connections()).toBeVisible()
+    await expect.poll(() => services().elements().length).toBe(ORDER.length)
+    expect(
+      services()
+        .elements()
+        .every((b) => b.getAttribute('aria-expanded') === 'false'),
+    ).toBe(true)
+
+    const resend = connections().getByRole('button', { name: /^Resend \(email\)/ })
+    await resend.click()
+    await expect.element(resend).toHaveAttribute('aria-expanded', 'true')
+    await expect.element(connections().getByRole('textbox', { name: /^Sender/ })).toBeVisible()
+    await resend.click()
+    await expect.element(resend).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      connections()
+        .getByRole('textbox', { name: /^Sender/ })
+        .query(),
+    ).toBeNull()
+  })
+
+  it('shows its title while loading and when the settings could not be loaded', async () => {
+    stubApi({ user: ADMIN })
+    vi.spyOn(api.auth, 'listSessions').mockResolvedValue([])
+    const get = vi.spyOn(api.settings, 'get').mockReturnValueOnce(forever())
+    const loading = await renderView(<SettingsPage />, { user: ADMIN })
+    await expect.element(connections().getByRole('status')).toHaveTextContent('Loading the settings…')
+    await loading.unmount()
+
+    get.mockRejectedValueOnce(new ApiError('/api/settings', 500)).mockResolvedValue(settings())
+    await renderView(<SettingsPage />, { user: ADMIN })
+    await expect.element(connections().getByText("The settings couldn't be loaded.")).toBeVisible()
+    await connections().getByRole('button', { name: 'Try again' }).click()
+    await expect.poll(() => connections().element().querySelectorAll('.accordion-title').length).toBe(ORDER.length)
+  })
+})
+
+describe('Settings: no descriptions', () => {
+  it('Visitor pages, Signed-in devices and the services say only what they are', async () => {
+    stub()
+    await renderView(<SettingsPage />, { user: ADMIN, site: structuredClone(SITE) })
+    await expect.element(page.getByRole('region', { name: 'Connections', exact: true })).toBeVisible()
+    for (const name of ['Google sign-in', 'YouTube Data API', 'ntfy (phone alerts)', 'Buy Me a Coffee'])
+      await page.getByRole('button', { name: new RegExp(`^${name.replace(/[()]/g, '\\$&')}`) }).click()
+    const text = document.body.textContent!
+    for (const gone of [
+      'What visitors can see',
+      'Every device signed in as you',
+      'How you sign in to this site',
+      'The YouTube tab and What',
+      'Alerts on your phone',
+      "The header's Buy me a coffee button",
+      'The services this site connects to',
+    ])
+      expect(text).not.toContain(gone)
   })
 })

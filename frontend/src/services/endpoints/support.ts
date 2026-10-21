@@ -10,7 +10,7 @@ export interface SupportInfo {
 /** A payment Buy Me a Coffee reported (admin only). */
 export interface Donation {
   id: number
-  /** The event, e.g. "donation.created". */
+  /** The event, e.g. "donation.created", "donation.refunded", "membership.started". */
   type: string
   fromName: string
   message: string | null
@@ -20,6 +20,29 @@ export interface Donation {
   email: string | null
   /** ISO 8601 timestamp. */
   receivedAt: string
+  /** Sent with Buy Me a Coffee's "Send test": no money moved. */
+  isTest: boolean
+}
+
+/** What a Buy Me a Coffee event was, in a few words; null for a plain coffee, which needs none. */
+export function donationKind(type: string): string | null {
+  switch (type) {
+    case 'donation.created':
+    case 'coffee-purchase':
+      return null
+    case 'donation.refunded':
+      return 'refunded'
+    case 'membership.started':
+      return 'membership started'
+    case 'membership.updated':
+      return 'membership changed'
+    case 'membership.cancelled':
+      return 'membership cancelled'
+    case 'extra_purchase.created':
+      return 'extra'
+    default:
+      return type
+  }
 }
 
 export const supportEndpoints = {

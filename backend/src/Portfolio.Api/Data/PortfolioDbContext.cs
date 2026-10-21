@@ -224,8 +224,9 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(d => d.Email).HasColumnName("email").HasMaxLength(320);
             entity.Property(d => d.Payload).HasColumnName("payload").HasColumnType("jsonb");
             entity.Property(d => d.ReceivedAt).HasColumnName("received_at");
+            entity.Property(d => d.IsTest).HasColumnName("is_test");
 
-            // A webhook is retried until it gets a 200: one row per payment.
+            // A webhook is retried until it gets a 200: one row per event on a payment.
             entity.HasIndex(d => d.TransactionId).IsUnique();
             entity.HasIndex(d => d.ReceivedAt);
         });
