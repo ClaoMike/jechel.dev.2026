@@ -15,14 +15,14 @@ describe('the site, as a visitor gets it', () => {
     const app = await renderApp({ path: '/youtube' })
     await expect.element(page.getByRole('list', { name: 'Videos' })).toBeVisible()
     await expect.element(tabs().getByRole('link', { name: 'YouTube' })).toHaveAttribute('aria-current', 'page')
-    expect(app.location()).toBe('/youtube')
+    await expect.poll(() => app.location()).toBe('/youtube')
   })
 
   it('sends an unknown address home', async () => {
     stubApi()
     const app = await renderApp({ path: '/nowhere' })
     await expect.element(tabs().getByRole('link', { name: "What's new?" })).toHaveAttribute('aria-current', 'page')
-    expect(app.location()).toBe('/')
+    await expect.poll(() => app.location()).toBe('/')
   })
 
   it('moves between pages with the tabs', async () => {
@@ -30,7 +30,7 @@ describe('the site, as a visitor gets it', () => {
     const app = await renderApp()
     await tabs().getByRole('link', { name: 'About Me' }).click()
     await expect.element(page.getByRole('region', { name: 'Skills' })).toBeVisible()
-    expect(app.location()).toBe('/about')
+    await expect.poll(() => app.location()).toBe('/about')
   })
 
   it('shows the maintenance screen (with its message) instead of the pages, keeping the name and themes', async () => {
@@ -87,7 +87,7 @@ describe('the site, as a visitor gets it', () => {
     api.site.status.mockResolvedValue({ ...SITE, pages: { ...SITE.pages, whatsNew: false, youtube: false } })
     const app = await renderApp({ path: '/youtube' })
     await expect.element(tabs().getByRole('link', { name: 'Apps' })).toHaveAttribute('aria-current', 'page')
-    expect(app.location()).toBe('/apps')
+    await expect.poll(() => app.location()).toBe('/apps')
     expect(tabs().getByRole('link').elements().map((a) => a.textContent)).toEqual(['Apps', 'About Me', 'Contact'])
   })
 
@@ -96,14 +96,14 @@ describe('the site, as a visitor gets it', () => {
     api.site.status.mockResolvedValue({ ...SITE, pages: { whatsNew: false, apps: false, youtube: false, about: false, contact: false } })
     const app = await renderApp({ path: '/about' })
     await expect.element(page.getByRole('heading', { name: 'Coming soon' })).toBeVisible()
-    expect(app.location()).toBe('/coming-soon')
+    await expect.poll(() => app.location()).toBe('/coming-soon')
   })
 
   it('keeps visitors out of the admin pages', async () => {
     stubApi()
     const app = await renderApp({ path: '/settings' })
     await expect.element(tabs().getByRole('link', { name: "What's new?" })).toHaveAttribute('aria-current', 'page')
-    expect(app.location()).toBe('/')
+    await expect.poll(() => app.location()).toBe('/')
   })
 })
 

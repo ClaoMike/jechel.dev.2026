@@ -38,7 +38,7 @@ describe('the admin sign-in page', () => {
     stubApi({ user: ADMIN })
     const signedIn = await renderApp({ path: '/admin' })
     await expect.element(page.getByText('Signed in as admin@example.com')).toBeVisible()
-    expect(signedIn.location()).toBe('/')
+    await expect.poll(() => signedIn.location()).toBe('/')
   })
 
   for (const theme of THEMES) {

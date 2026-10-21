@@ -15,7 +15,7 @@ describe('the header', () => {
     stubApi()
     const app = await renderApp({ path: '/apps' })
     await page.getByRole('link', { name: 'jechel.dev' }).click()
-    expect(app.location()).toBe('/')
+    await expect.poll(() => app.location()).toBe('/')
   })
 
   it('switches between dark, light and Vice, remembering the choice', async () => {
@@ -94,7 +94,7 @@ describe('the admin bar', () => {
     api.site.status.mockResolvedValue({ ...SITE, maintenance: true })
     const app = await renderApp()
     await page.getByRole('link', { name: 'Maintenance on: visitors see the maintenance page' }).click()
-    expect(app.location()).toBe('/settings')
+    await expect.poll(() => app.location()).toBe('/settings')
   })
 
   it('signs out: the site goes back to what visitors see', async () => {

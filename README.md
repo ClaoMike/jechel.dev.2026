@@ -747,7 +747,8 @@ the report shows what isn't covered yet: `coverage/index.html` (and a summary in
   a theme, signed in as `ADMIN` or a visitor) and gives `location()` for URL checks; `forever()` keeps a request loading;
   `imagesLoaded()` before a screenshot; `restMouse()` moves the mouse off everything (the mouse stays where the last test
   left it, and a hovered card is drawn raised); `textOf(locator)` for text checks (poll it:
-  `expect.poll(() => textOf(x)).toContain(…)`); `a11yViolations()` runs axe (WCAG 2.1 A + AA), expect `[]`.
+  `expect.poll(() => textOf(x)).toContain(…)`), and poll URL checks too (`expect.poll(() => view.location()).toBe(…)`): navigation
+  finishes a moment after the click, later on a slower machine like CI; `a11yViolations()` runs axe (WCAG 2.1 A + AA), expect `[]`.
   Test data in `src/test/fixtures/` (apps with local images, so screenshots never depend on the network).
 - **The API is never called:** `stubApi()` (`src/test/api.ts`) stubs everything the visitor-facing views ask for, with
   realistic answers from `src/test/fixtures/` (About Me, terms, site, videos, LeetCode, résumé); a test changes what it needs,

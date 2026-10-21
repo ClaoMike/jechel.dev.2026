@@ -35,7 +35,7 @@ describe('YouTube', () => {
     expect(api.youtube.listVideos).toHaveBeenCalledWith(1, 9, expect.anything())
     await page.getByRole('button', { name: 'Next' }).click()
     await expect.element(tile('Video 11')).toBeVisible()
-    expect(view.location()).toBe('/youtube?page=2')
+    await expect.poll(() => view.location()).toBe('/youtube?page=2')
   })
 
   it('says so when there are no videos, and when they cannot be loaded (with a retry)', async () => {
