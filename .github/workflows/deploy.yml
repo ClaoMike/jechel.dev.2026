@@ -1,0 +1,47 @@
+name: Deploy
+
+# `main` is production: it only changes through pull requests whose tests passed (see ci.yml), and
+# every change to it is deployed: the API to Railway first (it migrates the database as it starts),
+# then the site to Cloudflare Pages.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time, never cancelled halfway.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  api:
+    name: API → Railway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Builds backend/Dockerfile on Railway (railway.json) and waits for the build.
+      - run: npx --yes @railway/cli@5.71.0 up --ci --service "${{ vars.RAILWAY_SERVICE }}"
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  site:
+    name: Site → Cloudflare Pages
+    needs: api
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      # dist/ plus functions/ (the /api proxy).
+      - run: npx wrangler pages deploy dist --project-name "${{ vars.CLOUDFLARE_PAGES_PROJECT }}" --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

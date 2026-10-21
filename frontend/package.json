@@ -41,6 +41,7 @@
     "vite": "^8.3.0",
     "vitest": "^5.0.3",
     "vitest-browser-react": "^2.3.0",
-    "world-atlas": "^2.0.2"
+    "world-atlas": "^2.0.2",
+    "wrangler": "^4.151.3"
   }
 }

@@ -32,6 +32,15 @@ BACKEND_TESTS = "cd backend && dotnet test"
 # Vitest in headless Chromium, with coverage of all of frontend/src; the report opens in the browser
 # afterwards, whether the tests passed or not.
 FRONTEND_TESTS = "cd frontend && npm test; open coverage/index.html"
+# Production: a pull request develop → main that merges itself once the tests pass, then deploys.
+DEPLOY = "scripts/deploy.sh"
+# The Deploy button only works on this branch.
+DEPLOY_BRANCH = "develop"
+
+
+def current_branch() -> str:
+    result = subprocess.run(["git", "branch", "--show-current"], cwd=REPO_ROOT, capture_output=True, text=True)
+    return result.stdout.strip()
 
 
 def open_terminal(title: str, command: str) -> None:
@@ -70,6 +79,19 @@ def main() -> None:
 
         tk.Button(frame, text=label, width=22, command=run).pack(pady=3)
 
+    deploy = tk.Button(frame, text="Deploy to production", width=22, command=lambda: open_terminal("Deploy", DEPLOY))
+    deploy.pack(pady=(12, 3))
+    hint = tk.Label(frame, fg="grey")
+    hint.pack()
+
+    def refresh_deploy() -> None:
+        branch = current_branch()
+        on_branch = branch == DEPLOY_BRANCH
+        deploy.config(state=tk.NORMAL if on_branch else tk.DISABLED)
+        hint.config(text=f"from {DEPLOY_BRANCH}" if on_branch else f"on {branch or '?'}: switch to {DEPLOY_BRANCH}")
+        root.after(2000, refresh_deploy)
+
+    refresh_deploy()
     root.mainloop()
 
 

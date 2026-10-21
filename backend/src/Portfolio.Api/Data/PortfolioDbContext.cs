@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api.Features.Analytics;
 using Portfolio.Api.Features.Contact;
@@ -5,7 +6,7 @@ using Portfolio.Api.Features.Files;
 
 namespace Portfolio.Api.Data;
 
-public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : DbContext(options)
+public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : DbContext(options), IDataProtectionKeyContext
 {
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
@@ -26,6 +27,9 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<Meeting> Meetings => Set<Meeting>();
     public DbSet<ContactReply> ContactReplies => Set<ContactReply>();
     public DbSet<SiteState> SiteStates => Set<SiteState>();
+
+    /// <summary>ASP.NET Core Data Protection's keys (they encrypt cookies and saved secrets), so they survive redeploys.</summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -310,6 +314,14 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(s => s.MaintenanceEnabled).HasColumnName("maintenance_enabled");
             entity.Property(s => s.MaintenanceMessage).HasColumnName("maintenance_message").HasMaxLength(Features.Site.SiteEndpoints.MessageMaxLength).IsRequired();
             entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<DataProtectionKey>(entity =>
+        {
+            entity.ToTable("data_protection_keys");
+            entity.Property(k => k.Id).HasColumnName("id");
+            entity.Property(k => k.FriendlyName).HasColumnName("friendly_name");
+            entity.Property(k => k.Xml).HasColumnName("xml");
         });
     }
 }

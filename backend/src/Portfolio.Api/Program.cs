@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api;
@@ -30,6 +31,9 @@ builder.Services.AddDbContext<PortfolioDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
 builder.Services.AddHealthChecks().AddDbContextCheck<PortfolioDbContext>();
+
+// Keys for cookies and saved secrets live in the database, so redeploys (new containers) keep them.
+builder.Services.AddDataProtection().PersistKeysToDbContext<PortfolioDbContext>();
 
 builder.AddPortfolioAuth();
 
@@ -121,7 +125,7 @@ builder.Services.AddRateLimiter(options =>
 
 // Honour X-Forwarded-* from a reverse proxy (the Vite dev proxy locally), so URLs the API
 // generates, like Google's OAuth callback, use the host and scheme the browser sees.
-// Only loopback proxies are trusted by default; add KnownProxies/KnownNetworks when deploying.
+// Only loopback proxies are trusted. In production the proxy is trusted by a shared secret instead (ProxyHeaders).
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost);
 
@@ -140,6 +144,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseForwardedHeaders();
+app.UseProxyHeaders(app.Configuration["Proxy:Secret"]);
 app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())

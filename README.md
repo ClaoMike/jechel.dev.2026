@@ -7,6 +7,7 @@ Personal portfolio website of Claudiu Mihai Jechel.
 | Frontend | React 19 + Vite 8 + TypeScript (`frontend/`)                    |
 | Backend  | .NET 10 minimal API + EF Core 10 + Npgsql (`backend/`)          |
 | Database | PostgreSQL 16 (Docker Compose for local dev)                    |
+| Hosting  | Cloudflare Pages (site + `/api` proxy), Railway (API + PostgreSQL)  |
 | State    | Redux Toolkit + RTK Query; views in MVVM (View + `*.viewModel.ts`) |
 | Tests    | Backend: xUnit, Testcontainers. Frontend: Vitest in headless Chromium (coverage, screenshots) |
 | CI       | GitHub Actions (`.github/workflows/ci.yml`)                     |
@@ -26,6 +27,7 @@ Personal portfolio website of Claudiu Mihai Jechel.
 │       ├── Portfolio.Api.UnitTests/       # fast tests, no external dependencies
 │       └── Portfolio.Api.IntegrationTests/# real HTTP pipeline + real PostgreSQL (Testcontainers)
 ├── frontend/
+│   ├── functions/api/[[path]].ts          # Cloudflare Pages Function: the site's /api proxy to Railway (production)
 │   ├── src/
 │   │   ├── services/api.ts                # the single API service: every backend call goes through `api`
 │   │   ├── store/                         # the Model: Redux store, slices, RTK Query endpoints (store/api/)
@@ -34,7 +36,9 @@ Personal portfolio website of Claudiu Mihai Jechel.
 │   │   ├── pages/                         # one folder per route: X/X.tsx + X/X.viewModel.ts
 │   │   ├── features/<feature>/            # a feature's components and rules (e.g. contact form + inbox)
 │   │   └── components/                    # shared UI: Modal, CopyButton, icons
+├── backend/Dockerfile + railway.json      # the API's production image and its Railway settings
 ├── scripts/dev_launcher.py                # GUI launcher for common dev tasks (macOS)
+├── scripts/deploy.sh                      # deploy: pull request develop → main, merged when CI passes
 ├── scripts/build_brand_j.py               # draws the "j": the Vice title's first letter and the tab icon
 ├── docker-compose.yml                     # local PostgreSQL
 └── .github/workflows/ci.yml
@@ -89,6 +93,7 @@ A small window with buttons. Each opens a new Terminal window running the matchi
 | Open repo map      | `npm start` in `tools/repomap` (runs `npm install` the first time): builds the 3D architecture map, opens it in the browser and rebuilds it on every change. See [tools/repomap/README.md](tools/repomap/README.md) |
 | Run backend tests  | `dotnet test`                                                     |
 | Run frontend tests | `npm test` in `frontend` (all tests, with coverage), then opens the coverage report in the browser |
+| Deploy to production | `scripts/deploy.sh`: only enabled on `develop`. See [Deployment](#deployment) |
 
 The first click may trigger a macOS prompt to allow Terminal automation; allow it.
 
@@ -677,6 +682,7 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Cal:WebhookSecret`           | The Cal.com webhook's secret. The webhook answers 503 until it's set |
 | `Site:TimeZone`               | Your time zone for times in phone alerts (default `Europe/London`) |
 | `Site:PagesVisibleByDefault`  | Whether visitor pages and features not yet switched in Settings show (default `false`: everything starts hidden) |
+| `Proxy:Secret`                | The secret the site's `/api` proxy sends (production; see Deployment). Empty: no proxy check |
 | `ConnectionStrings:Redis`     | Redis for the API's cache, e.g. `localhost:6380,abortConnect=false` (set in appsettings.Development). Empty: memory only |
 
 Every key above from `Support`, `YouTube`, `Email`, `Alerts` and `Cal` can also be set in the **Settings** tab, which overrides these.
@@ -761,14 +767,71 @@ the report shows what isn't covered yet: `coverage/index.html` (and a summary in
 
 ## CI
 
-`.github/workflows/ci.yml` runs on pushes to `develop`/`main` and on every PR:
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `develop`:
 
 1. **backend**: restore, build, `dotnet test` (Testcontainers uses the runner's Docker)
-2. **frontend**: `npm ci`, lint, build (includes typecheck)
+2. **frontend**: in Playwright's image (`mcr.microsoft.com/playwright:v1.63.0-noble`, keep it in step with the
+   `playwright` package): `npm ci`, lint, build, `npm test`. On failure, the coverage report and the screenshots that
+   didn't match are uploaded as the run's `frontend-test-report`.
+3. **repomap**: the repo map tool's tests. Not required for `main` (two of its whole-repo pipeline tests fail).
+
+**Linux screenshots.** Screenshot references are per OS: `…-chromium-darwin.png` for your Mac, `…-chromium-linux.png`
+for CI. The Linux ones are taken on GitHub, never locally: Actions → **Update Linux screenshots** → Run workflow on
+your branch. It runs the tests with `--update` in CI's image and commits the new references back to the branch. Run it
+after an intended visual change (after `npm run test:update` locally), then re-run CI.
+
+## Deployment
+
+| What | Where | How it gets there |
+| ---- | ----- | ----------------- |
+| Site (`frontend/dist`) | Cloudflare Pages, on https://jechel.dev | `wrangler pages deploy` in `deploy.yml` |
+| `/api/*` on the site | A Pages Function (`frontend/functions/api/[[path]].ts`) | Deployed with the site. Forwards to the API |
+| API | Railway, built from `backend/Dockerfile` (`railway.json`) | `railway up` in `deploy.yml` |
+| Database | Railway PostgreSQL | Migrations run when the API starts (`appsettings.Production.json`) |
+
+**Branches.** Work happens on `develop`. `main` is production: whatever is on `main` is live. `main` only changes
+through pull requests whose **Backend** and **Frontend** checks passed (a GitHub ruleset), and every change to it runs
+`.github/workflows/deploy.yml`: the API first, then the site.
+
+**Deploying:** the launcher's **Deploy to production** (only on `develop`, with everything committed), or
+`scripts/deploy.sh`. It pushes `develop`, opens the pull request `develop → main` (or reuses the open one) with
+auto-merge on, and waits for the tests; when they pass, GitHub merges and deploys. Needs the GitHub CLI:
+`brew install gh && gh auth login`.
+
+**One origin.** The browser only talks to https://jechel.dev. The Pages Function forwards `/api/*` to Railway with
+three headers: `X-Proxy-Secret` (shared with the API as `Proxy:Secret`), `X-Site-Host` and `X-Client-IP`. With a
+secret set, the API answers 404 to anything without it (except `/api/health`, Railway's health check), and takes
+the host (Google's callback URL) and the visitor's IP (rate limits, analytics) from the proxy (`ProxyHeaders.cs`).
+So the auth cookie stays first-party and there's no CORS, as with the Vite proxy locally.
+
+**Data Protection keys** (they encrypt the sign-in cookie and the secrets saved in Settings) are kept in the
+database (`data_protection_keys`), so they survive redeploys.
+
+### Settings in production
+
+Railway, on the API service (`__` separates sections):
+
+| Variable | Value |
+| -------- | ----- |
+| `ConnectionStrings__Default` | `Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}}` |
+| `Proxy__Secret` | A long random string (`openssl rand -hex 32`), the same as the Pages project's `PROXY_SECRET` |
+| `Authentication__Google__ClientId` / `__ClientSecret` | The Google OAuth client. Its redirect URI: `https://jechel.dev/api/auth/signin-google` |
+| `Auth__AdminEmails__0` | Your Google email |
+| Anything else from [Configuration](#configuration) | Or set it in the Settings tab |
+
+Cloudflare Pages project (Settings → Variables and secrets, Production): `API_ORIGIN` (the API's Railway address,
+e.g. `https://api-production-1234.up.railway.app`) and `PROXY_SECRET` (secret).
+
+GitHub (Settings → Secrets and variables → Actions): secrets `RAILWAY_TOKEN` (a Railway project token for the
+production environment), `CLOUDFLARE_API_TOKEN` (permission: Cloudflare Pages, Edit), `CLOUDFLARE_ACCOUNT_ID`;
+variables `RAILWAY_SERVICE` (the API service's name) and `CLOUDFLARE_PAGES_PROJECT`.
+
+**Try the production build locally:** `docker build -f backend/Dockerfile -t jechel-api .` from the repo root, then
+`npx wrangler pages dev dist --binding API_ORIGIN=… --binding PROXY_SECRET=…` in `frontend` after `npm run build`.
 
 ## Conventions
 
-- Git: `develop` is the main branch. Work happens on `feature/*` / `chore/*` branches, merged into `develop`.
+- Git: work happens on `develop` (or `feature/*` / `chore/*` branches merged into it). `main` is production and only takes pull requests from `develop` that passed CI (see Deployment).
 - Backend: all routes under `/api`; minimal APIs grouped per feature (`Features/<Feature>/<Feature>Endpoints.cs` with a `Map<Feature>Endpoints` extension). Handlers are public static methods with typed results (`Results<Ok<T>, NotFound>`), so unit tests can call them directly.
 - Frontend: all HTTP goes through the `api` object in `src/services/api.ts`, called from RTK Query endpoints (`src/store/api/`); views are MVVM (`X.tsx` + `X.viewModel.ts`, see State and caching); auth-dependent UI uses `useAuth()` (in view models) / `<SignedIn>` / `<SignedOut>` from `src/auth`. Routes are declared in `src/App/App.tsx` (React Router), with one folder per page in `src/pages/` (`X/X.tsx` + `X/X.viewModel.ts`).
 
