@@ -191,6 +191,7 @@ api.MapTermsEndpoints();
 api.MapAnalyticsEndpoints();
 api.MapSupportEndpoints();
 api.MapUpdatesEndpoints();
+api.MapUpdateEmailsEndpoints();
 api.MapResumeEndpoints();
 api.MapSettingsEndpoints();
 api.MapMeetingsEndpoints();

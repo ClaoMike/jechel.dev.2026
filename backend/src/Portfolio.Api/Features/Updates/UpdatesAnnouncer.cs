@@ -33,8 +33,6 @@ public class UpdatesAnnouncer(
     /// <summary>Between two emails, to stay under the email service's rate limit.</summary>
     public static TimeSpan DelayBetweenEmails { get; set; } = TimeSpan.FromMilliseconds(600);
 
-    private record Item(string Title, string Summary, string Url, string? ImageUrl);
-
     /// <summary>Returns how many items were emailed.</summary>
     public async Task<int> AnnounceNewAsync(CancellationToken cancellationToken)
     {
@@ -72,6 +70,7 @@ public class UpdatesAnnouncer(
             .Select(s => new { s.Email, s.Token })
             .ToListAsync(cancellationToken);
 
+        var wording = await UpdateEmailsEndpoints.LoadAsync(db, cancellationToken);
         var sent = 0;
         foreach (var announcement in approved)
         {
@@ -93,7 +92,7 @@ public class UpdatesAnnouncer(
                 var unsubscribe = site.Value.UrlFor($"/updates/unsubscribe?token={subscriber.Token}");
                 try
                 {
-                    await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item.Title, item.Summary, item.Url, item.ImageUrl, unsubscribe), cancellationToken);
+                    await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item, unsubscribe, wording, site.Value), cancellationToken);
                     announcement.RecipientCount++;
                 }
                 catch (Exception e) when (!cancellationToken.IsCancellationRequested)
@@ -140,24 +139,30 @@ public class UpdatesAnnouncer(
     }
 
     /// <summary>What the email shows, read now (an app may have been edited since); null when it's gone, or its page is hidden.</summary>
-    private async Task<Item?> ItemAsync(Announcement announcement, Site.SiteStatus visible, CancellationToken cancellationToken)
+    private async Task<UpdateItem?> ItemAsync(Announcement announcement, Site.SiteStatus visible, CancellationToken cancellationToken)
     {
         if (announcement.Kind == AppKind)
         {
             if (!visible.Pages["apps"] || !int.TryParse(announcement.ItemKey, out var id)) return null;
             var app = await db.Apps.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
-            if (app is null) return null;
-
-            var media = JsonSerializer.Deserialize<AppMedia[]>(app.Media, JsonSerializerOptions.Web) ?? [];
-            var image = media.FirstOrDefault(m => m.Kind == AppMediaKinds.Image)?.Url;
-            // The Apps page: it always lists the app (What's new? may be hidden, or showing something newer by then).
-            return new Item(app.Title, UpdateEmails.Summary(app.Description), site.Value.UrlFor("/apps"), Absolute(image));
+            return app is null ? null : AppItem(app, site.Value);
         }
 
         if (!visible.Pages["youtube"]) return null;
         var video = (await VideosAsync(cancellationToken)).FirstOrDefault(v => v.Id == announcement.ItemKey);
-        return video is null ? null : new Item(video.Title, UpdateEmails.Summary(video.Description), video.Url, video.ThumbnailUrl);
+        return video is null ? null : VideoItem(video);
     }
+
+    /// <summary>An app as its email shows it: its first picture, and a button to the Apps page.</summary>
+    public static UpdateItem AppItem(AppEntry app, SiteOptions site)
+    {
+        var media = JsonSerializer.Deserialize<AppMedia[]>(app.Media, JsonSerializerOptions.Web) ?? [];
+        var image = media.FirstOrDefault(m => m.Kind == AppMediaKinds.Image)?.Url;
+        // The Apps page: it always lists the app (What's new? may be hidden, or showing something newer by then).
+        return new UpdateItem(app.Title, UpdateEmails.Summary(app.Description), site.UrlFor("/apps"), Absolute(image, site));
+    }
+
+    public static UpdateItem VideoItem(YouTubeVideo video) => new(video.Title, UpdateEmails.Summary(video.Description), video.Url, video.ThumbnailUrl);
 
     private async Task<IReadOnlyList<YouTubeVideo>> VideosAsync(CancellationToken cancellationToken)
     {
@@ -165,10 +170,10 @@ public class UpdatesAnnouncer(
         return await videoStore.GetAsync(cancellationToken) ?? [];
     }
 
-    private string? Absolute(string? url) => url switch
+    private static string? Absolute(string? url, SiteOptions site) => url switch
     {
         null or "" => null,
-        _ when url.StartsWith('/') => site.Value.UrlFor(url),
+        _ when url.StartsWith('/') => site.UrlFor(url),
         _ => url,
     };
 }

@@ -93,6 +93,34 @@ public class EmailSendingTests
     }
 
     [Fact]
+    public async Task Emails_to_subscribers_go_out_from_the_updates_sender_and_the_rest_from_the_main_one()
+    {
+        var options = new EmailOptions { ResendApiKey = "re_key", From = "Claudiu <hello@jechel.dev>", UpdatesFrom = " jechel.dev <updates@jechel.dev> " };
+        var update = new FakeResend();
+        var reply = new FakeResend();
+        ResendEmailSender Sender(FakeResend api) => new(new HttpClient(api) { BaseAddress = ResendEmailSender.BaseAddress }, TestOptions.Monitor(options));
+
+        await Sender(update).SendAsync(Update with { FromUpdates = true }, default);
+        await Sender(reply).SendAsync(new EmailMessage("ada@example.com", "Re: your message", "<p>H</p>", "T", ReplyTo: "admin@example.com"), default);
+
+        Assert.Equal("jechel.dev <updates@jechel.dev>", (string?)update.Body!["from"]);
+        Assert.Null(update.Body["reply_to"]);
+        Assert.Equal("Claudiu <hello@jechel.dev>", (string?)reply.Body!["from"]);
+        Assert.Equal("admin@example.com", (string?)reply.Body["reply_to"]);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Without_an_updates_sender_subscribers_get_emails_from_the_main_one(string updatesFrom)
+    {
+        var options = new EmailOptions { From = "jechel.dev <updates@jechel.dev>", UpdatesFrom = updatesFrom };
+
+        Assert.Equal("jechel.dev <updates@jechel.dev>", options.SenderOf(Update with { FromUpdates = true }));
+        Assert.Equal("", new EmailOptions().UpdatesFrom);
+    }
+
+    [Fact]
     public void Defaults_to_Resends_own_sender_until_a_domain_is_verified() =>
         Assert.Equal("jechel.dev <onboarding@resend.dev>", new EmailOptions().From);
 

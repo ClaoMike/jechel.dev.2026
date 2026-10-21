@@ -4,6 +4,7 @@ import { THEMES } from '../../layout/theme'
 import { api, ApiError, type Announcement, type Donation, type Page, type Subscriber } from '../../services/api'
 import { a11yViolations } from '../../test/a11y'
 import { ADMIN, forever, renderView, textOf } from '../../test/render'
+import { DEFAULT_EMAILS, previewOf } from '../../test/fixtures/updateEmails'
 import { formatDate, formatDateTime } from '../../utils/formatDate'
 import { CommunityPage } from './CommunityPage'
 
@@ -35,6 +36,8 @@ function stub() {
     announcements: vi.spyOn(api.updates, 'listAnnouncements').mockResolvedValue(pageOf(ANNOUNCEMENTS)),
     decide: vi.spyOn(api.updates, 'decide').mockResolvedValue('approved'),
     donations: vi.spyOn(api.support, 'listDonations').mockResolvedValue(pageOf(DONATIONS)),
+    emails: vi.spyOn(api.updates, 'getEmails').mockResolvedValue(structuredClone(DEFAULT_EMAILS)),
+    preview: vi.spyOn(api.updates, 'previewEmail').mockImplementation(async (kind, wording) => previewOf(kind, wording)),
   }
 }
 
@@ -121,7 +124,12 @@ describe('Community: update emails', () => {
     await item('Space Game').getByRole('button', { name: 'Send email' }).click()
     await expect.poll(() => api.decide.mock.calls).toEqual([[10, 'send']])
     await item('Space Game').getByRole('button', { name: 'Ignore' }).click()
-    await expect.poll(() => api.decide.mock.calls).toEqual([[10, 'send'], [10, 'ignore']])
+    await expect
+      .poll(() => api.decide.mock.calls)
+      .toEqual([
+        [10, 'send'],
+        [10, 'ignore'],
+      ])
     await expect.poll(() => api.announcements.mock.calls.length).toBeGreaterThan(1)
   })
 
@@ -184,8 +192,16 @@ describe('Community: loading, visitors, accessibility', () => {
     api.subscribers.mockReturnValue(forever())
     api.announcements.mockReturnValue(forever())
     api.donations.mockReturnValue(forever())
+    api.emails.mockReturnValue(forever())
     await show()
-    await expect.poll(() => page.getByRole('status').all().map((s) => textOf(s))).toEqual(['Loading subscribers…', 'Loading the update emails…', 'Loading coffees…'])
+    await expect
+      .poll(() =>
+        page
+          .getByRole('status')
+          .all()
+          .map((s) => textOf(s)),
+      )
+      .toEqual(['Loading subscribers…', 'Loading the update emails…', "Loading the emails' wording…", 'Loading coffees…'])
   })
 
   it('sends visitors who open it home', async () => {

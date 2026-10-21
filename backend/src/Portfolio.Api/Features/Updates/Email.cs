@@ -8,7 +8,8 @@ namespace Portfolio.Api.Features.Updates;
 
 /// <param name="UnsubscribeUrl">Sent as List-Unsubscribe (one click, RFC 8058), which Gmail and Yahoo require for bulk mail. Optional.</param>
 /// <param name="ReplyTo">Where answers go, e.g. the admin's own address for a reply to a contact message. Optional.</param>
-public record EmailMessage(string To, string Subject, string Html, string Text, string? UnsubscribeUrl = null, string? ReplyTo = null);
+/// <param name="FromUpdates">An email to subscribers: sent from <see cref="EmailOptions.UpdatesFrom"/> (when set), an address that takes no replies.</param>
+public record EmailMessage(string To, string Subject, string Html, string Text, string? UnsubscribeUrl = null, string? ReplyTo = null, bool FromUpdates = false);
 
 public interface IEmailSender
 {
@@ -30,6 +31,15 @@ public class EmailOptions
     /// </summary>
     public string From { get; set; } = "jechel.dev <onboarding@resend.dev>";
 
+    /// <summary>
+    /// The sender of the emails to subscribers (confirmations and updates), e.g. "jechel.dev &lt;updates@jechel.dev&gt;":
+    /// an address with no mailbox, so replies go nowhere, while <see cref="From"/> can be one people answer. Empty: <see cref="From"/>.
+    /// </summary>
+    public string UpdatesFrom { get; set; } = "";
+
+    /// <summary>Who <paramref name="message"/> is from.</summary>
+    public string SenderOf(EmailMessage message) => message.FromUpdates && UpdatesFrom.Trim() is { Length: > 0 } updates ? updates : From;
+
     public bool IsConfigured => ResendApiKey.Trim().Length > 0;
 }
 
@@ -42,7 +52,7 @@ public class ResendEmailSender(HttpClient http, IOptionsMonitor<EmailOptions> op
     {
         var body = new Dictionary<string, object>
         {
-            ["from"] = options.CurrentValue.From,
+            ["from"] = options.CurrentValue.SenderOf(message),
             ["to"] = new[] { message.To },
             ["subject"] = message.Subject,
             ["html"] = message.Html,

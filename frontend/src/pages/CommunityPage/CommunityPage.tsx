@@ -3,12 +3,13 @@ import { DeleteButton } from '../../components/DeleteButton/DeleteButton'
 import { ErrorState } from '../../components/ErrorState/ErrorState'
 import { Loading, SkeletonList, SkeletonTable } from '../../components/Skeleton'
 import { Pagination } from '../../components/Pagination'
+import { UpdateEmailsEditor } from '../../features/updates/UpdateEmailsEditor/UpdateEmailsEditor'
 import { formatDate, formatDateTime } from '../../utils/formatDate'
 import { useAnnouncementsViewModel, useDonationsViewModel, useSubscribersViewModel } from './CommunityPage.viewModel'
 
 /**
  * The people around the site (an admin-only tab): who subscribed to email updates, the update emails
- * (new apps wait here to be sent or ignored), and coffees from Buy Me a Coffee. Visitors who open the URL go home.
+ * (new apps wait here to be sent or ignored), the words those emails say, and coffees from Buy Me a Coffee. Visitors who open the URL go home.
  */
 export function CommunityPage() {
   return (
@@ -17,6 +18,7 @@ export function CommunityPage() {
         <h2 className="visually-hidden">Community</h2>
         <Subscribers />
         <Announcements />
+        <UpdateEmailsEditor />
         <Donations />
       </div>
     </AdminOnly>
@@ -86,8 +88,8 @@ function Announcements() {
     <section className="card community-card" aria-labelledby="announcements-title">
       <h3 id="announcements-title">Update emails</h3>
       <p className="muted">
-        A new app waits for you: send or ignore it here, or from the alert on your phone. New videos are emailed by themselves. Only what visitors can see goes out:
-        nothing while Get updates is off, no apps while Apps is hidden, no videos while YouTube is (Settings → Visitor pages).
+        A new app waits for you: send or ignore it here, or from the alert on your phone. New videos are emailed by themselves. Only what visitors can see goes out: nothing while
+        Get updates is off, no apps while Apps is hidden, no videos while YouTube is (Settings → Visitor pages).
       </p>
       {state.status === 'loading' && (
         <Loading label="Loading the update emails…">

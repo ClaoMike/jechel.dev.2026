@@ -46,10 +46,7 @@ function Settings() {
         ))}
       </Loading>
     )
-  if (state.status === 'error')
-    return (
-      <ErrorState message="The settings couldn't be loaded." onRetry={vm.retry} />
-    )
+  if (state.status === 'error') return <ErrorState message="The settings couldn't be loaded." onRetry={vm.retry} />
 
   const { data } = state
   const field = (key: string, extra?: Omit<FieldProps, 'setting'>) => <SettingField setting={setting(key)} {...extra} />
@@ -57,8 +54,8 @@ function Settings() {
   return (
     <div className="settings">
       <p className="muted">
-        The services this site connects to. Keys saved here are stored encrypted, apply at once and replace the server's configuration; a secret is never shown again, only
-        its last 4 characters.
+        The services this site connects to. Keys saved here are stored encrypted, apply at once and replace the server's configuration; a secret is never shown again, only its last
+        4 characters.
       </p>
 
       <ServiceCard
@@ -76,7 +73,9 @@ function Settings() {
             In the dashboard, open <strong>Integrations → Webhooks</strong> and add this link for donations:
             <Copyable value={`${data.siteUrl}/api/support/buymeacoffee`} />
           </li>
-          <li>Copy the webhook's secret into the field below, save, then press its <strong>Send test</strong>: a coffee should land in the Community tab and on your phone.</li>
+          <li>
+            Copy the webhook's secret into the field below, save, then press its <strong>Send test</strong>: a coffee should land in the Community tab and on your phone.
+          </li>
         </Steps>
         {field('Support:BuyMeACoffeeWebhookSecret')}
       </ServiceCard>
@@ -89,7 +88,13 @@ function Settings() {
       >
         <dl className="settings-facts">
           <dt>Status</dt>
-          <dd>{data.google.isConfigured ? <span className="chip">Set up{data.google.clientIdHint ? ` · client ${data.google.clientIdHint}` : ''}</span> : <span className="chip chip-muted">Not set up</span>}</dd>
+          <dd>
+            {data.google.isConfigured ? (
+              <span className="chip">Set up{data.google.clientIdHint ? ` · client ${data.google.clientIdHint}` : ''}</span>
+            ) : (
+              <span className="chip chip-muted">Not set up</span>
+            )}
+          </dd>
           <dt>Admins</dt>
           <dd>{data.google.adminEmailCount === 1 ? '1 email allowed' : `${data.google.adminEmailCount} emails allowed`}</dd>
           <dt>Redirect URI to register</dt>
@@ -126,8 +131,8 @@ function Settings() {
       >
         <Steps>
           <li>
-            In <strong>Event types</strong>, make one (e.g. 30 minutes), set your availability, and under <strong>Advanced</strong> turn on <strong>Requires confirmation</strong>, so you
-            accept each request. Paste its link below.
+            In <strong>Event types</strong>, make one (e.g. 30 minutes), set your availability, and under <strong>Advanced</strong> turn on <strong>Requires confirmation</strong>,
+            so you accept each request. Paste its link below.
           </li>
           <li>
             In <strong>Webhooks</strong>, add this link, with a secret of your choice, for Booking requested, created, rescheduled, cancelled and rejected:
@@ -145,7 +150,7 @@ function Settings() {
       <ServiceCard
         title="Resend (email)"
         status={status('Email:ResendApiKey', 'Email:From')}
-        what="Confirmation emails for subscribers, and the emails about new apps and videos."
+        what="Confirmation emails for subscribers, the emails about new apps and videos (their wording is in the Community tab), and your replies to messages."
         links={[
           ['API keys', 'https://resend.com/api-keys'],
           ['Domains', 'https://resend.com/domains'],
@@ -153,7 +158,14 @@ function Settings() {
         test={{ service: 'email', label: 'Send me a test email' }}
       >
         {field('Email:ResendApiKey')}
-        {field('Email:From', { placeholder: 'jechel.dev <updates@jechel.dev>', hint: "Its domain must be verified in Resend (Domains). Until then Resend only sends from onboarding@resend.dev, and only to your own address." })}
+        {field('Email:From', {
+          placeholder: 'Claudiu from jechel.dev <hello@jechel.dev>',
+          hint: "Every email's sender, unless one below is set. Its domain must be verified in Resend (Domains); until then Resend only sends from onboarding@resend.dev, and only to your own address.",
+        })}
+        {field('Email:UpdatesFrom', {
+          placeholder: 'jechel.dev <updates@jechel.dev>',
+          hint: "For subscribers: confirmations and updates. Use an address with no mailbox, so replies go nowhere. Your replies to messages keep the sender above, and people's answers come to you.",
+        })}
       </ServiceCard>
 
       <ServiceCard

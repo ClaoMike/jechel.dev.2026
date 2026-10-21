@@ -746,6 +746,26 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("terms_page", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.UpdateEmailsPage", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("update_emails", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.UpdatesState", b =>
                 {
                     b.Property<int>("Id")

@@ -101,6 +101,62 @@ public partial class UpdatesEndpointTests(PortfolioApiFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task The_admin_rewords_the_emails_previews_and_tests_them_and_new_subscribers_get_the_new_words()
+    {
+        var admin = await SignedInClientAsync();
+        var defaults = (await admin.GetFromJsonAsync<UpdateEmailsDocument>("/api/updates/emails"))!;
+        Assert.Equal(UpdateEmailDefaults.Wording, defaults.Defaults);
+        var mine = defaults.Defaults with { Confirm = defaults.Defaults.Confirm with { Subject = "One click to jechel.dev updates" } };
+
+        try
+        {
+            var bad = await admin.PutAsJsonAsync("/api/updates/emails", mine with { Video = mine.Video with { Subject = "{name}" } });
+            Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+
+            var saved = await admin.PutAsJsonAsync("/api/updates/emails", mine);
+            Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+            Assert.NotNull((await saved.Content.ReadFromJsonAsync<UpdateEmailsDocument>())!.UpdatedAt);
+
+            var preview = await admin.PostAsJsonAsync("/api/updates/emails/preview", new UpdateEmailPreviewRequest(UpdateEmailKinds.App, mine));
+            Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+            Assert.Contains("jechel</span>", (await preview.Content.ReadFromJsonAsync<UpdateEmailPreview>())!.Html);
+
+            var test = await admin.PostAsJsonAsync("/api/updates/emails/test", new UpdateEmailPreviewRequest(UpdateEmailKinds.Confirm, mine));
+            Assert.True((await test.Content.ReadFromJsonAsync<Portfolio.Api.Features.Settings.TestResult>())!.Ok);
+            Assert.Contains(factory.Emails.To(PortfolioApiFactory.AdminEmail), e => e.Subject == "[Test] One click to jechel.dev updates");
+
+            var address = $"worded-{Guid.NewGuid():N}@example.com";
+            await factory.CreateBrowserClient().PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest(address));
+            var email = Assert.Single(factory.Emails.To(address));
+            Assert.Equal("One click to jechel.dev updates", email.Subject);
+            Assert.True(email.FromUpdates);
+            Assert.Matches(ConfirmLink(), email.Text);
+        }
+        finally
+        {
+            var reset = await admin.DeleteAsync("/api/updates/emails");
+            Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
+        }
+        Assert.Null((await admin.GetFromJsonAsync<UpdateEmailsDocument>("/api/updates/emails"))!.UpdatedAt);
+    }
+
+    [Theory]
+    [InlineData("GET", "/api/updates/emails")]
+    [InlineData("PUT", "/api/updates/emails")]
+    [InlineData("DELETE", "/api/updates/emails")]
+    [InlineData("POST", "/api/updates/emails/preview")]
+    [InlineData("POST", "/api/updates/emails/test")]
+    public async Task Only_the_admin_sees_or_changes_the_emails_wording(string method, string path)
+    {
+        var request = new HttpRequestMessage(new HttpMethod(method), path);
+        if (method is "PUT" or "POST") request.Content = JsonContent.Create(new UpdateEmailPreviewRequest(UpdateEmailKinds.Confirm, UpdateEmailDefaults.Wording));
+
+        var response = await factory.CreateBrowserClient().SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     [GeneratedRegex(@"/updates/confirm\?token=([A-Za-z0-9_-]+)")]
     private static partial Regex ConfirmLink();
 }

@@ -670,9 +670,45 @@ require of bulk senders).
   out: a crash halfway means some miss it, never that anyone gets it twice. At most 3 items per run; 600 ms between emails.
 - **Email service** (`Email.cs`): [Resend](https://resend.com) (free for 3,000 emails a month), while an API key is set (Settings, or
   `Email:ResendApiKey`); otherwise emails are written to the API's log, confirm links included. A sending-only key is enough.
-- **Setting up Resend:** add and verify your domain in Resend (its DNS records for SPF/DKIM), then set the **Sender** in Settings (e.g.
-  `jechel.dev <updates@jechel.dev>`) and press **Send me a test email**. Until then the sender is `jechel.dev <onboarding@resend.dev>`,
-  which Resend only delivers to the Resend account's own address: enough to try subscribing yourself, not for visitors.
+- **Two senders** (Settings → Resend): **Sender** (`Email:From`) for everything, and **Updates sender** (`Email:UpdatesFrom`) for
+  subscribers, the confirmations and the updates. Make the updates sender an address with no mailbox (e.g.
+  `jechel.dev <updates@jechel.dev>`, with Resend's **Receiving** off and no Cloudflare Email Routing rule for it, or a catch-all
+  set to **Drop**): replies to it bounce or vanish, and never reach you. Your replies to contact messages and the meeting notes
+  keep the main sender and set `Reply-To` to your own address, so people's answers to *those* come to you. Without an updates
+  sender, subscribers get emails from the main one.
+- **Setting up Resend:** add and verify your domain in Resend (Domains: a DKIM `TXT` record, two `CNAME`s for sending, set to
+  **DNS only** in Cloudflare, and optionally `_dmarc`), then set the senders in Settings and press **Send me a test email**. Until
+  then the sender is `jechel.dev <onboarding@resend.dev>`, which Resend only delivers to the Resend account's own address.
+- **The wording** (Community → **Emails to subscribers**, `features/updates/UpdateEmailsEditor/`, API in
+  `UpdateEmailsEndpoints.cs`): the subject, text and button of each email (the confirmation, a new video, a new app) and the
+  footer (why they get it; that replies aren't read, with a link to the contact page). Subjects and headings can hold `{title}`;
+  longer texts take paragraphs and `[text](url)` links (http(s), or a path on the site). Beside the fields is a live preview,
+  made by the API with the same code that sends the emails (in a sandboxed frame), about your newest app or video. **Send me a
+  test** emails the draft to you, marked `[Test]`, from the updates sender. Saved as one JSON row (`update_emails`); saving the
+  defaults unchanged deletes it, so improved defaults reach the emails too.
+- **The look** (`UpdateEmails.cs`): a dark header with the site's icon and the name in pink and violet, the sunset stripe, a white
+  card, and a pink-to-violet button. Email apps drop much of CSS (Gmail ignores gradients on text), so it's plain inline styles,
+  every gradient on a solid colour of its own, and a light colour scheme so dark-mode mail apps don't invert it.
+
+```mermaid
+flowchart LR
+  subgraph Admin["You (Community tab)"]
+    edit["Emails to subscribers<br/>subject · text · button · footer"]
+    test["Send me a test"]
+  end
+  edit -- "draft, as you type" --> preview["POST /api/updates/emails/preview"]
+  preview -- "the email's HTML" --> frame["Preview (sandboxed frame)"]
+  edit -- "Save" --> row[("update_emails<br/>one JSON row")]
+  test --> testApi["POST /api/updates/emails/test"] --> resend
+  row --> render["UpdateEmails<br/>wording + jechel.dev look"]
+  subscribe["Visitor: Get updates"] --> render
+  announcer["UpdatesAnnouncer<br/>new app or video"] --> render
+  render -- "FromUpdates" --> resend["Resend<br/>from updates@jechel.dev"]
+  resend --> inbox["Subscriber's inbox"]
+  inbox -. "reply" .-> nowhere["updates@ has no mailbox:<br/>bounced or dropped"]
+  replies["Your reply to a message"] -- "from the main sender,<br/>Reply-To: you" --> resend2["Resend"] --> them["Visitor"] -. "reply" .-> you["Your inbox"]
+```
+
 - **Privacy:** the default terms say what's stored (the address, its code, when it was confirmed) and that unsubscribing deletes it.
 
 ## Résumé generator

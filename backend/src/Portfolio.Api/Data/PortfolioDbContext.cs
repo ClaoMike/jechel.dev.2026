@@ -25,6 +25,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<Subscriber> Subscribers => Set<Subscriber>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<UpdatesState> UpdatesStates => Set<UpdatesState>();
+    public DbSet<UpdateEmailsPage> UpdateEmailsPages => Set<UpdateEmailsPage>();
     public DbSet<ResumeSettings> ResumeSettings => Set<ResumeSettings>();
     public DbSet<SiteSetting> SiteSettings => Set<SiteSetting>();
     public DbSet<Meeting> Meetings => Set<Meeting>();
@@ -268,6 +269,15 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.HasKey(s => s.Id);
             entity.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(s => s.AnnounceAfter).HasColumnName("announce_after");
+        });
+
+        modelBuilder.Entity<UpdateEmailsPage>(entity =>
+        {
+            entity.ToTable("update_emails");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(p => p.Content).HasColumnName("content").HasColumnType("jsonb").IsRequired();
+            entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         });
 
         modelBuilder.Entity<ResumeSettings>(entity =>
