@@ -119,7 +119,7 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/contact/messages/{id}` | cookie | One message `{ id, name, email, message, receivedAt, readAt }`, or **404**. Doesn't mark it read |
 | POST   | `/api/contact/messages/{id}/read` | cookie | Marks it read (keeps the first read time): **204**, or **404** |
 | GET    | `/api/about`                | public  | The About Me page (photo, links, skills, experience, education, papers, qualifications); placeholders until the first save |
-| PUT    | `/api/about`                | cookie  | Replaces the whole page: **200** with it as stored (trimmed, experience/education sorted newest first), or **400** with field errors keyed by path (`experience[0].title`) |
+| PUT    | `/api/about`                | cookie  | Replaces the whole page: **200** with it as stored (trimmed, lists in the order sent), or **400** with field errors keyed by path (`experience[0].title`) |
 | GET    | `/api/terms`                | public  | The terms and conditions `{ title, intro, sections: [{ heading, blocks: [{ kind: paragraph\|bullets, text, items }] }], updatedAt }`; defaults with `updatedAt: null` until the first save |
 | PUT    | `/api/terms`                | cookie  | Replaces the terms: **200** with them as stored (trimmed, new `updatedAt`), or **400** with field errors keyed by path (`sections[0].blocks[1].items[2]`) |
 | POST   | `/api/analytics/events`     | public  | A batch of a visit's events `{ sessionId, session, events }`: always **204** (the admin, bots and repeats aren't stored), **400** without `sessionId` |
@@ -140,6 +140,7 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | POST   | `/api/updates/announcements/{id}/ignore?token=` | cookie or token | Ignores a pending one |
 | GET    | `/api/resume?inline=`       | public  | The last generated résumé **without** the phone number (PDF), or **404** |
 | GET    | `/api/resume/private?inline=` | cookie | The same **with** the phone number |
+| GET    | `/api/resume/headline`      | public  | `{ headline }`: shown under the name on About Me (`""` until set); never the phone or email. `no-cache` |
 | GET    | `/api/resume/settings`      | cookie  | `{ phone, email, headline, sections, excludedSkills, generatedAt }` |
 | PUT    | `/api/resume/contact`       | cookie  | `{ phone, email, headline }` (edited with About Me's profile): **200**, or **400** with field errors |
 | PUT    | `/api/resume/choices`       | cookie  | `{ sections, excludedSkills }` without generating: **200**, or **400** |
@@ -523,8 +524,8 @@ drag is swallowed). On phones the bar still scrolls sideways when dragged anywhe
 
 - The page is **one JSON document** (`AboutContent`), stored in the `about_page` table (`jsonb`, one row). It's always read and saved whole, so changing its shape means changing `AboutContent.cs` and the matching types in `api.ts`, with no new migration. Until the first save, `GET` returns `AboutDefaults` (placeholders).
 - **Sections:**
-  - **Photo and links:** an uploaded photo (or a placeholder icon) on top, then citizenship and residence labels (`statuses`: text and a flag each, e.g. 🇬🇧 "UK Settled Status"; the editor guesses the flag from the words; with none, only the admin sees a hint where they go), then the generated résumé (download button, see [Résumé generator](#résumé-generator)) and GitHub, LeetCode (when a username is set under Problem solving), LinkedIn and Instagram in their brand colours. An empty link is hidden.
-  - **Where I've been:** a dotted world map with a pin per city. Each city is marked *worked*, *studied* and/or *visited*, each with an optional note. A pin with several marks is split into equal slices, one colour each. Hovering, focusing or tapping a pin shows its notes. Zoom with the buttons, a pinch, or Ctrl/⌘ + scroll; drag to move.
+  - **Photo and links:** an uploaded photo (or a placeholder icon) on top, the name with the résumé's **headline** under it (for everyone; edited with the profile, see [Résumé generator](#résumé-generator)), then citizenship and residence labels (`statuses`: text and a flag each, e.g. 🇬🇧 "UK Settled Status"; the editor guesses the flag from the words; with none, only the admin sees a hint where they go), then the generated résumé (download button, see [Résumé generator](#résumé-generator)) and GitHub, LeetCode (when a username is set under Problem solving), LinkedIn and Instagram in their brand colours. An empty link is hidden. The admin also sees an **Only you see this** box with the résumé's email and phone, each after a copy-to-clipboard button.
+  - **Where I've been:** a dotted world map with a pin per city. Each city is marked *worked*, *studied* and/or *visited*, each with an optional note. A pin with several marks is split into equal slices, one colour each. Hovering, focusing or tapping a pin shows its notes. Zoom with the buttons, a pinch, or Ctrl/⌘ + scroll; drag to move. In the editor, the places are also listed alphabetically under the map (`compareLabels`: case and accents don't matter, so "Århus" comes before "bath"); they're saved, and pinned, in the order they were added.
   - **Problem solving:** LeetCode stats (solved problems, split into Easy, Medium and Hard, out of all on LeetCode) for the username the admin sets (pasting the profile link works too), and the NeetCode lists completed (Blind 75, NeetCode 150, NeetCode 250), switched on and off like licences and shown as labels. NeetCode has no public API, so those are ticked by hand.
   - **Skills:** a timeline. In the editor each skill is folded to a row (name, experience, move and remove buttons) until clicked open; a skill with an error opens by itself. Each skill has periods, each used for *work*, *academic* and/or *personal* (several split the bar into bands). The years of experience are worked out from the periods, counting overlaps once. A skill without periods is listed without a bar. **Sort by experience** orders them by total time (applies on Save, like the sort below).
   - **Work experience:** title, company, optional location, start month (may be in the future), an end month or *ongoing*, and bullet points.
@@ -542,6 +543,41 @@ drag is swallowed). On phones the bar still scrolls sideways when dragged anywhe
 - **Older pages:** `AboutJson.cs` upgrades a page saved in an older shape when it's read (0–100 skill levels are dropped, qualifications as plain text get no date, a company or institution website becomes a link in its name), so changing the shape needs no data migration. Whatever it produces must pass `AboutRules`, or no section could be saved.
 - **Links** must be `http(s)://…` or a path on this site (`/resume.pdf`), checked by the API and again before rendering, so a stored value can never become a `javascript:` link.
 - Dates are months, stored as the 1st (`2023-01-01`). The month picker is a select plus a year box, because desktop Safari and Firefox don't support `<input type="month">`.
+
+How About Me is put together, and who sees what:
+
+```
+                         ┌─────────────────────────── About Me (/about) ───────────────────────────┐
+  GET /api/about ───────►│ one JSON page (about_page): photo, labels, links, places, skills, …      │
+  (public)               │                                                                          │
+  GET /api/resume/ ─────►│ Claudiu Mihai Jechel                                                     │
+    headline (public)    │ Full-stack engineer · …      ◄── the headline: everyone                  │
+                         │ labels · Download résumé · GitHub · LeetCode · LinkedIn                  │
+  GET /api/resume/ ─────►│ ┌ Only you see this: ┐                                                   │
+    settings (admin)     │ │ [⧉] email          │       ◄── admin only, each with a copy button     │
+                         │ │ [⧉] phone          │                                                   │
+                         │ └────────────────────┘                                                   │
+  GET /api/leetcode ────►│ Problem solving (cached: memory 24 h → leetcode_stats → leetcode.com)    │
+  (public)               │ Where I've been · Skills · Experience · Education · Papers · …           │
+                         └──────────────────────────────────────────────────────────────────────────┘
+
+  Admin: Edit a section ──► its form (a draft) ──► Save
+        │                                            │
+        │  Photo and links: PUT /api/resume/contact (phone, email, headline; table resume)
+        │                   then PUT /api/about ─────┤  the headline under the name changes at once
+        │  any other section: PUT /api/about ────────┤  (the whole page, that section changed)
+        │                                            ▼
+        │                        AboutRules: 400 + errors by path ("places[1].name") shown on the
+        │                        fields, or 200 + the page as stored, which every view then shows
+        │
+        │  Where I've been: city search (GET /api/places/search, admin; cities.tsv.gz)
+        │     pick ─► popup (worked / studied / visited + notes) ─► map + list (A→Z)
+        │     a place removed from the list leaves the open popup on its own place
+        │
+        └► Résumé generator: POST /api/resume/generate ─► public PDF (no phone) at /api/resume
+                                                          private PDF (phone) at /api/resume/private
+                                                          "Download résumé" ─► /api/resume?v=<time>
+```
 
 **Uploaded files** (`backend/.../Features/Files/`):
 
@@ -620,8 +656,10 @@ require of bulk senders).
 Signed in, About Me starts with a **Résumé generator** panel (`features/resume/ResumePanel/ResumePanel.tsx`), which visitors never see. The
 résumé is the only one the site offers: there's no upload any more.
 
-- **The header** (headline, email, **phone**) is edited with **Photo and links**, in a "For the résumé (only you see these)" group,
-  and shown to the admin under the links. It's saved on its own (`PUT /api/resume/contact`), never in the About Me JSON.
+- **The header** (headline, email, **phone**) is edited with **Photo and links**, in a "For the résumé" group. It's saved on its
+  own (`PUT /api/resume/contact`), never in the About Me JSON. The **headline** is public: About Me shows it under the name
+  (`GET /api/resume/headline`, which returns nothing else), and a save shows the new one at once (the store takes it from the
+  save's answer). The **email and phone** are only shown to the admin, under the links, each with a copy button.
 - **The panel** chooses the **sections** (ticked by default: citizenship, links, experience, skills, education, qualifications,
   papers, hackathons, languages; not ticked: problem solving, licences, places) and the **skills** (all until unticked; stored as
   the ones left out, so new skills are in). Sections print in a fixed order recruiters expect.

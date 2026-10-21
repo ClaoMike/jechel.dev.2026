@@ -20,7 +20,7 @@ export const RESUME_SECTIONS = [
 
 export type ResumeSection = (typeof RESUME_SECTIONS)[number]
 
-/** The résumé's contact details: edited with the About Me profile, but never on the public page. */
+/** The résumé's contact details, edited with the About Me profile. Only the headline is public (under the name). */
 export interface ResumeContact {
   /** Private: only in the admin's copy. */
   phone: string
@@ -47,6 +47,12 @@ export const resumeEndpoints = {
 
   /** Admin only: the same résumé with the phone number. */
   privateUrl: `${API_BASE_URL}/api/resume/private`,
+
+  /** Public: the headline under the name on About Me ("" until set). */
+  async getHeadline(signal?: AbortSignal): Promise<string> {
+    const { headline } = await get<{ headline: string }>('/api/resume/headline', { signal })
+    return headline
+  },
 
   /** Admin only. */
   getSettings(signal?: AbortSignal): Promise<ResumeSettingsDetails> {

@@ -27,10 +27,13 @@ public static class ResumeSections
         [Statuses, Links, Experience, Skills, Education, Qualifications, Papers, Hackathons, Languages];
 }
 
-/// <summary>The résumé's contact details, edited with the About Me profile but never part of the public page.</summary>
+/// <summary>The résumé's contact details, edited with the About Me profile. Only the headline is public (under the name on About Me).</summary>
 /// <param name="Phone">Private: only in the admin's copy.</param>
 /// <param name="Headline">Under the name, e.g. "Full-stack engineer · .NET, React, PostgreSQL".</param>
 public record ResumeContact(string? Phone, string? Email, string? Headline);
+
+/// <summary>The public part of <see cref="ResumeContact"/>.</summary>
+public record ResumeHeadline(string Headline);
 
 /// <summary>What the generator puts in.</summary>
 /// <param name="Sections">Ids from <see cref="ResumeSections.All"/>; printed in that order, whatever the order here.</param>

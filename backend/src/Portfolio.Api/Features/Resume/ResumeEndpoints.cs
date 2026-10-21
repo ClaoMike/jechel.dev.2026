@@ -26,6 +26,7 @@ public static class ResumeEndpoints
         var resume = app.MapGroup("/resume");
 
         resume.MapGet("/", GetPublicPdf).WithName("GetResume");
+        resume.MapGet("/headline", GetHeadline).WithName("GetResumeHeadline");
 
         resume.MapGet("/private", GetPrivatePdf).WithName("GetPrivateResume").RequireAuthorization();
         resume.MapGet("/settings", GetSettings).WithName("GetResumeSettings").RequireAuthorization();
@@ -51,6 +52,19 @@ public static class ResumeEndpoints
         return Pdf(http, row.PublicPdf!, inline, row.GeneratedAt);
     }
 
+    /// <summary>Public. The headline shown under the name on About Me ("" until the admin sets one); the phone and email stay private.</summary>
+    public static async Task<Ok<ResumeHeadline>> GetHeadline(PortfolioDbContext db, HttpContext http, CancellationToken cancellationToken)
+    {
+        var headline = await db.ResumeSettings.AsNoTracking()
+            .Where(r => r.Id == ResumeSettings.SingletonId)
+            .Select(r => r.Headline)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // The admin's edit shows at once for them (the app updates it); browsers revalidate every time.
+        http.Response.Headers.CacheControl = "no-cache";
+        return TypedResults.Ok(new ResumeHeadline(headline ?? ""));
+    }
+
     /// <summary>Admin only. The same résumé with the phone number.</summary>
     public static async Task<Results<FileContentHttpResult, NotFound>> GetPrivatePdf(PortfolioDbContext db, HttpContext http, CancellationToken cancellationToken, bool inline = false)
     {
@@ -72,7 +86,7 @@ public static class ResumeEndpoints
         return TypedResults.Ok(ToDto(row));
     }
 
-    /// <summary>Admin only. The phone, email and headline (edited with the About Me profile; never on the public page).</summary>
+    /// <summary>Admin only. The phone, email and headline (edited with the About Me profile; only the headline is shown publicly).</summary>
     public static async Task<Results<Ok<ResumeSettingsDto>, ValidationProblem>> SaveContact(
         ResumeContact request,
         PortfolioDbContext db,

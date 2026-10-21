@@ -4,7 +4,7 @@ export interface Profile {
   photoUrl: string
   statuses: Status[]
   links: AboutLinks
-  /** The résumé's phone, email and headline: only the signed-in admin has them, and they're never on the public page. */
+  /** The résumé's phone, email and headline: only the signed-in admin has them. Of these, only the headline is public (shown under the name). */
   contact?: ResumeContact
 }
 

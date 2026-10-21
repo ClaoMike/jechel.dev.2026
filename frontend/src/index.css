@@ -1245,12 +1245,24 @@ button.media-card {
   text-align: center;
 }
 
+.profile-heading {
+  display: grid;
+  gap: 4px;
+}
+
 .profile-name {
   margin: 0;
   font-size: 24px;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.01em;
+}
+
+.profile-headline {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.4;
 }
 
 .profile-photo {
@@ -3500,11 +3512,28 @@ button.media-card {
   border-radius: 10px;
   color: var(--text-muted);
   font-size: 14px;
+  text-align: left;
 }
 
-.profile-private svg {
+.profile-private > svg {
   flex: none;
   margin-top: 2px;
+}
+
+.profile-private-list {
+  display: grid;
+  gap: 2px;
+  /* The copy icons line up with the text above (the buttons are wider than their icons). */
+  margin: 4px 0 0 -8px;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-private-list li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-wrap: anywhere;
 }
 
 @media (prefers-reduced-motion: reduce) {

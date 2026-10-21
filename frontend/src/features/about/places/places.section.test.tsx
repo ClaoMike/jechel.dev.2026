@@ -213,4 +213,107 @@ describe("Where I've been, for the admin", () => {
     await form().getByRole('button', { name: 'Edit Manchester' }).click()
     await expect.element(popup('Manchester, England, United Kingdom').getByRole('textbox', { name: 'Studied: note (optional)' })).toHaveAccessibleDescription('Too long.')
   })
+
+  it('lists the places alphabetically, whatever their order on the map, and saves them in their order', async () => {
+    const at = (id: number, name: string, region: string, country: string): Place => ({ id, name, region, country, latitude: 50, longitude: 10, visits: [{ kind: 'visited', note: '' }] })
+    const places = [at(1, 'Zürich', 'Zurich', 'Switzerland'), ...VALUE.places, at(2, 'bath', 'England', 'United Kingdom'), at(3, 'Århus', 'Central Jutland', 'Denmark'), at(4, 'Aachen', 'North Rhine-Westphalia', 'Germany')]
+    const onSave = vi.fn(async () => {})
+    await renderPlaces({ canEdit: true, onSave, value: { ...VALUE, places } })
+    await openEditor()
+    const rows = () => [...form().getByRole('list', { name: 'Places on the map' }).element().querySelectorAll('.places-list-name')].map((row) => row.firstChild!.textContent)
+    expect(rows()).toEqual([
+      'Aachen, North Rhine-Westphalia, Germany',
+      'Århus, Central Jutland, Denmark',
+      'bath, England, United Kingdom',
+      'Bucharest, Bucureşti, Romania',
+      'Manchester, England, United Kingdom',
+      'Zürich, Switzerland',
+    ])
+    await form().getByRole('button', { name: 'Save' }).click()
+    expect(onSave).toHaveBeenCalledWith({ ...VALUE, places })
+  })
+
+  it('puts a newly added city in its alphabetical place in the list, and at the end of the saved list', async () => {
+    vi.spyOn(api.places, 'searchCities').mockResolvedValue([LEEDS])
+    const onSave = vi.fn(async () => {})
+    await renderPlaces({ canEdit: true, onSave })
+    await openEditor()
+    await form().getByRole('searchbox', { name: 'Add a city' }).fill('Leeds')
+    await form().getByRole('button', { name: 'Leeds, England, United Kingdom' }).click()
+    await popup('Leeds, England, United Kingdom').getByRole('button', { name: 'Add to map' }).click()
+    await expect.poll(() => form().getByRole('list', { name: 'Places on the map' }).getByRole('button', { name: /^Edit / }).elements().map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Edit Bucharest',
+      'Edit Leeds',
+      'Edit Manchester',
+    ])
+    await form().getByRole('button', { name: 'Save' }).click()
+    expect((onSave.mock.calls[0] as unknown as [PlacesValue])[0].places.map((p) => p.name)).toEqual(['Manchester', 'Bucharest', 'Leeds'])
+  })
+
+  it('edits and removes the right place from the sorted list, with its own errors', async () => {
+    const onSave = vi.fn().mockRejectedValueOnce(new ApiError('/api/about', 400, { 'places[1].name': ['Bad name.'] })).mockResolvedValue(undefined)
+    await renderPlaces({ canEdit: true, onSave })
+    await openEditor()
+    await form().getByRole('button', { name: 'Save' }).click()
+    // Bucharest is second on the map (places[1]) but first in the list: the error goes with it.
+    const list = form().getByRole('list', { name: 'Places on the map' })
+    await expect.poll(() => textOf(list.getByRole('listitem').first())).toContain('Bad name.')
+    expect(textOf(list.getByRole('listitem').last())).not.toContain('Bad name.')
+    await form().getByRole('button', { name: 'Edit Bucharest' }).click()
+    await expect.element(popup('Bucharest, Bucureşti, Romania')).toBeVisible()
+    await popup('Bucharest, Bucureşti, Romania').getByRole('button', { name: 'Close' }).click()
+    await form().getByRole('button', { name: 'Remove Manchester' }).click()
+    await page.getByRole('dialog', { name: 'Remove Manchester?' }).getByRole('button', { name: 'Remove', exact: true }).click()
+    await form().getByRole('button', { name: 'Save' }).click()
+    expect(onSave).toHaveBeenLastCalledWith({ ...VALUE, places: [VALUE.places[1]] })
+  })
+
+  it('keeps the open popup on its place when another place is removed from the list', async () => {
+    const onSave = vi.fn(async () => {})
+    await renderPlaces({ canEdit: true, onSave })
+    await openEditor()
+    // Bucharest is places[1]; removing Manchester (places[0]) moves it to places[0].
+    await form().getByRole('button', { name: 'Edit Bucharest' }).click()
+    const dialog = popup('Bucharest, Bucureşti, Romania')
+    await dialog.getByRole('checkbox', { name: 'Worked' }).click()
+    await form().getByRole('button', { name: 'Remove Manchester' }).click()
+    await page.getByRole('dialog', { name: 'Remove Manchester?' }).getByRole('button', { name: 'Remove', exact: true }).click()
+    await expect.element(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Update place' }).click()
+    await form().getByRole('button', { name: 'Save' }).click()
+    expect(onSave).toHaveBeenCalledWith({ ...VALUE, places: [{ ...VALUE.places[1], visits: [{ kind: 'worked', note: '' }, ...VALUE.places[1].visits] }] })
+  })
+
+  it('closes the popup when its own place is removed from the list', async () => {
+    const onSave = vi.fn(async () => {})
+    await renderPlaces({ canEdit: true, onSave })
+    await openEditor()
+    await form().getByRole('button', { name: 'Edit Manchester' }).click()
+    const dialog = popup('Manchester, England, United Kingdom')
+    await expect.element(dialog).toBeVisible()
+    await form().getByRole('button', { name: 'Remove Manchester' }).click()
+    await page.getByRole('dialog', { name: 'Remove Manchester?' }).getByRole('button', { name: 'Remove', exact: true }).click()
+    await expect.element(dialog).not.toBeInTheDocument()
+    await form().getByRole('button', { name: 'Save' }).click()
+    expect(onSave).toHaveBeenCalledWith({ ...VALUE, places: [VALUE.places[1]] })
+  })
+
+  it('zooms to a picked city every time it is picked', async () => {
+    vi.spyOn(api.places, 'searchCities').mockResolvedValue([LEEDS])
+    await renderPlaces({ canEdit: true })
+    await openEditor()
+    const svg = form().getByRole('group', { name: 'World map' }).element()
+    const full = svg.getAttribute('viewBox')
+    const pickLeeds = async () => {
+      await form().getByRole('searchbox', { name: 'Add a city' }).fill('Leeds')
+      await form().getByRole('button', { name: 'Leeds, England, United Kingdom' }).click()
+    }
+    await pickLeeds()
+    await expect.poll(() => svg.getAttribute('viewBox')).not.toBe(full)
+    await popup('Leeds, England, United Kingdom').getByRole('button', { name: 'Close' }).click()
+    await form().getByRole('button', { name: 'Show the whole world' }).click()
+    expect(svg.getAttribute('viewBox')).toBe(full)
+    await pickLeeds()
+    await expect.poll(() => svg.getAttribute('viewBox')).not.toBe(full)
+  })
 })

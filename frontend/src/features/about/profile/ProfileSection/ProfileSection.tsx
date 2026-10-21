@@ -8,8 +8,8 @@ import { StatusChips } from '../StatusChips/StatusChips'
 import { useProfileSectionViewModel, type ProfileSectionProps } from './ProfileSection.viewModel'
 
 /**
- * The photo, then citizenship / residence labels, then the résumé / GitHub / LeetCode / LinkedIn /
- * Instagram links. The LeetCode username is set in the "Problem solving" section. The résumé is
+ * The photo, the name and headline, then citizenship / residence labels, then the résumé / GitHub /
+ * LeetCode / LinkedIn / Instagram links. The LeetCode username is set in the "Problem solving" section. The résumé is
  * generated (the panel above); for the admin, this section also holds its private contact details.
  */
 export function ProfileSection(props: ProfileSectionProps) {
@@ -28,10 +28,13 @@ export function ProfileSection(props: ProfileSectionProps) {
     >
       <div className="profile">
         <ProfilePhoto url={vm.photoUrl} />
-        <p className="profile-name">Claudiu Mihai Jechel</p>
+        <div className="profile-heading">
+          <p className="profile-name">Claudiu Mihai Jechel</p>
+          {vm.headline && <p className="profile-headline">{vm.headline}</p>}
+        </div>
         <StatusChips statuses={vm.statuses} showEmpty={vm.showNoStatuses} />
         <ProfileLinks links={vm.links} />
-        {vm.privateContact !== null && <PrivateContact text={vm.privateContact} />}
+        {vm.privateContact !== null && <PrivateContact {...vm.privateContact} />}
         {vm.contactError && <ErrorState compact message={vm.contactError.message} onRetry={vm.contactError.retry} />}
       </div>
     </EditableSection>

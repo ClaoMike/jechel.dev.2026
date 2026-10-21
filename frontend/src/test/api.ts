@@ -32,6 +32,7 @@ export function stubApi({ user = null }: { user?: CurrentUser | null } = {}) {
     },
     leetcode: { get: vi.spyOn(api.leetcode, 'get').mockResolvedValue(structuredClone(LEETCODE)) },
     resume: {
+      getHeadline: vi.spyOn(api.resume, 'getHeadline').mockResolvedValue(RESUME.headline),
       getSettings: vi.spyOn(api.resume, 'getSettings').mockResolvedValue(structuredClone(RESUME)),
       saveContact: vi.spyOn(api.resume, 'saveContact').mockImplementation(async (contact) => ({ ...structuredClone(RESUME), ...contact })),
     },

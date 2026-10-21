@@ -88,6 +88,8 @@ export function useWorldMapViewModel({ places, colors, highlight, onSelect }: Wo
   // Zoom to a city being added, once each time a different one is picked.
   const highlightKey = highlight ? `${highlight.longitude},${highlight.latitude}` : null
   const [zoomedTo, setZoomedTo] = useState<string | null>(null)
+  // Forgotten once the city is added or let go, so picking it again zooms to it again.
+  if (!highlight && zoomedTo !== null) setZoomedTo(null)
   if (highlight && highlightKey !== zoomedTo) {
     setZoomedTo(highlightKey)
     const [x, y] = project(highlight.longitude, highlight.latitude)
