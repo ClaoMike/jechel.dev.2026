@@ -14,18 +14,20 @@ public static class YouTubeEndpoints
     public static IEndpointRouteBuilder MapYouTubeEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/youtube/videos", ListVideos).WithName("ListYouTubeVideos");
+        app.MapPost("/youtube/refresh", Refresh).WithName("RefreshYouTubeVideos").RequireAuthorization();
         return app;
     }
 
     /// <summary>
     /// Public. The channel's videos, newest first, a page at a time (<see cref="YouTubeVideoStore"/>), which
-    /// browsers may keep for <see cref="BrowserCacheFor"/>. 503 when YouTube isn't configured, or there's no
-    /// list yet and YouTube can't be reached.
+    /// visitors' browsers may keep for <see cref="BrowserCacheFor"/>; the signed-in admin's never keep them,
+    /// so a refresh shows at once. 503 when YouTube isn't configured, or there's no list yet and YouTube
+    /// can't be reached.
     /// </summary>
     public static async Task<Results<Ok<PagedResponse<YouTubeVideo>>, ProblemHttpResult>> ListVideos(
         IOptionsMonitor<YouTubeOptions> options,
         YouTubeVideoStore store,
-        HttpResponse response,
+        HttpContext http,
         CancellationToken cancellationToken,
         int page = 1,
         int pageSize = DefaultPageSize)
@@ -44,7 +46,35 @@ public static class YouTubeEndpoints
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
         var items = videos.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-        response.Headers.CacheControl = $"public, max-age={(int)BrowserCacheFor.TotalSeconds}";
+        // Per browser (private), and not across signing in (Vary: Cookie).
+        http.Response.Headers.CacheControl = http.User.Identity?.IsAuthenticated == true
+            ? "no-store"
+            : $"private, max-age={(int)BrowserCacheFor.TotalSeconds}";
+        http.Response.Headers.Vary = "Cookie";
         return TypedResults.Ok(new PagedResponse<YouTubeVideo>(items, page, pageSize, videos.Count));
     }
+
+    /// <summary>
+    /// Admin only. Asks YouTube for the videos now (e.g. right after uploading one) instead of waiting for
+    /// the hourly refresh, and keeps them. 503 when YouTube isn't configured or can't be reached (the
+    /// list kept so far stays).
+    /// </summary>
+    public static async Task<Results<Ok<RefreshResult>, ProblemHttpResult>> Refresh(
+        IOptionsMonitor<YouTubeOptions> options,
+        YouTubeVideoStore store,
+        CancellationToken cancellationToken)
+    {
+        if (!options.CurrentValue.IsConfigured)
+        {
+            return TypedResults.Problem("YouTube isn't set up: set YouTube:Channel and YouTube:ApiKey.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var videos = await store.RefreshAsync(cancellationToken);
+        return videos is null
+            ? TypedResults.Problem("YouTube can't be reached right now; the videos shown are the last ones saved.", statusCode: StatusCodes.Status503ServiceUnavailable)
+            : TypedResults.Ok(new RefreshResult(videos.Count));
+    }
 }
+
+/// <param name="Count">How many public videos the channel has now.</param>
+public record RefreshResult(int Count);

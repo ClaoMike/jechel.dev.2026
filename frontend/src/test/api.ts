@@ -7,7 +7,7 @@ import { vi } from 'vitest'
 import { api, type CurrentUser } from '../services/api'
 import { ABOUT } from './fixtures/about'
 import { APPS, CATEGORIES, pageOf } from './fixtures/apps'
-import { LEETCODE, pageOfVideos, RESUME, SITE, SUPPORT_URL, TERMS } from './fixtures/site'
+import { LEETCODE, pageOfVideos, RESUME, SITE, SUPPORT_URL, TERMS, VIDEOS } from './fixtures/site'
 
 export function stubApi({ user = null }: { user?: CurrentUser | null } = {}) {
   return {
@@ -22,7 +22,10 @@ export function stubApi({ user = null }: { user?: CurrentUser | null } = {}) {
       list: vi.spyOn(api.apps, 'list').mockResolvedValue(pageOf(APPS)),
       listCategories: vi.spyOn(api.apps, 'listCategories').mockResolvedValue(CATEGORIES),
     },
-    youtube: { listVideos: vi.spyOn(api.youtube, 'listVideos').mockResolvedValue(pageOfVideos()) },
+    youtube: {
+      listVideos: vi.spyOn(api.youtube, 'listVideos').mockResolvedValue(pageOfVideos()),
+      refreshVideos: vi.spyOn(api.youtube, 'refreshVideos').mockResolvedValue(VIDEOS.length),
+    },
     about: {
       get: vi.spyOn(api.about, 'get').mockResolvedValue(structuredClone(ABOUT)),
       update: vi.spyOn(api.about, 'update').mockImplementation(async (content) => structuredClone(content)),

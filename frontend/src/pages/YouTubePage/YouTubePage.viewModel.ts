@@ -1,3 +1,4 @@
+import { useAuth } from '../../auth'
 import type { PagedGridTexts } from '../../components/PagedGrid/PagedGrid.viewModel'
 import type { YouTubeVideo } from '../../services/api'
 
@@ -9,5 +10,6 @@ const TEXTS: PagedGridTexts = {
 }
 
 export function useYouTubePageViewModel() {
-  return { texts: TEXTS, itemKey: (video: YouTubeVideo) => video.id, tileProps: {} }
+  const { isAuthenticated } = useAuth()
+  return { texts: TEXTS, itemKey: (video: YouTubeVideo) => video.id, tileProps: {}, canRefresh: isAuthenticated }
 }

@@ -79,3 +79,34 @@ describe('api.youtube.listVideos', () => {
     expect(requests).toHaveLength(0)
   })
 })
+
+describe('api.youtube.refreshVideos', () => {
+  it('posts to the refresh endpoint and gives back how many videos there are', async () => {
+    const { requests } = fakeHttp(() => ({ status: 200, body: { count: 12 } }))
+
+    expect(await api.youtube.refreshVideos()).toBe(12)
+    expect(requests).toHaveLength(1)
+    expect(requests[0].method).toBe('POST')
+    expect(requests[0].url).toBe('/api/youtube/refresh')
+  })
+
+  it('rejects with an ApiError when YouTube cannot be reached (503) or the session ended (401)', async () => {
+    for (const status of [503, 401]) {
+      fakeHttp(() => ({ status, body: { title: 'Nope' } }))
+      const error = await api.youtube.refreshVideos().catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(ApiError)
+      expect((error as ApiError).status).toBe(status)
+    }
+  })
+
+  it('is never held or failed by the preview switch: it is not a GET', async () => {
+    const { requests } = fakeHttp(() => ({ status: 200, body: { count: 3 } }))
+    setRequestPreview('error')
+    try {
+      expect(await api.youtube.refreshVideos()).toBe(3)
+    } finally {
+      setRequestPreview('normal')
+    }
+    expect(requests).toHaveLength(1)
+  })
+})

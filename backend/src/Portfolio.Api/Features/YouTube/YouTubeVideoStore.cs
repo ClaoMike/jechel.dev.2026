@@ -54,13 +54,13 @@ public class YouTubeVideoStore(
         }
     }
 
-    /// <summary>Asks YouTube for the list again. True when it answered; otherwise the list kept so far stays.</summary>
-    public async Task<bool> RefreshAsync(CancellationToken cancellationToken)
+    /// <summary>Asks YouTube for the list again: the new list, or null when YouTube failed (the list kept so far stays).</summary>
+    public async Task<IReadOnlyList<YouTubeVideo>?> RefreshAsync(CancellationToken cancellationToken)
     {
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            return await FetchAsync(Channel, cancellationToken) is not null;
+            return (await FetchAsync(Channel, cancellationToken))?.Videos;
         }
         finally
         {
@@ -137,7 +137,7 @@ public class YouTubeRefreshWorker(YouTubeVideoStore store, IOptionsMonitor<YouTu
         while (!stoppingToken.IsCancellationRequested)
         {
             var next = YouTubeVideoStore.FreshFor;
-            if (options.CurrentValue.IsConfigured && !await store.RefreshAsync(stoppingToken)) next = YouTubeVideoStore.RetryAfter;
+            if (options.CurrentValue.IsConfigured && await store.RefreshAsync(stoppingToken) is null) next = YouTubeVideoStore.RetryAfter;
             await Task.Delay(next, time, stoppingToken);
         }
     }

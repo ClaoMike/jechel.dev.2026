@@ -5,7 +5,7 @@ import { ApiError } from '../../services/api'
 import { a11yViolations } from '../../test/a11y'
 import { stubApi } from '../../test/api'
 import { makeVideo, pageOfVideos, VIDEOS } from '../../test/fixtures/site'
-import { forever, renderView, shootWhole, textOf } from '../../test/render'
+import { ADMIN, forever, renderView, shootWhole, textOf } from '../../test/render'
 import { YouTubePage } from './YouTubePage'
 
 const grid = () => page.getByRole('list', { name: 'Videos' })
@@ -93,6 +93,82 @@ describe('YouTube', () => {
     api.youtube.listVideos.mockReturnValue(forever())
     await renderView(<YouTubePage />)
     await expect.poll(() => textOf(page.getByRole('status'))).toBe('Loading videos…')
+  })
+
+  describe("the admin's Refresh from YouTube", () => {
+    const refresh = () => page.getByRole('button', { name: 'Refresh from YouTube' })
+
+    it('is only there for the admin', async () => {
+      stubApi()
+      const visitor = await renderView(<YouTubePage />)
+      await expect.element(tile(VIDEOS[0].title)).toBeVisible()
+      expect(refresh().query()).toBeNull()
+      await visitor.unmount()
+      stubApi({ user: ADMIN })
+      await renderView(<YouTubePage />, { user: ADMIN })
+      await expect.element(refresh()).toBeVisible()
+    })
+
+    it('asks YouTube now, says how many videos there are, and shows the new one first', async () => {
+      const api = stubApi({ user: ADMIN })
+      await renderView(<YouTubePage />, { user: ADMIN })
+      await expect.element(tile(VIDEOS[0].title)).toBeVisible()
+      const uploaded = makeVideo(99, { title: 'Just uploaded' })
+      api.youtube.listVideos.mockResolvedValue(pageOfVideos([uploaded, ...VIDEOS]))
+      api.youtube.refreshVideos.mockResolvedValue(4)
+      await refresh().click()
+      await expect.poll(() => textOf(page.getByRole('status'))).toBe('✓ Up to date: 4 videos on YouTube.')
+      await expect.element(tile('Just uploaded')).toBeVisible()
+      expect(api.youtube.refreshVideos).toHaveBeenCalledTimes(1)
+      expect(grid().element().querySelector('li')?.textContent).toContain('Just uploaded')
+    })
+
+    it('says "1 video" for one', async () => {
+      const api = stubApi({ user: ADMIN })
+      api.youtube.refreshVideos.mockResolvedValue(1)
+      await renderView(<YouTubePage />, { user: ADMIN })
+      await refresh().click()
+      await expect.poll(() => textOf(page.getByRole('status'))).toBe('✓ Up to date: 1 video on YouTube.')
+    })
+
+    it('says "Refreshing…" and can\'t be pressed again meanwhile', async () => {
+      const api = stubApi({ user: ADMIN })
+      api.youtube.refreshVideos.mockReturnValue(forever())
+      await renderView(<YouTubePage />, { user: ADMIN })
+      await refresh().click()
+      const busy = page.getByRole('button', { name: 'Refreshing…' })
+      await expect.element(busy).toBeDisabled()
+    })
+
+    it('says when YouTube can\'t be reached, keeping the videos shown', async () => {
+      const api = stubApi({ user: ADMIN })
+      await renderView(<YouTubePage />, { user: ADMIN })
+      await expect.element(tile(VIDEOS[0].title)).toBeVisible()
+      api.youtube.refreshVideos.mockRejectedValue(new ApiError('/api/youtube/refresh', 503))
+      await refresh().click()
+      await expect.poll(() => textOf(page.getByRole('status'))).toBe("YouTube can't be reached right now, or isn't set up (Settings). The videos shown are the last ones saved.")
+      await expect.element(tile(VIDEOS[0].title)).toBeVisible()
+      await expect.element(refresh()).toBeEnabled()
+    })
+
+    it('says to try again on any other failure, and clears the message when trying again', async () => {
+      const api = stubApi({ user: ADMIN })
+      api.youtube.refreshVideos.mockRejectedValueOnce(new ApiError('/api/youtube/refresh', 500))
+      await renderView(<YouTubePage />, { user: ADMIN })
+      await refresh().click()
+      await expect.poll(() => textOf(page.getByRole('status'))).toBe("That didn't work. Please try again.")
+      api.youtube.refreshVideos.mockReturnValue(forever())
+      await refresh().click()
+      await expect.poll(() => page.getByRole('status').query()).toBeNull()
+    })
+
+    it('has no WCAG problems, with its message', async () => {
+      stubApi({ user: ADMIN })
+      await renderView(<YouTubePage />, { user: ADMIN })
+      await refresh().click()
+      await expect.element(page.getByRole('status')).toBeVisible()
+      expect(await a11yViolations()).toEqual([])
+    })
   })
 
   for (const theme of THEMES) {

@@ -6,7 +6,8 @@ import { useWhatsNewPageViewModel } from './WhatsNewPage.viewModel'
 
 /**
  * The most recent thing I made: the newest app or YouTube video, whichever came last, shown in
- * full. If one of them can't be loaded (e.g. YouTube isn't set up), the other is shown.
+ * full; only from the sections visitors may see. If one of them can't be loaded (e.g. YouTube isn't
+ * set up), the other is shown.
  */
 export function WhatsNewPage() {
   const vm = useWhatsNewPageViewModel()

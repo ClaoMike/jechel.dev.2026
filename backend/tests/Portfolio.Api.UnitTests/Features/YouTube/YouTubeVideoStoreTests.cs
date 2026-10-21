@@ -77,7 +77,7 @@ public class YouTubeVideoStoreTests
         var store = Store();
 
         Assert.Equal(["saved"], (await store.GetAsync(CancellationToken.None))!.Select(v => v.Id));
-        Assert.False(await store.RefreshAsync(CancellationToken.None));
+        Assert.Null(await store.RefreshAsync(CancellationToken.None));
         Assert.Equal(["saved"], (await store.GetAsync(CancellationToken.None))!.Select(v => v.Id));
     }
 
@@ -110,7 +110,7 @@ public class YouTubeVideoStoreTests
         _youTube.Videos = [Video("new", 3), Video("a", 2), Video("b", 1)];
         _time.Advance(TimeSpan.FromHours(1));
 
-        Assert.True(await store.RefreshAsync(CancellationToken.None));
+        Assert.Equal(["new", "a", "b"], (await store.RefreshAsync(CancellationToken.None))!.Select(v => v.Id));
 
         Assert.Equal(["new", "a", "b"], (await store.GetAsync(CancellationToken.None))!.Select(v => v.Id));
         Assert.Equal(["new", "a", "b"], (await Store().GetAsync(CancellationToken.None))!.Select(v => v.Id));
@@ -139,6 +139,57 @@ public class YouTubeVideoStoreTests
         _youTube.Videos = [Video("other", 1)];
 
         Assert.Equal(["other"], (await store.GetAsync(CancellationToken.None))!.Select(v => v.Id));
+    }
+
+    [Fact]
+    public async Task Reads_a_channel_written_differently_as_the_same_one()
+    {
+        var store = Store();
+        await store.GetAsync(CancellationToken.None);
+
+        _options.Channel = "  @ME ";
+
+        Assert.Equal(["a", "b"], (await store.GetAsync(CancellationToken.None))!.Select(v => v.Id));
+        Assert.Equal(1, _youTube.Calls);
+    }
+
+    [Fact]
+    public async Task Asks_YouTube_when_the_saved_list_cant_be_read()
+    {
+        using (var db = _db.Open())
+        {
+            db.YouTubeSnapshots.Add(new YouTubeSnapshot { Channel = "@me", Videos = "not json", FetchedAt = _time.GetUtcNow() });
+            db.SaveChanges();
+        }
+
+        var videos = await Store().GetAsync(CancellationToken.None);
+
+        Assert.Equal(["a", "b"], videos!.Select(v => v.Id));
+        Assert.Equal(1, _youTube.Calls);
+        Assert.Equal(["a", "b"], JsonSerializer.Deserialize<List<YouTubeVideo>>(Saved()!.Videos, JsonSerializerOptions.Web)!.Select(v => v.Id));
+    }
+
+    [Fact]
+    public async Task Reads_a_saved_empty_list_as_no_videos_without_asking_YouTube()
+    {
+        Save("@me");
+
+        Assert.Empty((await Store().GetAsync(CancellationToken.None))!);
+        Assert.Equal(0, _youTube.Calls);
+    }
+
+    [Fact]
+    public async Task A_refresh_waits_for_a_request_already_asking_YouTube_then_asks_again()
+    {
+        _youTube.Gate = new TaskCompletionSource();
+        var store = Store();
+        var visitor = store.GetAsync(CancellationToken.None);
+        var refresh = store.RefreshAsync(CancellationToken.None);
+
+        _youTube.Gate.SetResult();
+        await Task.WhenAll(visitor, refresh);
+
+        Assert.Equal(2, _youTube.Calls);
     }
 
     [Fact]
@@ -178,7 +229,7 @@ public class YouTubeVideoStoreTests
         var store = new YouTubeVideoStore(new BrokenScopes(), _youTube, TestOptions.Monitor(_options), _time, NullLogger<YouTubeVideoStore>.Instance);
 
         Assert.Equal(["a", "b"], (await store.GetAsync(CancellationToken.None))!.Select(v => v.Id));
-        Assert.True(await store.RefreshAsync(CancellationToken.None));
+        Assert.NotNull(await store.RefreshAsync(CancellationToken.None));
     }
 
     [Fact]

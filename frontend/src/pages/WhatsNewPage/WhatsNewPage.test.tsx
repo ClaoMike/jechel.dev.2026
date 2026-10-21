@@ -5,12 +5,16 @@ import { ApiError } from '../../services/api'
 import { a11yViolations } from '../../test/a11y'
 import { stubApi, type ApiStubs } from '../../test/api'
 import { APPS, makeApp, pageOf } from '../../test/fixtures/apps'
-import { makeVideo, pageOfVideos, VIDEOS } from '../../test/fixtures/site'
-import { forever, renderView, shootWhole, textOf, type RenderViewOptions } from '../../test/render'
+import { makeVideo, pageOfVideos, SITE, VIDEOS } from '../../test/fixtures/site'
+import { ADMIN, forever, renderView, shootWhole, textOf, type RenderViewOptions } from '../../test/render'
+import { RefreshVideosButton } from '../../features/youtube/RefreshVideosButton/RefreshVideosButton'
 import { WhatsNewPage } from './WhatsNewPage'
 
 let api: ApiStubs
-const renderWhatsNew = (options: RenderViewOptions = {}) => renderView(<WhatsNewPage />, options)
+// Every section visible to visitors, unless a test says otherwise.
+const renderWhatsNew = (options: RenderViewOptions = {}) => renderView(<WhatsNewPage />, { site: SITE, ...options })
+const siteWith = (pages: Partial<typeof SITE.pages>) => ({ ...SITE, pages: { ...SITE.pages, ...pages } })
+const NEWER_APP = () => pageOf([makeApp(1, { ...APPS[0], createdAt: '2026-10-15T09:00:00Z' })])
 const card = () => page.getByRole('article')
 
 describe("What's new?", () => {
@@ -82,6 +86,70 @@ describe("What's new?", () => {
     api.youtube.listVideos.mockResolvedValue(pageOfVideos())
     await page.getByRole('button', { name: 'Try again' }).click()
     await expect.element(card()).toBeVisible()
+  })
+
+  describe('only from the sections visitors may see', () => {
+    it('shows the newest video when Apps is hidden, though an app came later, and never asks for apps', async () => {
+      api = stubApi()
+      api.apps.list.mockResolvedValue(NEWER_APP())
+      await renderWhatsNew({ site: siteWith({ apps: false }) })
+      await expect.element(card()).toHaveAccessibleName(VIDEOS[0].title)
+      expect(api.apps.list).not.toHaveBeenCalled()
+    })
+
+    it('shows the newest app when YouTube is hidden, though a video came later, and never asks for videos', async () => {
+      api = stubApi()
+      api.apps.list.mockResolvedValue(pageOf([makeApp(1, { ...APPS[0], createdAt: '2026-01-01T00:00:00Z' })]))
+      await renderWhatsNew({ site: siteWith({ youtube: false }) })
+      await expect.element(card()).toHaveAccessibleName('LIGHTHOUSE')
+      expect(api.youtube.listVideos).not.toHaveBeenCalled()
+    })
+
+    it('has nothing to show when both are hidden, and asks for neither', async () => {
+      api = stubApi()
+      await renderWhatsNew({ site: siteWith({ apps: false, youtube: false }) })
+      await expect.element(page.getByText('Nothing here yet. New apps and videos will show up here.')).toBeVisible()
+      expect(api.apps.list).not.toHaveBeenCalled()
+      expect(api.youtube.listVideos).not.toHaveBeenCalled()
+    })
+
+    it('says it failed when the only section visitors may see fails', async () => {
+      api = stubApi()
+      api.youtube.listVideos.mockRejectedValue(new ApiError('/api/youtube', 503))
+      await renderWhatsNew({ site: siteWith({ apps: false }) })
+      await expect.poll(() => textOf(page.getByRole('alert'))).toContain("The newest app and video can't be loaded right now.")
+    })
+
+    it('shows the admin the newest of everything, hidden sections too', async () => {
+      api = stubApi({ user: ADMIN })
+      api.apps.list.mockResolvedValue(NEWER_APP())
+      await renderWhatsNew({ user: ADMIN, site: siteWith({ apps: false, youtube: false }) })
+      await expect.element(card()).toHaveAccessibleName('LIGHTHOUSE')
+    })
+
+    it("shows a video the admin just refreshed from YouTube", async () => {
+      api = stubApi({ user: ADMIN })
+      api.apps.list.mockResolvedValue(pageOf([makeApp(1, { ...APPS[0], createdAt: '2026-01-01T00:00:00Z' })]))
+      await renderView(
+        <>
+          <RefreshVideosButton />
+          <WhatsNewPage />
+        </>,
+        { user: ADMIN, site: SITE },
+      )
+      await expect.element(card()).toHaveAccessibleName(VIDEOS[0].title)
+      api.youtube.listVideos.mockResolvedValue(pageOfVideos([makeVideo(99, { title: 'Just uploaded', publishedAt: '2026-10-20T18:00:00Z' })]))
+      await page.getByRole('button', { name: 'Refresh from YouTube' }).click()
+      await expect.element(card()).toHaveAccessibleName('Just uploaded')
+    })
+
+    it('waits (placeholders) until it knows what visitors may see, asking for nothing meanwhile', async () => {
+      api = stubApi()
+      await renderView(<WhatsNewPage />)
+      await expect.poll(() => textOf(page.getByRole('status'))).toBe("Loading what's new…")
+      expect(api.apps.list).not.toHaveBeenCalled()
+      expect(api.youtube.listVideos).not.toHaveBeenCalled()
+    })
   })
 
   it("shows the newest item's shape while loading", async () => {

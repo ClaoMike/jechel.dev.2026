@@ -9,6 +9,12 @@ export interface PageArgs {
 /** The newest app or video, whichever came last (What's new?). */
 export type Latest = { kind: 'app'; app: AppDetails } | { kind: 'video'; video: YouTubeVideo }
 
+/** Which sections What's new? may show: the ones the visitor may see. */
+export interface LatestSections {
+  apps: boolean
+  videos: boolean
+}
+
 /** The newest app (by when it was added) or YouTube video (by when it was published). */
 function newest(app: AppDetails | undefined, video: YouTubeVideo | undefined): Latest | null {
   if (app && (!video || new Date(app.createdAt) >= new Date(video.publishedAt))) return { kind: 'app', app }
@@ -48,22 +54,33 @@ export const appsApi = baseApi.injectEndpoints({
 
     listVideos: build.query<Page<YouTubeVideo>, PageArgs>({
       queryFn: ({ page, pageSize }, { signal }) => run(api.youtube.listVideos(page, pageSize, signal)),
+      providesTags: ['Videos'],
+    }),
+
+    /** Admin only. Asks YouTube now; every list of videos (and What's new?) loads again. Resolves with how many there are. */
+    refreshVideos: build.mutation<number, void>({
+      queryFn: () => run(api.youtube.refreshVideos()),
+      invalidatesTags: ['Videos'],
     }),
 
     /**
-     * The newest app or video. If one list can't be loaded (e.g. YouTube isn't set up), the other is
-     * shown; it's an error only when nothing can be shown because something failed.
+     * The newest app or video, of the sections given (the others aren't asked for). If one list can't be
+     * loaded (e.g. YouTube isn't set up), the other is shown; it's an error only when nothing can be
+     * shown because something failed.
      */
-    getLatest: build.query<Latest | null, void>({
-      queryFn: async (_, { signal }) => {
-        // `null` when that list couldn't be loaded, `undefined` when it's empty.
+    getLatest: build.query<Latest | null, LatestSections>({
+      queryFn: async (sections, { signal }) => {
+        // `null` when that list couldn't be loaded, `undefined` when it's empty or not asked for.
         const first = <T>(load: Promise<{ items: T[] }>) => load.then((page) => page.items[0]).catch(() => null)
-        const [app, video] = await Promise.all([first(api.apps.list(1, 1, signal)), first(api.youtube.listVideos(1, 1, signal))])
+        const [app, video] = await Promise.all([
+          sections.apps ? first(api.apps.list(1, 1, signal)) : undefined,
+          sections.videos ? first(api.youtube.listVideos(1, 1, signal)) : undefined,
+        ])
         const latest = newest(app ?? undefined, video ?? undefined)
         if (latest === null && (app === null || video === null)) return { error: { status: 0, validationErrors: null } }
         return { data: latest }
       },
-      providesTags: ['Apps'],
+      providesTags: ['Apps', 'Videos'],
     }),
   }),
 })
@@ -75,5 +92,6 @@ export const {
   useListAppCategoriesQuery,
   useSaveAppCategoriesMutation,
   useListVideosQuery,
+  useRefreshVideosMutation,
   useGetLatestQuery,
 } = appsApi

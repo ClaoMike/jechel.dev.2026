@@ -25,6 +25,7 @@ export const baseApi = createApi({
     'Subscribers',
     'Summary',
     'Terms',
+    'Videos',
     'Visit',
     'Visits',
   ],

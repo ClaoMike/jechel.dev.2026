@@ -155,6 +155,7 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/settings`             | cookie  | The connection settings (secrets only as set/not set and their last 4 characters), how Google sign-in is set up, and the site's address |
 | PUT    | `/api/settings/{key}`       | cookie  | `{ value }`: saves one (encrypted if secret) and applies it at once; `""` clears it. **400** for a bad value, **404** for an unknown key |
 | POST   | `/api/settings/test/{service}` | cookie | `ntfy` (test alert), `email` (test email to you) or `youtube` (lists the videos): **200** `{ ok, message }` |
+| POST   | `/api/youtube/refresh` | cookie | Asks YouTube for the videos now and keeps them: **200** `{ count }`, **503** when YouTube isn't set up or can't be reached |
 
 ## The "j" (Vice title and tab icon)
 
@@ -316,7 +317,7 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 | Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](#settings-connections)) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
-**What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list; if one fails (e.g. YouTube isn't set up), the other is shown.
+**What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later; the admin sees everything); if one fails (e.g. YouTube isn't set up), the other is shown.
 
 **Apps** (`src/pages/AppsPage/AppsPage.tsx`, `src/features/apps/`, API in `backend/.../Features/Apps/`):
 
@@ -332,7 +333,15 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 **YouTube** (`src/pages/YouTubePage/YouTubePage.tsx`, API in `backend/.../Features/YouTube/`): the channel's public videos, newest first, in a 3 × 3 grid (2 columns on tablets, 1 on phones). Each card shows the thumbnail, title, date and the start of the description (cut after three lines), and opens the video on YouTube in a new tab. More than 9 videos get Previous / Next, with the page in the URL (`?page=2`).
 
 - `GET /api/youtube/videos?page=1&pageSize=9` (public) reads the uploads with the YouTube Data API v3. It needs `YouTube:Channel` (`@handle` or `UC…` id) and `YouTube:ApiKey`; until both are set it answers 503 and the page says the videos can't be loaded.
-- The list is cached in memory for an hour (`RefreshingCache<T>`, a small reusable cache: one fetch at a time, keeps the last list if YouTube fails and retries after 5 minutes). Each refresh costs about 2 units of the free 10,000 a day.
+- The list is kept by `YouTubeVideoStore`: in memory, and in the database (`youtube_videos`, one row per channel), so a
+  restart or a YouTube outage still shows the last list; visitors only wait for YouTube when there's no list at all yet.
+  `YouTubeRefreshWorker` asks YouTube as the API starts and then hourly (every 5 minutes after a failure). Each refresh
+  costs about 2 units of the free 10,000 a day.
+- Visitors' browsers may keep a page of videos for 5 minutes (`Cache-Control: private, max-age=300`, `Vary: Cookie`);
+  the signed-in admin's never do (`no-store`).
+- **Refresh from YouTube** (admin only, above the grid): `POST /api/youtube/refresh` asks YouTube now, e.g. right after
+  an upload, and says how many videos there are; the grid and What's new? load again. 503 when YouTube isn't set up or
+  can't be reached (the saved list stays).
 - **Reusable for Apps:** `src/components/PagedGrid/PagedGrid.tsx` (takes the RTK Query hook for a page, e.g. `useListAppsQuery`, and its texts as one `PagedGridTexts` object from the page's view model; shows loading / empty / error and the pagination, and renders its children after the grid, e.g. the app popup) and `src/components/MediaCard.tsx` (image, title, meta line, clamped description; the whole card is a link). `Pagination.tsx` and `usePageParam.ts` are shared with the contact inbox.
 
 Unknown URLs redirect to `/`.
@@ -550,7 +559,7 @@ State lives in the `site_state` table (one row) and is read through `SiteEndpoin
   `portfolio:{database}:` (`CachePrefix`), so APIs on different databases sharing one Redis (yours and the E2E tests') never
   serve each other's values. Locally it's the
   `redis` service in docker-compose (port 6380, in memory only, 128 MB, least-recently-used out first). Without Redis the API just
-  caches in memory. The first value cached this way is `/api/site`; the older in-memory caches (YouTube, LeetCode) can move to it.
+  caches in memory. The first value cached this way is `/api/site`; the older in-memory cache (LeetCode) can move to it; YouTube's list has its own store with a database copy.
 
 ## Meetings (Cal.com) and replies
 

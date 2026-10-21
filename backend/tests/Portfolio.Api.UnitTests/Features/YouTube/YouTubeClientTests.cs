@@ -156,6 +156,20 @@ public class YouTubeClientTests
     }
 
     [Fact]
+    public void Reads_a_video_without_a_title_description_or_dates_with_empty_ones()
+    {
+        var item = Item("bare", "2024-01-01T00:00:00Z", withVideoPublishedAt: false);
+        var snippet = item["snippet"]!.AsObject();
+        snippet.Remove("title");
+        snippet.Remove("description");
+        snippet.Remove("publishedAt");
+
+        var video = ReadVideos(item).Single();
+
+        Assert.Equal(("", "", default(DateTimeOffset)), (video.Title, video.Description, video.PublishedAt));
+    }
+
+    [Fact]
     public void Reads_a_page_without_items_as_no_videos() =>
         Assert.Empty(YouTubeClient.ReadVideos(new JsonObject()));
 

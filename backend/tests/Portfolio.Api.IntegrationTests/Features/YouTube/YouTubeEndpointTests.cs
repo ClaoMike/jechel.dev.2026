@@ -28,8 +28,8 @@ public class YouTubeEndpointTests(PortfolioApiFactory factory) : IAsyncLifetime
         await RefreshAsync(factory);
     }
 
-    private static Task<bool> RefreshAsync(WebApplicationFactory<Program> api) =>
-        api.Services.GetRequiredService<YouTubeVideoStore>().RefreshAsync(CancellationToken.None);
+    private static async Task<bool> RefreshAsync(WebApplicationFactory<Program> api) =>
+        await api.Services.GetRequiredService<YouTubeVideoStore>().RefreshAsync(CancellationToken.None) is not null;
 
     private static async Task<VideoPage> GetPageAsync(HttpClient client, string query = "")
     {
@@ -82,11 +82,13 @@ public class YouTubeEndpointTests(PortfolioApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Lets_browsers_keep_a_page_for_five_minutes()
+    public async Task Lets_a_visitors_browser_keep_a_page_for_five_minutes()
     {
         var response = await factory.CreateClient().GetAsync("/api/youtube/videos");
 
-        Assert.Equal("public, max-age=300", response.Headers.CacheControl?.ToString());
+        Assert.True(response.Headers.CacheControl!.Private);
+        Assert.Equal(TimeSpan.FromMinutes(5), response.Headers.CacheControl.MaxAge);
+        Assert.Equal(["Cookie"], response.Headers.Vary);
     }
 
     [Fact]
@@ -187,6 +189,63 @@ public class YouTubeEndpointTests(PortfolioApiFactory factory) : IAsyncLifetime
 
         // Back on the configured channel: its own saved list.
         Assert.Equal(11, (await GetPageAsync(visitor)).TotalCount);
+    }
+
+    private async Task<HttpClient> AdminAsync()
+    {
+        var admin = factory.CreateBrowserClient();
+        (await admin.GetAsync($"{PortfolioApiFactory.SignInPath}?email={PortfolioApiFactory.AdminEmail}")).EnsureSuccessStatusCode();
+        return admin;
+    }
+
+    [Fact]
+    public async Task Only_the_admin_can_refresh()
+    {
+        var calls = factory.YouTube.Calls;
+
+        var response = await factory.CreateClient().PostAsync("/api/youtube/refresh", null);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(calls, factory.YouTube.Calls);
+    }
+
+    [Fact]
+    public async Task The_admins_refresh_shows_a_new_video_at_once_to_everyone()
+    {
+        var visitor = factory.CreateClient();
+        await GetPageAsync(visitor);
+        var admin = await AdminAsync();
+        factory.YouTube.Videos = [new YouTubeVideo("just-uploaded", "Just uploaded", "", "https://i.ytimg.com/vi/just-uploaded/hqdefault.jpg", DateTimeOffset.UnixEpoch.AddDays(300)), .. FakeYouTubeClient.Eleven];
+
+        var response = await admin.PostAsync("/api/youtube/refresh", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(new RefreshResult(12), await response.Content.ReadFromJsonAsync<RefreshResult>());
+        Assert.Equal("just-uploaded", (await GetPageAsync(admin)).Items[0].Id);
+        Assert.Equal("just-uploaded", (await GetPageAsync(visitor)).Items[0].Id);
+        Assert.Contains("just-uploaded", (await SavedAsync())!.Videos);
+    }
+
+    [Fact]
+    public async Task The_admins_browser_never_keeps_the_list()
+    {
+        var response = await (await AdminAsync()).GetAsync("/api/youtube/videos");
+
+        Assert.True(response.Headers.CacheControl?.NoStore);
+    }
+
+    [Fact]
+    public async Task A_refresh_while_YouTube_is_down_answers_503_and_keeps_the_list()
+    {
+        var admin = await AdminAsync();
+        await GetPageAsync(admin);
+        factory.YouTube.Fails = true;
+
+        var response = await admin.PostAsync("/api/youtube/refresh", null);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains("the videos shown are the last ones saved", await response.Content.ReadAsStringAsync());
+        Assert.Equal(11, (await GetPageAsync(admin)).TotalCount);
     }
 
     [Fact]
