@@ -30,6 +30,8 @@ Personal portfolio website of Claudiu Mihai Jechel.
 │   ├── functions/api/[[path]].ts          # Cloudflare Pages Function: the site's /api proxy to Railway (production)
 │   ├── src/
 │   │   ├── services/api.ts                # the single API service: every backend call goes through `api`
+│   │   ├── services/endpoints/<feature>.ts # each feature's endpoints and types (put together by api.ts)
+│   │   ├── services/http.ts               # the plumbing under them: axios, ApiError, the preview switch
 │   │   ├── store/                         # the Model: Redux store, slices, RTK Query endpoints (store/api/)
 │   │   ├── auth/                          # useAuth, useSessionKeeper, <SignedIn>/<SignedOut> (state in store/authSlice)
 │   │   ├── layout/                        # site frame: greeting, session bar, section tabs
@@ -272,8 +274,11 @@ await api.auth.logout()
 <a href={api.auth.googleLoginUrl('/')}>  // navigation, not fetch
 ```
 
-- Endpoints are grouped by backend feature (`api.auth`, `api.profile`, ...). A new endpoint goes into its group, or a new group mirroring `backend/.../Features/<Feature>`.
-- Response types live in the same file, mirroring the backend records.
+- Endpoints are grouped by backend feature (`api.auth`, `api.profile`, ...), one file each:
+  `src/services/endpoints/<feature>.ts` holds the group (`<feature>Endpoints`) and its types, mirroring the backend
+  records. A new endpoint goes into its feature's file; a new feature gets a new file, added to `api` in `api.ts`.
+- `api.ts` puts the groups together and re-exports their types: the rest of the app imports from `services/api`
+  only, never from `endpoints/` or `http.ts` (the axios plumbing).
 - Non-2xx responses throw `ApiError` (with `.status`; `0` when there was no response). Cancelled requests reject with axios's cancellation error, not an `ApiError`. Every call accepts an optional `AbortSignal`.
 
 ### Auth state: `useAuth()`, `<SignedIn>`, `<SignedOut>`
