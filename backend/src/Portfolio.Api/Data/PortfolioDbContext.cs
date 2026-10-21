@@ -14,6 +14,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<TermsPage> TermsPages => Set<TermsPage>();
     public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
     public DbSet<LeetCodeSnapshot> LeetCodeStats => Set<LeetCodeSnapshot>();
+    public DbSet<YouTubeSnapshot> YouTubeSnapshots => Set<YouTubeSnapshot>();
     public DbSet<AppEntry> Apps => Set<AppEntry>();
     public DbSet<AppCategory> AppCategories => Set<AppCategory>();
     public DbSet<VisitSession> VisitSessions => Set<VisitSession>();
@@ -95,6 +96,15 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.HasKey(s => s.Username);
             entity.Property(s => s.Username).HasColumnName("username").HasMaxLength(50);
             entity.Property(s => s.Stats).HasColumnName("stats").HasColumnType("jsonb").IsRequired();
+            entity.Property(s => s.FetchedAt).HasColumnName("fetched_at");
+        });
+
+        modelBuilder.Entity<YouTubeSnapshot>(entity =>
+        {
+            entity.ToTable("youtube_videos");
+            entity.HasKey(s => s.Channel);
+            entity.Property(s => s.Channel).HasColumnName("channel").HasMaxLength(100);
+            entity.Property(s => s.Videos).HasColumnName("videos").HasColumnType("jsonb").IsRequired();
             entity.Property(s => s.FetchedAt).HasColumnName("fetched_at");
         });
 

@@ -903,6 +903,27 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("visit_sessions", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.YouTubeSnapshot", b =>
+                {
+                    b.Property<string>("Channel")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("channel");
+
+                    b.Property<DateTimeOffset>("FetchedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fetched_at");
+
+                    b.Property<string>("Videos")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("videos");
+
+                    b.HasKey("Channel");
+
+                    b.ToTable("youtube_videos", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.ContactReply", b =>
                 {
                     b.HasOne("Portfolio.Api.Data.ContactMessage", null)

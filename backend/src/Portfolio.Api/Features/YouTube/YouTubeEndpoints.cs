@@ -8,11 +8,8 @@ public static class YouTubeEndpoints
     public const int DefaultPageSize = 9;
     public const int MaxPageSize = 50;
 
-    /// <summary>How long the list of videos is kept before asking YouTube again.</summary>
-    public static readonly TimeSpan FreshFor = TimeSpan.FromHours(1);
-
-    /// <summary>After YouTube fails, how long to keep showing the last list before trying again.</summary>
-    public static readonly TimeSpan RetryAfter = TimeSpan.FromMinutes(5);
+    /// <summary>How long browsers may reuse a page of videos before asking again (Cache-Control).</summary>
+    public static readonly TimeSpan BrowserCacheFor = TimeSpan.FromMinutes(5);
 
     public static IEndpointRouteBuilder MapYouTubeEndpoints(this IEndpointRouteBuilder app)
     {
@@ -21,14 +18,14 @@ public static class YouTubeEndpoints
     }
 
     /// <summary>
-    /// Public. The channel's videos, newest first, a page at a time. 503 when YouTube isn't
-    /// configured, or can't be reached and there's no earlier list to show.
+    /// Public. The channel's videos, newest first, a page at a time (<see cref="YouTubeVideoStore"/>), which
+    /// browsers may keep for <see cref="BrowserCacheFor"/>. 503 when YouTube isn't configured, or there's no
+    /// list yet and YouTube can't be reached.
     /// </summary>
     public static async Task<Results<Ok<PagedResponse<YouTubeVideo>>, ProblemHttpResult>> ListVideos(
         IOptionsMonitor<YouTubeOptions> options,
-        IYouTubeClient youTube,
-        RefreshingCache<IReadOnlyList<YouTubeVideo>> cache,
-        ILoggerFactory loggers,
+        YouTubeVideoStore store,
+        HttpResponse response,
         CancellationToken cancellationToken,
         int page = 1,
         int pageSize = DefaultPageSize)
@@ -38,16 +35,7 @@ public static class YouTubeEndpoints
             return TypedResults.Problem("YouTube isn't set up: set YouTube:Channel and YouTube:ApiKey.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
-        IReadOnlyList<YouTubeVideo>? videos;
-        try
-        {
-            videos = await cache.GetAsync(youTube.FetchVideosAsync, cancellationToken);
-        }
-        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
-        {
-            loggers.CreateLogger(typeof(YouTubeEndpoints)).LogWarning(e, "Couldn't get the YouTube videos.");
-            videos = null;
-        }
+        var videos = await store.GetAsync(cancellationToken);
         if (videos is null)
         {
             return TypedResults.Problem("YouTube can't be reached right now.", statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -56,6 +44,7 @@ public static class YouTubeEndpoints
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
         var items = videos.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        response.Headers.CacheControl = $"public, max-age={(int)BrowserCacheFor.TotalSeconds}";
         return TypedResults.Ok(new PagedResponse<YouTubeVideo>(items, page, pageSize, videos.Count));
     }
 }

@@ -19,8 +19,7 @@ public class UpdatesAnnouncer(
     IEmailSender emails,
     IOptions<SiteOptions> site,
     IOptionsMonitor<YouTubeOptions> youTubeOptions,
-    IYouTubeClient youTube,
-    RefreshingCache<IReadOnlyList<YouTubeVideo>> videoCache,
+    YouTubeVideoStore videoStore,
     IPhoneAlerts alerts,
     TimeProvider time,
     ILogger<UpdatesAnnouncer> logger)
@@ -152,15 +151,7 @@ public class UpdatesAnnouncer(
     private async Task<IReadOnlyList<YouTubeVideo>> VideosAsync(CancellationToken cancellationToken)
     {
         if (!youTubeOptions.CurrentValue.IsConfigured) return [];
-        try
-        {
-            return await videoCache.GetAsync(youTube.FetchVideosAsync, cancellationToken);
-        }
-        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
-        {
-            logger.LogWarning(e, "Couldn't check YouTube for new videos.");
-            return [];
-        }
+        return await videoStore.GetAsync(cancellationToken) ?? [];
     }
 
     private string? Absolute(string? url) => url switch

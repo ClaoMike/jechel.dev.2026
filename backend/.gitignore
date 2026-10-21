@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Tests: the coverage report (test.sh; TestResults/ is covered above)
+coverage/

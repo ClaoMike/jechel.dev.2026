@@ -91,8 +91,9 @@ A small window with buttons. Each opens a new Terminal window running the matchi
 | Start frontend     | `npm run dev`                                                     |
 | Start website      | Both of the above in two windows. The frontend waits until `/api/health` responds, then opens the site in the browser |
 | Open repo map      | `npm start` in `tools/repomap` (runs `npm install` the first time): builds the 3D architecture map, opens it in the browser and rebuilds it on every change. See [tools/repomap/README.md](tools/repomap/README.md) |
-| Run backend tests  | `dotnet test`                                                     |
+| Run backend tests  | `backend/test.sh` (all tests, with coverage), then opens the coverage report in the browser |
 | Run frontend tests | `npm test` in `frontend` (all tests, with coverage), then opens the coverage report in the browser |
+| Run all tests      | Both of the above, one after the other, then both coverage reports |
 | Deploy to production | `scripts/deploy.sh`: only enabled on `develop`. See [Deployment](#deployment) |
 
 The first click may trigger a macOS prompt to allow Terminal automation; allow it.
@@ -721,11 +722,20 @@ docker exec -it portfolio-db psql -U portfolio -d portfolio
 Auth in integration tests: `PortfolioApiFactory` configures dummy Google credentials and `Auth:AdminEmails = admin@example.com`. A test-only `GET /test/sign-in?email=...` hook (registered via `IStartupFilter`) does what the Google callback does after a successful login: it starts the database session and issues the real cookie. So tests exercise the real cookie and session validation. The API's clock is a `FakeTimeProvider` (`factory.Time`); advance it to simulate idle time.
 
 ```bash
+backend/test.sh                                        # everything, with coverage: backend/coverage/index.html
 cd backend
-dotnet test                                            # everything
+dotnet test                                            # everything, no coverage
 dotnet test tests/Portfolio.Api.UnitTests              # unit only
 dotnet test tests/Portfolio.Api.IntegrationTests       # integration only
 ```
+
+**Coverage:** `test.sh` collects coverage of the API (coverlet, `coverage.runsettings`: every source file counts,
+tested or not; EF's generated migrations don't) and turns it into an HTML report with ReportGenerator (a local dotnet
+tool, `dotnet-tools.json`): `backend/coverage/index.html`, plus a summary in the terminal. Written even when a test
+fails. CI uploads it as the run's `backend-coverage`.
+
+**What's tested:** since 2026-10-21 the backend tests cover the YouTube videos only (`Features/YouTube` in both
+projects): the other features' tests were removed, to be written again feature by feature.
 
 ### Frontend (`frontend/`)
 
@@ -754,6 +764,9 @@ the report shows what isn't covered yet: `coverage/index.html` (and a summary in
   realistic answers from `src/test/fixtures/` (About Me, terms, site, videos, LeetCode, résumé); a test changes what it needs,
   e.g. `api.about.get.mockRejectedValue(new ApiError('/api/about', 500))`, or `forever()` for the loading state.
   `stubApi({ user: ADMIN })` signs the admin in.
+- **The real requests:** `fakeHttp(answer)` (`src/test/http.ts`) replaces the browser's XMLHttpRequest, so an `api`
+  function runs for real (URL, query, headers, errors turned into ApiErrors, cancelling, the preview switch) without
+  leaving the browser. See `services/api.youtube.test.ts`.
 - **The whole site:** `renderApp({ path, theme, acceptedTerms })` renders App as main.tsx does (store, router, terms already
   accepted unless `acceptedTerms: null`), for routing, the frame, the popups and the email-link pages.
 - **The browser is fixed for tests:** headless Chromium with reduced motion (Vice's scene draws one still frame), the en-GB
@@ -771,7 +784,8 @@ the report shows what isn't covered yet: `coverage/index.html` (and a summary in
 `.github/workflows/ci.yml` runs on every pull request and on pushes to `develop` (the repo map tool in `tools/repomap`
 isn't tested on GitHub: it will move to its own repository; run its tests locally):
 
-1. **backend**: restore, build, `dotnet test` (Testcontainers uses the runner's Docker)
+1. **backend**: `backend/test.sh`, all tests with coverage (Testcontainers uses the runner's Docker); the report is
+   uploaded as the run's `backend-coverage`
 2. **frontend**: in Playwright's image (`mcr.microsoft.com/playwright:v1.63.0-noble`, keep it in step with the
    `playwright` package): `npm ci`, lint, build, `npm test`. On failure, the coverage report and the screenshots that
    didn't match are uploaded as the run's `frontend-test-report`.

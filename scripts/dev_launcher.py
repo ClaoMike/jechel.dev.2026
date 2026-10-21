@@ -28,10 +28,15 @@ WAIT_FOR_API = (
 # 3D architecture map (tools/repomap): builds the graph (cached after the first run), opens the
 # viewer in the browser and rebuilds it whenever the code changes. npm install only runs once.
 REPO_MAP = "cd tools/repomap && ([ -d node_modules ] || npm install) && npm start"
-BACKEND_TESTS = "cd backend && dotnet test"
+# Unit + integration tests with coverage of the API; the report opens in the browser afterwards, whether the
+# tests passed or not.
+BACKEND_TESTS = "backend/test.sh; open backend/coverage/index.html"
 # Vitest in headless Chromium, with coverage of all of frontend/src; the report opens in the browser
 # afterwards, whether the tests passed or not.
 FRONTEND_TESTS = "cd frontend && npm test; open coverage/index.html"
+# Both, one after the other (the backend's integration tests and the frontend's browser tests are heavy
+# together), then both coverage reports.
+ALL_TESTS = "backend/test.sh; (cd frontend && npm test); open backend/coverage/index.html frontend/coverage/index.html"
 # Production: a pull request develop → main that merges itself once the tests pass, then deploys.
 DEPLOY = "scripts/deploy.sh"
 # The Deploy button only works on this branch.
@@ -61,6 +66,7 @@ ACTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     ("Open repo map", [("Repo map", REPO_MAP)]),
     ("Run backend tests", [("Backend tests", BACKEND_TESTS)]),
     ("Run frontend tests", [("Frontend tests", FRONTEND_TESTS)]),
+    ("Run all tests", [("All tests", ALL_TESTS)]),
 ]
 
 

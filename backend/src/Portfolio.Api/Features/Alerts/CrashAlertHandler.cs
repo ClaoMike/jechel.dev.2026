@@ -11,6 +11,8 @@ public class CrashAlertHandler(IPhoneAlerts alerts, ILogger<CrashAlertHandler> l
     public ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
         if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested) return ValueTask.FromResult(false);
+        // A malformed request (e.g. ?page=two) is the caller's mistake, answered 400: not a crash.
+        if (exception is BadHttpRequestException) return ValueTask.FromResult(false);
 
         var endpoint = $"{httpContext.Request.Method} {httpContext.Request.Path}";
         logger.LogError(exception, "Unhandled exception on {Endpoint}.", endpoint);

@@ -86,7 +86,7 @@ public static class SettingsEndpoints
         SaveSettingRequest request,
         PortfolioDbContext db,
         SettingsStore store,
-        RefreshingCache<IReadOnlyList<YouTubeVideo>> videos,
+        YouTubeVideoStore videos,
         IConfiguration configuration,
         IOptionsMonitor<AdminOptions> admins,
         IOptions<SiteOptions> site,

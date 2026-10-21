@@ -59,8 +59,8 @@ builder.Services.AddHttpClient<IYouTubeClient, YouTubeClient>(http =>
     http.BaseAddress = YouTubeClient.BaseAddress;
     http.Timeout = TimeSpan.FromSeconds(15);
 });
-builder.Services.AddSingleton(services => new RefreshingCache<IReadOnlyList<YouTubeVideo>>(
-    services.GetRequiredService<TimeProvider>(), YouTubeEndpoints.FreshFor, YouTubeEndpoints.RetryAfter));
+builder.Services.AddSingleton<YouTubeVideoStore>();
+builder.Services.AddHostedService<YouTubeRefreshWorker>();
 
 builder.Services.Configure<SiteOptions>(builder.Configuration.GetSection(SiteOptions.Section));
 
@@ -87,6 +87,9 @@ builder.Services.AddSingleton<NtfySender>();
 builder.Services.AddHostedService<AlertWorker>();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<CrashAlertHandler>();
+// Malformed requests keep their status (400) in Development too, where ASP.NET throws for them.
+builder.Services.Configure<ExceptionHandlerOptions>(options =>
+    options.StatusCodeSelector = exception => exception is BadHttpRequestException bad ? bad.StatusCode : StatusCodes.Status500InternalServerError);
 
 builder.Services.BindWithSettings<SupportOptions>(builder.Configuration, SupportOptions.Section);
 

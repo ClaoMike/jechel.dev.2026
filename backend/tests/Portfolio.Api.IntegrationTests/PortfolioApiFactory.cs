@@ -60,7 +60,9 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         {
             services.AddSingleton<TimeProvider>(Time);
             services.AddSingleton<ILeetCodeClient>(LeetCode);
-            services.AddSingleton<IYouTubeClient>(new FakeYouTubeClient());
+            services.AddSingleton<IYouTubeClient>(YouTube);
+            // Refreshing runs on a timer; tests that need it call YouTubeVideoStore.RefreshAsync.
+            services.Remove(services.Single(s => s.ImplementationType == typeof(YouTubeRefreshWorker)));
             services.AddSingleton<IStartupFilter, TestSignInStartupFilter>();
             services.AddSingleton<IEmailSender>(Emails);
             services.AddSingleton<IPhoneAlerts>(Alerts);
@@ -81,6 +83,9 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
 
     /// <summary>Every email the API sent.</summary>
     public RecordingEmailSender Emails { get; } = new();
+
+    /// <summary>Stands in for YouTube's API, so tests never call it.</summary>
+    public FakeYouTubeClient YouTube { get; } = new();
 
     /// <summary>Stands in for leetcode.com, so tests never call it.</summary>
     public FakeLeetCodeClient LeetCode { get; } = new();
@@ -135,12 +140,27 @@ public sealed class FakeLeetCodeClient : ILeetCodeClient
         Task.FromResult(username.Equals("neetcode", StringComparison.OrdinalIgnoreCase) ? NeetCode : null);
 }
 
-/// <summary>A channel with 11 videos, v1 the newest.</summary>
+/// <summary>A channel with 11 videos, v1 the newest, unless a test changes <see cref="Videos"/> or makes it fail.</summary>
 public sealed class FakeYouTubeClient : IYouTubeClient
 {
-    public Task<IReadOnlyList<YouTubeVideo>> FetchVideosAsync(CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<YouTubeVideo>>(
-            [.. Enumerable.Range(1, 11).Select(n => new YouTubeVideo($"v{n}", $"Video {n}", "About it", $"https://i.ytimg.com/vi/v{n}/hqdefault.jpg", DateTimeOffset.UnixEpoch.AddDays(100 - n)))]);
+    public static readonly IReadOnlyList<YouTubeVideo> Eleven =
+        [.. Enumerable.Range(1, 11).Select(n => new YouTubeVideo($"v{n}", $"Video {n}", "About it", $"https://i.ytimg.com/vi/v{n}/hqdefault.jpg", DateTimeOffset.UnixEpoch.AddDays(100 - n)))];
+
+    private int _calls;
+
+    public IReadOnlyList<YouTubeVideo> Videos { get; set; } = Eleven;
+
+    /// <summary>When set, YouTube "can't be reached".</summary>
+    public bool Fails { get; set; }
+
+    /// <summary>How many times the API asked YouTube.</summary>
+    public int Calls => _calls;
+
+    public Task<IReadOnlyList<YouTubeVideo>> FetchVideosAsync(CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref _calls);
+        return Fails ? Task.FromException<IReadOnlyList<YouTubeVideo>>(new HttpRequestException("YouTube is down")) : Task.FromResult(Videos);
+    }
 }
 
 /// <summary>Keeps every email instead of sending it. Thread-safe: tests run in parallel against one API.</summary>

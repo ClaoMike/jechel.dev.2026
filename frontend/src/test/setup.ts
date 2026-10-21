@@ -14,6 +14,8 @@ document.head.append(still)
 
 afterEach(() => {
   vi.restoreAllMocks()
+  // E.g. fakeHttp's XMLHttpRequest.
+  vi.unstubAllGlobals()
   // Paging scrolls the grid into view, the test runner's page around this frame too; the next test starts at the top.
   for (let win: Window = window; ; win = win.parent) {
     win.scrollTo(0, 0)

@@ -38,6 +38,43 @@ describe('YouTube', () => {
     await expect.poll(() => view.location()).toBe('/youtube?page=2')
   })
 
+  it('goes back to the first page with Previous, leaving the page out of the URL', async () => {
+    const api = stubApi()
+    const all = Array.from({ length: 11 }, (_, i) => makeVideo(i + 1))
+    api.youtube.listVideos.mockImplementation(async (pageNumber = 1, pageSize = 9) => pageOfVideos(all.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), pageNumber, pageSize, all.length))
+    const view = await renderView(<YouTubePage />, { path: '/youtube?page=2' })
+    await expect.element(tile('Video 10')).toBeVisible()
+    await page.getByRole('button', { name: 'Previous' }).click()
+    await expect.element(tile('Video 1')).toBeVisible()
+    await expect.poll(() => view.location()).toBe('/youtube')
+  })
+
+  for (const query of ['?page=0', '?page=-2', '?page=two']) {
+    it(`reads ${query} in the URL as the first page`, async () => {
+      const api = stubApi()
+      await renderView(<YouTubePage />, { path: `/youtube${query}` })
+      await expect.element(tile(VIDEOS[0].title)).toBeVisible()
+      expect(api.youtube.listVideos).toHaveBeenCalledWith(1, 9, expect.anything())
+    })
+  }
+
+  it('moves a page past the end (an old link) to the last page there is', async () => {
+    const api = stubApi()
+    const all = Array.from({ length: 11 }, (_, i) => makeVideo(i + 1))
+    api.youtube.listVideos.mockImplementation(async (pageNumber = 1, pageSize = 9) => pageOfVideos(all.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), pageNumber, pageSize, all.length))
+    const view = await renderView(<YouTubePage />, { path: '/youtube?page=7' })
+    await expect.poll(() => view.location()).toBe('/youtube?page=2')
+    await expect.element(tile('Video 11')).toBeVisible()
+    await expect.element(page.getByText('Page 2 of 2')).toBeVisible()
+  })
+
+  it('shows no paging when every video fits on one page', async () => {
+    stubApi()
+    await renderView(<YouTubePage />)
+    await expect.element(tile(VIDEOS[0].title)).toBeVisible()
+    expect(page.getByRole('button', { name: 'Next' }).query()).toBeNull()
+  })
+
   it('says so when there are no videos, and when they cannot be loaded (with a retry)', async () => {
     const api = stubApi()
     api.youtube.listVideos.mockResolvedValueOnce(pageOfVideos([]))
