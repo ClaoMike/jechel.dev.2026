@@ -144,8 +144,8 @@ public static class SupportEndpoints
             _ => ($"Buy Me a Coffee: {from}", $"New event: {donation.Type}{(amount.Length > 0 ? $", {amount}" : "")}.", AlertPriority.Default, "coffee"),
         };
         return donation.IsTest
-            ? new PhoneAlert($"Test: {title}", $"{message} (Sent with Send test: no money moved.)", "/community", AlertPriority.Low, tag)
-            : new PhoneAlert(title, message, "/community", priority, tag);
+            ? new PhoneAlert(AlertKinds.Coffee, $"Test: {title}", $"{message} (Sent with Send test: no money moved.)", "/community", AlertPriority.Low, tag)
+            : new PhoneAlert(AlertKinds.Coffee, title, message, "/community", priority, tag);
     }
 
     /// <summary>"5 GBP from Jo", or just "Jo" without an amount.</summary>

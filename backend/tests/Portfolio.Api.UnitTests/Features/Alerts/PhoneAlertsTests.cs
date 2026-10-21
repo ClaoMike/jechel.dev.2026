@@ -24,8 +24,8 @@ public class PhoneAlertsTests
     {
         var alerts = new PhoneAlerts(_time);
 
-        alerts.Send(new PhoneAlert("One", "1"));
-        alerts.Send(new PhoneAlert("Two", "2"));
+        alerts.Send(new PhoneAlert(AlertKinds.SiteError, "One", "1"));
+        alerts.Send(new PhoneAlert(AlertKinds.SiteError, "Two", "2"));
 
         Assert.Equal(2, Queued(alerts));
     }
@@ -34,7 +34,7 @@ public class PhoneAlertsTests
     public void SendThrottled_sends_the_same_key_once_an_hour()
     {
         var alerts = new PhoneAlerts(_time);
-        var alert = new PhoneAlert("Site error", "TypeError");
+        var alert = new PhoneAlert(AlertKinds.SiteError, "Site error", "TypeError");
 
         alerts.SendThrottled("web:TypeError", alert);
         alerts.SendThrottled("web:TypeError", alert);
@@ -51,7 +51,7 @@ public class PhoneAlertsTests
     {
         var alerts = new PhoneAlerts(_time);
 
-        for (var i = 0; i < PhoneAlerts.MaxThrottledPerWindow + 5; i++) alerts.SendThrottled($"key {i}", new PhoneAlert("Error", $"{i}"));
+        for (var i = 0; i < PhoneAlerts.MaxThrottledPerWindow + 5; i++) alerts.SendThrottled($"key {i}", new PhoneAlert(AlertKinds.SiteError, "Error", $"{i}"));
 
         Assert.Equal(PhoneAlerts.MaxThrottledPerWindow, Queued(alerts));
     }
@@ -60,7 +60,7 @@ public class PhoneAlertsTests
     public void NtfyMessage_links_to_the_site_and_cuts_long_text()
     {
         var body = NtfySender.NtfyMessage(
-            new PhoneAlert("New message", new string('m', 5000), "/contact", AlertPriority.High, "envelope"),
+            new PhoneAlert(AlertKinds.SiteError, "New message", new string('m', 5000), "/contact", AlertPriority.High, "envelope"),
             "my-topic",
             new SiteOptions { PublicUrl = "https://jechel.dev/" });
 
@@ -75,7 +75,7 @@ public class PhoneAlertsTests
     public void NtfyMessage_turns_actions_into_buttons_that_post()
     {
         var body = NtfySender.NtfyMessage(
-            new PhoneAlert("New app", "Send it?", Actions: [new AlertAction("Send email", "https://jechel.dev/send?token=t")]),
+            new PhoneAlert(AlertKinds.SiteError, "New app", "Send it?", Actions: [new AlertAction("Send email", "https://jechel.dev/send?token=t")]),
             "my-topic",
             new SiteOptions());
 
@@ -95,17 +95,17 @@ public class PhoneAlertsTests
         var alerts = new PhoneAlerts(_time);
         for (var i = 0; i < PhoneAlerts.MaxThrottledPerWindow; i++)
         {
-            alerts.SendThrottled($"key {i}", new PhoneAlert("Error", $"{i}"));
+            alerts.SendThrottled($"key {i}", new PhoneAlert(AlertKinds.SiteError, "Error", $"{i}"));
             _time.Advance(TimeSpan.FromMinutes(5));
         }
         Assert.Equal(PhoneAlerts.MaxThrottledPerWindow, Queued(alerts));
-        alerts.SendThrottled("one more", new PhoneAlert("Error", "x"));
+        alerts.SendThrottled("one more", new PhoneAlert(AlertKinds.SiteError, "Error", "x"));
         Assert.Equal(0, Queued(alerts));
 
         // The first went out an hour ago: room for one, not two.
         _time.Advance(TimeSpan.FromMinutes(10));
-        alerts.SendThrottled("later", new PhoneAlert("Error", "y"));
-        alerts.SendThrottled("later still", new PhoneAlert("Error", "z"));
+        alerts.SendThrottled("later", new PhoneAlert(AlertKinds.SiteError, "Error", "y"));
+        alerts.SendThrottled("later still", new PhoneAlert(AlertKinds.SiteError, "Error", "z"));
         Assert.Equal(1, Queued(alerts));
     }
 
@@ -113,12 +113,12 @@ public class PhoneAlertsTests
     public void A_key_turned_away_by_the_cap_isnt_remembered_and_goes_out_once_there_is_room()
     {
         var alerts = new PhoneAlerts(_time);
-        for (var i = 0; i < PhoneAlerts.MaxThrottledPerWindow; i++) alerts.SendThrottled($"key {i}", new PhoneAlert("Error", $"{i}"));
-        alerts.SendThrottled("capped", new PhoneAlert("Error", "capped"));
+        for (var i = 0; i < PhoneAlerts.MaxThrottledPerWindow; i++) alerts.SendThrottled($"key {i}", new PhoneAlert(AlertKinds.SiteError, "Error", $"{i}"));
+        alerts.SendThrottled("capped", new PhoneAlert(AlertKinds.SiteError, "Error", "capped"));
         Queued(alerts);
 
         _time.Advance(PhoneAlerts.ThrottleWindow);
-        alerts.SendThrottled("capped", new PhoneAlert("Error", "capped"));
+        alerts.SendThrottled("capped", new PhoneAlert(AlertKinds.SiteError, "Error", "capped"));
 
         Assert.True(alerts.Reader.TryRead(out var sent));
         Assert.Equal("capped", sent.Message);
@@ -129,7 +129,7 @@ public class PhoneAlertsTests
     {
         var alerts = new PhoneAlerts(_time);
 
-        for (var i = 0; i < 50; i++) alerts.Send(new PhoneAlert("Message", $"{i}"));
+        for (var i = 0; i < 50; i++) alerts.Send(new PhoneAlert(AlertKinds.SiteError, "Message", $"{i}"));
 
         Assert.Equal(50, Queued(alerts));
     }
@@ -139,7 +139,7 @@ public class PhoneAlertsTests
     {
         var alerts = new PhoneAlerts(_time);
 
-        for (var i = 0; i < 130; i++) alerts.Send(new PhoneAlert("Message", $"{i}"));
+        for (var i = 0; i < 130; i++) alerts.Send(new PhoneAlert(AlertKinds.SiteError, "Message", $"{i}"));
 
         var kept = new List<string>();
         while (alerts.Reader.TryRead(out var alert)) kept.Add(alert.Message);
@@ -152,7 +152,7 @@ public class PhoneAlertsTests
     {
         var alerts = new PhoneAlerts(_time);
 
-        await Task.WhenAll(Enumerable.Range(0, 200).Select(i => Task.Run(() => alerts.SendThrottled(i % 2 == 0 ? "same" : $"key {i}", new PhoneAlert("Error", $"{i}")))));
+        await Task.WhenAll(Enumerable.Range(0, 200).Select(i => Task.Run(() => alerts.SendThrottled(i % 2 == 0 ? "same" : $"key {i}", new PhoneAlert(AlertKinds.SiteError, "Error", $"{i}")))));
 
         Assert.Equal(PhoneAlerts.MaxThrottledPerWindow, Queued(alerts));
     }
@@ -162,7 +162,7 @@ public class PhoneAlertsTests
     [Fact]
     public void NtfyMessage_leaves_out_what_an_alert_doesnt_have()
     {
-        var body = NtfySender.NtfyMessage(new PhoneAlert("Hi", "There"), "t", new SiteOptions());
+        var body = NtfySender.NtfyMessage(new PhoneAlert(AlertKinds.SiteError, "Hi", "There"), "t", new SiteOptions());
 
         Assert.Equal(["topic", "title", "message", "priority"], body.Keys);
         Assert.Equal(3, body["priority"]);
@@ -173,12 +173,12 @@ public class PhoneAlertsTests
     [InlineData(AlertPriority.Default, 3)]
     [InlineData(AlertPriority.High, 4)]
     public void NtfyMessage_sends_ntfys_own_priority_numbers(AlertPriority priority, int expected) =>
-        Assert.Equal(expected, NtfySender.NtfyMessage(new PhoneAlert("T", "M", Priority: priority), "t", new SiteOptions())["priority"]);
+        Assert.Equal(expected, NtfySender.NtfyMessage(new PhoneAlert(AlertKinds.SiteError, "T", "M", Priority: priority), "t", new SiteOptions())["priority"]);
 
     [Fact]
     public void A_long_title_is_cut_to_200_and_ends_in_an_ellipsis()
     {
-        var title = (string)NtfySender.NtfyMessage(new PhoneAlert(new string('t', 300), "M"), "t", new SiteOptions())["title"];
+        var title = (string)NtfySender.NtfyMessage(new PhoneAlert(AlertKinds.SiteError, new string('t', 300), "M"), "t", new SiteOptions())["title"];
 
         Assert.Equal(200, title.Length);
         Assert.EndsWith("…", title);
@@ -236,7 +236,7 @@ public class PhoneAlertsTests
     {
         var ntfy = new FakeNtfy();
 
-        Assert.False(await Sender(ntfy, new AlertOptions { NtfyTopic = "  " }).SendAsync(new PhoneAlert("T", "M"), default));
+        Assert.False(await Sender(ntfy, new AlertOptions { NtfyTopic = "  " }).SendAsync(new PhoneAlert(AlertKinds.SiteError, "T", "M"), default));
         Assert.Empty(ntfy.Requests);
     }
 
@@ -245,7 +245,7 @@ public class PhoneAlertsTests
     {
         var ntfy = new FakeNtfy();
 
-        Assert.True(await Sender(ntfy, new AlertOptions { NtfyTopic = " jechel-abc " }).SendAsync(new PhoneAlert("☕ 5 GBP from Jo", "Thanks!", "/community"), default));
+        Assert.True(await Sender(ntfy, new AlertOptions { NtfyTopic = " jechel-abc " }).SendAsync(new PhoneAlert(AlertKinds.SiteError, "☕ 5 GBP from Jo", "Thanks!", "/community"), default));
 
         var (request, body) = Assert.Single(ntfy.Requests);
         Assert.Equal((HttpMethod.Post, "https://ntfy.sh/"), (request.Method, request.RequestUri!.ToString()));
@@ -261,7 +261,7 @@ public class PhoneAlertsTests
     {
         var ntfy = new FakeNtfy();
 
-        await Sender(ntfy, new AlertOptions { NtfyTopic = "t", NtfyServer = server, NtfyToken = " tk_123 " }).SendAsync(new PhoneAlert("T", "M"), default);
+        await Sender(ntfy, new AlertOptions { NtfyTopic = "t", NtfyServer = server, NtfyToken = " tk_123 " }).SendAsync(new PhoneAlert(AlertKinds.SiteError, "T", "M"), default);
 
         var request = Assert.Single(ntfy.Requests).Request;
         Assert.Equal(expected, request.RequestUri!.ToString());
@@ -271,7 +271,7 @@ public class PhoneAlertsTests
     [Fact]
     public async Task Throws_when_ntfy_refuses_it()
     {
-        await Assert.ThrowsAsync<HttpRequestException>(() => Sender(new FakeNtfy(HttpStatusCode.Forbidden), new AlertOptions { NtfyTopic = "t" }).SendAsync(new PhoneAlert("T", "M"), default));
+        await Assert.ThrowsAsync<HttpRequestException>(() => Sender(new FakeNtfy(HttpStatusCode.Forbidden), new AlertOptions { NtfyTopic = "t" }).SendAsync(new PhoneAlert(AlertKinds.SiteError, "T", "M"), default));
     }
 
     [Fact]
@@ -279,10 +279,10 @@ public class PhoneAlertsTests
     {
         var ntfy = new FlakyNtfy(failOn: "Two");
         var alerts = new PhoneAlerts(_time);
-        var worker = new AlertWorker(alerts, Sender(ntfy, new AlertOptions { NtfyTopic = "t" }), NullLogger<AlertWorker>.Instance);
+        var worker = new AlertWorker(alerts, Sender(ntfy, new AlertOptions { NtfyTopic = "t" }), new AlertPreferences(), new YouTube.TestDatabase().Scopes, _time, NullLogger<AlertWorker>.Instance);
 
         await worker.StartAsync(default);
-        foreach (var title in new[] { "One", "Two", "Three" }) alerts.Send(new PhoneAlert(title, "m"));
+        foreach (var title in new[] { "One", "Two", "Three" }) alerts.Send(new PhoneAlert(AlertKinds.SiteError, title, "m"));
         var deadline = DateTime.UtcNow.AddSeconds(5);
         while (ntfy.Titles.Count < 3 && DateTime.UtcNow < deadline) await Task.Delay(10);
         await worker.StopAsync(default);

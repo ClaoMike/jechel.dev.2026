@@ -18,7 +18,7 @@ public class CrashAlertHandler(IPhoneAlerts alerts, ILogger<CrashAlertHandler> l
         logger.LogError(exception, "Unhandled exception on {Endpoint}.", endpoint);
         alerts.SendThrottled(
             $"api:{exception.GetType().FullName}:{endpoint}",
-            new PhoneAlert($"API crash: {exception.GetType().Name}", $"{endpoint}\n{exception.Message}", "/engagement", AlertPriority.High, "rotating_light"));
+            new PhoneAlert(AlertKinds.ApiCrash, $"API crash: {exception.GetType().Name}", $"{endpoint}\n{exception.Message}", "/engagement", AlertPriority.High, "rotating_light"));
         return ValueTask.FromResult(false);
     }
 }

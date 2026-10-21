@@ -41,7 +41,7 @@ public static class GoogleSignIn
         {
             alerts.SendThrottled(
                 $"auth:refused:{email}",
-                new PhoneAlert("Sign-in refused", $"{email ?? "An account without an email"} tried to sign in to jechel.dev\n{device}", "/settings", AlertPriority.Default, "no_entry"));
+                new PhoneAlert(AlertKinds.SignInRefused, "Sign-in refused", $"{email ?? "An account without an email"} tried to sign in to jechel.dev\n{device}", "/settings", AlertPriority.Default, "no_entry"));
             context.Response.Redirect($"{AuthSetup.AdminLoginPage}?error=not_authorized");
             context.HandleResponse();
             return;
@@ -53,7 +53,7 @@ public static class GoogleSignIn
         if (previous.Principal is { } signedIn) await sessions.EndAsync(signedIn, http.RequestAborted);
         await sessions.StartAsync(principal, http, http.RequestAborted);
         context.Properties!.IsPersistent = true;
-        alerts.Send(new PhoneAlert("Signed in to jechel.dev", $"{device}\nNot you? Sign that device out in Settings.", "/settings", AlertPriority.High, "key"));
+        alerts.Send(new PhoneAlert(AlertKinds.SignIn, "Signed in to jechel.dev", $"{device}\nNot you? Sign that device out in Settings.", "/settings", AlertPriority.High, "key"));
     }
 
     /// <summary>"Chrome on macOS · 203.0.113.7 (GB)": what the alerts say about where a sign-in came from.</summary>

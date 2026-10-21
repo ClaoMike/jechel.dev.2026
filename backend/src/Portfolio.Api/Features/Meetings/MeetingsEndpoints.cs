@@ -136,7 +136,7 @@ public static class MeetingsEndpoints
         if (token is not null)
         {
             var url = (string action) => site.Value.UrlFor($"/api/meetings/{meeting.Id}/{action}?token={token}");
-            alerts.Send(new PhoneAlert($"Meeting request: {who}", $"{when}\n{meeting.Notes ?? meeting.Title}", "/contact", AlertPriority.High, "calendar",
+            alerts.Send(new PhoneAlert(AlertKinds.MeetingRequest, $"Meeting request: {who}", $"{when}\n{meeting.Notes ?? meeting.Title}", "/contact", AlertPriority.High, "calendar",
                 [new AlertAction("Accept", url("accept")), new AlertAction("Decline", url("decline"))]));
         }
         else if (previous != meeting.Status)
@@ -148,7 +148,7 @@ public static class MeetingsEndpoints
                 MeetingStatus.Declined => $"Meeting declined: {who}",
                 _ => $"Meeting: {who}",
             };
-            alerts.Send(new PhoneAlert(title, when, "/contact", AlertPriority.Default, "calendar"));
+            alerts.Send(new PhoneAlert(AlertKinds.MeetingChange, title, when, "/contact", AlertPriority.Default, "calendar"));
         }
         return TypedResults.Ok();
     }

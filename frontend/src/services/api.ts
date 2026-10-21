@@ -17,6 +17,7 @@ import { contactEndpoints } from './endpoints/contact'
 import { filesEndpoints } from './endpoints/files'
 import { leetcodeEndpoints } from './endpoints/leetcode'
 import { meetingsEndpoints } from './endpoints/meetings'
+import { notificationsEndpoints } from './endpoints/notifications'
 import { placesEndpoints } from './endpoints/places'
 import { profileEndpoints } from './endpoints/profile'
 import { resumeEndpoints } from './endpoints/resume'
@@ -37,6 +38,7 @@ export * from './endpoints/contact'
 export * from './endpoints/files'
 export * from './endpoints/leetcode'
 export * from './endpoints/meetings'
+export * from './endpoints/notifications'
 export * from './endpoints/places'
 export * from './endpoints/profile'
 export * from './endpoints/resume'
@@ -64,5 +66,6 @@ export const api = {
   meetings: meetingsEndpoints,
   site: siteEndpoints,
   settings: settingsEndpoints,
+  notifications: notificationsEndpoints,
   profile: profileEndpoints,
 }

@@ -122,6 +122,26 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("admin_sessions", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.AlertPreference", b =>
+                {
+                    b.Property<string>("Kind")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("kind");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Kind");
+
+                    b.ToTable("alert_preferences", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.Announcement", b =>
                 {
                     b.Property<int>("Id")
@@ -512,6 +532,57 @@ namespace Portfolio.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("meetings", (string)null);
+                });
+
+            modelBuilder.Entity("Portfolio.Api.Data.PhoneAlertLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("message");
+
+                    b.Property<string>("Path")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("path");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("Kind", "CreatedAt");
+
+                    b.ToTable("phone_alerts", (string)null);
                 });
 
             modelBuilder.Entity("Portfolio.Api.Data.Profile", b =>

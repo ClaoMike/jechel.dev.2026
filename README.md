@@ -823,6 +823,41 @@ to the log. Setting it up (Settings tab, ntfy card):
 
 Optionally reserve the topic with an ntfy account (access token), or use your own server, under "Your own ntfy server".
 
+## Notifications (phone alerts, on or off)
+
+The admin's **Notifications** tab (`pages/NotificationsPage/`, API in `Features/Alerts/NotificationsEndpoints.cs`) lists every kind of
+phone alert, grouped, each with how many came in the last 30 days, when the last did, and an **On / Off** switch (the theme
+switcher's look, two stops: `components/OnOffSwitch`). Below it, the **History**: every alert raised, newest first, a page at a
+time, of every kind or one, with what became of it.
+
+- **Kinds** (`AlertKinds.cs`): Visitors (new message, meeting request, meeting booked / moved / cancelled, meeting reminder),
+  Community (Buy Me a Coffee, new subscriber, new app to email, update email sent), Problems (emails not going out, site error,
+  API crash), Security (signed in, sign-in refused). Every `PhoneAlert` names its kind first; a test reads the API's source and
+  fails if one doesn't, or if a listed kind is never raised. Settings → ntfy → **Send a test alert** goes straight out, whatever is off.
+- **Switched off:** the alert isn't sent, but it's still in the history, marked **Off: not sent**. It applies to the next alert
+  (`AlertPreferences`, in memory, loaded at start-up and after each change; `alert_preferences`, one row per kind switched).
+  A new app with its kind off has no Send / Ignore buttons on the phone: decide in the Community tab.
+- **History** (`phone_alerts`): written by `AlertWorker` after it sends (or holds back) each alert: **Sent**, **Off: not sent**,
+  **ntfy not set up**, or **Failed**. Kept for 90 days.
+
+```
+ Something happens on the site                 AlertWorker (one at a time)                    You
+ ─────────────────────────────                 ───────────────────────────                    ───
+ new PhoneAlert(AlertKinds.Message, …) ──► queue ──► kind on? (AlertPreferences) ──no──► not sent ─┐
+   (throttled ones: SendThrottled)                       │ yes                                    │
+                                                         ▼                                        │
+                                               ntfy topic set? ──no──► not set up ─────────────────┤
+                                                         │ yes                                    │
+                                                         ▼                                        │
+                                               POST to ntfy ──ok──► 📱 on your phone ── sent ──────┤
+                                                         └──refused──► failed ───────────────────┤
+                                                                                                  ▼
+                                               phone_alerts (90 days) ◄───────────────────────────┘
+ Notifications tab ── GET /api/notifications/kinds ── switches, counts, last time
+                   ── PUT /api/notifications/kinds/{kind} {enabled} ──► alert_preferences + AlertPreferences (at once)
+                   ── GET /api/notifications?kind=&page= ── the history
+```
+
 ## Settings (connections)
 
 The admin's **Settings** tab (`pages/SettingsPage/SettingsPage.tsx`, API in `Features/Settings/`) has three cards: **Visitor pages**,

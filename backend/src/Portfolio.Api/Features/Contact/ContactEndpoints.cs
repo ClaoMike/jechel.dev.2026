@@ -64,7 +64,7 @@ public static class ContactEndpoints
         db.ContactMessages.Add(message);
         await db.SaveChangesAsync(cancellationToken);
 
-        alerts.Send(new PhoneAlert($"New message from {message.Name}", message.Message, "/contact", AlertPriority.High, "envelope"));
+        alerts.Send(new PhoneAlert(AlertKinds.Message, $"New message from {message.Name}", message.Message, "/contact", AlertPriority.High, "envelope"));
 
         return TypedResults.Created();
     }

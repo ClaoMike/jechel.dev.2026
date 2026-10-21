@@ -78,7 +78,7 @@ public static class AnalyticsEndpoints
                 // Once stored, so a retried batch doesn't ring twice; throttled, so a crash every visitor hits rings once an hour.
                 foreach (var (label, path) in errors)
                 {
-                    alerts.SendThrottled($"web:{label}", new PhoneAlert("Site error", $"{label}\non {path} ({agent.Browser}, {agent.Device})", "/engagement", AlertPriority.Default, "warning"));
+                    alerts.SendThrottled($"web:{label}", new PhoneAlert(AlertKinds.SiteError, "Site error", $"{label}\non {path} ({agent.Browser}, {agent.Device})", "/engagement", AlertPriority.Default, "warning"));
                 }
                 return TypedResults.NoContent();
             }

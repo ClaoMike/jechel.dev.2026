@@ -88,6 +88,7 @@ builder.Services.AddHybridCache();
 // Phone alerts (ntfy): queued by any request, sent in the background.
 builder.Services.BindWithSettings<AlertOptions>(builder.Configuration, AlertOptions.Section);
 builder.Services.AddSingleton<PhoneAlerts>();
+builder.Services.AddSingleton<AlertPreferences>();
 builder.Services.AddSingleton<IPhoneAlerts>(services => services.GetRequiredService<PhoneAlerts>());
 builder.Services.AddHttpClient(NtfySender.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<NtfySender>();
@@ -147,10 +148,12 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
     scope.ServiceProvider.GetRequiredService<PortfolioDbContext>().Database.Migrate();
 }
 
-// The settings saved in the Settings tab, before anything reads them.
+// The settings saved in the Settings tab, and the alerts switched off, before anything reads them.
 using (var scope = app.Services.CreateScope())
 {
     await app.Services.GetRequiredService<SettingsStore>().ReloadAsync(scope.ServiceProvider.GetRequiredService<PortfolioDbContext>(), CancellationToken.None);
+    // The kinds of phone alert switched off in the Notifications tab.
+    await app.Services.GetRequiredService<AlertPreferences>().ReloadAsync(scope.ServiceProvider.GetRequiredService<PortfolioDbContext>(), CancellationToken.None);
 }
 
 app.UseForwardedHeaders();
@@ -194,6 +197,7 @@ api.MapUpdatesEndpoints();
 api.MapUpdateEmailsEndpoints();
 api.MapResumeEndpoints();
 api.MapSettingsEndpoints();
+api.MapNotificationsEndpoints();
 api.MapMeetingsEndpoints();
 api.MapSiteEndpoints();
 

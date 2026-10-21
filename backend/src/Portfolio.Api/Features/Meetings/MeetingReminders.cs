@@ -45,6 +45,7 @@ public class MeetingReminders(PortfolioDbContext db, IPhoneAlerts alerts, IOptio
             foreach (var reminder in due) meeting.RemindersSent |= reminder.Flag;
             var who = meeting.AttendeeName.Length > 0 ? meeting.AttendeeName : meeting.AttendeeEmail;
             alerts.Send(new PhoneAlert(
+                AlertKinds.MeetingReminder,
                 $"{label}: meeting with {who}",
                 $"{PersonalEmails.FormatWhen(meeting.StartTime, site.Value.TimeZone)} · {meeting.Title}",
                 "/contact",

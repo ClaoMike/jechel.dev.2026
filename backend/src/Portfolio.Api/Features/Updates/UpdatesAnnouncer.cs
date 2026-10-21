@@ -122,6 +122,7 @@ public class UpdatesAnnouncer(
                 announcement.SentAt = null;
                 await db.SaveChangesAsync(CancellationToken.None);
                 alerts.SendThrottled($"email:{reason}", new PhoneAlert(
+                    AlertKinds.EmailFailing,
                     "Emails aren't going out",
                     $"\"{item.Title}\" couldn't be emailed to anyone; it's tried again in 10 minutes. {reason}",
                     "/settings",
@@ -132,6 +133,7 @@ public class UpdatesAnnouncer(
             sent++;
 
             alerts.Send(new PhoneAlert(
+                AlertKinds.UpdateSent,
                 $"Emailed: {item.Title}",
                 $"The new {announcement.Kind} went to {announcement.RecipientCount} of {subscribers.Count} subscribers.",
                 "/community",

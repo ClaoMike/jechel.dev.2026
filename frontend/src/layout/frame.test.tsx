@@ -74,7 +74,7 @@ describe('the header', () => {
   })
 
   it("colours the admin's own tabs pink to violet, the same in every theme, current or not", async () => {
-    const adminTabs = ['Engagement', 'Community', 'Terms', 'Settings']
+    const adminTabs = ['Engagement', 'Community', 'Notifications', 'Terms', 'Settings']
     for (const name of ['dark', 'light', 'vice'] as const) {
       stubApi({ user: ADMIN })
       const app = await renderApp({ path: '/engagement', theme: name })

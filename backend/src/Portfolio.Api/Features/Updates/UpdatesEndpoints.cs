@@ -129,7 +129,7 @@ public static class UpdatesEndpoints
             loggers.CreateLogger(typeof(UpdatesEndpoints)).LogError(e, "Couldn't send the confirmation email.");
             // The visitor only hears it didn't work; the admin needs the reason (e.g. the sender's domain isn't verified).
             var reason = e is Settings.ServiceException ? e.Message : "The email service couldn't be reached.";
-            alerts.SendThrottled($"email:{reason}", new PhoneAlert("Emails aren't going out", $"A visitor couldn't subscribe. {reason}", "/settings", AlertPriority.High, "warning"));
+            alerts.SendThrottled($"email:{reason}", new PhoneAlert(AlertKinds.EmailFailing, "Emails aren't going out", $"A visitor couldn't subscribe. {reason}", "/settings", AlertPriority.High, "warning"));
             // Lets them try again at once.
             subscriber.ConfirmationSentAt = default;
             await db.SaveChangesAsync(CancellationToken.None);
@@ -155,7 +155,7 @@ public static class UpdatesEndpoints
             subscriber.ConfirmedAt = time.GetUtcNow();
             await db.SaveChangesAsync(cancellationToken);
             var total = await db.Subscribers.CountAsync(s => s.ConfirmedAt != null, cancellationToken);
-            alerts.Send(new PhoneAlert("New subscriber", $"{subscriber.Email} ({total} in all)", "/community", AlertPriority.Low, "bell"));
+            alerts.Send(new PhoneAlert(AlertKinds.Subscriber, "New subscriber", $"{subscriber.Email} ({total} in all)", "/community", AlertPriority.Low, "bell"));
         }
         return TypedResults.Ok(new ConfirmedSubscription(subscriber.Email));
     }

@@ -893,6 +893,25 @@ html {
   outline-offset: 1px;
 }
 
+/* On / Off (components/OnOffSwitch): the theme slider with two stops, wide enough for a word each. */
+.on-off-switch {
+  --stop: 46px;
+  flex: none;
+}
+
+.on-off-switch .theme-switch-option {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.on-off-switch:disabled {
+  opacity: 0.6;
+}
+
+.on-off-switch:disabled .theme-switch-option {
+  cursor: progress;
+}
+
 /* ---------- Buttons ---------- */
 
 .button {

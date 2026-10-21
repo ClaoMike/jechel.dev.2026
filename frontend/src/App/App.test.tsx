@@ -88,7 +88,12 @@ describe('the site, as a visitor gets it', () => {
     const app = await renderApp({ path: '/youtube' })
     await expect.element(tabs().getByRole('link', { name: 'Apps' })).toHaveAttribute('aria-current', 'page')
     await expect.poll(() => app.location()).toBe('/apps')
-    expect(tabs().getByRole('link').elements().map((a) => a.textContent)).toEqual(['Apps', 'About Me', 'Contact'])
+    expect(
+      tabs()
+        .getByRole('link')
+        .elements()
+        .map((a) => a.textContent),
+    ).toEqual(['Apps', 'About Me', 'Contact'])
   })
 
   it('says "Coming soon" when every page is hidden', async () => {
@@ -113,7 +118,12 @@ describe('the site, for the signed-in admin', () => {
     api.site.status.mockResolvedValue({ ...SITE, maintenance: true, pages: { ...SITE.pages, youtube: false } })
     await renderApp({ path: '/youtube' })
     await expect.element(page.getByRole('list', { name: 'Videos' })).toBeVisible()
-    expect(tabs().getByRole('link').elements().map((a) => a.textContent)).toEqual(["What's new?", 'Apps', 'YouTube (hidden from visitors)', 'About Me', 'Contact', 'Engagement', 'Community', 'Terms', 'Settings'])
+    expect(
+      tabs()
+        .getByRole('link')
+        .elements()
+        .map((a) => a.textContent),
+    ).toEqual(["What's new?", 'Apps', 'YouTube (hidden from visitors)', 'About Me', 'Contact', 'Engagement', 'Community', 'Notifications', 'Terms', 'Settings'])
     await expect.element(tabs().getByRole('link', { name: /YouTube/ })).toHaveAttribute('title', 'Hidden from visitors')
   })
 })

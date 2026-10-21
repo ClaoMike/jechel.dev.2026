@@ -11,6 +11,7 @@ import { AdminPage } from '../pages/AdminPage/AdminPage'
 import { CommunityPage } from '../pages/CommunityPage/CommunityPage'
 import { ContactPage } from '../pages/ContactPage/ContactPage'
 import { EngagementPage } from '../pages/EngagementPage/EngagementPage'
+import { NotificationsPage } from '../pages/NotificationsPage/NotificationsPage'
 import { SettingsPage } from '../pages/SettingsPage/SettingsPage'
 import { TermsPage } from '../pages/TermsPage/TermsPage'
 import { ConfirmSubscriptionPage } from '../pages/ConfirmSubscriptionPage/ConfirmSubscriptionPage'
@@ -27,14 +28,50 @@ function App() {
       <AnalyticsTracker />
       <Routes>
         <Route element={<AppLayout />}>
-          <Route index element={<VisiblePage page="whatsNew"><WhatsNewPage /></VisiblePage>} />
-          <Route path="apps" element={<VisiblePage page="apps"><AppsPage /></VisiblePage>} />
-          <Route path="youtube" element={<VisiblePage page="youtube"><YouTubePage /></VisiblePage>} />
-          <Route path="about" element={<VisiblePage page="about"><AboutPage /></VisiblePage>} />
-          <Route path="contact" element={<VisiblePage page="contact"><ContactPage /></VisiblePage>} />
+          <Route
+            index
+            element={
+              <VisiblePage page="whatsNew">
+                <WhatsNewPage />
+              </VisiblePage>
+            }
+          />
+          <Route
+            path="apps"
+            element={
+              <VisiblePage page="apps">
+                <AppsPage />
+              </VisiblePage>
+            }
+          />
+          <Route
+            path="youtube"
+            element={
+              <VisiblePage page="youtube">
+                <YouTubePage />
+              </VisiblePage>
+            }
+          />
+          <Route
+            path="about"
+            element={
+              <VisiblePage page="about">
+                <AboutPage />
+              </VisiblePage>
+            }
+          />
+          <Route
+            path="contact"
+            element={
+              <VisiblePage page="contact">
+                <ContactPage />
+              </VisiblePage>
+            }
+          />
           <Route path="coming-soon" element={<ComingSoonPage />} />
           <Route path="engagement" element={<EngagementPage />} />
           <Route path="community" element={<CommunityPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="terms" element={<TermsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="updates/confirm" element={<ConfirmSubscriptionPage />} />

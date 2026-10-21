@@ -31,6 +31,8 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<Meeting> Meetings => Set<Meeting>();
     public DbSet<ContactReply> ContactReplies => Set<ContactReply>();
     public DbSet<SiteState> SiteStates => Set<SiteState>();
+    public DbSet<PhoneAlertLog> PhoneAlertLogs => Set<PhoneAlertLog>();
+    public DbSet<AlertPreference> AlertPreferences => Set<AlertPreference>();
 
     /// <summary>ASP.NET Core Data Protection's keys (they encrypt cookies and saved secrets), so they survive redeploys.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -270,6 +272,31 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.HasKey(s => s.Id);
             entity.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(s => s.AnnounceAfter).HasColumnName("announce_after");
+        });
+
+        modelBuilder.Entity<PhoneAlertLog>(entity =>
+        {
+            entity.ToTable("phone_alerts");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Id).HasColumnName("id");
+            entity.Property(a => a.Kind).HasColumnName("kind").HasMaxLength(40).IsRequired();
+            entity.Property(a => a.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+            entity.Property(a => a.Message).HasColumnName("message").HasMaxLength(1000).IsRequired();
+            entity.Property(a => a.Path).HasColumnName("path").HasMaxLength(200);
+            entity.Property(a => a.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(a => a.CreatedAt).HasColumnName("created_at");
+            // Newest first, all or of one kind.
+            entity.HasIndex(a => a.CreatedAt);
+            entity.HasIndex(a => new { a.Kind, a.CreatedAt });
+        });
+
+        modelBuilder.Entity<AlertPreference>(entity =>
+        {
+            entity.ToTable("alert_preferences");
+            entity.HasKey(p => p.Kind);
+            entity.Property(p => p.Kind).HasColumnName("kind").HasMaxLength(40);
+            entity.Property(p => p.Enabled).HasColumnName("enabled");
+            entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         });
 
         modelBuilder.Entity<UpdateEmailsPage>(entity =>

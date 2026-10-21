@@ -61,6 +61,7 @@ public static class AnnouncementDecisions
         var subscribers = await db.Subscribers.CountAsync(s => s.ConfirmedAt != null, cancellationToken);
         var url = (string action) => site.UrlFor($"/api/updates/announcements/{announcement.Id}/{action}?token={token}");
         alerts.Send(new PhoneAlert(
+            AlertKinds.NewApp,
             $"New app: {app.Title}",
             $"Email it to your {subscribers} {(subscribers == 1 ? "subscriber" : "subscribers")}? You can also decide later in the Community tab.",
             "/community",

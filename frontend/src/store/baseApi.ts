@@ -19,6 +19,8 @@ export const baseApi = createApi({
     'LeetCode',
     'Meetings',
     'MeetingsLink',
+    'NotificationKinds',
+    'Notifications',
     'Message',
     'Messages',
     'Resume',
