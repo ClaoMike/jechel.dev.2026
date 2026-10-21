@@ -1,0 +1,146 @@
+import { describe, expect, it } from 'vitest'
+import { page, userEvent } from 'vitest/browser'
+import { SupportButton } from '../../features/support/SupportButton/SupportButton'
+import { SubscribeButton } from '../../features/updates/SubscribeButton/SubscribeButton'
+import { stubApi } from '../../test/api'
+import { SITE } from '../../test/fixtures/site'
+import { renderView } from '../../test/render'
+
+// The header buttons' icons on hover: the Get updates bell turns yellow and rings (the bell swings, its
+// clapper follows), the coffee's steam turns into rising waves. Tests run with reduced motion: what shows
+// is checked on the page, how it moves in the stylesheet.
+
+const bell = () => page.getByRole('button', { name: 'Get updates by email' })
+const coffee = () => page.getByRole('link', { name: 'Buy me a coffee (opens in a new tab)' })
+const part = (root: Element, selector: string) => root.querySelector<SVGElement>(selector)!
+
+/** The style rules whose selector mentions every one of `parts`. */
+function rules(...parts: string[]) {
+  const all = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules])
+  const flat = all.flatMap((rule) => (rule instanceof CSSMediaRule ? [...rule.cssRules].map((inner) => ({ rule: inner, media: rule.conditionText })) : [{ rule, media: '' }]))
+  return flat.filter((r): r is { rule: CSSStyleRule; media: string } => r.rule instanceof CSSStyleRule && parts.every((p) => (r.rule as CSSStyleRule).selectorText.includes(p)))
+}
+
+const keyframes = (name: string) =>
+  [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]).find((rule): rule is CSSKeyframesRule => rule instanceof CSSKeyframesRule && rule.name === name)
+
+/** The angles a swing goes through, leaving out the frames where it's at rest. */
+const rotations = (name: string) => [...keyframes(name)!.cssRules].map((frame) => (frame as CSSKeyframeRule).style.transform).filter((t) => !/^rotate\(0(deg)?\)$/.test(t))
+
+describe('the Get updates bell', () => {
+  it('is drawn in two parts, the bell and its clapper, that hang from the same point at the top', async () => {
+    stubApi()
+    await renderView(<SubscribeButton />)
+    const svg = bell().element().querySelector('svg.bell-icon')!
+    const [body, clapper] = [part(svg, '.bell-body'), part(svg, '.bell-clapper')]
+    expect(body).not.toBeNull()
+    expect(clapper).not.toBeNull()
+    expect([getComputedStyle(body).transformOrigin, getComputedStyle(clapper).transformOrigin]).toEqual(['12px 2px', '12px 2px'])
+    expect(getComputedStyle(body).transformBox).toBe('view-box')
+    // A swing hangs from the hook: the pivot is above the bell's body, which starts at y = 2.
+    const box = (body as SVGGraphicsElement).getBBox()
+    expect(box.y).toBeGreaterThanOrEqual(2)
+  })
+
+  it('turns yellow on hover, and on keyboard focus, and goes back after', async () => {
+    stubApi()
+    await renderView(<SubscribeButton />)
+    const body = part(bell().element(), '.bell-body')
+    expect(getComputedStyle(body).fill).toBe('none')
+
+    await bell().hover()
+    await expect.poll(() => getComputedStyle(body).fill).toBe('rgb(255, 204, 0)')
+    expect(getComputedStyle(bell().element().querySelector('svg')!).color).toBe('rgb(232, 168, 0)')
+
+    await page.elementLocator(document.body).hover({ position: { x: 1, y: 1 } })
+    await expect.poll(() => getComputedStyle(body).fill).toBe('none')
+    await userEvent.tab()
+    expect(document.activeElement).toBe(bell().element())
+    await expect.poll(() => getComputedStyle(body).fill).toBe('rgb(255, 204, 0)')
+  })
+
+  it('rings on hover, over and over: the bell swings both ways, the clapper a beat later and wider', () => {
+    const ring = rules('.subscribe-button', '.bell-body').find((r) => r.rule.style.animationName === 'bell-ring')!
+    const follow = rules('.subscribe-button', '.bell-clapper').find((r) => r.rule.style.animationName === 'bell-clapper')!
+    for (const { rule, media } of [ring, follow]) {
+      expect(rule.selectorText).toContain(':hover')
+      expect(rule.selectorText).toContain(':focus-visible')
+      expect(rule.style.animationIterationCount).toBe('infinite')
+      expect(media).toBe('')
+    }
+    const degrees = (name: string) => rotations(name).map((t) => parseFloat(t.match(/rotate\((-?[\d.]+)deg\)/)![1]))
+    const bellSwing = degrees('bell-ring')
+    const clapperSwing = degrees('bell-clapper')
+    // Left and right, dying down.
+    expect(bellSwing.some((d) => d > 0) && bellSwing.some((d) => d < 0)).toBe(true)
+    expect(Math.abs(bellSwing[0])).toBeGreaterThan(Math.abs(bellSwing.at(-1)!))
+    // The clapper swings further than the bell, and peaks later.
+    expect(Math.max(...clapperSwing.map(Math.abs))).toBeGreaterThan(Math.max(...bellSwing.map(Math.abs)))
+    const firstPeak = (name: string) => parseFloat((keyframes(name)!.cssRules[1] as CSSKeyframeRule).keyText)
+    expect(firstPeak('bell-clapper')).toBeGreaterThan(firstPeak('bell-ring'))
+  })
+
+  it("stays still for visitors who ask for less motion, and in the tests' browser, which does", async () => {
+    stubApi()
+    await renderView(<SubscribeButton />)
+    await bell().hover()
+    const body = part(bell().element(), '.bell-body')
+    await expect.poll(() => getComputedStyle(body).fill).toBe('rgb(255, 204, 0)')
+    expect(getComputedStyle(body).animationName).toBe('none')
+    expect(getComputedStyle(part(bell().element(), '.bell-clapper')).animationName).toBe('none')
+    expect(rules('.bell-body').some((r) => r.media.includes('prefers-reduced-motion') && r.rule.style.animationName === 'none')).toBe(true)
+  })
+})
+
+describe('the Buy me a coffee steam', () => {
+  const show = async () => {
+    stubApi()
+    await renderView(<SupportButton />, { site: structuredClone(SITE) })
+    await expect.element(coffee()).toBeVisible()
+  }
+  const still = () => part(coffee().element(), '.coffee-steam-still')
+  const waves = () => part(coffee().element(), '.coffee-steam')
+
+  it('shows three straight lines at rest, and three waves instead on hover and keyboard focus', async () => {
+    await show()
+    expect(waves().querySelectorAll('path')).toHaveLength(3)
+    expect(getComputedStyle(still()).display).not.toBe('none')
+    expect(getComputedStyle(waves()).display).toBe('none')
+
+    await coffee().hover()
+    await expect.poll(() => getComputedStyle(waves()).display).not.toBe('none')
+    expect(getComputedStyle(still()).display).toBe('none')
+
+    await page.elementLocator(document.body).hover({ position: { x: 1, y: 1 } })
+    await expect.poll(() => getComputedStyle(waves()).display).toBe('none')
+    ;(coffee().element() as HTMLElement).focus()
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}{Tab}')
+    await expect.poll(() => getComputedStyle(waves()).display).not.toBe('none')
+  })
+
+  it('makes each wave a curve that bends both ways, over its own line', async () => {
+    await show()
+    const wavePaths = [...waves().querySelectorAll('path')].map((p) => p.getAttribute('d')!)
+    expect(wavePaths.map((d) => d.match(/^M(\d+)/)![1])).toEqual(['6', '10', '14'])
+    for (const d of wavePaths) expect(d).toMatch(/c.*s/)
+  })
+
+  it('moves them up and fades them, one after another, over and over', () => {
+    const wave = rules('.coffee-steam path').find((r) => r.rule.style.animationName === 'coffee-steam')!
+    expect(wave.rule.style.animationIterationCount).toBe('infinite')
+    const delays = [2, 3].map((n) => rules(`.coffee-steam path:nth-child(${n})`)[0].rule.style.animationDelay)
+    expect(delays).toEqual(['0.5s', '1s'])
+    const frames = [...keyframes('coffee-steam')!.cssRules] as CSSKeyframeRule[]
+    expect([frames[0].style.opacity, frames.at(-1)!.style.opacity]).toEqual(['0', '0'])
+    // Rising: it ends higher up than it starts.
+    const y = (frame: CSSKeyframeRule) => parseFloat(frame.style.transform.match(/translate\([^,]+,\s*(-?[\d.]+)px\)/)![1])
+    expect(y(frames.at(-1)!)).toBeLessThan(y(frames[0]))
+  })
+
+  it("doesn't move for visitors who ask for less motion", async () => {
+    await show()
+    await coffee().hover()
+    await expect.poll(() => getComputedStyle(waves()).display).not.toBe('none')
+    expect(getComputedStyle(waves().querySelector('path')!).animationName).toBe('none')
+  })
+})

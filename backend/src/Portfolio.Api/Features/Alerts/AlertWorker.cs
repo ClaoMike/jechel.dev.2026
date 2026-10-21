@@ -96,7 +96,14 @@ public class NtfySender(IHttpClientFactory http, IOptionsMonitor<AlertOptions> o
         return body;
     }
 
-    private static string Cut(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
+    /// <summary>At most <paramref name="max"/> characters, ending in "…" when cut; never half an emoji (a split surrogate pair shows as "�").</summary>
+    public static string Cut(string text, int max)
+    {
+        if (text.Length <= max) return text;
+        var end = max - 1;
+        if (char.IsHighSurrogate(text[end - 1])) end--;
+        return text[..end] + "…";
+    }
 }
 
 /// <summary>Sends the queued <see cref="PhoneAlert"/>s, one at a time. A failed alert is logged and dropped.</summary>

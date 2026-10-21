@@ -314,11 +314,20 @@ export const EyeOffIcon = (p: IconProps) => (
   </Icon>
 )
 
+/**
+ * A cup with three lines of steam over it. On the Buy me a coffee button's hover the lines become waves
+ * that rise and fade, one after another (glass.css: .coffee-steam).
+ */
 export const CoffeeIcon = (p: IconProps) => (
-  <Icon {...p}>
+  <Icon {...p} className="coffee-icon">
     <path d="M17 8h1a4 4 0 0 1 0 8h-1" />
     <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
-    <path d="M6 2v2M10 2v2M14 2v2" />
+    <path className="coffee-steam-still" d="M6 2v2M10 2v2M14 2v2" />
+    <g className="coffee-steam">
+      <path d="M6 6c-1-.75-1-1.25 0-2s1-1.25 0-2" />
+      <path d="M10 6c-1-.75-1-1.25 0-2s1-1.25 0-2" />
+      <path d="M14 6c-1-.75-1-1.25 0-2s1-1.25 0-2" />
+    </g>
   </Icon>
 )
 
@@ -329,10 +338,14 @@ export const InboxIcon = (p: IconProps) => (
   </Icon>
 )
 
+/**
+ * A bell, in two parts that can move apart: on the Get updates button's hover it turns yellow and rings,
+ * swinging from its top while the clapper follows a moment later (glass.css: .bell-body, .bell-clapper).
+ */
 export const BellIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+  <Icon {...p} className="bell-icon">
+    <path className="bell-body" d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+    <path className="bell-clapper" d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
   </Icon>
 )
 
