@@ -378,6 +378,29 @@ html {
   animation: page-out-to-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
+/* A paged grid's pages (PagedGrid) slide the same way as the tabs' pages. */
+.grid-leave {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+}
+
+.grid-enter.grid-to-left {
+  animation: page-in-from-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.grid-enter.grid-to-right {
+  animation: page-in-from-left 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.grid-leave.grid-to-left {
+  animation: page-out-to-left 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.grid-leave.grid-to-right {
+  animation: page-out-to-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
 /*
  * The page column is centred, so half the window plus half the page takes it just past the
  * screen's edge, however wide the screen. Movement only: fading (opacity) would cut the glass off

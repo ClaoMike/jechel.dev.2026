@@ -332,6 +332,13 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 
 **YouTube** (`src/pages/YouTubePage/YouTubePage.tsx`, API in `backend/.../Features/YouTube/`): the channel's public videos, newest first, in a 3 × 3 grid (2 columns on tablets, 1 on phones). Each card shows the thumbnail, title, date and the start of the description (cut after three lines), and opens the video on YouTube in a new tab. More than 9 videos get Previous / Next, with the page in the URL (`?page=2`).
 
+**Paged grids** (YouTube and Apps, `components/PagedGrid`): moving to another page slides the old page out and the
+new one in from its side (Next: from the right; Previous: from the left), with the same motion as switching tabs
+(`grid-enter` / `grid-leave` in `glass.css`), and not for visitors who ask for reduced motion (`utils/motion.ts`). The
+pages next to the one on show (page − 1 and page + 1, within range) are loaded ahead with RTK Query's prefetch
+(`usePrefetchApps`, `usePrefetchVideos` in `store/api/appsApi.ts`), which skips a page loaded in the last 30 seconds,
+so Previous / Next show their page at once; a page that wasn't loaded ahead shows placeholders, then slides in.
+
 - `GET /api/youtube/videos?page=1&pageSize=9` (public) reads the uploads with the YouTube Data API v3. It needs `YouTube:Channel` (`@handle` or `UC…` id) and `YouTube:ApiKey`; until both are set it answers 503 and the page says the videos can't be loaded.
 - The list is kept by `YouTubeVideoStore`: in memory, and in the database (`youtube_videos`, one row per channel), so a
   restart or a YouTube outage still shows the last list; visitors only wait for YouTube when there's no list at all yet.

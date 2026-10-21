@@ -385,6 +385,11 @@ h2 {
   scroll-margin-top: 16px;
 }
 
+/* Moving to another page: the old page slides out over the new one sliding in (PagedGrid). */
+.paged-grid-stage {
+  position: relative;
+}
+
 .paged-grid-items {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

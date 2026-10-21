@@ -95,3 +95,12 @@ export const {
   useRefreshVideosMutation,
   useGetLatestQuery,
 } = appsApi
+
+/** A page counts as fresh for this long: loading ahead skips it (the same as baseApi's refetchOnMountOrArgChange). */
+export const PREFETCH_FRESH_SECONDS = 30
+
+/** Loads a page of apps ahead (the grid's neighbours), unless it's loaded and fresh. */
+export const usePrefetchApps = () => appsApi.usePrefetch('listApps', { ifOlderThan: PREFETCH_FRESH_SECONDS })
+
+/** Loads a page of videos ahead (the grid's neighbours), unless it's loaded and fresh. */
+export const usePrefetchVideos = () => appsApi.usePrefetch('listVideos', { ifOlderThan: PREFETCH_FRESH_SECONDS })

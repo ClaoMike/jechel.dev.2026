@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { AppMedia } from '../../../services/api'
+import { motionAllowed } from '../../../utils/motion'
 
 /** The slide on show: moved to by swiping or scrolling the track, the arrows, the dots or the arrow keys. Moving away pauses videos. */
 export function useMediaCarouselViewModel({ media, title }: { media: AppMedia[]; title: string }) {
@@ -16,8 +17,7 @@ export function useMediaCarouselViewModel({ media, title }: { media: AppMedia[];
     const clamped = Math.max(0, Math.min(media.length - 1, next))
     const el = track.current
     // Slides over, unless the visitor asked for less motion.
-    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-    el?.scrollTo?.({ left: clamped * el.clientWidth, behavior: still ? 'instant' : 'smooth' })
+    el?.scrollTo?.({ left: clamped * el.clientWidth, behavior: motionAllowed() ? 'smooth' : 'instant' })
     setIndex(clamped)
   }
 

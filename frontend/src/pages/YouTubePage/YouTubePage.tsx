@@ -1,7 +1,7 @@
 import { PagedGrid } from '../../components/PagedGrid/PagedGrid'
 import { RefreshVideosButton } from '../../features/youtube/RefreshVideosButton/RefreshVideosButton'
 import { VideoTile } from '../../features/youtube/VideoTile/VideoTile'
-import { useListVideosQuery } from '../../store/api/appsApi'
+import { useListVideosQuery, usePrefetchVideos } from '../../store/api/appsApi'
 import { useYouTubePageViewModel } from './YouTubePage.viewModel'
 
 /** My YouTube videos, newest first, nine a page. Each opens on YouTube in a new tab. The admin can fetch them now. */
@@ -11,7 +11,7 @@ export function YouTubePage() {
   return (
     <section className="youtube" aria-label="YouTube">
       {vm.canRefresh && <RefreshVideosButton />}
-      <PagedGrid useItems={useListVideosQuery} itemKey={vm.itemKey} texts={vm.texts} Tile={VideoTile} tileProps={vm.tileProps} />
+      <PagedGrid useItems={useListVideosQuery} usePrefetchItems={usePrefetchVideos} itemKey={vm.itemKey} texts={vm.texts} Tile={VideoTile} tileProps={vm.tileProps} />
     </section>
   )
 }
