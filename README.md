@@ -687,6 +687,8 @@ require of bulk senders).
   code that sends the emails, about your newest app or video. It sits under glass: the frame is `inert` and as tall as the email,
   so nothing in it can be clicked, focused or scrolled. **Send me a test** emails the draft to you, marked `[Test]`, from the
   updates sender; when your address is subscribed, its links carry your own code, so its Unsubscribe really unsubscribes you.
+  Otherwise they carry the code `test`, and the pages say the link is from a test and change nothing. Every email gets its own
+  `X-Entity-Ref-ID` header, so Gmail never stacks a test under the real email of the same subject (where the old button is easy to press).
   Saved as one JSON row (`update_emails`); saving the defaults unchanged deletes it, so improved defaults reach the emails too.
   (Wording saved when a new item still had a one-line heading reads that heading as its message.)
 - **Unsubscribing:** the link in the footer opens the site's page (`/updates/unsubscribe`), which calls the API; the

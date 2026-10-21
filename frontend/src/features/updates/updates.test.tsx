@@ -139,6 +139,23 @@ describe('the links in the update emails', () => {
   })
 })
 
+describe("a test email's links", () => {
+  it('say they come from a test and change nothing, without asking the API', async () => {
+    const api = stubApi()
+    const confirm = await renderApp({ path: '/updates/confirm?token=test' })
+    await expect
+      .poll(() => textOf(page.getByRole('status')))
+      .toBe('This link is from a test email, so it changes nothing. The button in the real confirmation email confirms the subscription.')
+    await confirm.unmount()
+
+    await renderApp({ path: '/updates/unsubscribe?token=test' })
+    await expect.poll(() => textOf(page.getByRole('status'))).toBe("This link is from a test email, so it changes nothing: you weren't subscribed when it was sent.")
+    expect(api.updates.confirm).not.toHaveBeenCalled()
+    expect(api.updates.unsubscribe).not.toHaveBeenCalled()
+    expect(page.getByRole('alert').query()).toBeNull()
+  })
+})
+
 describe('updates, screenshots and accessibility', () => {
   for (const theme of THEMES) {
     it(`${theme}: the popup (form, error, sent) and the confirmation page`, async () => {

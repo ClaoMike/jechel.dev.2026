@@ -66,7 +66,7 @@ public class EmailSendingTests
         await Resend(plain).SendAsync(new EmailMessage("ada@example.com", "S", "<p>H</p>", "T"), default);
         await Resend(reply).SendAsync(new EmailMessage("ada@example.com", "S", "<p>H</p>", "T", ReplyTo: "admin@example.com"), default);
 
-        Assert.Null(plain.Body!["headers"]);
+        Assert.Null(plain.Body!["headers"]!["List-Unsubscribe"]);
         Assert.Null(plain.Body["reply_to"]);
         Assert.Equal("admin@example.com", (string?)reply.Body!["reply_to"]);
     }
@@ -83,6 +83,22 @@ public class EmailSendingTests
         var attachment = Assert.Single(api.Body!["attachments"]!.AsArray())!;
         Assert.Equal(("logo", "logo.png", "image/png", "AQID"), ((string?)attachment["content_id"], (string?)attachment["filename"], (string?)attachment["content_type"], (string?)attachment["content"]));
         Assert.Null(plain.Body!["attachments"]);
+    }
+
+    [Fact]
+    public async Task Gives_every_email_its_own_id_so_gmail_never_stacks_a_test_and_the_real_one_together()
+    {
+        var first = new FakeResend();
+        var second = new FakeResend();
+
+        await Resend(first).SendAsync(Update, default);
+        await Resend(second).SendAsync(Update with { UnsubscribeUrl = null }, default);
+
+        var a = (string?)first.Body!["headers"]!["X-Entity-Ref-ID"];
+        var b = (string?)second.Body!["headers"]!["X-Entity-Ref-ID"];
+        Assert.Matches("^[0-9a-f]{32}$", a);
+        Assert.Matches("^[0-9a-f]{32}$", b);
+        Assert.NotEqual(a, b);
     }
 
     [Fact]

@@ -73,14 +73,15 @@ public class ResendEmailSender(HttpClient http, IOptionsMonitor<EmailOptions> op
                 ["content_id"] = i.ContentId,
             }).ToArray();
         }
+        // A new id for every email, so Gmail never stacks it in one conversation with an earlier one of the same subject
+        // (a test confirmation and the real one, say), where the older message's button is easy to press by mistake.
+        var headers = new Dictionary<string, string> { ["X-Entity-Ref-ID"] = Guid.NewGuid().ToString("N") };
         if (message.UnsubscribeUrl is { } unsubscribe)
         {
-            body["headers"] = new Dictionary<string, string>
-            {
-                ["List-Unsubscribe"] = $"<{unsubscribe}>",
-                ["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click",
-            };
+            headers["List-Unsubscribe"] = $"<{unsubscribe}>";
+            headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
         }
+        body["headers"] = headers;
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "emails") { Content = JsonContent.Create(body) };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.CurrentValue.ResendApiKey.Trim());

@@ -157,8 +157,8 @@ public class UpdateEmailsEndpointsTests
 
         Assert.Equal("Say yes to jechel.dev", preview.Subject);
         Assert.Equal("jechel.dev <updates@jechel.dev>", preview.From);
-        Assert.Contains("https://jechel.dev/updates/confirm?token=preview", preview.Html);
-        Assert.Contains("Yes, send me updates: https://jechel.dev/updates/confirm?token=preview", preview.Text);
+        Assert.Contains("https://jechel.dev/updates/confirm?token=test", preview.Html);
+        Assert.Contains("Yes, send me updates: https://jechel.dev/updates/confirm?token=test", preview.Text);
         Assert.Null((await Get()).UpdatedAt);
     }
 
@@ -180,7 +180,7 @@ public class UpdateEmailsEndpointsTests
 
         Assert.Equal("Out now: Space Game", preview.Subject);
         Assert.Contains("https://jechel.dev/api/files/7/shot.webp", preview.Html);
-        Assert.Contains("https://jechel.dev/updates/unsubscribe?token=preview", preview.Html);
+        Assert.Contains("https://jechel.dev/updates/unsubscribe?token=test", preview.Html);
         Assert.DoesNotContain("Old App", preview.Html);
     }
 
@@ -232,9 +232,17 @@ public class UpdateEmailsEndpointsTests
         Assert.Equal("admin@example.com", email.To);
         Assert.Equal("[Test] Out now: Space Game", email.Subject);
         Assert.True(email.FromUpdates);
-        Assert.Equal("https://jechel.dev/api/updates/unsubscribe?token=preview", email.UnsubscribeUrl);
+        Assert.Equal("https://jechel.dev/api/updates/unsubscribe?token=test", email.UnsubscribeUrl);
         Assert.Equal([UpdateEmails.Icon], email.Images);
         Assert.Empty(_db.Subscribers);
+    }
+
+    [Fact]
+    public void The_test_code_is_the_one_the_sites_pages_know()
+    {
+        // frontend/src/features/updates/useTokenAction.ts: TEST_TOKEN. Real codes are 43 random characters, never this.
+        Assert.Equal("test", UpdateEmailsEndpoints.TestToken);
+        Assert.NotEqual(UpdateEmailsEndpoints.TestToken.Length, UpdatesEndpoints.NewToken().Length);
     }
 
     [Fact]

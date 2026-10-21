@@ -172,8 +172,11 @@ public static class UpdateEmailsEndpoints
         return errors;
     }
 
-    /// <summary>For an address that isn't subscribed: the links lead to the real pages, which find no one for it.</summary>
-    private const string SampleToken = "preview";
+    /// <summary>
+    /// The code in a test email's links when the admin's address isn't subscribed. The confirm and unsubscribe pages
+    /// know it (frontend: TEST_TOKEN) and say the link came from a test, which changes nothing.
+    /// </summary>
+    public const string TestToken = "test";
 
     private static async Task<EmailMessage> SampleAsync(
         string kind,
@@ -186,7 +189,7 @@ public static class UpdateEmailsEndpoints
         CancellationToken cancellationToken)
     {
         var address = to.Trim().ToLowerInvariant();
-        var token = await db.Subscribers.AsNoTracking().Where(s => s.Email == address).Select(s => s.Token).FirstOrDefaultAsync(cancellationToken) ?? SampleToken;
+        var token = await db.Subscribers.AsNoTracking().Where(s => s.Email == address).Select(s => s.Token).FirstOrDefaultAsync(cancellationToken) ?? TestToken;
         if (kind == UpdateEmailKinds.Confirm) return UpdateEmails.Confirmation(to, token, wording, site);
 
         UpdateItem? item = null;
