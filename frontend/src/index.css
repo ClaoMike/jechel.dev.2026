@@ -3412,8 +3412,7 @@ button.media-card {
   color: var(--text);
 }
 
-.settings-status-off,
-.settings-status-later {
+.settings-status-off {
   color: var(--text-muted);
 }
 

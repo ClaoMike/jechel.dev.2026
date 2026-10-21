@@ -186,9 +186,15 @@ function Settings() {
         </details>
       </ServiceCard>
 
-      <ServiceCard title="Hosting" status="later" what="Where the site runs, its domain and its database. Not connected yet: it comes when the site goes live." links={[]}>
-        <p className="muted">Nothing to set yet.</p>
-      </ServiceCard>
+      <ServiceCard
+        title="Hosting"
+        links={[
+          ['Cloudflare', 'https://dash.cloudflare.com'],
+          ['Railway', 'https://railway.com/dashboard'],
+        ]}
+      />
+
+      <ServiceCard title="Porkbun (domain)" links={[['Porkbun', 'https://porkbun.com/account/domainsSpeedy']]} />
     </div>
   )
 }
@@ -203,12 +209,13 @@ function ServiceCard({
   children,
 }: {
   title: string
-  status: ServiceStatus
+  /** None for a card that's only links to the service. */
+  status?: ServiceStatus
   /** What the service is for. Optional. */
   what?: string
   links: [string, string][]
   test?: { service: TestableService; label: string }
-  children: ReactNode
+  children?: ReactNode
 }) {
   const vm = useServiceCardViewModel(status)
   const { id } = vm
@@ -218,7 +225,7 @@ function ServiceCard({
         <button type="button" id={id} className="accordion-toggle" aria-expanded={vm.open} aria-controls={`${id}-body`} onClick={vm.toggle}>
           <ArrowDownIcon size={18} />
           <span className="accordion-title">{title}</span>
-          <span className={`chip settings-status settings-status-${status}`}>{vm.statusText}</span>
+          {status && <span className={`chip settings-status settings-status-${status}`}>{vm.statusText}</span>}
         </button>
       </h3>
       <div id={`${id}-body`} className="settings-card-body" hidden={!vm.open}>

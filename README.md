@@ -777,7 +777,7 @@ Optionally reserve the topic with an ntfy account (access token), or use your ow
 
 The admin's **Settings** tab (`pages/SettingsPage/SettingsPage.tsx`, API in `Features/Settings/`) lists every service the site connects to, with
 links to their dashboards, the keys, the URLs to paste into them (webhook, OAuth callback), and a test button: Buy Me a Coffee,
-Google sign-in, YouTube Data API, Resend, ntfy, and (later) hosting.
+Google sign-in, YouTube Data API, Resend, ntfy, plus quick links: Hosting (Cloudflare, Railway) and Porkbun (the domain).
 
 - **Storage:** the `site_settings` table, one row per key. Secrets are encrypted with ASP.NET Core Data Protection (the same keys as
   the session cookie; persist them in production, or saved secrets can't be read after a deploy and have to be entered again).

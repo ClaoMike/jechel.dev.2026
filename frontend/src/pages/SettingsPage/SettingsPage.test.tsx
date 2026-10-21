@@ -70,3 +70,33 @@ describe('Settings: who emails come from', () => {
     await expect.element(updatesSender()).toHaveAttribute('aria-invalid', 'true')
   })
 })
+
+describe('Settings: quick links', () => {
+  const card = (name: RegExp) => page.getByRole('region', { name })
+
+  it('Hosting opens Cloudflare and Railway, and Porkbun has its own card: links only, no status, no text', async () => {
+    stub()
+    await renderView(<SettingsPage />, { user: ADMIN })
+    for (const [title, links] of [
+      [
+        /^Hosting/,
+        [
+          ['Cloudflare', 'https://dash.cloudflare.com'],
+          ['Railway', 'https://railway.com/dashboard'],
+        ],
+      ],
+      [/^Porkbun \(domain\)/, [['Porkbun', 'https://porkbun.com/account/domainsSpeedy']]],
+    ] as const) {
+      await page.getByRole('button', { name: title }).click()
+      const opened = card(title)
+      for (const [label, href] of links) {
+        const link = opened.getByRole('link', { name: label })
+        await expect.element(link).toHaveAttribute('href', href)
+        await expect.element(link).toHaveAttribute('target', '_blank')
+        await expect.element(link).toHaveAttribute('rel', 'noopener noreferrer')
+      }
+      expect(opened.element().querySelectorAll('.settings-status, p, input')).toHaveLength(0)
+      expect(textOf(opened)).not.toMatch(/Nothing to set|Not connected|Later/)
+    }
+  })
+})
