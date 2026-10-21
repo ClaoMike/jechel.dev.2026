@@ -1,0 +1,25 @@
+import type { AppCategory } from '../../../services/api'
+import { CategoryLabels } from '../CategoryLabels/CategoryLabels'
+
+export interface AppDialogHeaderProps {
+  titleId: string
+  /** The app's title, "Edit …" or "Add an app". */
+  heading: string
+  categories: AppCategory[]
+  onClose: () => void
+}
+
+/** The popup's title (with the app's labels while it's shown) and its close button. */
+export function AppDialogHeader({ titleId, heading, categories, onClose }: AppDialogHeaderProps) {
+  return (
+    <div className="modal-header">
+      <div className="app-heading">
+        <h2 id={titleId}>{heading}</h2>
+        <CategoryLabels categories={categories} />
+      </div>
+      <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
+  )
+}

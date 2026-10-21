@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { FittedImage } from './FittedImage'
-import { ImageIcon } from './icons'
+import { ImageIcon } from './icons/icons'
 
 export interface MediaCardProps {
   /** A link to open (in a new tab by default)... */

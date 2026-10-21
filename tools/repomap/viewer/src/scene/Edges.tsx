@@ -108,6 +108,7 @@ function BaseEdges({ geometry }: { geometry: EdgeGeometry }) {
   const visibility = useViewer((s) => s.visibility)
   const trace = useViewer((s) => s.trace)
   const themeName = useViewer((s) => s.theme)
+  const treeEdgesOnly = useViewer((s) => s.treeEdgesOnly)
   const invalidate = useThree((s) => s.invalidate)
 
   const buffer = useMemo(() => {
@@ -131,7 +132,7 @@ function BaseEdges({ geometry }: { geometry: EdgeGeometry }) {
       const edge = index.edges[e]
       const level = visibility?.edges[e] ?? 2
       let alpha = 0
-      if (level > 0) {
+      if (level > 0 && !(treeEdgesOnly && index.offTree[e])) {
         alpha = edge.type === 'contains' ? 0.1 : geometry.crossPlane[e] ? 0.38 : 0.26
         if (level === 1) alpha = 0.05
         if (edge.source === 'llm') alpha *= 0.7
@@ -151,7 +152,7 @@ function BaseEdges({ geometry }: { geometry: EdgeGeometry }) {
     }
     buffer.getAttribute('color').needsUpdate = true
     invalidate()
-  }, [buffer, geometry, index, visibility, trace, themeName, invalidate])
+  }, [buffer, geometry, index, visibility, trace, themeName, treeEdgesOnly, invalidate])
 
   return (
     <lineSegments geometry={buffer} frustumCulled={false} renderOrder={0}>

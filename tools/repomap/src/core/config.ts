@@ -3,7 +3,8 @@
  *
  * Merge rules (child over parent):
  * - arrays of objects with an `id` (layers, roles, kinds, edgeTypes, presets, plugins) merge by id;
- *   a child entry with `"enabled": false` removes a plugin
+ *   a child entry with `"enabled": false` removes a plugin; a new child entry with `"before": "<id>"`
+ *   goes in front of that entry instead of at the end (e.g. a layer above the parent's first one)
  * - `exclude`, `layerRules`, `roleRules` concatenate, child first (child rules win: first match wins)
  * - everything else: child replaces parent
  */
@@ -179,9 +180,11 @@ function isIdArray(value: unknown[]): boolean {
 
 function mergeById(parent: Json[], child: Json[]): Json[] {
   const result = parent.map((item) => ({ ...item }))
-  for (const item of child) {
+  for (const { before, ...item } of child) {
     const index = result.findIndex((existing) => existing.id === item.id)
+    const at = result.findIndex((existing) => existing.id === before)
     if (index >= 0) result[index] = { ...result[index], ...item }
+    else if (at >= 0) result.splice(at, 0, { ...item })
     else result.push({ ...item })
   }
   return result

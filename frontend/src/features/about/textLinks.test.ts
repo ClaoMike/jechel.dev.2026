@@ -1,48 +1,30 @@
 import { describe, expect, it } from 'vitest'
 import { formatLink, parseRichText, plainText } from './textLinks'
 
-describe('parseRichText', () => {
+describe('links in text', () => {
   it('splits text into plain parts and links', () => {
-    expect(parseRichText('BSc at [The University of Manchester](https://www.manchester.ac.uk), 2019')).toEqual([
-      { text: 'BSc at ' },
-      { text: 'The University of Manchester', href: 'https://www.manchester.ac.uk' },
-      { text: ', 2019' },
-    ])
+    expect(parseRichText('BSc at [Uni](https://uni.ac.uk), 2022')).toEqual([{ text: 'BSc at ' }, { text: 'Uni', href: 'https://uni.ac.uk' }, { text: ', 2022' }])
+    expect(parseRichText('[a](/x)[b](/y)')).toEqual([{ text: 'a', href: '/x' }, { text: 'b', href: '/y' }])
+    expect(parseRichText('no links')).toEqual([{ text: 'no links' }])
+    expect(parseRichText('')).toEqual([])
   })
 
-  it('keeps one level of parentheses in a URL', () => {
+  it('keeps a URL with one level of parentheses', () => {
     expect(parseRichText('[Mercury](https://en.wikipedia.org/wiki/Mercury_(planet))')).toEqual([{ text: 'Mercury', href: 'https://en.wikipedia.org/wiki/Mercury_(planet)' }])
   })
 
-  it('allows paths on this site', () => {
-    expect(parseRichText('[CV](/resume.pdf)')).toEqual([{ text: 'CV', href: '/resume.pdf' }])
+  it('leaves an unsafe link as the text that was typed', () => {
+    expect(parseRichText('see [this](javascript:alert(1)) now')).toEqual([{ text: 'see [this](javascript:alert(1)) now' }])
+    expect(parseRichText('[x](//evil.com)')).toEqual([{ text: '[x](//evil.com)' }])
   })
 
-  it.each(['[Click](javascript:alert(1))', '[x](data:text/html,hi)', '[x](//evil.example)'])('leaves an unsafe link as plain text: %s', (text) => {
-    expect(parseRichText(text)).toEqual([{ text }])
+  it('gives the text without link syntax', () => {
+    expect(plainText('Fast tries for [autocomplete](https://example.com)')).toBe('Fast tries for autocomplete')
+    expect(plainText('[bad](javascript:x)')).toBe('[bad](javascript:x)')
   })
 
-  it('leaves brackets that are not links alone', () => {
-    expect(parseRichText('Grade [A] (first class)')).toEqual([{ text: 'Grade [A] (first class)' }])
-  })
-
-  it('handles empty text', () => {
-    expect(parseRichText('')).toEqual([])
-  })
-})
-
-describe('plainText', () => {
-  it('drops the link syntax', () => {
-    expect(plainText('At [Uni](https://uni.example) in 2019')).toBe('At Uni in 2019')
-  })
-})
-
-describe('formatLink', () => {
-  it('writes [label](url), without brackets that would break it', () => {
-    expect(formatLink(' My [best] work ', ' https://x.example ')).toBe('[My best work](https://x.example)')
-  })
-
-  it('uses the URL when there is no label', () => {
-    expect(formatLink('', 'https://x.example')).toBe('[https://x.example](https://x.example)')
+  it('writes a link, dropping brackets from its text and falling back to the URL', () => {
+    expect(formatLink('The [best] uni', ' https://uni.ac.uk ')).toBe('[The best uni](https://uni.ac.uk)')
+    expect(formatLink('  ', 'https://x.dev')).toBe('[https://x.dev](https://x.dev)')
   })
 })

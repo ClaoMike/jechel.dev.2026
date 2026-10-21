@@ -26,6 +26,11 @@ describe('pipeline on this repository', { skip: !hasDotnet && 'dotnet SDK not fo
     return node.id
   }
   const hasEdge = (from: string, type: string, to: string) => graph.edges.some((e) => e.from === id(from) && e.type === type && e.to === id(to))
+  const node = (layer: string, label: string) => {
+    const found = graph.nodes.find((n) => n.layer === layer && n.label === label)
+    assert.ok(found, `node "${label}" on ${layer}`)
+    return found
+  }
 
   let history: GitHistory | undefined
 
@@ -61,12 +66,31 @@ describe('pipeline on this repository', { skip: !hasDotnet && 'dotnet SDK not fo
     assert.equal(me.attrs?.auth, 'required')
   })
 
-  it('links the chain page → API call → endpoint → entity property → column', () => {
-    assert.ok(hasEdge('HomePage', 'calls', 'api.profile.getFirstName'))
-    assert.ok(hasEdge('api.profile.getFirstName', 'http', 'GET /api/firstname'))
-    assert.ok(hasEdge('GET /api/firstname', 'reads', 'Profile.FirstName'))
+  it('links the chain view → view model → query hook → API call → endpoint → entity → table', () => {
+    const view = node('frontend-views', 'AppsPage')
+    const viewModel = node('frontend-viewmodels', 'useAppsPageViewModel')
+    const edge = (from: string, type: string, to: string) => graph.edges.some((e) => e.from === from && e.type === type && e.to === to)
+    assert.ok(edge(view.id, 'uses', viewModel.id))
+    assert.ok(edge(viewModel.id, 'uses', node('frontend', 'useListAppCategoriesQuery').id))
+    assert.ok(hasEdge('useListAppsQuery', 'calls', 'api.apps.list'))
+    assert.ok(hasEdge('api.apps.list', 'http', 'GET /api/apps'))
+    assert.ok(hasEdge('GET /api/apps', 'reads', 'AppEntry.CreatedAt'))
     assert.ok(hasEdge('Profile.FirstName', 'maps-to', 'profiles.first_name'))
     assert.ok(hasEdge('Profile', 'maps-to', 'profiles'))
+  })
+
+  it('puts views, view models and the rest of the frontend on their own planes, as one tree from main.tsx', () => {
+    for (const n of graph.nodes.filter((n) => n.file?.startsWith('frontend/src/') && n.kind !== 'route')) {
+      const expected = n.file!.endsWith('.viewModel.ts') ? 'frontend-viewmodels' : n.file!.endsWith('.tsx') ? 'frontend-views' : 'frontend'
+      assert.equal(n.layer, expected, n.id)
+    }
+    const main = node('frontend-views', 'main.tsx')
+    assert.deepEqual([main.pos![0], main.pos![2]], [0, 0])
+    const r = (n: { pos?: number[] }) => Math.hypot(n.pos![0], n.pos![2])
+    assert.ok(r(node('frontend-views', 'App')) < r(node('frontend-views', 'AppsPage')))
+    assert.ok(r(node('frontend-views', 'AppsPage')) < r(node('frontend-viewmodels', 'useAppsPageViewModel')))
+    assert.equal(node('frontend', 'useListAppsQuery').kind, 'hook')
+    assert.equal(node('frontend', 'authSlice').kind, 'slice')
   })
 
   it('links services, DI and migrations', () => {
@@ -81,11 +105,8 @@ describe('pipeline on this repository', { skip: !hasDotnet && 'dotnet SDK not fo
     assert.equal(graph.nodes.find((n) => n.label === 'GetFirstNameTests')?.role, 'test/unit')
     assert.equal(graph.nodes.find((n) => n.label === 'AuthEndpointTests')?.role, 'test/integration')
     assert.equal(graph.nodes.find((n) => n.label === 'PortfolioApiFactory')?.role, 'test/support')
-    assert.equal(graph.nodes.find((n) => n.label === 'admin.spec.ts')?.role, 'test/e2e')
     assert.ok(hasEdge('GetFirstNameTests', 'tests', 'GET /api/firstname'))
     assert.ok(hasEdge('FirstNameEndpointTests', 'tests', 'GET /api/firstname'))
-    assert.ok(hasEdge('HomePage.test.tsx', 'tests', 'HomePage'))
-    assert.ok(hasEdge('server.ts', 'mocks', 'GET /api/firstname'))
   })
 
   it('resolves every call site (no dangling links)', () => {

@@ -1,0 +1,149 @@
+import { CopyButton } from '../../../components/CopyButton/CopyButton'
+import { DeleteButton } from '../../../components/DeleteButton/DeleteButton'
+import { TrashIcon } from '../../../components/icons/icons'
+import { ErrorState } from '../../../components/ErrorState/ErrorState'
+import { Modal } from '../../../components/Modal/Modal'
+import { Loading, Skeleton, SkeletonText } from '../../../components/Skeleton'
+import type { ContactReply } from '../../../services/api'
+import { formatMeetingTime } from '../../meetings/format'
+import { MeetingActions } from '../../meetings/MeetingActions/MeetingActions'
+import { formatDateTime } from '../../../utils/formatDate'
+import { useMessageDialogViewModel, useRepliesViewModel, type MessageDialogProps } from './MessageDialog.viewModel'
+
+/** A message's details, each with a copy button. Opening it marks the message as read. */
+export function MessageDialog(props: MessageDialogProps) {
+  const { messageId, onClose, onDelete } = props
+  const vm = useMessageDialogViewModel(props)
+  const { titleId, state } = vm
+
+  return (
+    <Modal labelledBy={titleId} onClose={onClose}>
+      <div className="modal-header">
+        <h2 id={titleId}>Message from {vm.name}</h2>
+        <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+
+      {state.status === 'loading' && (
+        <Loading label="Loading the message…">
+          {[40, 55, 35].map((width, i) => (
+            <div key={i} className="skeleton-text">
+              <Skeleton width={70} height={11} />
+              <Skeleton width={`${width}%`} height={16} />
+            </div>
+          ))}
+          <SkeletonText lines={4} />
+        </Loading>
+      )}
+      {state.status === 'error' && (
+        <ErrorState message="This message couldn't be loaded." onRetry={vm.retry} />
+      )}
+      {state.status === 'loaded' && (
+        <dl className="message-details">
+          <DetailRow label="Name" value={state.data.name} />
+          <DetailRow label="Email" value={state.data.email} href={`mailto:${state.data.email}`} />
+          <DetailRow label="Received" value={formatDateTime(state.data.receivedAt)} />
+          <DetailRow label="Message" value={state.data.message} multiline />
+        </dl>
+      )}
+      {state.status === 'loaded' && state.data.meetings.length > 0 && (
+        <section className="message-meetings" aria-label="Meetings they booked">
+          <h3>Meetings they booked</h3>
+          <ul className="meetings-list">
+            {state.data.meetings.map((meeting) => (
+              <li key={meeting.id} className="meeting">
+                <p className="meeting-when">{formatMeetingTime(meeting)}</p>
+                <p className="muted">{meeting.title}</p>
+                {meeting.notes && <p className="meeting-notes">“{meeting.notes}”</p>}
+                <MeetingActions meeting={meeting} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {state.status === 'loaded' && (
+        <Replies messageId={messageId} name={state.data.name} replies={state.data.replies} />
+      )}
+      {state.status === 'loaded' && (
+        <div className="message-actions">
+          <DeleteButton what={`the message from ${state.data.name}`} onDelete={() => onDelete(messageId)} className="button button-secondary button-small" label="Delete message">
+            <TrashIcon size={16} />
+            Delete
+          </DeleteButton>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+interface DetailRowProps {
+  label: string
+  value: string
+  href?: string
+  multiline?: boolean
+}
+
+function DetailRow({ label, value, href, multiline = false }: DetailRowProps) {
+  return (
+    <div className={multiline ? 'detail-row detail-row-multiline' : 'detail-row'}>
+      <dt>{label}</dt>
+      <dd>
+        {href ? <a href={href}>{value}</a> : <span className={multiline ? 'message-body' : undefined}>{value}</span>}
+      </dd>
+      <div className="detail-copy">
+        <CopyButton value={value} label={label.toLowerCase()} />
+      </div>
+    </div>
+  )
+}
+
+/** The answers sent so far, and a box for another: emailed to the sender, with their message quoted. */
+function Replies({ messageId, name, replies }: { messageId: number; name: string; replies: ContactReply[] }) {
+  const vm = useRepliesViewModel(messageId)
+  const { id, error } = vm
+
+  return (
+    <section className="message-replies" aria-labelledby={`${id}-title`}>
+      <h3 id={`${id}-title`}>{replies.length > 0 ? 'Your replies' : 'Reply'}</h3>
+      {replies.length > 0 && (
+        <ul className="replies-list">
+          {replies.map((reply) => (
+            <li key={reply.id} className="reply">
+              <p className="muted">
+                <time dateTime={reply.sentAt}>{formatDateTime(reply.sentAt)}</time>
+              </p>
+              <p className="message-body">{reply.text}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="reply-form" onSubmit={vm.send} noValidate>
+        <div className="field">
+          <label htmlFor={`${id}-text`}>{replies.length > 0 ? `Write to ${name} again` : `Reply to ${name}`}</label>
+          <textarea
+            id={`${id}-text`}
+            rows={4}
+            value={vm.text}
+            maxLength={5000}
+            onChange={(e) => vm.setText(e.target.value)}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `${id}-error` : `${id}-hint`}
+          />
+          {error ? (
+            <p id={`${id}-error`} className="field-error" role="alert">
+              {error}
+            </p>
+          ) : (
+            <p id={`${id}-hint`} className="field-hint">
+              Emailed to them with their message quoted; their answer comes to your own inbox.
+            </p>
+          )}
+        </div>
+        <button type="submit" className="button button-small" disabled={vm.busy}>
+          {vm.busy ? 'Sending…' : 'Send reply'}
+        </button>
+      </form>
+    </section>
+  )
+}

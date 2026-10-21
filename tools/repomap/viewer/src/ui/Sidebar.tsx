@@ -97,7 +97,8 @@ export function Sidebar() {
   const presetId = useViewer((s) => s.presetId)
   const open = useViewer((s) => s.sidebarOpen)
   const showChanges = useViewer((s) => s.showChanges)
-  const { applyPreset, setFacet, setFacetMany, setOption, setMinConfidence, setShowChanges } = useViewer.getState()
+  const treeEdgesOnly = useViewer((s) => s.treeEdgesOnly)
+  const { applyPreset, setFacet, setFacetMany, setOption, setMinConfidence, setShowChanges, setTreeEdgesOnly } = useViewer.getState()
   const [view, setViewState] = useState<'filters' | 'files'>(() => {
     try {
       return localStorage.getItem('repomap.sidebar') === 'files' ? 'files' : 'filters'
@@ -309,6 +310,14 @@ export function Sidebar() {
               checked={filters.showUnresolved}
               onChange={(v) => setOption('showUnresolved', v)}
             />
+            {index.offTree.includes(1) && (
+              <Toggle
+                label="Tree edges only"
+                hint={`On ${index.layers.filter((l) => l.arrange === 'tree').map((l) => l.label).join(', ')}: just the tree from the entry point; hover or click a node for all its edges`}
+                checked={treeEdgesOnly}
+                onChange={setTreeEdgesOnly}
+              />
+            )}
             {changes && (
               <Toggle
                 label={`Highlight changes (+${changes.addedNodes.length} / −${changes.removedNodes.length})`}

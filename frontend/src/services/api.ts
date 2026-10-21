@@ -1,7 +1,7 @@
 /**
  * The single entry point for every backend call. Components never call `fetch` or axios directly:
  *
- *   import { api } from '../services/api'
+ *   import { api } from './api'
  *   const firstName = await api.profile.getFirstName()
  *
  * Add new endpoints to the matching feature group below (or a new group), mirroring the
@@ -705,6 +705,26 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * An ApiError as plain data, the way the Redux store keeps it (state must be serializable): what
+ * RTK Query hooks report in `error`, and what `.unwrap()` on a mutation rejects with.
+ */
+export interface ApiFailure {
+  /** HTTP status, or 0 when no response arrived (network error). */
+  status: number
+  validationErrors: ValidationErrors | null
+}
+
+/** Any failure (an ApiError, an ApiFailure from the store, anything else) as an ApiFailure; status 0 when it isn't an HTTP one. */
+export function failureOf(error: unknown): ApiFailure {
+  if (error instanceof ApiError) return { status: error.status, validationErrors: error.validationErrors }
+  if (typeof error === 'object' && error !== null && 'status' in error && typeof error.status === 'number') {
+    const { validationErrors } = error as Partial<ApiFailure>
+    return { status: error.status, validationErrors: validationErrors ?? null }
+  }
+  return { status: 0, validationErrors: null }
+}
+
 const http = axios.create({
   baseURL: API_BASE_URL,
   headers: { Accept: 'application/json' },
@@ -714,10 +734,14 @@ const http = axios.create({
 export type RequestPreview = 'normal' | 'loading' | 'error'
 
 let requestPreview: RequestPreview = 'normal'
+/** The requests "loading" is holding: let go (as cancelled) when the switch changes. */
+const heldRequests = new Set<() => void>()
 
 /** "loading" holds GET requests until they're cancelled; "error" fails them with a 500. Never sign-in, never writes. */
 export function setRequestPreview(preview: RequestPreview) {
   requestPreview = preview
+  for (const release of heldRequests) release()
+  heldRequests.clear()
 }
 
 const sendRequest = axios.getAdapter(http.defaults.adapter)
@@ -730,10 +754,12 @@ http.defaults.adapter = (config) => {
     const response = { data: { title: 'Preview: an error' }, status: 500, statusText: 'Preview error', headers: {}, config }
     return Promise.reject(new AxiosError('Preview: the request failed', AxiosError.ERR_BAD_RESPONSE, config, null, response))
   }
-  // Loading: never answers; leaving the page (an aborted signal) ends it like any cancelled request.
+  // Loading: never answers; an aborted signal, or the switch changing, ends it like any cancelled request.
   return new Promise((_, reject) => {
+    const release = () => reject(new CanceledError(undefined, undefined, config))
+    heldRequests.add(release)
     const signal = config.signal as AbortSignal | undefined
-    signal?.addEventListener?.('abort', () => reject(new CanceledError(undefined, undefined, config)))
+    signal?.addEventListener?.('abort', release)
   })
 }
 

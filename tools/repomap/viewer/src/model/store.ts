@@ -66,6 +66,8 @@ interface State {
   labels: LabelMode
   theme: Theme
   showChanges: boolean
+  /** Tree layers draw only the links of their tree (every edge still shows on hover and in a trace). */
+  treeEdgesOnly: boolean
   sidebarOpen: boolean
   helpOpen: boolean
   searchOpen: boolean
@@ -109,6 +111,7 @@ interface Actions {
   setLabels(value: LabelMode): void
   setTheme(value: Theme): void
   setShowChanges(value: boolean): void
+  setTreeEdgesOnly(value: boolean): void
   toggleSidebar(): void
   setSidebar(open: boolean): void
   setHelp(open: boolean): void
@@ -178,6 +181,7 @@ export const useViewer = create<State & Actions>((set, get) => {
     labels: readPref<LabelMode>('labels', 'auto'),
     theme: initialTheme(),
     showChanges: true,
+    treeEdgesOnly: readPref<'on' | 'off'>('treeEdgesOnly', 'on') === 'on',
     sidebarOpen: !matches(NARROW),
     helpOpen: false,
     searchOpen: false,
@@ -334,6 +338,11 @@ export const useViewer = create<State & Actions>((set, get) => {
 
     setShowChanges(value) {
       set({ showChanges: value, version: get().version + 1 })
+    },
+
+    setTreeEdgesOnly(value) {
+      writePref('treeEdgesOnly', value ? 'on' : 'off')
+      set({ treeEdgesOnly: value, version: get().version + 1 })
     },
 
     toggleSidebar() {

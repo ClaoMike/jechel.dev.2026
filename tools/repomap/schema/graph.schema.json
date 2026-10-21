@@ -54,6 +54,8 @@
               "label": { "type": "string" },
               "color": { "$ref": "#/definitions/color" },
               "flat": { "type": "boolean" },
+              "gap": { "type": "number", "exclusiveMinimum": 0 },
+              "arrange": { "enum": ["force", "tree"] },
               "description": { "type": "string" }
             }
           }

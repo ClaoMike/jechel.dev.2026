@@ -40,6 +40,10 @@ export interface LayerDef {
   color: string
   /** All roles on the main plane (no sub-planes), e.g. for an infra layer made of config and tooling. */
   flat?: boolean
+  /** Distance to the layer above (default: the layout's layerGap), e.g. smaller for the layers of one app. */
+  gap?: number
+  /** `tree`: this layer's nodes are laid out with every other tree layer as one radial tree from the entry point. */
+  arrange?: 'force' | 'tree'
   description?: string
 }
 

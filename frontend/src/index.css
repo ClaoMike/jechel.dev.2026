@@ -111,7 +111,7 @@ h2 {
 
 .tab[aria-current='page'] {
   border-bottom-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
 }
 
 .page {
@@ -192,7 +192,7 @@ h2 {
 }
 
 .link-button:hover {
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   text-decoration: underline;
 }
 
@@ -381,11 +381,6 @@ h2 {
 
 /* ---------- Grids of cards (YouTube, Apps) ---------- */
 
-.page-title {
-  margin-bottom: 16px;
-  font-size: 22px;
-}
-
 .paged-grid {
   scroll-margin-top: 16px;
 }
@@ -458,6 +453,19 @@ h2 {
 
 .media-card-action:focus-visible {
   outline: none;
+}
+
+/*
+ * A button can't be cut by its heading's line clamp (it's one box, not lines of text, unlike a link),
+ * so a button title clamps itself. Its overflow doesn't clip the ::after cover: that one is placed
+ * against the card, not the button.
+ */
+button.media-card-action {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .add-tile:focus-visible {
@@ -563,7 +571,8 @@ button.media-card {
   border-style: dashed;
   border-width: 2px;
   background: transparent;
-  color: var(--accent);
+  /* Text in the accent colour reads on every theme's surfaces (see --accent-ink). */
+  color: var(--accent-ink, var(--accent));
   font-weight: 600;
 }
 
@@ -727,7 +736,7 @@ button.media-card {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
 }
 
 .video-details {
@@ -749,12 +758,13 @@ button.media-card {
   border: 0;
 }
 
-.page-title-row {
+/* The admin's page commands (Apps → Categories), above the content: the tab bar already names the page. */
+.page-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
+  margin-bottom: 16px;
 }
 
 .app-heading {
@@ -774,7 +784,7 @@ button.media-card {
   padding: 2px 10px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   font-size: 12px;
   font-weight: 600;
   line-height: 1.6;
@@ -1103,7 +1113,7 @@ button.media-card {
 }
 
 .detail-row dd a {
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
 }
 
 .detail-row-multiline {
@@ -1767,7 +1777,7 @@ button.media-card {
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   text-decoration: none;
 }
 
@@ -2014,7 +2024,7 @@ button.media-card {
   padding: 1px 8px;
   border-radius: 10px;
   background: light-dark(#e8f0fe, #283142);
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   font-size: 12px;
   font-weight: 500;
 }
@@ -2267,7 +2277,7 @@ button.media-card {
   padding: 2px 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   font: inherit;
   font-size: 13px;
   cursor: pointer;
@@ -2581,7 +2591,7 @@ button.media-card {
 }
 
 .terms-number {
-  color: var(--accent);
+  color: var(--accent-ink, var(--accent));
   font-variant-numeric: tabular-nums;
 }
 
@@ -2792,7 +2802,7 @@ button.media-card {
   }
 }
 
-/* ---------- Engagement (admin): pages/EngagementPage, features/analytics ---------- */
+/* ---------- Engagement (admin): pages/EngagementPage/EngagementPage, features/analytics ---------- */
 
 .engagement {
   display: grid;
@@ -3636,7 +3646,7 @@ button.media-card {
   }
 }
 
-/* ---------- When loading fails (components/ErrorState.tsx) ---------- */
+/* ---------- When loading fails (components/ErrorState/ErrorState.tsx) ---------- */
 
 .error-state {
   display: flex;
@@ -3753,7 +3763,7 @@ button.media-card {
   }
 }
 
-/* ---------- When Vice was too slow (layout/SlowSceneNotice.tsx) ---------- */
+/* ---------- When Vice was too slow (layout/SlowSceneNotice/SlowSceneNotice.tsx) ---------- */
 
 .slow-scene-notice {
   position: fixed;
@@ -3786,7 +3796,7 @@ button.media-card {
   gap: 8px;
 }
 
-/* ---------- Contact: message or meeting (features/meetings/VisitorContact.tsx) ---------- */
+/* ---------- Contact: message or meeting (features/meetings/VisitorContact/VisitorContact.tsx) ---------- */
 
 .visitor-contact,
 .admin-contact {

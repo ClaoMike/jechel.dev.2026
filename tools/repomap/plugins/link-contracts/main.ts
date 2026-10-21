@@ -45,13 +45,13 @@ await runPlugin((request): PluginOutput => {
   // 2. Same name on both sides.
   const backendByName = new Map<string, GraphNode[]>()
   for (const node of graph.nodes) {
-    if (node.layer === 'frontend' || !BACKEND_CONTRACT_KINDS.has(node.kind)) continue
+    if (isFrontend(node.layer) || !BACKEND_CONTRACT_KINDS.has(node.kind)) continue
     const name = simpleName(node.label)
     if (!backendByName.has(name)) backendByName.set(name, [])
     backendByName.get(name)!.push(node)
   }
   for (const node of graph.nodes) {
-    if (node.layer !== 'frontend' || !FRONTEND_TYPE_KINDS.has(node.kind)) continue
+    if (!isFrontend(node.layer) || !FRONTEND_TYPE_KINDS.has(node.kind)) continue
     for (const match of backendByName.get(simpleName(node.label)) ?? []) {
       if (match.kind === 'dto' || /(Response|Request|Dto)$/.test(match.label)) add(node, match, 0.75, 'same name')
     }
@@ -62,4 +62,9 @@ await runPlugin((request): PluginOutput => {
 
 function simpleName(label: string): string {
   return label.split('.').pop()!.toLowerCase()
+}
+
+/** `frontend`, or one of its planes (`frontend-views`, `frontend-viewmodels`…). */
+function isFrontend(layer: string): boolean {
+  return layer === 'frontend' || layer.startsWith('frontend-')
 }

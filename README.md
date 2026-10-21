@@ -7,7 +7,8 @@ Personal portfolio website of Claudiu Mihai Jechel.
 | Frontend | React 19 + Vite 8 + TypeScript (`frontend/`)                    |
 | Backend  | .NET 10 minimal API + EF Core 10 + Npgsql (`backend/`)          |
 | Database | PostgreSQL 16 (Docker Compose for local dev)                    |
-| Tests    | xUnit, Testcontainers, Vitest, React Testing Library, MSW, Playwright |
+| State    | Redux Toolkit + RTK Query; views in MVVM (View + `*.viewModel.ts`) |
+| Tests    | Backend: xUnit, Testcontainers. Frontend: Vitest in headless Chromium (coverage, screenshots) |
 | CI       | GitHub Actions (`.github/workflows/ci.yml`)                     |
 
 ## Repository layout
@@ -27,14 +28,12 @@ Personal portfolio website of Claudiu Mihai Jechel.
 ├── frontend/
 │   ├── src/
 │   │   ├── services/api.ts                # the single API service: every backend call goes through `api`
-│   │   ├── auth/                          # AuthProvider, useAuth, <SignedIn>/<SignedOut>
+│   │   ├── store/                         # the Model: Redux store, slices, RTK Query endpoints (store/api/)
+│   │   ├── auth/                          # useAuth, useSessionKeeper, <SignedIn>/<SignedOut> (state in store/authSlice)
 │   │   ├── layout/                        # site frame: greeting, session bar, section tabs
-│   │   ├── pages/                         # one component per route
+│   │   ├── pages/                         # one folder per route: X/X.tsx + X/X.viewModel.ts
 │   │   ├── features/<feature>/            # a feature's components and rules (e.g. contact form + inbox)
-│   │   ├── components/                    # shared UI: Modal, CopyButton, icons
-│   │   └── test/                          # Vitest setup, MSW mock server, render helpers
-│   ├── e2e/                               # Playwright specs
-│   └── playwright.config.ts
+│   │   └── components/                    # shared UI: Modal, CopyButton, icons
 ├── scripts/dev_launcher.py                # GUI launcher for common dev tasks (macOS)
 ├── scripts/build_brand_j.py               # draws the "j": the Vice title's first letter and the tab icon
 ├── docker-compose.yml                     # local PostgreSQL
@@ -89,8 +88,7 @@ A small window with buttons. Each opens a new Terminal window running the matchi
 | Start website      | Both of the above in two windows. The frontend waits until `/api/health` responds, then opens the site in the browser |
 | Open repo map      | `npm start` in `tools/repomap` (runs `npm install` the first time): builds the 3D architecture map, opens it in the browser and rebuilds it on every change. See [tools/repomap/README.md](tools/repomap/README.md) |
 | Run backend tests  | `dotnet test`                                                     |
-| Run frontend tests | Starts the DB, then Vitest, then Playwright E2E                    |
-| Run all tests      | Backend tests, then frontend tests, in one window                 |
+| Run frontend tests | `npm test` in `frontend` (all tests, with coverage), then opens the coverage report in the browser |
 
 The first click may trigger a macOS prompt to allow Terminal automation; allow it.
 
@@ -102,7 +100,7 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 
 | Method | Route                       | Auth    | Description                                        |
 | ------ | --------------------------- | ------- | -------------------------------------------------- |
-| GET    | `/api/health`               | public  | `Healthy` when the API can reach the database (used by the launcher and Playwright) |
+| GET    | `/api/health`               | public  | `Healthy` when the API can reach the database (used by the launcher) |
 | GET    | `/api/firstname`            | public  | `{ "firstName": "Claudiu" }` from the database      |
 | GET    | `/api/auth/login?returnUrl=`| public  | Browser navigation: redirects to Google sign-in    |
 | GET    | `/api/auth/signin-google`   | public  | OAuth callback, handled by ASP.NET Core; don't call directly |
@@ -165,7 +163,7 @@ on the icon links in `index.html` (browsers keep tab icons cached).
 
 ## Terms and conditions
 
-- **Welcome popup:** a visitor who hasn't accepted the terms (anywhere but the sign-in page, `/admin`) gets a popup that can't be closed: they tick every box (placeholders for now, in `features/terms/TermsGate.tsx`), then **Continue**. Accepting is remembered in the browser (`localStorage["terms.accepted"]`) against the terms' `updatedAt`, so saving new terms asks everyone again. The signed-in admin isn't asked.
+- **Welcome popup:** a visitor who hasn't accepted the terms (anywhere but the sign-in page, `/admin`) gets a popup that can't be closed: they tick every box (placeholders for now, in `features/terms/TermsGate/TermsGate.tsx`), then **Continue**. Accepting is remembered in the browser (`localStorage["terms.accepted"]`) against the terms' `updatedAt`, so saving new terms asks everyone again. The signed-in admin isn't asked.
 - **Reading them:** the footer on every page, and the welcome popup, have a **Terms and Conditions** link that opens them in a popup above anything else that's open.
 - **Editing them:** the admin's last tab, **Terms**, shows them as a page with an **Edit** button: title, introduction, and numbered sections of paragraphs and bullet lists (add, reorder, remove). Text may contain `[text](https://…)` links.
 - **E2E:** the `setup` project (`e2e/terms.setup.ts`) accepts the terms once and the other projects start from that browser state; tests of the popup itself use a fresh state.
@@ -174,7 +172,7 @@ on the icon links in `index.html` (browsers keep tab icons cached).
 
 The site records how it's used itself: no third parties, no cookies. The admin reads it in the **Engagement** tab.
 
-**Recording** (`src/features/analytics/tracker.ts`, mounted by `<AnalyticsTracker>` in `App.tsx`):
+**Recording** (`src/features/analytics/tracker.ts`, mounted by `<AnalyticsTracker>` in `App/App.tsx`):
 
 - **What:** pages opened (with the query), clicks on buttons, links and fields (the label the visitor saw, plus a link's address; **never what was typed**), Escape, the site's own events (`trackEvent('Message sent')`, `'Terms accepted'`, `'Contact form invalid'` with the field names), leaving the tab, and every **error**: script errors with file, line and stack, unhandled promise rejections, React crashes with the component stack (`createRoot` callbacks in `main.tsx`), requests that fail with 5xx or no answer (`onRequestFailed` in `api.ts`; 4xx answers are expected and skipped), and images or files that didn't load.
 - **A visit** is a browser tab: a random id in `sessionStorage`, so it survives reloads and ends with the tab. It starts with the page, the referring site (host and path; no query), `utm_*` tags, language, time zone, screen and window size, and theme.
@@ -185,7 +183,7 @@ The site records how it's used itself: no third parties, no cookies. The admin r
 
 **Storage:** `visit_sessions` (one row per visit, with counters) and `visit_events` (one row per event, `detail` as `jsonb`; unique on visit + sequence number, so a batch sent twice is stored once). Deleting a visit deletes its events. There is no automatic clean-up yet.
 
-**The tab** (`src/pages/EngagementPage.tsx`, `src/features/analytics/`): a period of 1 hour, 1 day, 7 / 30 / 90 days, 1 year, 5 years or all time, with
+**The tab** (`src/pages/EngagementPage/EngagementPage.tsx`, `src/features/analytics/`): a period of 1 hour, 1 day, 7 / 30 / 90 days, 1 year, 5 years or all time, with
 - counters: visitors, visits, page views, average visit, bounce rate (one page and no clicks), errors
 - visitors, page views or errors as a column chart, one column per 5 minutes (1 hour), hour (1 day), day (7 to 90 days), month (1 and 5 years; all time) or year (all time beyond 6 years). Columns are aligned in UTC (`AnalyticsRange.cs`); "1 hour" and "1 day" are rolling. Visits count when they started, page views and errors when they happened. Hover a column for its number; a hidden table gives screen readers the same
 - top pages, where visitors come from, most clicked, errors, **preferred theme** (the one visits ended in), **theme switches** ("vice → dark"), devices, browsers, time zones
@@ -208,7 +206,7 @@ Only the site owner signs in, to reach the future admin area. There are no publi
    - allowed: the API starts a new database session (see below), issues the `portfolio.auth` cookie (HttpOnly, SameSite=Lax, Secure outside Development) and redirects to `returnUrl` (the home page)
    - not allowed: no cookie; redirects to `/admin?error=not_authorized`
    - cancelled or failed on Google: redirects to `/admin?error=login_failed`
-5. The frontend `AuthProvider` calls `/api/auth/me` on load. Signed in, the header shows "Signed in as ... · Sign out", the Contact tab shows the inbox instead of the form, and `/admin` redirects to `/`.
+5. The frontend (`useSessionKeeper`, into the store's `auth` slice) calls `/api/auth/me` on load. Signed in, the header shows "Signed in as ... · Sign out", the Contact tab shows the inbox instead of the form, and `/admin` redirects to `/`.
 
 ### Sessions (stored in the database)
 
@@ -221,7 +219,7 @@ There is exactly one admin, so there is exactly one session, stored on the profi
 - **No answer isn't "signed out":** only the API's answer decides (signed in, or 401). If the first check gets no answer (the API
   down or restarting, a network error, a 5xx), the page keeps waiting and asks again (after 2, 4, 8, then every 15 seconds), so
   restarting the API doesn't sign the admin out of an open page.
-- **Frontend** (`src/auth/AuthProvider.tsx`): while signed in, clicks, key presses, scrolling and mouse movement call `/api/auth/me` (at most once a minute) to keep the session alive. A timer re-checks just after `sessionExpiresInSeconds`, so the UI shows you as signed out once the session ends. The expiry is sent as *seconds remaining*, not a timestamp, so the browser's clock doesn't matter.
+- **Frontend** (`src/auth/useSessionKeeper.ts`): while signed in, clicks, key presses, scrolling and mouse movement call `/api/auth/me` (at most once a minute) to keep the session alive. A timer re-checks just after `sessionExpiresInSeconds`, so the UI shows you as signed out once the session ends. The expiry is sent as *seconds remaining*, not a timestamp, so the browser's clock doesn't matter.
 
 Details:
 - Removing an email from `Auth:AdminEmails` also kills existing sessions for it on the next request (`OnValidatePrincipal`).
@@ -274,7 +272,7 @@ await api.auth.logout()
 
 ### Auth state: `useAuth()`, `<SignedIn>`, `<SignedOut>`
 
-Import from `src/auth`. Works anywhere inside `<AuthProvider>` (wired up in `main.tsx`).
+Import from `src/auth`. The session lives in the Redux store (`store/authSlice.ts`); `useSessionKeeper()` (called once, by App's view model) checks it on load, extends it on activity and signs out in the UI when it ends.
 
 ```tsx
 import { SignedIn, SignedOut, useAuth } from '../auth'
@@ -292,7 +290,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
 ## Site sections and the contact feature
 
-The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch) above five tabs (nine for the signed-in admin), each a route rendered inside `src/layout/AppLayout.tsx`:
+The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch) above five tabs (nine for the signed-in admin), each a route rendered inside `src/layout/AppLayout/AppLayout.tsx`:
 
 | Tab | Route | Status |
 | --- | --- | --- |
@@ -307,43 +305,43 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 | Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](#settings-connections)) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
-**What's new?** (`src/pages/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list; if one fails (e.g. YouTube isn't set up), the other is shown.
+**What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list; if one fails (e.g. YouTube isn't set up), the other is shown.
 
-**Apps** (`src/pages/AppsPage.tsx`, `src/features/apps/`, API in `backend/.../Features/Apps/`):
+**Apps** (`src/pages/AppsPage/AppsPage.tsx`, `src/features/apps/`, API in `backend/.../Features/Apps/`):
 
 - The same paged 3 × 3 grid as YouTube, newest first. A tile shows the app's first image (whatever comes before it), its title and the start of its description. Clicking it opens a popup with every image and video in a sideways slider (swipe, arrows, dots or the arrow keys; moving on pauses a video; a YouTube video gets YouTube's privacy-enhanced player on its own slide and a thumbnail elsewhere, so moving on stops it too). The tile uses the first image, or else a YouTube video's thumbnail and the full description, which may hold `[text](url)` links.
 - **The admin** gets an **Add an app** tile first (the first page then holds 8 apps, so it stays 3 × 3), and an **Edit** button in each popup that turns it into the form used for adding: title, description, and the images and videos, which can be uploaded several at once, added from a link (a YouTube video such as a trailer, or an image or video file elsewhere), dragged to reorder and removed. Dragging uses pointer events (`components/useDragSort.ts`): a mouse drags a whole tile, a finger its handle (so the popup still scrolls), and the handle also takes the arrow keys. Closing with unsaved changes asks first. **Delete app** asks too.
-- **Categories** (e.g. Mobile app, Website, Video game, the three it starts with) are the admin's own list, edited with **Categories** next to the heading: rename, reorder, add, remove (which takes it off every app). An app can have several; they show as labels under its title, on the tile and in the popup, in the list's order.
+- **Categories** (e.g. Mobile app, Website, Video game, the three it starts with) are the admin's own list, edited with **Categories** above the grid (the tab bar names the page, so What's new?, Apps and YouTube have no title of their own): rename, reorder, add, remove (which takes it off every app). An app can have several; they show as labels under its title, on the tile and in the popup, in the list's order.
 - **Runs on:** platforms (iOS, Android, … with one click, or typed in), shown in the popup only.
 - **Where to get it:** links shown in the popup as **Check it on {name}** buttons, e.g. App Store, Google Play, Steam (suggested while typing; anything else works).
 - `GET /api/apps` (public), `POST /api/apps`, `PUT /api/apps/{id}`, `DELETE /api/apps/{id}` (admin), stored in the `apps` table (media, category ids, platforms and links as `jsonb`). `GET /api/apps/categories` (public) and `PUT /api/apps/categories` (admin, the whole ordered list) use `app_categories`. `POST /api/files/app-media` takes one file: images (JPEG, PNG, WebP, GIF up to 15 MB) become a WebP of at most 1920 px without metadata; videos (MP4, MOV, WebM up to 200 MB, recognised by their first bytes) are kept as they are. Files are served with range requests, so videos can start before they're fully downloaded (Safari needs this).
 - Saving About Me or an app deletes uploads that **nothing** uses any more, once a day old (`FileCleanup.cs`).
 - Videos live in the database like every other upload and are read whole for each request. That's fine for a few short clips; for many or long videos, move `IFileStorage` to object storage (R2, S3) or link YouTube videos instead.
 
-**YouTube** (`src/pages/YouTubePage.tsx`, API in `backend/.../Features/YouTube/`): the channel's public videos, newest first, in a 3 × 3 grid (2 columns on tablets, 1 on phones). Each card shows the thumbnail, title, date and the start of the description (cut after three lines), and opens the video on YouTube in a new tab. More than 9 videos get Previous / Next, with the page in the URL (`?page=2`).
+**YouTube** (`src/pages/YouTubePage/YouTubePage.tsx`, API in `backend/.../Features/YouTube/`): the channel's public videos, newest first, in a 3 × 3 grid (2 columns on tablets, 1 on phones). Each card shows the thumbnail, title, date and the start of the description (cut after three lines), and opens the video on YouTube in a new tab. More than 9 videos get Previous / Next, with the page in the URL (`?page=2`).
 
 - `GET /api/youtube/videos?page=1&pageSize=9` (public) reads the uploads with the YouTube Data API v3. It needs `YouTube:Channel` (`@handle` or `UC…` id) and `YouTube:ApiKey`; until both are set it answers 503 and the page says the videos can't be loaded.
 - The list is cached in memory for an hour (`RefreshingCache<T>`, a small reusable cache: one fetch at a time, keeps the last list if YouTube fails and retries after 5 minutes). Each refresh costs about 2 units of the free 10,000 a day.
-- **Reusable for Apps:** `src/components/PagedGrid.tsx` (loads a page with a `load(page, pageSize, signal)` function, shows loading / empty / error, and the pagination) and `src/components/MediaCard.tsx` (image, title, meta line, clamped description; the whole card is a link). `Pagination.tsx` and `usePageParam.ts` are shared with the contact inbox.
+- **Reusable for Apps:** `src/components/PagedGrid/PagedGrid.tsx` (takes the RTK Query hook for a page, e.g. `useListAppsQuery`, and its texts as one `PagedGridTexts` object from the page's view model; shows loading / empty / error and the pagination, and renders its children after the grid, e.g. the app popup) and `src/components/MediaCard.tsx` (image, title, meta line, clamped description; the whole card is a link). `Pagination.tsx` and `usePageParam.ts` are shared with the contact inbox.
 
 Unknown URLs redirect to `/`.
 
-**The tab bar** (`layout/TabNav.tsx`): when the window is too narrow for every tab (phones, small windows), a ‹ / › arrow shows
+**The tab bar** (`layout/TabNav/TabNav.tsx`): when the window is too narrow for every tab (phones, small windows), a ‹ / › arrow shows
 at the end that has more, over a fade, and scrolls the bar most of its width. The arrows are for pointers and fingers; keyboards
 reach every tab with Tab. One highlight glides to the tab that's picked. Pressing the current tab and dragging moves it
 across; letting go snaps it to the nearest tab, which opens (a tap stays a tap: dragging starts after 5 px, and the click that ends a
 drag is swallowed). On phones the bar still scrolls sideways when dragged anywhere else.
 
-**Contact** (`src/pages/ContactPage.tsx`, `src/features/contact/`):
+**Contact** (`src/pages/ContactPage/ContactPage.tsx`, `src/features/contact/`):
 
 - **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. Errors appear after the first submit and then update as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields.
 - **The admin** (`<SignedIn>`) gets the inbox: a table of name and date received, 10 per page (the page is in the URL, `?page=2`). Unread messages are bold, with a blue dot. Clicking a row opens a popup with every field and a **Copy** button for each, and marks the message as read.
-- Each detail has a copy-to-clipboard icon button (`src/components/CopyButton.tsx`); the icons are in `src/components/icons.tsx`.
+- Each detail has a copy-to-clipboard icon button (`src/components/CopyButton/CopyButton.tsx`); the icons are in `src/components/icons/icons.tsx`.
 - **Deleting:** each row has a trash button, and the popup a **Delete** button (`DELETE /api/contact/messages/{id}`, admin only). Both ask first.
-- The popup is `src/components/Modal.tsx`: it keeps focus inside (Tab wraps), closes with Escape, the × button or a click on the backdrop, and returns focus to the row's button. Keys and clicks inside a dialog stay inside it, so a dialog opened from another (or from a table row) behaves: Escape closes only the top one.
-- **Confirming:** `src/components/DeleteButton.tsx` is the one delete button for the whole site: it opens `ConfirmDialog` ("Delete …?" with Cancel focused) and only then runs `onDelete`. If that is async, the popup waits and says so when it fails. About Me uses it with `action="Remove"` for every remove button, explaining that nothing is lost until the section is saved.
+- The popup is `src/components/Modal/Modal.tsx`: it keeps focus inside (Tab wraps), closes with Escape, the × button or a click on the backdrop, and returns focus to the row's button. Keys and clicks inside a dialog stay inside it, so a dialog opened from another (or from a table row) behaves: Escape closes only the top one.
+- **Confirming:** `src/components/DeleteButton/DeleteButton.tsx` is the one delete button for the whole site: it opens `ConfirmDialog` ("Delete …?" with Cancel focused) and only then runs `onDelete`. If that is async, the popup waits and says so when it fails. About Me uses it with `action="Remove"` for every remove button, explaining that nothing is lost until the section is saved.
 
-**About Me** (`src/pages/AboutPage.tsx`, `src/features/about/`, API in `backend/.../Features/About/`):
+**About Me** (`src/pages/AboutPage/AboutPage.tsx`, `src/features/about/`, API in `backend/.../Features/About/`):
 
 - The page is **one JSON document** (`AboutContent`), stored in the `about_page` table (`jsonb`, one row). It's always read and saved whole, so changing its shape means changing `AboutContent.cs` and the matching types in `api.ts`, with no new migration. Until the first save, `GET` returns `AboutDefaults` (placeholders).
 - **Sections:**
@@ -415,7 +413,7 @@ require of bulk senders).
   already on its way, or the address is already subscribed (this tells anyone whether an address is subscribed: a choice made
   for clarity). Unsubscribing deletes the row. When the email can't be sent, the visitor hears it didn't work and the admin's
   phone gets the email service's reason.
-- **The links** open pages on the site (`/updates/confirm`, `/updates/unsubscribe`, in `pages/UpdatesPages.tsx`) that call the
+- **The links** open pages on the site (`/updates/confirm`, `/updates/unsubscribe`, in `pages/UpdatesPages/UpdatesPages.tsx`) that call the
   API, rather than API URLs, so mail scanners that open every link don't confirm anyone.
 - **A new app asks first:** adding an app records it as `pending` and sends a phone alert with **Send email** and **Ignore** buttons
   (`AnnouncementDecisions.cs`). The buttons post to the API with a one-time token in the link, since the phone isn't signed in (so
@@ -433,7 +431,7 @@ require of bulk senders).
 
 ## Résumé generator
 
-Signed in, About Me starts with a **Résumé generator** panel (`features/resume/ResumePanel.tsx`), which visitors never see. The
+Signed in, About Me starts with a **Résumé generator** panel (`features/resume/ResumePanel/ResumePanel.tsx`), which visitors never see. The
 résumé is the only one the site offers: there's no upload any more.
 
 - **The header** (headline, email, **phone**) is edited with **Photo and links**, in a "For the résumé (only you see these)" group,
@@ -472,7 +470,7 @@ Optionally reserve the topic with an ntfy account (access token), or use your ow
 
 ## Settings (connections)
 
-The admin's **Settings** tab (`pages/SettingsPage.tsx`, API in `Features/Settings/`) lists every service the site connects to, with
+The admin's **Settings** tab (`pages/SettingsPage/SettingsPage.tsx`, API in `Features/Settings/`) lists every service the site connects to, with
 links to their dashboards, the keys, the URLs to paste into them (webhook, OAuth callback), and a test button: Buy Me a Coffee,
 Google sign-in, YouTube Data API, Resend, ntfy, and (later) hosting.
 
@@ -512,9 +510,30 @@ State lives in the `site_state` table (one row) and is read through `SiteEndpoin
 
 ## State and caching
 
-- **Frontend: Redux Toolkit** (`src/store/`). `makeStore()` builds the store (`main.tsx`, and a fresh one per test in
-  `renderApp`); use the typed `useAppSelector` / `useAppDispatch`. The first slice is `site` (`store/siteSlice.ts`: what visitors
-  see, loaded with the `fetchSite` thunk, saved with `saveSite`). More state moves here as the app is refactored.
+### Frontend: Redux (the Model) and MVVM views
+
+- **Redux Toolkit** (`src/store/`). `makeStore()` builds the store in `main.tsx`; use the typed `useAppSelector` / `useAppDispatch`.
+  - **Server data: RTK Query** (`store/baseApi.ts`, endpoints per feature in `store/api/*Api.ts` via `injectEndpoints`). Each
+    endpoint is a `queryFn` that calls the `api` service (`run(api.apps.list(page, pageSize, signal))`), so requests still go through
+    the one axios instance, the preview switch and `ApiError`. Errors are stored as plain `ApiFailure` objects (`{ status, validationErrors }`);
+    read any error with `failureOf(error)`. Saves keep views in sync with **tags** (`invalidatesTags`) or by patching the cache
+    (`upsertQueryData` / `updateQueryData`, through `whenFulfilled`). Data is shared between views and re-checked when a view comes
+    back after 30 s. `toLoadable(result)` turns a hook's result into `loading | error | loaded`; `usePagedQuery` does paged lists.
+  - **App state: slices.** `auth` (session), `site` (what visitors see; `fetchSite` / `saveSite`), `terms` (the popup, the accepted
+    version), `theme` (the theme on show, the slow-scene notice), `preview` (the admin's preview switch).
+  - **Side effects in `store/listeners.ts`** (listener middleware), never in reducers: remembering the theme and `<html data-theme>`,
+    the accepted terms, the preview mode; applying the preview to requests and reloading everything when it changes; dropping
+    admin-only data on sign-out.
+  - Uploads (`api.files.*`) are called from view models directly: their progress isn't the store's to keep.
+- **MVVM.** Every view `X.tsx` that has state or logic has a view model, `X.viewModel.ts`, exporting `useXViewModel(props)`; the two
+  live in their own folder named after the view (`features/contact/ContactForm/ContactForm.tsx` + `ContactForm.viewModel.ts`).
+  Views without a view model stay as plain files (`features/about/list.viewModel.ts` is shared by the list sections, so it stays too).
+  The view model holds the state, effects, store access and handlers, and returns what the view shows and the commands it calls;
+  the view only renders. **Rule: a `.tsx` file calls no hook except its own `use…ViewModel`.** Views without state or logic
+  (`Skeleton`, `MediaCard`, `Pagination`, `TermsDocumentView`, …) need none. Ephemeral UI state (drafts, open popups, drag, hover)
+  stays in the view model's own `useState`; anything shared or from the server goes in the store. Pass refs out of a view model
+  under a `…Ref` name and destructure them first (`const { dialogRef, ...vm } = useModalViewModel(…)`), or the React Compiler lint
+  rule takes every `vm.x` for a ref read.
 - **Backend: HybridCache** (`Microsoft.Extensions.Caching.Hybrid`): values are kept in memory, and in **Redis** too when
   `ConnectionStrings:Redis` is set (shared by every API instance, kept across restarts). Keys start with
   `portfolio:{database}:` (`CachePrefix`), so APIs on different databases sharing one Redis (yours and the E2E tests') never
@@ -525,7 +544,7 @@ State lives in the `site_state` table (one row) and is read through `SiteEndpoin
 ## Meetings (Cal.com) and replies
 
 **Visitors** choose between **Send a message** and **Book a meeting** on the Contact page (the second once a Cal.com page is
-set in Settings). Booking shows Cal.com's own calendar inline (`features/meetings/CalBooking.tsx`, Cal.com's embed script from
+set in Settings). Booking shows Cal.com's own calendar inline (`features/meetings/CalBooking/CalBooking.tsx`, Cal.com's embed script from
 `app.cal.com`), so they see when you're free and pick a slot.
 
 **You decide:** with **Requires confirmation** on the Cal.com event type, a booking is a *request*:
@@ -588,13 +607,15 @@ differently from what they show.
 Every view that loads data shows **placeholders shaped like its content** while it waits (no spinners), and a **red box with what
 failed and "Try again"** when it can't load. Both are shared: `components/Skeleton.tsx` (`Loading` wraps the shapes in a live
 region that says "Loading apps…" and hides the shapes from screen readers; `SkeletonMediaGrid`, `SkeletonTable`, `SkeletonList`,
-`SkeletonCard`, `SkeletonText`, `SkeletonChips`, `PageSkeleton`) and `components/ErrorState.tsx`. A new view uses them too.
+`SkeletonCard`, `SkeletonText`, `SkeletonChips`, `PageSkeleton`) and `components/ErrorState/ErrorState.tsx`. A new view uses them too.
 
 **Preview switch** (admin bar: Normal / Loading / Error, `features/preview/`): shows the whole site in that state, to check every
 view at a glance. It works in the one place every request goes through (`api.ts`'s axios adapter): in **Loading** content requests
 (GETs) never answer until the page is left; in **Error** they fail with a 500, through the same path a real failure takes. Sign-in
 (`/api/auth/*`) and anything that saves are never touched. Changing it reloads the page's content (and the terms); it's
-remembered for the tab (`sessionStorage`) and only applies while signed in.
+remembered for the tab (`sessionStorage`) and only applies while signed in. **Development only:** it shows on the dev server
+(`npm run dev`, `import.meta.env.DEV`); a production build has no switch and never applies a stored mode (`PREVIEW_AVAILABLE` in
+`store/previewSlice.ts`).
 
 ## Roadmap: ideas to review
 
@@ -702,39 +723,54 @@ dotnet test tests/Portfolio.Api.IntegrationTests       # integration only
 
 ### Frontend (`frontend/`)
 
-| Command                 | What it runs                                                        |
-| ----------------------- | ------------------------------------------------------------------- |
-| `npm test`              | Vitest in watch mode (unit + component tests)                       |
-| `npm run test:run`      | Vitest once                                                         |
-| `npm run test:coverage` | Vitest with v8 coverage (report in `coverage/`)                     |
-| `npm run test:e2e`      | Playwright full-stack E2E                                           |
-| `npm run test:e2e:ui`   | Playwright UI mode                                                  |
-| `npm run lint`          | oxlint                                                              |
-| `npm run typecheck`     | `tsc -b`                                                            |
+**Vitest in browser mode**: tests run in a real headless Chromium (Playwright), with the site's own CSS, so what a test sees
+(layout, themes, screenshots) is what a visitor sees. Every run measures **coverage of all of `src/`**, tested or not, so
+the report shows what isn't covered yet: `coverage/index.html` (and a summary in the terminal).
 
-To run the E2E tests while your usual dev servers keep running, give them other ports and a separate database, e.g.
-`API_PORT=5205 WEB_PORT=5273 ConnectionStrings__Default="Host=localhost;Port=5433;Database=portfolio_e2e;Username=portfolio;Password=portfolio" npm run test:e2e`.
-Vite also reads `WEB_PORT` and `API_URL` (where to proxy `/api`).
+| Command                | What it runs |
+| ---------------------- | ------------ |
+| `npm test`             | every test once, with coverage (`coverage/`, written even when a test fails) |
+| `npm run test:watch`   | re-runs the tests as files change |
+| `npm run test:update`  | rewrites the reference screenshots after an intended visual change (review them before committing) |
+| `npm run lint`         | oxlint |
+| `npm run typecheck`    | `tsc -b` |
+| `npm run build`        | typecheck + Vite build |
 
-- **Unit/component tests** live next to the code as `*.test.ts(x)`, run in jsdom, and mock HTTP with MSW. The default handlers in `src/test/server.ts` cover the happy path for an **anonymous** visitor; use `server.use(signedIn())` for a signed-in admin, or `server.use(...)` for other overrides. Unhandled requests fail the test. `renderApp(url)` in `src/test/render.tsx` renders the full app (router + auth) at a URL.
-- The real Google round-trip isn't automated. E2E tests cover the `/admin` page and fake a signed-in session with `page.route('**/api/auth/me', ...)`. The admin inbox E2E tests (`e2e/contact.spec.ts`) fake the inbox endpoints the same way. The visitor tests send real messages, so the local database collects a few `E2E visitor ...` rows.
-- For the inbox in component tests, `inbox(makeMessages(n))` in `src/test/server.ts` gives MSW handlers over an in-memory list that supports paging and marking messages as read.
-- **E2E tests** live in `e2e/`. Playwright starts the real API and the Vite dev server itself (or reuses ones already running locally). The database must be running (`docker compose up -d --wait`). First run: `npx playwright install`.
-- Browsers: Chromium and WebKit locally. **Firefox runs only in CI** because Playwright's Firefox build currently fails to launch on macOS 27 ("Could not find profile folder"). Try removing the `process.env.CI` guard in `playwright.config.ts` after a Playwright upgrade.
+- **Where tests live:** next to what they test (`pages/AppsPage/AppsPage.test.tsx`). Shared helpers in `src/test/`:
+  `renderView(ui, { path, user, theme })` renders a view the way the site does (store, router, `<main className="page">`,
+  a theme, signed in as `ADMIN` or a visitor) and gives `location()` for URL checks; `forever()` keeps a request loading;
+  `imagesLoaded()` before a screenshot; `restMouse()` moves the mouse off everything (the mouse stays where the last test
+  left it, and a hovered card is drawn raised); `textOf(locator)` for text checks (poll it:
+  `expect.poll(() => textOf(x)).toContain(…)`); `a11yViolations()` runs axe (WCAG 2.1 A + AA), expect `[]`.
+  Test data in `src/test/fixtures/` (apps with local images, so screenshots never depend on the network).
+- **The API is never called:** `stubApi()` (`src/test/api.ts`) stubs everything the visitor-facing views ask for, with
+  realistic answers from `src/test/fixtures/` (About Me, terms, site, videos, LeetCode, résumé); a test changes what it needs,
+  e.g. `api.about.get.mockRejectedValue(new ApiError('/api/about', 500))`, or `forever()` for the loading state.
+  `stubApi({ user: ADMIN })` signs the admin in.
+- **The whole site:** `renderApp({ path, theme, acceptedTerms })` renders App as main.tsx does (store, router, terms already
+  accepted unless `acceptedTerms: null`), for routing, the frame, the popups and the email-link pages.
+- **The browser is fixed for tests:** headless Chromium with reduced motion (Vice's scene draws one still frame), the en-GB
+  locale and the London time zone, so dates and screenshots are the same on every machine. Tests that show "now" (the
+  skills chart, timelines) fix the date with `vi.useFakeTimers({ toFake: ['Date'] })`.
+- **Screenshots** (`shootWhole(locator, name)`, around `toMatchScreenshot`): the browser only paints what's inside its
+  window, so the helper grows the window to fit the element first. The references are in `__screenshots__/` next to the
+  test, one per browser and OS
+  (`…-chromium-darwin.png`), and are committed. Animations and transitions are switched off in tests so they never catch
+  one halfway. Vice is shot without its animated Riviera scene (that's the layout's, not the page's). A missing reference
+  is written on the first run (that run fails: look at the new image, then run again).
 
 ## CI
 
 `.github/workflows/ci.yml` runs on pushes to `develop`/`main` and on every PR:
 
 1. **backend**: restore, build, `dotnet test` (Testcontainers uses the runner's Docker)
-2. **frontend**: `npm ci`, lint, build (includes typecheck), Vitest with coverage
-3. **e2e** (after both pass): PostgreSQL service container on 5433 + Playwright on Chromium, WebKit and Firefox. The HTML report is uploaded as an artifact on failure.
+2. **frontend**: `npm ci`, lint, build (includes typecheck)
 
 ## Conventions
 
 - Git: `develop` is the main branch. Work happens on `feature/*` / `chore/*` branches, merged into `develop`.
 - Backend: all routes under `/api`; minimal APIs grouped per feature (`Features/<Feature>/<Feature>Endpoints.cs` with a `Map<Feature>Endpoints` extension). Handlers are public static methods with typed results (`Results<Ok<T>, NotFound>`), so unit tests can call them directly.
-- Frontend: all HTTP goes through the `api` object in `src/services/api.ts`; auth-dependent UI uses `useAuth()` / `<SignedIn>` / `<SignedOut>` from `src/auth`. Routes are declared in `src/App.tsx` (React Router), with one page component per route in `src/pages/`.
+- Frontend: all HTTP goes through the `api` object in `src/services/api.ts`, called from RTK Query endpoints (`src/store/api/`); views are MVVM (`X.tsx` + `X.viewModel.ts`, see State and caching); auth-dependent UI uses `useAuth()` (in view models) / `<SignedIn>` / `<SignedOut>` from `src/auth`. Routes are declared in `src/App/App.tsx` (React Router), with one folder per page in `src/pages/` (`X/X.tsx` + `X/X.viewModel.ts`).
 
 ## Troubleshooting
 

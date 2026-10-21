@@ -1,0 +1,57 @@
+import { useEffect, useId, useState, type FormEvent } from 'react'
+import { failureOf } from '../../../services/api'
+import { useGetMessageQuery, useMarkMessageReadMutation, useReplyToMessageMutation } from '../../../store/api/contactApi'
+import { toLoadable } from '../../../store/loadable'
+
+export interface MessageDialogProps {
+  messageId: number
+  /** The name from the list, shown while the details load. */
+  name: string
+  onClose: () => void
+  /** Deletes the message on the server (after the admin confirms); the inbox then closes this. */
+  onDelete: (id: number) => Promise<void>
+}
+
+/** The message from the store; opening it marks it as read (once it's loaded and still unread). */
+export function useMessageDialogViewModel({ messageId, name }: MessageDialogProps) {
+  const query = useGetMessageQuery(messageId)
+  const state = toLoadable(query)
+  const [markRead] = useMarkMessageReadMutation()
+  const unread = state.status === 'loaded' && state.data.readAt === null
+
+  useEffect(() => {
+    // If it fails, it stays unread in the list; the next time it's opened tries again.
+    if (unread) void markRead(messageId)
+  }, [unread, messageId, markRead])
+
+  return {
+    titleId: useId(),
+    state,
+    name: state.status === 'loaded' ? state.data.name : name,
+    retry: () => void query.refetch(),
+  }
+}
+
+/** The answer being written, and sending it (emailed to the sender, with their message quoted). */
+export function useRepliesViewModel(messageId: number) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  const [reply, { isLoading: busy }] = useReplyToMessageMutation()
+
+  async function send(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!text.trim()) {
+      setError('Write the reply first.')
+      return
+    }
+    setError('')
+    try {
+      await reply({ id: messageId, text: text.trim() }).unwrap()
+      setText('')
+    } catch (e) {
+      setError(failureOf(e).status === 503 ? "The email couldn't be sent: check Resend in Settings (its test shows why)." : "That didn't work. Please try again.")
+    }
+  }
+
+  return { id: useId(), text, setText, error, busy, send: (event: FormEvent<HTMLFormElement>) => void send(event) }
+}

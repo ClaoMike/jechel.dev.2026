@@ -8,6 +8,10 @@
  *   vertically. Nodes of the same feature (tag `feature:<name>`) share an anchor across layers.
  * - Same input + seed → same output. Passing the previous positions warm-starts the simulation and
  *   holds existing nodes near where they were, so rebuilding barely moves anything.
+ * - Tree layers (`treeLayers`) are laid out together as one radial tree instead: the entry point in the
+ *   centre, each ring one step further along the dependencies (renders, uses, calls…), whichever of
+ *   those layers a node is on. Their nodes stay fixed while the other layers' simulation runs, so an
+ *   endpoint still settles under the API call that reaches it.
  */
 import {
   forceCollide,
@@ -21,6 +25,7 @@ import {
   type SimulationNodeDatum,
 } from 'd3-force'
 import { hashString, seededRandom } from './rng.ts'
+import type { LayerDef, RoleDef } from './types.ts'
 
 export type Vec3 = [number, number, number]
 
@@ -32,6 +37,8 @@ export interface LayoutNode {
   tags?: string[]
   /** Relative size (1 = default); bigger nodes get more room. */
   size?: number
+  /** Node kind: tree layers grow from their `entrypoint` nodes. */
+  kind?: string
 }
 
 export interface LayoutEdge {
@@ -49,7 +56,11 @@ export interface LayoutOptions {
   roleParents?: Record<string, string>
   /** Layers whose nodes all sit on the main plane regardless of role. */
   flatLayers?: string[]
+  /** Layers laid out together as one radial tree (from the entry point), not by the force simulation. */
+  treeLayers?: string[]
   layerGap?: number
+  /** Layer id → distance to the layer above it, when it isn't `layerGap`. */
+  layerGaps?: Record<string, number>
   seed?: number
   /** Positions from a previous run, used to keep the picture stable. */
   previous?: ReadonlyMap<string, Vec3>
@@ -62,17 +73,37 @@ interface SimNode extends SimulationNodeDatum {
   radius: number
   anchor?: { x: number; y: number }
   previous?: { x: number; y: number }
+  fx?: number | null
+  fy?: number | null
 }
 
 type SimLink = SimulationLinkDatum<SimNode> & { distance: number; strength: number }
 
 const DEFAULT_GAP = 90
 
-export function layerHeights(layers: string[], layerGap = DEFAULT_GAP): Map<string, number> {
+/** The y of each layer plane, top to bottom, centred on 0. `gaps` overrides the distance to the layer above. */
+export function layerHeights(layers: string[], layerGap = DEFAULT_GAP, gaps: Record<string, number> = {}): Map<string, number> {
+  const depths: number[] = []
+  layers.forEach((layer, index) => depths.push(index === 0 ? 0 : depths[index - 1] + (gaps[layer] ?? layerGap)))
+  const top = (depths.at(-1) ?? 0) / 2
   const heights = new Map<string, number>()
-  const top = ((layers.length - 1) * layerGap) / 2
-  layers.forEach((layer, index) => heights.set(layer, round(top - index * layerGap)))
+  layers.forEach((layer, index) => heights.set(layer, round(top - depths[index])))
   return heights
+}
+
+/** The layout options that come from the vocabulary (layers and roles), as the builder and the viewer read them. */
+export function vocabularyOptions(
+  layers: readonly LayerDef[],
+  roles: readonly RoleDef[],
+): Pick<LayoutOptions, 'layers' | 'flatLayers' | 'treeLayers' | 'layerGaps' | 'roleOffsets' | 'roleParents'> {
+  return {
+    layers: layers.map((l) => l.id),
+    flatLayers: layers.filter((l) => l.flat).map((l) => l.id),
+    treeLayers: layers.filter((l) => l.arrange === 'tree').map((l) => l.id),
+    layerGaps: Object.fromEntries(layers.filter((l) => l.gap !== undefined).map((l) => [l.id, l.gap!])),
+    roleOffsets: Object.fromEntries(roles.filter((r) => r.planeOffset !== undefined).map((r) => [r.id, r.planeOffset!])),
+    roleParents: Object.fromEntries(roles.filter((r) => r.parent).map((r) => [r.id, r.parent!])),
+  }
 }
 
 export function roleOffset(
@@ -99,8 +130,8 @@ export function computeLayout(
 ): Map<string, Vec3> {
   const seed = options.seed ?? 1
   const gap = options.layerGap ?? DEFAULT_GAP
-  const heights = layerHeights(options.layers, gap)
-  const fallbackHeight = round(-((options.layers.length + 1) * gap) / 2)
+  const heights = layerHeights(options.layers, gap, options.layerGaps)
+  const fallbackHeight = Math.min(0, ...heights.values()) - gap
   const sorted = [...nodes].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   const previous = options.previous ?? new Map<string, Vec3>()
 
@@ -113,6 +144,10 @@ export function computeLayout(
     anchors.set(feature, { x: Math.cos(angle) * anchorRadius, y: Math.sin(angle) * anchorRadius })
   })
 
+  // ---- Tree layers: fixed positions, computed up front.
+  const treeLayers = new Set(options.treeLayers ?? [])
+  const tree = treeLayers.size > 0 ? radialTree(sorted.filter((n) => treeLayers.has(n.layer)), edges, options.layers) : new Map<string, [number, number]>()
+
   // ---- Simulation nodes.
   const simNodes: SimNode[] = sorted.map((node) => {
     const offset = roleOffset(node.role, options, node.layer)
@@ -123,9 +158,15 @@ export function computeLayout(
       group: `${node.layer}|${offset}`,
       radius: 1.6 * (node.size ?? 1) + 1.6,
       anchor: feature ? anchors.get(feature) : undefined,
-      previous: prev ? { x: prev[0], y: prev[2] } : undefined,
+      previous: prev && !tree.has(node.id) ? { x: prev[0], y: prev[2] } : undefined,
     }
   })
+  for (const node of simNodes) {
+    const fixed = tree.get(node.id)
+    if (!fixed) continue
+    node.x = node.fx = fixed[0]
+    node.y = node.fy = fixed[1]
+  }
   const byId = new Map(simNodes.map((n) => [n.id, n]))
   const parentOf = new Map(sorted.filter((n) => n.parent).map((n) => [n.id, n.parent!]))
 
@@ -184,9 +225,11 @@ export function computeLayout(
     neighbours.get(s.id)!.push(t)
     neighbours.get(t.id)!.push(s)
   }
-  const warm = simNodes.filter((n) => n.previous).length >= simNodes.length * 0.5 && simNodes.length > 0
+  const free = simNodes.filter((n) => n.fx == null)
+  const warm = free.filter((n) => n.previous).length >= free.length * 0.5 && free.length > 0
   const unplaced: SimNode[] = []
   simNodes.forEach((node) => {
+    if (node.fx != null) return
     if (node.previous) {
       node.x = node.previous.x
       node.y = node.previous.y
@@ -252,6 +295,193 @@ export function computeLayout(
     const sim = byId.get(node.id)!
     const height = (heights.get(node.layer) ?? fallbackHeight) - roleOffset(node.role, options, node.layer)
     result.set(node.id, [round(sim.x ?? 0), round(height), round(sim.y ?? 0)])
+  }
+  return result
+}
+
+/** Edge types a tree grows along first; any other edge only attaches what these don't reach. */
+const TREE_EDGES = new Set(['renders', 'uses', 'calls', 'provides'])
+const RING_GAP = 24
+/** Room a node needs along its ring. */
+const TREE_SPACING = 6
+/** Leaves under one node are staggered over up to this many rows, so each needs a fraction of the arc. */
+const MAX_LEAF_ROWS = 4
+const LEAF_ROW_GAP = 6
+
+/** The tree's parent of each node of the tree layers (child id → parent id), as the layout draws it. */
+export function treeParents(nodes: readonly LayoutNode[], edges: readonly LayoutEdge[], layers: string[]): Map<string, string> {
+  const parents = new Map<string, string>()
+  for (const [parent, kids] of spanningTree(nodes, edges, layers).children) {
+    if (parent !== CENTRE) for (const kid of kids) parents.set(kid, parent)
+  }
+  return parents
+}
+
+/** The invisible centre several roots hang from. */
+const CENTRE = '\u0000centre'
+
+/**
+ * The spanning tree: entry points first, then breadth first along renders/uses/calls/provides, any edge,
+ * any edge backwards; a contained node always hangs under its container.
+ */
+function spanningTree(
+  nodes: readonly LayoutNode[],
+  edges: readonly LayoutEdge[],
+  layers: string[],
+): { children: Map<string, string[]>; depth: Map<string, number>; centre: string | undefined } {
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  const layerIndex = new Map(layers.map((l, i) => [l, i]))
+  const order = (a: string, b: string) => {
+    const la = layerIndex.get(byId.get(a)!.layer) ?? 0
+    const lb = layerIndex.get(byId.get(b)!.layer) ?? 0
+    return la !== lb ? la - lb : a < b ? -1 : a > b ? 1 : 0
+  }
+  const container = (id: string) => {
+    const parent = byId.get(id)!.parent
+    return parent && byId.has(parent) ? parent : undefined
+  }
+  /** The outermost container: what the tree reaches instead of a contained node. */
+  const top = (id: string) => {
+    const seen = new Set([id])
+    for (let up = container(id); up && !seen.has(up); up = container(up)) {
+      seen.add(up)
+      id = up
+    }
+    return id
+  }
+  const contained = new Map<string, string[]>()
+  for (const node of nodes) {
+    const parent = container(node.id)
+    if (parent) (contained.get(parent) ?? contained.set(parent, []).get(parent)!).push(node.id)
+  }
+  const out = new Map<string, LayoutEdge[]>()
+  const into = new Map<string, LayoutEdge[]>()
+  for (const edge of edges) {
+    if (edge.from === edge.to || !byId.has(edge.from) || !byId.has(edge.to) || edge.type === 'contains') continue
+    ;(out.get(edge.from) ?? out.set(edge.from, []).get(edge.from)!).push(edge)
+    ;(into.get(edge.to) ?? into.set(edge.to, []).get(edge.to)!).push(edge)
+  }
+
+  const children = new Map<string, string[]>()
+  const depth = new Map<string, number>()
+  const attach = (child: string, parent: string | undefined) => {
+    depth.set(child, parent === undefined ? 0 : depth.get(parent)! + 1)
+    if (parent !== undefined) (children.get(parent) ?? children.set(parent, []).get(parent)!).push(child)
+  }
+  const grow = (queue: string[], next: (id: string) => string[]) => {
+    for (let i = 0; i < queue.length; i++) {
+      const id = queue[i]
+      const found = [...(contained.get(id) ?? []), ...next(id).map(top)].filter((c, k, all) => !depth.has(c) && all.indexOf(c) === k)
+      for (const child of found.sort(order)) {
+        attach(child, id)
+        queue.push(child)
+      }
+    }
+  }
+
+  const entries = nodes.filter((n) => n.kind === 'entrypoint' && !container(n.id)).map((n) => n.id)
+  const pointedAt = new Set(edges.filter((e) => TREE_EDGES.has(e.type) && e.from !== e.to).map((e) => e.to))
+  const roots = (entries.length > 0 ? entries : nodes.filter((n) => !container(n.id) && !pointedAt.has(n.id)).map((n) => n.id)).sort(order)
+  // Several roots share an invisible centre, one ring in.
+  const multi = roots.length > 1
+  if (multi) depth.set(CENTRE, 0)
+  for (const root of roots) attach(root, multi ? CENTRE : undefined)
+  const all = () => [...depth.keys()]
+  grow(all(), (id) => (out.get(id) ?? []).filter((e) => TREE_EDGES.has(e.type)).map((e) => e.to))
+  grow(all(), (id) => (out.get(id) ?? []).map((e) => e.to))
+  grow(all(), (id) => (into.get(id) ?? []).map((e) => e.from))
+  return { children, depth, centre: multi ? CENTRE : roots[0] }
+}
+
+/**
+ * One radial tree over the given nodes: entry points (kind `entrypoint`, else the nodes nothing points at)
+ * in the centre, each node on the ring of its distance from them. A node's tree parent is the first node
+ * that reaches it (breadth first, along renders/uses/calls/provides, then any edge, then any edge
+ * backwards); a contained node (API call, route, hook of a query API…) hangs under its container.
+ * Each subtree gets a wedge as wide as its leaves need (sibling leaves are staggered over a few rows to
+ * save room). Nodes the tree can't reach go on an outer ring.
+ */
+function radialTree(nodes: readonly LayoutNode[], edges: readonly LayoutEdge[], layers: string[]): Map<string, [number, number]> {
+  const { children, depth, centre } = spanningTree(nodes, edges, layers)
+
+  // Sibling leaves staggered over rows (two leaves: two rows, four or more: four).
+  const row = new Map<string, number>()
+  const rows = new Map<string, number>()
+  for (const kids of children.values()) {
+    const leaves = kids.filter((kid) => !children.has(kid))
+    const count = Math.min(MAX_LEAF_ROWS, leaves.length)
+    leaves.forEach((leaf, i) => {
+      row.set(leaf, i % count)
+      rows.set(leaf, count)
+    })
+  }
+  const width = (id: string) => 1 / (rows.get(id) ?? 1)
+
+  // Ring radii: one step apart, and wide enough for every node on the ring.
+  const maxDepth = Math.max(0, ...depth.values())
+  const perRing = new Array<number>(maxDepth + 1).fill(0)
+  for (const [id, d] of depth) perRing[d] += width(id)
+  const radius = [0]
+  for (let d = 1; d <= maxDepth; d++) radius.push(Math.max(radius[d - 1] + RING_GAP, (perRing[d] * TREE_SPACING) / (2 * Math.PI)))
+
+  // Wedges: each node needs its own arc, or its children's, whichever is wider.
+  const result = new Map<string, [number, number]>()
+  if (centre === undefined) return result
+  const need = new Map<string, number>()
+  const measure = (id: string): number => {
+    const d = depth.get(id)!
+    const own = d === 0 ? 0 : (TREE_SPACING * width(id)) / radius[d]
+    const sum = (children.get(id) ?? []).reduce((total, child) => total + measure(child), 0)
+    const value = Math.max(own, sum)
+    need.set(id, value)
+    return value
+  }
+  /** Splits each node's wedge between its children by what they need. */
+  const span = new Map<string, [number, number]>()
+  const allocate = (id: string, from: number, size: number) => {
+    span.set(id, [from, size])
+    const kids = children.get(id) ?? []
+    const needed = kids.reduce((sum, child) => sum + need.get(child)!, 0)
+    let start = from
+    for (const child of kids) {
+      const share = needed > 0 ? (need.get(child)! / needed) * size : size / kids.length
+      allocate(child, start, share)
+      start += share
+    }
+  }
+  // Too crowded for a full turn: push out the rings whose nodes got less arc than they need, and again.
+  for (let round = 0; round < 12; round++) {
+    if (measure(centre) <= 2 * Math.PI * 1.001) break
+    allocate(centre, -Math.PI / 2, 2 * Math.PI)
+    const wanted = [...radius]
+    for (const [id, [, size]] of span) {
+      const d = depth.get(id)!
+      if (d > 0) wanted[d] = Math.max(wanted[d], (TREE_SPACING * width(id)) / size)
+    }
+    for (let d = 1; d <= maxDepth; d++) radius[d] = Math.max(wanted[d], radius[d - 1] + RING_GAP)
+  }
+  // Whatever is still too crowded: every ring out together.
+  const scale = Math.max(1, measure(centre) / (2 * Math.PI))
+  allocate(centre, -Math.PI / 2, 2 * Math.PI)
+  for (const [id, [from, size]] of span) {
+    if (id === CENTRE) continue
+    const angle = from + size / 2
+    const r = radius[depth.get(id)!] * scale + (row.get(id) ?? 0) * LEAF_ROW_GAP
+    result.set(id, [round(Math.cos(angle) * r), round(Math.sin(angle) * r)])
+  }
+
+  // What nothing reaches: an outer ring (or more), in file order.
+  const left = nodes.filter((n) => !depth.has(n.id)).map((n) => n.id).sort()
+  let ring = (radius[maxDepth] ?? 0) * scale + (MAX_LEAF_ROWS - 1) * LEAF_ROW_GAP
+  for (let i = 0; i < left.length; ) {
+    ring += RING_GAP
+    const fits = Math.max(1, Math.floor((2 * Math.PI * ring) / TREE_SPACING))
+    const batch = left.slice(i, i + fits)
+    batch.forEach((id, k) => {
+      const angle = -Math.PI / 2 + ((k + 0.5) / batch.length) * 2 * Math.PI
+      result.set(id, [round(Math.cos(angle) * ring), round(Math.sin(angle) * ring)])
+    })
+    i += batch.length
   }
   return result
 }

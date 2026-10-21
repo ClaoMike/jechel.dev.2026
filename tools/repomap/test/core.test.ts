@@ -22,6 +22,12 @@ describe('config', () => {
     assert.equal(merged.name, 'child')
   })
 
+  it('puts a new entry with "before" in front of that entry', () => {
+    const parent = { layers: [{ id: 'frontend', label: 'F' }, { id: 'backend', label: 'B' }] }
+    const child = { layers: [{ id: 'views', label: 'V', before: 'frontend' }, { id: 'frontend', label: 'Model' }, { id: 'infra', label: 'I', before: 'nowhere' }] }
+    assert.deepEqual(mergeConfig(parent, child).layers, [{ id: 'views', label: 'V' }, { id: 'frontend', label: 'Model' }, { id: 'backend', label: 'B' }, { id: 'infra', label: 'I' }])
+  })
+
   it('rejects colours the viewer cannot use', () => {
     const dir = mkdtempSync(join(tmpdir(), 'repomap-colors-'))
     const path = join(dir, 'repomap.config.json')
@@ -31,7 +37,10 @@ describe('config', () => {
 
   it('loads the stack preset through extends', () => {
     const config = loadConfig(join(TOOL_ROOT, 'repomap.config.json'))
-    assert.deepEqual(config.layers.map((l) => l.id), ['frontend', 'backend', 'database', 'infra'])
+    assert.deepEqual(config.layers.map((l) => l.id), ['frontend-views', 'frontend-viewmodels', 'frontend', 'backend', 'database', 'infra'])
+    assert.deepEqual(config.layers.filter((l) => l.arrange === 'tree').map((l) => l.id), ['frontend-views', 'frontend-viewmodels', 'frontend'])
+    assert.ok(config.layers.every((l) => !('before' in l)), 'placement hints are not part of the vocabulary')
+    assert.deepEqual(config.plugins.find((p) => p.id === 'typescript')?.layers, ['frontend-views', 'frontend-viewmodels', 'frontend'])
     assert.ok(config.plugins.some((p) => p.id === 'typescript'))
     assert.ok(config.exclude.includes('tools/repomap/**'))
   })
