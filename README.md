@@ -895,6 +895,29 @@ yet starts at the top, and going back to one returns to where you were, retried 
   over 4 seconds, with the tab visible and focused, it switches to light or dark, remembers that for next visits
   (`theme.slowDevice`), and says so with a **Use Vice anyway** button. Someone who picked Vice themselves is never switched.
 
+## Performance (what the page costs to keep open)
+
+Measured in Chromium (GPU on, 1512×945 at 2×, the home page), as CPU used by the whole browser:
+
+| | Before | After, in use | After a minute with no input |
+|---|---|---|---|
+| Vice | 25% | 20% | **1%** |
+| Dark / light | 7–8% | 7–8% | **0–1%** |
+
+- **The neon colours** (the site name, the Vice mark) follow the scene's time. They were set as `--neon-shift` on the whole header
+  30 times a second, which restyled everything in it each time (25 ms of style work a second). Now they're set on the neon
+  elements only, 8 times a second, as the CSS animation steps in the other themes (`riviera.ts`).
+- **Nobody using the page** (`layout/idle.ts`): after 60 s without a pointer, key, scroll or touch, the Vice scene stops drawing
+  and the neon colours pause (`<html data-idle>`); the next input carries on where they stopped, with no jump. This is the case
+  that matters most: a tab left open on screen while working in another window (unfocused, the scene still drew 15 frames a
+  second), where every frame also re-blurred each frosted card over it.
+- **What stays the same:** the scene's own GPU cost is small (Vice without the neon and the blur measured 8%, like dark); the
+  frosted blur over the moving scene is most of what's left while it moves, and it's the look.
+- **Network while open:** after loading, one batch of visit events, then nothing (no polling, unless the API is unreachable:
+  then `/api/site` every 30 s).
+- **API log:** EF Core's line for every SQL command is off (`Microsoft.EntityFrameworkCore.Database.Command: Warning`); its
+  warnings and errors still show.
+
 ## Accessibility
 
 `e2e/a11y.spec.ts` checks every page with [axe](https://github.com/dequelabs/axe-core) against WCAG 2.2 A and AA, in every theme,
