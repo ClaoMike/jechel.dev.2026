@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type AnimationEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type AnimationEvent } from 'react'
 import type { PageArgs } from '../../store/api/appsApi'
 import { usePagedQuery, type PagedQueryHook } from '../../store/usePagedQuery'
 import { motionAllowed } from '../../utils/motion'
@@ -40,6 +40,9 @@ export interface LeavingPage<T> extends ShownPage<T> {
 
 /** In case an animation never ends (e.g. the tab went to the background mid-way). */
 export const SLIDE_FALLBACK_MS = 800
+
+/** How the grid's height follows a slide: the same time and easing as the slide (glass.css), so Previous / Next glide with it. */
+export const RESIZE = { duration: 550, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' }
 
 /**
  * The page in the URL (?page=2), its items from the store, and moving between pages (back to the grid's
@@ -86,6 +89,21 @@ export function usePagedGridViewModel<T>(useItems: PagedQueryHook<T, PageArgs>, 
     return () => clearTimeout(timer)
   }, [leaving])
 
+  // While a page slides in, the grid's height goes from the old page's to the new one's (rather than
+  // jumping), so what's under it (Previous / Next) moves smoothly, up for a shorter page, down for a taller.
+  const stage = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = stage.current
+    const old = el?.querySelector<HTMLElement>(':scope > .grid-leave')
+    const current = el?.querySelector<HTMLElement>(':scope > .grid-enter')
+    if (!el || !old || !current || old.offsetHeight === current.offsetHeight) return
+    el.classList.add('grid-resizing')
+    const resize = el.animate([{ height: `${old.offsetHeight}px` }, { height: `${current.offsetHeight}px` }], RESIZE)
+    const done = () => el.classList.remove('grid-resizing')
+    resize.addEventListener('finish', done)
+    resize.addEventListener('cancel', done)
+  }, [leaving])
+
   const goToPage = useCallback(
     (next: number) => {
       setPage(next)
@@ -96,6 +114,7 @@ export function usePagedGridViewModel<T>(useItems: PagedQueryHook<T, PageArgs>, 
 
   return {
     topRef: top,
+    stageRef: stage,
     page,
     state,
     totalPages,

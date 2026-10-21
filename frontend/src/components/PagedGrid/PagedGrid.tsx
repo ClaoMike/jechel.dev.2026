@@ -29,8 +29,9 @@ export interface PagedGridProps<T, P extends object = object> {
 /**
  * Items in a grid (3 columns, fewer on narrow screens), a page at a time, with Previous / Next
  * under it. The page is in the URL (?page=2), so it survives a reload and can be shared. Moving to
- * another page slides the old one out and the new one in, from the side it's on; the pages next to
- * the one on show are loaded ahead.
+ * another page slides the old one out and the new one in, from the side it's on, while the grid's
+ * height follows (what's under it glides rather than jumps); the pages next to the one on show are
+ * loaded ahead.
  */
 export function PagedGrid<T, P extends object = object>({
   useItems,
@@ -43,7 +44,7 @@ export function PagedGrid<T, P extends object = object>({
   leading,
   children,
 }: PagedGridProps<T, P>) {
-  const { topRef, ...vm } = usePagedGridViewModel(useItems, usePrefetchItems, pageSize)
+  const { topRef, stageRef, ...vm } = usePagedGridViewModel(useItems, usePrefetchItems, pageSize)
   const { state } = vm
   const { label, loading, empty, error } = texts
 
@@ -58,7 +59,7 @@ export function PagedGrid<T, P extends object = object>({
       {state.status === 'loaded' && state.data.totalCount === 0 && !leading && <p className="muted">{empty}</p>}
       {state.status === 'loaded' && (state.data.items.length > 0 || (leading && vm.page === 1)) && (
         <>
-          <div className="paged-grid-stage">
+          <div ref={stageRef} className="paged-grid-stage">
             {vm.leaving && (
               <ul
                 key={`page-${vm.leaving.page}`}

@@ -378,7 +378,16 @@ html {
   animation: page-out-to-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
-/* A paged grid's pages (PagedGrid) slide the same way as the tabs' pages. */
+/*
+ * A paged grid's pages (PagedGrid) slide the same way as the tabs' pages. While the grid's height
+ * follows (an animation from PagedGrid.viewModel), what's past its bottom is cut off rather than drawn
+ * over Previous / Next; sideways, the pages still slide past the screen's edges.
+ */
+.paged-grid-stage.grid-resizing {
+  overflow-y: clip;
+  overflow-x: visible;
+}
+
 .grid-leave {
   position: absolute;
   inset: 0 0 auto;

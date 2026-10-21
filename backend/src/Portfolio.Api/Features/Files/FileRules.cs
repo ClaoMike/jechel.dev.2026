@@ -1,12 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Gif;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 
 namespace Portfolio.Api.Features.Files;
 
@@ -40,37 +34,85 @@ public static partial class FileRules
     public static Guid? FileIdIn(string? url) =>
         url is not null && FileUrl().Match(url) is { Success: true } match ? Guid.Parse(match.Groups[1].Value) : null;
 
-    /// <summary>
-    /// The only formats a photo is read from. Leaving out TIFF, BMP and the rest keeps their
-    /// decoders, where ImageSharp 3's open advisories are, out of reach.
-    /// </summary>
-    private static readonly Configuration PhotoFormats = new(new JpegConfigurationModule(), new PngConfigurationModule(), new WebpConfigurationModule(), new GifConfigurationModule());
+    /// <summary>A picture bigger than this (in pixels, e.g. 10,000 × 10,000) isn't decoded: it could take gigabytes of memory.</summary>
+    public const long PhotoMaxSourcePixels = 100_000_000;
+
+    /// <summary>The WebP quality photos are stored at (0–100).</summary>
+    public const int PhotoQuality = 85;
+
+    /// <summary>The only formats a photo is read from.</summary>
+    private static readonly SKEncodedImageFormat[] PhotoFormats = [SKEncodedImageFormat.Jpeg, SKEncodedImageFormat.Png, SKEncodedImageFormat.Webp, SKEncodedImageFormat.Gif];
 
     /// <summary>
-    /// Re-encodes a JPEG, PNG, WebP or GIF as a WebP of at most <see cref="PhotoMaxPixels"/>
-    /// per side. Turns it upright first, then drops the metadata: phone photos carry the GPS
-    /// position they were taken at. Throws <see cref="ImageFormatException"/> (or
-    /// <see cref="UnknownImageFormatException"/>) when the bytes aren't an image.
+    /// Re-encodes a JPEG, PNG, WebP or GIF (its first frame) as a WebP of at most <paramref name="maxPixels"/>
+    /// per side, with SkiaSharp. Turns it upright first (the EXIF orientation), and keeps nothing but the
+    /// pixels: phone photos carry the GPS position they were taken at. Throws <see cref="NotAnImageException"/>
+    /// when the bytes aren't one of those formats, are broken, or are too big a picture.
     /// </summary>
     public static async Task<byte[]> PreparePhotoAsync(Stream input, CancellationToken cancellationToken, int maxPixels = PhotoMaxPixels)
     {
-        using var image = await Image.LoadAsync(new DecoderOptions { Configuration = PhotoFormats, MaxFrames = 1 }, input, cancellationToken);
-        image.Mutate(x =>
-        {
-            x.AutoOrient();
-            if (image.Width > maxPixels || image.Height > maxPixels)
-            {
-                x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(maxPixels, maxPixels) });
-            }
-        });
-        image.Metadata.ExifProfile = null;
-        image.Metadata.IptcProfile = null;
-        image.Metadata.XmpProfile = null;
+        using var buffer = new MemoryStream();
+        await input.CopyToAsync(buffer, cancellationToken);
+        using var data = SKData.CreateCopy(buffer.GetBuffer().AsSpan(0, (int)buffer.Length));
+        using var codec = SKCodec.Create(data) ?? throw new NotAnImageException("Not an image.");
+        if (!PhotoFormats.Contains(codec.EncodedFormat)) throw new NotAnImageException($"{codec.EncodedFormat} isn't accepted.");
 
-        using var output = new MemoryStream();
-        await image.SaveAsWebpAsync(output, new WebpEncoder { Quality = 85 }, cancellationToken);
-        return output.ToArray();
+        var size = codec.Info;
+        if ((long)size.Width * size.Height > PhotoMaxSourcePixels) throw new NotAnImageException($"{size.Width}×{size.Height} is too big a picture.");
+
+        // Decoded into sRGB, so colours look the same in every browser once the colour profile is gone.
+        var info = new SKImageInfo(size.Width, size.Height, SKColorType.Rgba8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb());
+        using var decoded = new SKBitmap(info);
+        var result = codec.GetPixels(info, decoded.GetPixels());
+        // A file cut short still has its top part: that's kept, like browsers do.
+        if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput)) throw new NotAnImageException($"It can't be decoded ({result}).");
+
+        var origin = codec.EncodedOrigin;
+        var sideways = origin is SKEncodedOrigin.LeftTop or SKEncodedOrigin.RightTop or SKEncodedOrigin.RightBottom or SKEncodedOrigin.LeftBottom;
+        var (uprightWidth, uprightHeight) = sideways ? (size.Height, size.Width) : (size.Width, size.Height);
+        var scale = Math.Min(1f, (float)maxPixels / Math.Max(uprightWidth, uprightHeight));
+        var width = Math.Max(1, (int)Math.Round(uprightWidth * scale));
+        var height = Math.Max(1, (int)Math.Round(uprightHeight * scale));
+
+        using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb()))
+            ?? throw new NotAnImageException("No room to draw it.");
+        var canvas = surface.Canvas;
+        canvas.Clear(SKColors.Transparent);
+        canvas.Scale((float)width / uprightWidth, (float)height / uprightHeight);
+        canvas.Concat(Upright(origin, size.Width, size.Height));
+        using (var image = SKImage.FromBitmap(decoded))
+        {
+            // Mipmaps: a big photo scaled far down stays smooth instead of grainy.
+            canvas.DrawImage(image, 0, 0, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+        }
+
+        using var snapshot = surface.Snapshot();
+        using var webp = snapshot.Encode(SKEncodedImageFormat.Webp, PhotoQuality) ?? throw new NotAnImageException("It can't be saved as WebP.");
+        return webp.ToArray();
     }
+
+    /// <summary>
+    /// Maps a picture stored as <paramref name="width"/> × <paramref name="height"/> with the EXIF orientation
+    /// <paramref name="origin"/> to how it should look: x' = ScaleX·x + SkewX·y + TransX, y' = SkewY·x + ScaleY·y + TransY.
+    /// </summary>
+    public static SKMatrix Upright(SKEncodedOrigin origin, int width, int height) => origin switch
+    {
+        // 2: mirrored left to right.
+        SKEncodedOrigin.TopRight => new SKMatrix(-1, 0, width, 0, 1, 0, 0, 0, 1),
+        // 3: upside down.
+        SKEncodedOrigin.BottomRight => new SKMatrix(-1, 0, width, 0, -1, height, 0, 0, 1),
+        // 4: mirrored top to bottom.
+        SKEncodedOrigin.BottomLeft => new SKMatrix(1, 0, 0, 0, -1, height, 0, 0, 1),
+        // 5: mirrored along the diagonal.
+        SKEncodedOrigin.LeftTop => new SKMatrix(0, 1, 0, 1, 0, 0, 0, 0, 1),
+        // 6: needs turning a quarter clockwise (a phone held upright).
+        SKEncodedOrigin.RightTop => new SKMatrix(0, -1, height, 1, 0, 0, 0, 0, 1),
+        // 7: mirrored along the other diagonal.
+        SKEncodedOrigin.RightBottom => new SKMatrix(0, -1, height, -1, 0, width, 0, 0, 1),
+        // 8: needs turning a quarter anticlockwise.
+        SKEncodedOrigin.LeftBottom => new SKMatrix(0, 1, 0, -1, 0, width, 0, 0, 1),
+        _ => SKMatrix.Identity,
+    };
 
     /// <summary>
     /// "video/mp4", "video/quicktime" or "video/webm" when the file starts like one, else null.
@@ -118,3 +160,6 @@ public static partial class FileRules
     [GeneratedRegex(@"^/api/files/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/")]
     private static partial Regex FileUrl();
 }
+
+/// <summary>An upload that isn't a picture <see cref="FileRules.PreparePhotoAsync"/> can use.</summary>
+public sealed class NotAnImageException(string message) : Exception(message);

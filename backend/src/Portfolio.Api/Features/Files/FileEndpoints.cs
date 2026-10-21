@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.HttpResults;
-using SixLabors.ImageSharp;
 
 namespace Portfolio.Api.Features.Files;
 
@@ -41,7 +40,7 @@ public static class FileEndpoints
             await using var stream = file!.OpenReadStream();
             photo = await FileRules.PreparePhotoAsync(stream, cancellationToken);
         }
-        catch (Exception e) when (e is ImageFormatException or NotSupportedException)
+        catch (NotAnImageException)
         {
             return Invalid("That file isn't an image we can read. Try a JPEG, PNG or WebP.");
         }
@@ -85,7 +84,7 @@ public static class FileEndpoints
             await using var stream = file.OpenReadStream();
             image = await FileRules.PreparePhotoAsync(stream, cancellationToken, FileRules.AppImageMaxPixels);
         }
-        catch (Exception e) when (e is ImageFormatException or NotSupportedException)
+        catch (NotAnImageException)
         {
             return Invalid("That file isn't an image or video we can use. Try a JPEG, PNG, WebP, GIF, MP4, MOV or WebM.");
         }

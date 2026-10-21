@@ -338,6 +338,9 @@ new one in from its side (Next: from the right; Previous: from the left), with t
 pages next to the one on show (page − 1 and page + 1, within range) are loaded ahead with RTK Query's prefetch
 (`usePrefetchApps`, `usePrefetchVideos` in `store/api/appsApi.ts`), which skips a page loaded in the last 30 seconds,
 so Previous / Next show their page at once; a page that wasn't loaded ahead shows placeholders, then slides in.
+While a page slides, the grid's height goes from the old page's to the new one's with the same timing (a Web
+Animation from `PagedGrid.viewModel`), so Previous / Next glide up to a shorter page (or down to a taller one)
+instead of jumping.
 
 - `GET /api/youtube/videos?page=1&pageSize=9` (public) reads the uploads with the YouTube Data API v3. It needs `YouTube:Channel` (`@handle` or `UC…` id) and `YouTube:ApiKey`; until both are set it answers 503 and the page says the videos can't be loaded.
 - The list is kept by `YouTubeVideoStore`: in memory, and in the database (`youtube_videos`, one row per channel), so a
@@ -399,7 +402,11 @@ drag is swallowed). On phones the bar still scrolls sideways when dragged anywhe
 - Each upload endpoint reads its own form and raises the server's request limit (Kestrel's default is 30 MB) for that request only. The editor checks the size before sending and shows the upload's progress. Limits are in `FileRules.cs` and `uploadLimits.ts`.
 - Files are served publicly from `GET /api/files/{id}/{name}`. Saving the page or an app deletes uploads nothing uses any more once they're a day old (a replaced photo, or one uploaded and never saved).
 - Storage is behind `IFileStorage`. `DatabaseFileStorage` keeps files in the `stored_files` table, which suits a photo and a PDF. Moving to object storage (Cloudflare R2, S3) means a new implementation and one line in `Program.cs`. There's no HTTP caching yet; adding a CDN later only needs cache headers, since a file's URL never changes.
-- Image processing uses SixLabors.ImageSharp 3.1 (Six Labors Split License: free for open source and for individuals or companies under $1M revenue; version 4 needs a license key). Advisories published in October 2026 (fixed only in 4.1.2+) affect TIFF, ICC-profile and histogram code: photos are only read as JPEG, PNG, WebP or GIF, and only the admin can upload. Moving to ImageSharp 4 (with a license key) or to SkiaSharp would clear them.
+- Image processing uses SkiaSharp (MIT; `FileRules.PreparePhotoAsync`): JPEG, PNG, WebP or GIF (its first frame) only, at
+  most 100 million pixels (checked before decoding), turned upright by its EXIF orientation, scaled to fit, re-encoded
+  as WebP at quality 85 with nothing but the pixels (no EXIF, GPS or XMP). Replaced ImageSharp in October 2026, whose
+  advisories were only fixed in version 4, which needs a licence key. The Linux native library comes from
+  `SkiaSharp.NativeAssets.Linux.NoDependencies` (no system libraries needed in the Docker image).
 - Flags come from the `flag-icons` package (MIT), as separate SVG files loaded when shown (`features/about/flags.ts`).
 
 **LeetCode stats** (`backend/.../Features/LeetCode/`): `GET /api/leetcode` (public) returns the stats of the username saved on the page, and only that one, so the API can't be used to look anyone up. It returns 204 when no username is set, 404 when LeetCode has no such user, and 503 when LeetCode can't be reached and nothing was saved yet. The numbers come from LeetCode's GraphQL endpoint (`https://leetcode.com/graphql`), the one its own profile page uses: it needs no key, but it isn't an official API and may change. They're **cached** so visitors don't each trigger a call:

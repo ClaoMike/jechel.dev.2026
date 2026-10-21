@@ -7,7 +7,7 @@ import { stubApi, type ApiStubs } from '../../test/api'
 import { makeApp, pageOf } from '../../test/fixtures/apps'
 import { makeVideo, pageOfVideos } from '../../test/fixtures/site'
 import { ADMIN, forever, renderView, textOf } from '../../test/render'
-import { SLIDE_FALLBACK_MS } from './PagedGrid.viewModel'
+import { RESIZE, SLIDE_FALLBACK_MS } from './PagedGrid.viewModel'
 
 // The paged grid (Apps and YouTube): loading the pages next to the one on show ahead, and sliding
 // between pages. Tested through the YouTube page (and Apps for its admin's 8 a page), the API stubbed.
@@ -309,5 +309,103 @@ describe('sliding between pages', () => {
     await renderView(<YouTubePage />)
     await expect.poll(() => textOf(page.getByRole('status'))).toBe('Loading videos…')
     expect(leaving()).toBeNull()
+  })
+})
+
+describe("the grid's height following a slide (Previous / Next glide instead of jumping)", () => {
+  const stage = () => document.querySelector<HTMLElement>('.paged-grid-stage')!
+  const pagination = () => page.getByRole('navigation', { name: 'Pagination' }).element()
+  /** How far below the grid's top Previous / Next is (scrolling doesn't change it). */
+  const paginationDrop = () => pagination().getBoundingClientRect().top - stage().getBoundingClientRect().top
+  const resize = () => stage().getAnimations()[0]
+  const heights = (animation: Animation) => (animation.effect as KeyframeEffect).getKeyframes().map((frame) => frame.height)
+
+  /** 20 videos: two full pages of 9 (three rows), then 2 (one row). */
+  async function openPage(path: string) {
+    allowMotion()
+    const api = stubApi()
+    channel(api, 20)
+    await renderView(<YouTubePage />, { path })
+    await expect.poll(() => api.youtube.listVideos.mock.calls.length).toBeGreaterThanOrEqual(2)
+    return api
+  }
+
+  it('glides Previous / Next up to a shorter page, at the slide\'s pace', async () => {
+    await openPage('/youtube?page=2')
+    await expect.element(tile('Video 10')).toBeVisible()
+    const tall = stage().offsetHeight
+    const before = paginationDrop()
+
+    await page.getByRole('button', { name: 'Next' }).click()
+    await expect.element(tile('Video 19')).toBeVisible()
+
+    const animation = resize()
+    animation.pause()
+    const short = (grid().element() as HTMLElement).offsetHeight
+    expect(short).toBeLessThan(tall)
+    expect(heights(animation)).toEqual([`${tall}px`, `${short}px`])
+    expect((animation.effect as KeyframeEffect).getTiming()).toMatchObject({ duration: RESIZE.duration, easing: RESIZE.easing })
+    expect(stage().classList).toContain('grid-resizing')
+
+    // It starts where it was, moves up gradually, and ends under the shorter page.
+    animation.currentTime = 0
+    expect(paginationDrop()).toBeCloseTo(before, 0)
+    animation.currentTime = RESIZE.duration / 2
+    const halfway = paginationDrop()
+    expect(halfway).toBeLessThan(before)
+    animation.finish()
+    expect(paginationDrop()).toBeLessThan(halfway)
+    expect(paginationDrop()).toBeCloseTo(before - (tall - short), 0)
+    await expect.poll(() => stage().classList.contains('grid-resizing')).toBe(false)
+  })
+
+  it('glides them down to a taller page going back', async () => {
+    await openPage('/youtube?page=3')
+    await expect.element(tile('Video 19')).toBeVisible()
+    const short = stage().offsetHeight
+
+    await page.getByRole('button', { name: 'Previous' }).click()
+    await expect.element(tile('Video 10')).toBeVisible()
+
+    const animation = resize()
+    animation.finish()
+    const [from, to] = heights(animation)
+    expect(from).toBe(`${short}px`)
+    expect(Number.parseFloat(to as string)).toBeGreaterThan(short)
+  })
+
+  it("doesn't animate the height between pages of the same height", async () => {
+    await openPage('/youtube')
+    await expect.element(tile('Video 1')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Next' }).click()
+    await expect.element(tile('Video 10')).toBeVisible()
+
+    expect(leaving()).not.toBeNull()
+    expect(stage().getAnimations()).toHaveLength(0)
+    expect(stage().classList).not.toContain('grid-resizing')
+  })
+
+  it("doesn't animate the height for reduced motion: the page just changes", async () => {
+    const api = stubApi()
+    channel(api, 20)
+    await renderView(<YouTubePage />, { path: '/youtube?page=2' })
+    await expect.element(tile('Video 10')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Next' }).click()
+    await expect.element(tile('Video 19')).toBeVisible()
+
+    expect(stage().getAnimations()).toHaveLength(0)
+  })
+
+  it('stops cutting off the old page if the animation is cut short', async () => {
+    await openPage('/youtube?page=2')
+    await expect.element(tile('Video 10')).toBeVisible()
+    await page.getByRole('button', { name: 'Next' }).click()
+    await expect.element(tile('Video 19')).toBeVisible()
+
+    resize().cancel()
+
+    await expect.poll(() => stage().classList.contains('grid-resizing')).toBe(false)
   })
 })
