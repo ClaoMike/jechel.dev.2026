@@ -49,7 +49,8 @@ public static class AuthEndpoints
             user.FindFirstValue(ClaimTypes.Email)!,
             user.FindFirstValue(ClaimTypes.Name),
             user.FindFirstValue("picture"),
-            (int)Math.Max(0, expiresIn.TotalSeconds)));
+            // Whole seconds, rounded up: the database keeps microseconds, so a fresh 10-minute session reads 599.9999999s.
+            (int)Math.Ceiling(Math.Max(0, expiresIn.TotalSeconds))));
     }
 
     /// <summary>

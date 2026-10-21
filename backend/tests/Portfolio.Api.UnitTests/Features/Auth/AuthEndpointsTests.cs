@@ -80,4 +80,24 @@ public class AuthEndpointsTests
             new CurrentUserResponse("admin@example.com", "Claudiu Jechel", "https://example.com/me.png", 8 * 60),
             result.Value);
     }
+
+    [Fact]
+    public async Task GetCurrentUser_rounds_the_seconds_left_up()
+    {
+        // PostgreSQL keeps microseconds, so the expiry read back can be a fraction of one early.
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var db = new PortfolioDbContext(new DbContextOptionsBuilder<PortfolioDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options);
+        db.Profiles.Add(new Data.Profile { Id = 1, FirstName = "Claudiu" });
+        await db.SaveChangesAsync();
+        var sessions = new AdminSessionService(db, time, Mock.Monitor(new AdminOptions()));
+        var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Email, "admin@example.com")], "Test"));
+        await sessions.StartAsync(user);
+        time.Advance(TimeSpan.FromTicks(1));
+
+        var result = AuthEndpoints.GetCurrentUser(user, sessions, time);
+
+        Assert.Equal(10 * 60, result.Value!.SessionExpiresInSeconds);
+    }
 }
