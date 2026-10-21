@@ -8,6 +8,8 @@ import { baseApi } from './baseApi'
 import type { AppDispatch, RootState } from './index'
 import { activePreview, PREVIEW_STORAGE_KEY, previewModeChanged } from './previewSlice'
 import { termsAccepted } from './termsSlice'
+import { settingsApi } from './api/settingsApi'
+import { saveSite } from './siteSlice'
 import { slowSceneSwitched, themeChosen } from './themeSlice'
 
 /**
@@ -25,9 +27,19 @@ startListening({
   },
 })
 
+startListening({ actionCreator: slowSceneSwitched, effect: ({ payload }) => showTheme(payload) })
+
+// The header's Buy me a coffee and the Contact page's Book a meeting ask the API whether they're offered (and
+// where they lead): switching them in Settings, or saving their link there, asks again at once, no reload.
+startListening({ actionCreator: saveSite.fulfilled, effect: (_, { dispatch }) => void dispatch(baseApi.util.invalidateTags(['Support', 'MeetingsLink'])) })
+
 startListening({
-  actionCreator: slowSceneSwitched,
-  effect: ({ payload }) => showTheme(payload),
+  matcher: settingsApi.endpoints.saveSetting.matchFulfilled,
+  effect: ({ meta }, { dispatch }) => {
+    const { key } = meta.arg.originalArgs
+    if (key.startsWith('Support:')) dispatch(baseApi.util.invalidateTags(['Support']))
+    if (key.startsWith('Cal:')) dispatch(baseApi.util.invalidateTags(['MeetingsLink']))
+  },
 })
 
 startListening({
@@ -69,10 +81,7 @@ startListening({
 })
 
 // The admin's other tabs: signed out here, signed out there; signed in here (after Google), they check.
-startListening({
-  actionCreator: signOut.fulfilled,
-  effect: () => tellOtherTabs('signedOut'),
-})
+startListening({ actionCreator: signOut.fulfilled, effect: () => tellOtherTabs('signedOut') })
 
 const sessionAnswered = isAnyOf(checkSession.fulfilled, refreshSession.fulfilled)
 startListening({

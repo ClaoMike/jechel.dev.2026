@@ -19,7 +19,11 @@ import type { PageArgs } from './appsApi'
 /** The people around the site: Buy me a coffee, email updates (subscribing, and the admin's Community tab). */
 export const communityApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    getSupport: build.query<SupportInfo, void>({ queryFn: (_, { signal }) => run(api.support.get(signal)) }),
+    getSupport: build.query<SupportInfo, void>({
+      queryFn: (_, { signal }) => run(api.support.get(signal)),
+      // Asked again when the admin switches Buy me a coffee or changes its link (store/listeners.ts).
+      providesTags: ['Support'],
+    }),
 
     listDonations: build.query<Page<Donation>, PageArgs>({
       queryFn: ({ page, pageSize }, { signal }) => run(api.support.listDonations(page, pageSize, signal)),

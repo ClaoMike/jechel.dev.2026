@@ -1,46 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
-import { api, ApiError, type Setting, type SettingsResponse } from '../../services/api'
+import { api, ApiError } from '../../services/api'
 import { stubApi } from '../../test/api'
+import { settings } from '../../test/fixtures/settings'
 import { ADMIN, renderView, textOf } from '../../test/render'
 import { SettingsPage } from './SettingsPage'
 
 // Settings → Resend: one sender people can answer, and one for subscribers that takes no replies.
-
-const setting = (key: string, label: string, value = '', isSecret = false): Setting => ({
-  key,
-  label,
-  isSecret,
-  value: isSecret ? null : value,
-  isSet: value.length > 0,
-  hint: isSecret && value ? value.slice(-4) : null,
-  source: value ? 'settings' : 'none',
-  updatedAt: null,
-})
-
-const KEYS: [string, string][] = [
-  ['Support:Url', 'Page link'],
-  ['Support:BuyMeACoffeeWebhookSecret', 'Webhook secret'],
-  ['YouTube:Channel', 'Channel (@handle or UC… id)'],
-  ['YouTube:ApiKey', 'API key'],
-  ['Email:ResendApiKey', 'API key'],
-  ['Email:From', 'Sender'],
-  ['Email:UpdatesFrom', 'Updates sender (no replies)'],
-  ['Alerts:NtfyTopic', 'Topic'],
-  ['Alerts:NtfyServer', 'Server'],
-  ['Alerts:NtfyToken', 'Access token (optional)'],
-  ['Cal:Link', 'Booking page'],
-  ['Cal:ApiKey', 'API key'],
-  ['Cal:WebhookSecret', 'Webhook secret'],
-]
-
-function settings(values: Record<string, string> = {}): SettingsResponse {
-  return {
-    settings: KEYS.map(([key, label]) => setting(key, label, values[key] ?? '', /Key|Secret|Token/.test(key))),
-    google: { isConfigured: true, clientIdHint: '1234abcd…', adminEmailCount: 1, redirectUri: 'https://jechel.dev/api/auth/signin-google' },
-    siteUrl: 'https://jechel.dev',
-  }
-}
 
 function stub(values?: Record<string, string>) {
   stubApi()

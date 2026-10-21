@@ -14,6 +14,8 @@ export const meetingsApi = baseApi.injectEndpoints({
     /** The Cal.com booking page ("username/event"), or "" when meetings aren't offered. */
     getMeetingsLink: build.query<string, void>({
       queryFn: (_, { signal }) => run(api.meetings.info(signal)),
+      // Asked again when the admin switches Book a meeting or changes the Cal.com link (store/listeners.ts).
+      providesTags: ['MeetingsLink'],
     }),
 
     listMeetings: build.query<Meeting[], MeetingRange>({

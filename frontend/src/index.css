@@ -4256,10 +4256,6 @@ button.media-card {
   gap: 2px;
 }
 
-.switch-hint {
-  font-size: 13px;
-}
-
 .switch {
   position: relative;
   display: inline-flex;

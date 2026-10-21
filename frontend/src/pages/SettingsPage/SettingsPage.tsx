@@ -61,7 +61,6 @@ function Settings() {
       <ServiceCard
         title="Buy Me a Coffee"
         status={status('Support:Url', 'Support:BuyMeACoffeeWebhookSecret')}
-        what="The header's Buy me a coffee button, and a phone alert for each coffee."
         links={[
           ['Your page', setting('Support:Url').value || 'https://buymeacoffee.com'],
           ['Dashboard', 'https://studio.buymeacoffee.com'],
@@ -83,7 +82,6 @@ function Settings() {
       <ServiceCard
         title="Google sign-in"
         status={data.google.isConfigured ? 'ready' : 'off'}
-        what="How you sign in to this site. Set on the server only: a wrong secret saved here could lock you out."
         links={[['Google Cloud: OAuth clients', 'https://console.cloud.google.com/auth/clients']]}
       >
         <dl className="settings-facts">
@@ -107,7 +105,6 @@ function Settings() {
       <ServiceCard
         title="YouTube Data API"
         status={status('YouTube:Channel', 'YouTube:ApiKey')}
-        what="The YouTube tab and What's new, and the emails about new videos."
         links={[
           ['Google Cloud: API keys', 'https://console.cloud.google.com/apis/credentials'],
           ['YouTube Studio', 'https://studio.youtube.com'],
@@ -164,7 +161,6 @@ function Settings() {
       <ServiceCard
         title="ntfy (phone alerts)"
         status={status('Alerts:NtfyTopic')}
-        what="Alerts on your phone: new messages, coffees, subscribers, new apps (to send or ignore) and crashes."
         links={[
           ['ntfy', 'https://ntfy.sh'],
           ['Phone app guide', 'https://docs.ntfy.sh/subscribe/phone/'],

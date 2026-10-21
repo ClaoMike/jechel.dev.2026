@@ -23,11 +23,12 @@ export function SiteVisibility() {
   return (
     <section className="card site-visibility" aria-labelledby={`${vm.id}-title`}>
       <h3 id={`${vm.id}-title`}>Visitor pages</h3>
-      <p className="muted">
-        What visitors can see. Everything starts off: switch each part on once it's ready. You always see every page (hidden ones are marked in the tabs).
-        {vm.allPagesOff && ' With every page off, visitors get "Coming soon".'}
-      </p>
-      {vm.error && <p role="alert" className="field-error">{vm.error}</p>}
+      {vm.allPagesOff && <p className="muted">With every page off, visitors get "Coming soon".</p>}
+      {vm.error && (
+        <p role="alert" className="field-error">
+          {vm.error}
+        </p>
+      )}
 
       <fieldset className="switch-list">
         <legend className="field-label">Pages</legend>
@@ -67,22 +68,8 @@ function Switch({ item }: { item: SwitchItem }) {
     <div className="switch-row">
       <span className="switch-text">
         <span id={`${id}-label`}>{item.label}</span>
-        {item.hint && (
-          <span id={`${id}-hint`} className="muted switch-hint">
-            {item.hint}
-          </span>
-        )}
       </span>
-      <button
-        type="button"
-        role="switch"
-        className="switch"
-        aria-checked={item.on}
-        aria-labelledby={`${id}-label`}
-        aria-describedby={item.hint ? `${id}-hint` : undefined}
-        disabled={item.busy}
-        onClick={item.toggle}
-      >
+      <button type="button" role="switch" className="switch" aria-checked={item.on} aria-labelledby={`${id}-label`} disabled={item.busy} onClick={item.toggle}>
         <span className="switch-thumb" aria-hidden="true" />
         <span className="switch-state" aria-hidden="true">
           {item.on ? 'On' : 'Off'}

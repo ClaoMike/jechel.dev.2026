@@ -14,13 +14,15 @@ const ALL_OFF: SiteStatus = { ...SITE, pages: { whatsNew: false, apps: false, yo
 function stub(site: SiteStatus = SITE) {
   return {
     status: vi.spyOn(api.site, 'status').mockResolvedValue(structuredClone(site)),
-    save: vi.spyOn(api.site, 'save').mockImplementation(async (changes) => ({
-      ...structuredClone(site),
-      pages: { ...site.pages, ...changes.pages },
-      features: { ...site.features, ...changes.features },
-      maintenance: changes.maintenance ?? site.maintenance,
-      maintenanceMessage: changes.maintenanceMessage ?? site.maintenanceMessage,
-    })),
+    save: vi
+      .spyOn(api.site, 'save')
+      .mockImplementation(async (changes) => ({
+        ...structuredClone(site),
+        pages: { ...site.pages, ...changes.pages },
+        features: { ...site.features, ...changes.features },
+        maintenance: changes.maintenance ?? site.maintenance,
+        maintenanceMessage: changes.maintenanceMessage ?? site.maintenanceMessage,
+      })),
   }
 }
 
@@ -37,7 +39,9 @@ describe('Settings → Visitor pages', () => {
     await show({ ...SITE, pages: { ...SITE.pages, apps: false } })
     await expect.element(toggle("What's new?")).toHaveAttribute('aria-checked', 'true')
     await expect.element(toggle('Apps')).toHaveAttribute('aria-checked', 'false')
-    await expect.element(toggle('Get updates')).toHaveAccessibleDescription('In the header; needs Resend (below) to send the emails.')
+    // Just the switches: no descriptions under them or above them.
+    await expect.element(toggle('Get updates')).not.toHaveAttribute('aria-describedby')
+    expect(document.querySelector('.site-visibility')!.textContent).not.toMatch(/What visitors can see|needs Resend|maintenance page instead/)
     await expect.element(toggle('Under maintenance')).toHaveAttribute('aria-checked', 'false')
   })
 

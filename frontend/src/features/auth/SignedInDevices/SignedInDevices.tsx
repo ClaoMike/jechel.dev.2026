@@ -24,10 +24,6 @@ export function SignedInDevices() {
   return (
     <section className="card signed-in-devices" aria-labelledby={titleId}>
       <h3 id={titleId}>Signed-in devices</h3>
-      <p className="muted">
-        Every device signed in as you. Each ends after 10 minutes without activity, and 12 hours after signing in at the latest. Don't recognise one? Sign it out, and
-        check your Google account.
-      </p>
       <ul className="device-list" aria-labelledby={titleId}>
         {vm.devices.map((device) => (
           <li key={device.id} className="device-row">
