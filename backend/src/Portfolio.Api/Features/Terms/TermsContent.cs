@@ -37,7 +37,7 @@ public static class TermsDefaults
     /// When these defaults last changed: shown as "Last updated", and the version visitors accept. Move it
     /// whenever the text below changes, so everyone is asked to accept the new terms.
     /// </summary>
-    public static readonly DateTimeOffset UpdatedAt = new(2026, 10, 21, 19, 0, 0, TimeSpan.Zero);
+    public static readonly DateTimeOffset UpdatedAt = new(2026, 10, 22, 9, 0, 0, TimeSpan.Zero);
 
     /// <summary>How long a visit's record is kept (AnalyticsRetention deletes older ones).</summary>
     public const int VisitRetentionMonths = 12;
@@ -118,7 +118,7 @@ public static class TermsDefaults
             ]),
             new TermsSection("Email updates",
             [
-                Paragraph("If you sign up for updates, your email address is stored with a random code for confirming and unsubscribing, and when you signed up and confirmed. You are sent a confirmation email first, then an email for each new app or video. I'm notified on my phone when someone subscribes."),
+                Paragraph("If you sign up for updates, your email address is stored with a random code for confirming and unsubscribing, and when you signed up and confirmed. You are sent a confirmation email first, then an email for each new app or video. I'm notified on my phone when someone subscribes. An address that isn't confirmed within 7 days is deleted."),
                 Paragraph("Every email has an unsubscribe link: using it deletes your address straight away. Why: you asked for the updates (your consent), which you can withdraw at any time by unsubscribing."),
             ]),
             new TermsSection("Buy me a coffee",

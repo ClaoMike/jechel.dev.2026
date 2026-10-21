@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { page } from 'vitest/browser'
+import { describe, expect, it, vi } from 'vitest'
+import { page, userEvent } from 'vitest/browser'
 import { THEMES } from '../../layout/theme'
-import { ApiError } from '../../services/api'
+import { api as apiService, ApiError } from '../../services/api'
+import { makeStore } from '../../store'
+import { communityApi } from '../../store/api/communityApi'
 import { a11yViolations } from '../../test/a11y'
 import { stubApi } from '../../test/api'
 import { SITE } from '../../test/fixtures/site'
@@ -83,6 +85,84 @@ describe('"Get updates"', () => {
     await expect.poll(() => textOf(dialog().getByRole('alert'))).toBe('Too many tries. Please try again in a few minutes.')
     await subscribe().click()
     await expect.poll(() => textOf(dialog().getByRole('alert'))).toBe("That didn't work. Please try again later.")
+  })
+})
+
+describe('"Get updates": more ways it can go', () => {
+  it('says when updates were switched off since the page loaded, and when the email could not be sent', async () => {
+    const api = stubApi()
+    api.updates.subscribe.mockRejectedValueOnce(new ApiError('/api/updates/subscribe', 404)).mockRejectedValueOnce(new ApiError('/api/updates/subscribe', 503))
+    await renderApp()
+    await openDialog()
+    await email().fill('reader@example.com')
+    await subscribe().click()
+    await expect.poll(() => textOf(dialog().getByRole('alert'))).toBe("Email updates aren't open right now. Please try again later.")
+    await subscribe().click()
+    await expect.poll(() => textOf(dialog().getByRole('alert'))).toBe("That didn't work. Please try again later.")
+    // What was typed stays, to try again.
+    await expect.element(email()).toHaveValue('reader@example.com')
+  })
+
+  it('sends with Enter, and a fixed address clears its error', async () => {
+    const api = stubApi()
+    await renderApp()
+    await openDialog()
+    await email().fill('reader@')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(email()).toHaveAccessibleDescription('Enter a valid email address.')
+    expect(api.updates.subscribe).not.toHaveBeenCalled()
+
+    await email().fill('reader@example.com')
+    await userEvent.keyboard('{Enter}')
+    await expect.poll(() => textOf(dialog().getByRole('status'))).toContain('Almost there')
+    expect(api.updates.subscribe).toHaveBeenCalledWith('reader@example.com')
+  })
+
+  it('closes with Escape or Close, and opens again empty', async () => {
+    stubApi()
+    await renderApp()
+    await openDialog()
+    await email().fill('half typed')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(dialog()).not.toBeInTheDocument()
+    await openDialog()
+    await expect.element(email()).toHaveValue('')
+    await dialog().getByRole('button', { name: 'Close' }).click()
+    await expect.element(dialog()).not.toBeInTheDocument()
+  })
+
+  it('a second press while sending sends nothing more', async () => {
+    const api = stubApi()
+    let finish!: (status: 'sent') => void
+    api.updates.subscribe.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)))
+    await renderApp()
+    await openDialog()
+    await email().fill('reader@example.com')
+    await subscribe().click()
+    await expect.element(dialog().getByRole('button', { name: 'Subscribing…' })).toBeDisabled()
+    await userEvent.keyboard('{Enter}')
+    finish('sent')
+    await expect.poll(() => textOf(dialog().getByRole('status'))).toContain('Almost there')
+    expect(api.updates.subscribe).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("confirming or unsubscribing refreshes the admin's list", () => {
+  it('loads the subscribers again after either', async () => {
+    const api = stubApi()
+    const list = vi.spyOn(apiService.updates, 'listSubscribers').mockResolvedValue({ items: [], page: 1, pageSize: 20, totalCount: 0 })
+    const store = makeStore()
+    const watching = store.dispatch(communityApi.endpoints.listSubscribers.initiate({ page: 1, pageSize: 20 }))
+    await expect.poll(() => list.mock.calls.length).toBe(1)
+
+    await store.dispatch(communityApi.endpoints.unsubscribe.initiate('t1'))
+    await expect.poll(() => list.mock.calls.length).toBe(2)
+    await store.dispatch(communityApi.endpoints.confirmSubscription.initiate('t2'))
+    await expect.poll(() => list.mock.calls.length).toBe(3)
+
+    expect(api.updates.unsubscribe).toHaveBeenCalledWith('t1')
+    expect(api.updates.confirm).toHaveBeenCalledWith('t2')
+    watching.unsubscribe()
   })
 })
 

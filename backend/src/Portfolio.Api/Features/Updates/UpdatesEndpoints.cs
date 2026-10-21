@@ -55,6 +55,8 @@ public static class UpdatesEndpoints
         updates.MapPost("/confirm", Confirm).WithName("ConfirmSubscription");
         // Also what mail apps' own "Unsubscribe" button posts to (List-Unsubscribe-Post), hence the token in the query.
         updates.MapPost("/unsubscribe", Unsubscribe).WithName("Unsubscribe");
+        // Mail apps that open the List-Unsubscribe link instead of posting to it: the site's page, which asks first.
+        updates.MapGet("/unsubscribe", OpenUnsubscribePage).WithName("OpenUnsubscribePage");
 
         // Admin only.
         updates.MapGet("/subscribers", ListSubscribers).WithName("ListSubscribers").RequireAuthorization();
@@ -104,13 +106,18 @@ public static class UpdatesEndpoints
         if (subscriber is { ConfirmedAt: not null }) return TypedResults.Ok(new SubscribeResult(SubscribeStatus.AlreadySubscribed));
         if (subscriber is not null && now - subscriber.ConfirmationSentAt < ConfirmationCooldown) return TypedResults.Ok(new SubscribeResult(SubscribeStatus.Pending));
 
-        if (subscriber is null)
-        {
-            subscriber = new Subscriber { Email = email, Token = NewToken(), CreatedAt = now };
-            db.Subscribers.Add(subscriber);
-        }
+        var isNew = subscriber is null;
+        subscriber ??= db.Subscribers.Add(new Subscriber { Email = email, Token = NewToken(), CreatedAt = now }).Entity;
         subscriber.ConfirmationSentAt = now;
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException e) when (isNew && e.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
+        {
+            // The same new address, twice at once (a double click): the other request stored it and sends the email.
+            return TypedResults.Ok(new SubscribeResult(SubscribeStatus.Pending));
+        }
 
         try
         {
@@ -171,6 +178,10 @@ public static class UpdatesEndpoints
         }
         return TypedResults.NoContent();
     }
+
+    /// <summary>A GET of the List-Unsubscribe link: sends the browser to the site's page, which unsubscribes (a GET changes nothing).</summary>
+    public static RedirectHttpResult OpenUnsubscribePage(string? token, IOptions<SiteOptions> site) =>
+        TypedResults.Redirect(site.Value.UrlFor($"/updates/unsubscribe?token={Uri.EscapeDataString(token ?? "")}"));
 
     /// <summary>Admin only. Newest first, confirmed or not.</summary>
     public static async Task<Ok<PagedResponse<SubscriberDto>>> ListSubscribers(

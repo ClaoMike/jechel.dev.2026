@@ -138,6 +138,8 @@ describe('Preview update emails: the wording', () => {
     await show()
     await field('Subject').fill('Say yes to jechel.dev')
     await choose('New app')
+    // The app's fields are in place before typing (not the confirmation's, still there for a moment).
+    await expect.element(field('Message')).toHaveValue('A new app is out')
     await field('Button').fill('Try it')
     await button('Save').click()
 
@@ -147,7 +149,7 @@ describe('Preview update emails: the wording', () => {
       confirm: { ...DEFAULT_WORDING.confirm, subject: 'Say yes to jechel.dev' },
       app: { ...DEFAULT_WORDING.app, button: 'Try it' },
     })
-    expect(textOf(card())).toContain(`Saved ${formatDateTime('2026-10-21T20:00:00Z')}`)
+    await expect.poll(() => textOf(card())).toContain(`Saved ${formatDateTime('2026-10-21T20:00:00Z')}`)
     await expect.element(button('Save')).toBeDisabled()
     expect(textOf(card())).not.toContain('Unsaved changes')
   })
@@ -182,6 +184,7 @@ describe('Preview update emails: the wording', () => {
     const stubs = stub()
     await show()
     await choose('New video')
+    await expect.element(field('Message')).toHaveValue('A new video is up')
     await field('Note').fill('Filmed in one take.')
     await field('Message').fill('Fresh from the channel:\n\n{title}')
     await button('Save').click()
@@ -230,6 +233,7 @@ describe('Preview update emails: the wording', () => {
     const stubs = stub()
     await show()
     await choose('New video')
+    await expect.element(field('Message')).toHaveValue('A new video is up')
     await field('Button').fill('Play')
     await button('Send me a test (new video)').click()
 

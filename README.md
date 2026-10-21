@@ -654,9 +654,13 @@ require of bulk senders).
   IP gets 5 tries per 10 minutes (`Updates:SubscribeLimitPer10Minutes`). The popup says whether a confirmation was sent, one is
   already on its way, or the address is already subscribed (this tells anyone whether an address is subscribed: a choice made
   for clarity). Unsubscribing deletes the row. When the email can't be sent, the visitor hears it didn't work and the admin's
-  phone gets the email service's reason.
+  phone gets the email service's reason. Two presses at once with a new address store it once and send one email (the
+  second answers "already on its way"). An address that isn't confirmed within **7 days** is deleted (each run of the
+  announcer; the terms say so): someone may have typed another person's address.
 - **The links** open pages on the site (`/updates/confirm`, `/updates/unsubscribe`, in `pages/UpdatesPages/UpdatesPages.tsx`) that call the
   API, rather than API URLs, so mail scanners that open every link don't confirm anyone.
+- **Deleting an app** whose email hasn't gone out (waiting for you, or about to be sent) marks that email not sent, and the
+  phone alert's buttons stop working for it.
 - **A new app asks first:** adding an app (while Apps and Get updates are on for visitors) records it as `pending` and sends a phone alert with **Send email** and **Ignore** buttons
   (`AnnouncementDecisions.cs`). The buttons post to the API with a one-time token in the link, since the phone isn't signed in (so
   they only work once the site is online; locally, decide in the Community tab, which has the same two buttons).
@@ -667,7 +671,10 @@ require of bulk senders).
   email links to the Apps page (What's new? may be hidden, or showing something newer by then).
 - **Sending** (`UpdatesAnnouncer.cs`, run every 10 minutes by `UpdatesWorker`, and at once after an approval): emails what's approved,
   reading the app as it is then (edits since are included; a deleted one is skipped). Each item is marked sent *before* the emails go
-  out: a crash halfway means some miss it, never that anyone gets it twice. At most 3 items per run; 600 ms between emails.
+  out: a crash halfway means some miss it, never that anyone gets it twice (who got it is still counted when the API stops
+  mid-send). When *no* email goes out (the email service down or refusing), the item goes back to "to be sent" and is tried
+  again next run, and the phone hears why (once an hour); an item is only lost for subscribers whose own email failed. With no
+  subscribers yet, an item counts as sent. At most 3 items per run; 600 ms between emails.
 - **Email service** (`Email.cs`): [Resend](https://resend.com) (free for 3,000 emails a month), while an API key is set (Settings, or
   `Email:ResendApiKey`); otherwise emails are written to the API's log, confirm links included. A sending-only key is enough.
 - **Two senders** (Settings → Resend): **Sender** (`Email:From`) for everything, and **Updates sender** (`Email:UpdatesFrom`) for
@@ -693,7 +700,8 @@ require of bulk senders).
   (Wording saved when a new item still had a one-line heading reads that heading as its message.)
 - **Unsubscribing:** the link in the footer opens the site's page (`/updates/unsubscribe`), which calls the API; the
   `List-Unsubscribe` header that Gmail's own **Unsubscribe** button uses points straight at the API (`/api/updates/unsubscribe`),
-  since one-click unsubscribing is a `POST` (RFC 8058) and a static page can't take one.
+  since one-click unsubscribing is a `POST` (RFC 8058) and a static page can't take one. Mail apps that *open* that link
+  instead (a `GET`) are sent on to the page, which unsubscribes; a `GET` itself changes nothing.
 - **The look** (`UpdateEmails.cs`): a dark header with the site's icon and the name in pink and violet, the sunset stripe, a white
   card, and a pink-to-violet button. The icon (`email-icon.png`, 96 px) travels *inside* each email as an inline attachment
   (`cid:jechel-icon`): Gmail fetches linked pictures through its own servers, which can't reach a site that isn't online (such as

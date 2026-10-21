@@ -33,10 +33,14 @@ public class UpdatesAnnouncer(
     /// <summary>Between two emails, to stay under the email service's rate limit.</summary>
     public static TimeSpan DelayBetweenEmails { get; set; } = TimeSpan.FromMilliseconds(600);
 
+    /// <summary>An address that isn't confirmed this long after it was given (and its last confirmation email) is deleted.</summary>
+    public static readonly TimeSpan UnconfirmedKeptFor = TimeSpan.FromDays(7);
+
     /// <summary>Returns how many items were emailed.</summary>
     public async Task<int> AnnounceNewAsync(CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
+        await ForgetUnconfirmedAsync(now, cancellationToken);
         // What visitors can see (Settings → Visitor pages): only that is announced.
         var visible = await Site.SiteEndpoints.VisibleAsync(db, site.Value, cancellationToken);
         var state = await db.UpdatesStates.FindAsync([UpdatesState.SingletonId], cancellationToken);
@@ -87,20 +91,44 @@ public class UpdatesAnnouncer(
             announcement.SentAt = now;
             await db.SaveChangesAsync(cancellationToken);
 
-            foreach (var subscriber in subscribers)
+            string? reason = null;
+            try
             {
-                try
+                foreach (var subscriber in subscribers)
                 {
-                    await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item, subscriber.Token, wording, site.Value), cancellationToken);
-                    announcement.RecipientCount++;
+                    try
+                    {
+                        await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item, subscriber.Token, wording, site.Value), cancellationToken);
+                        announcement.RecipientCount++;
+                    }
+                    catch (Exception e) when (!cancellationToken.IsCancellationRequested)
+                    {
+                        logger.LogWarning(e, "Couldn't email {Kind} {Key} to a subscriber.", announcement.Kind, announcement.ItemKey);
+                        reason ??= e is Settings.ServiceException ? e.Message : "The email service couldn't be reached.";
+                    }
+                    if (DelayBetweenEmails > TimeSpan.Zero) await Task.Delay(DelayBetweenEmails, time, cancellationToken);
                 }
-                catch (Exception e) when (!cancellationToken.IsCancellationRequested)
-                {
-                    logger.LogWarning(e, "Couldn't email {Kind} {Key} to a subscriber.", announcement.Kind, announcement.ItemKey);
-                }
-                if (DelayBetweenEmails > TimeSpan.Zero) await Task.Delay(DelayBetweenEmails, time, cancellationToken);
             }
-            await db.SaveChangesAsync(CancellationToken.None);
+            finally
+            {
+                // Also when stopped halfway (the app shutting down): who got it is kept.
+                await db.SaveChangesAsync(CancellationToken.None);
+            }
+
+            if (announcement.RecipientCount == 0 && subscribers.Count > 0)
+            {
+                // Not one email went out: the email service is down or refusing. Not lost: tried again next run.
+                announcement.Status = AnnouncementStatus.Approved;
+                announcement.SentAt = null;
+                await db.SaveChangesAsync(CancellationToken.None);
+                alerts.SendThrottled($"email:{reason}", new PhoneAlert(
+                    "Emails aren't going out",
+                    $"\"{item.Title}\" couldn't be emailed to anyone; it's tried again in 10 minutes. {reason}",
+                    "/settings",
+                    AlertPriority.High,
+                    "warning"));
+                continue;
+            }
             sent++;
 
             alerts.Send(new PhoneAlert(
@@ -111,6 +139,19 @@ public class UpdatesAnnouncer(
                 "mailbox_with_mail"));
         }
         return sent;
+    }
+
+    /// <summary>
+    /// Deletes addresses never confirmed: given (and last sent a confirmation) more than <see cref="UnconfirmedKeptFor"/>
+    /// ago. Someone may have typed another person's address: it isn't kept.
+    /// </summary>
+    private async Task ForgetUnconfirmedAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var before = now - UnconfirmedKeptFor;
+        var stale = await db.Subscribers.Where(s => s.ConfirmedAt == null && s.CreatedAt < before && s.ConfirmationSentAt < before).ToListAsync(cancellationToken);
+        if (stale.Count == 0) return;
+        db.Subscribers.RemoveRange(stale);
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>

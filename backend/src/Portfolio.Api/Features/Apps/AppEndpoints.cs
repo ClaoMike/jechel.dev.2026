@@ -101,7 +101,10 @@ public static class AppEndpoints
         return TypedResults.Ok(ToDetails(entry, categories));
     }
 
-    /// <summary>Admin only. Its images and videos are deleted with the next cleanup, a day later.</summary>
+    /// <summary>
+    /// Admin only. Its images and videos are deleted with the next cleanup, a day later. An email about it that hasn't
+    /// gone out (waiting for the admin, or about to be sent) won't: it's marked not sent.
+    /// </summary>
     public static async Task<Results<NoContent, NotFound>> DeleteApp(
         int id,
         PortfolioDbContext db,
@@ -113,6 +116,14 @@ public static class AppEndpoints
         if (entry is null) return TypedResults.NotFound();
 
         db.Apps.Remove(entry);
+        var key = id.ToString();
+        foreach (var announcement in await db.Announcements
+            .Where(a => a.Kind == UpdatesAnnouncer.AppKind && a.ItemKey == key && (a.Status == AnnouncementStatus.Pending || a.Status == AnnouncementStatus.Approved))
+            .ToListAsync(cancellationToken))
+        {
+            announcement.Status = AnnouncementStatus.Ignored;
+            announcement.DecisionTokenHash = null;
+        }
         await db.SaveChangesAsync(cancellationToken);
         await FileCleanup.DeleteUnusedAsync(db, files, time, cancellationToken);
 

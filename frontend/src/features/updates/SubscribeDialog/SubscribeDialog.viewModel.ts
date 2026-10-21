@@ -33,6 +33,8 @@ export function useSubscribeDialogViewModel() {
       trackEvent('Subscribing failed', { reason: validationErrors?.email ? 'invalid address' : code === 429 ? 'too many tries' : String(code || 'no response') })
       if (validationErrors?.email) setError(validationErrors.email[0])
       else if (code === 429) setStatus({ kind: 'failed', message: 'Too many tries. Please try again in a few minutes.' })
+      // Switched off (Settings → Visitor pages) since the page loaded.
+      else if (code === 404) setStatus({ kind: 'failed', message: "Email updates aren't open right now. Please try again later." })
       else setStatus({ kind: 'failed', message: "That didn't work. Please try again later." })
     }
   }

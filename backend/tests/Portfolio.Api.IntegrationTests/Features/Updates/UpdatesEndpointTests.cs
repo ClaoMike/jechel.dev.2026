@@ -84,6 +84,57 @@ public partial class UpdatesEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
+    public async Task A_double_click_on_Subscribe_stores_the_address_once_and_sends_one_email()
+    {
+        var address = $"double-{Guid.NewGuid():N}@example.com";
+        var visitor = factory.CreateBrowserClient();
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => visitor.PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest(address))));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        var statuses = await Task.WhenAll(responses.Select(async r => (await r.Content.ReadFromJsonAsync<SubscribeResult>())!.Status));
+        Assert.Equal(1, statuses.Count(s => s == SubscribeStatus.Sent));
+        Assert.All(statuses.Where(s => s != SubscribeStatus.Sent), s => Assert.Equal(SubscribeStatus.Pending, s));
+        Assert.Single(factory.Emails.To(address));
+        var list = await (await SignedInClientAsync()).GetFromJsonAsync<PagedResponse<SubscriberDto>>("/api/updates/subscribers?pageSize=50");
+        Assert.Single(list!.Items, s => s.Email == address);
+    }
+
+    [Fact]
+    public async Task A_mail_app_that_opens_the_unsubscribe_link_gets_the_sites_page_and_nothing_changes_until_it_asks()
+    {
+        var visitor = factory.CreateBrowserClient();
+        var address = $"opened-{Guid.NewGuid():N}@example.com";
+        await visitor.PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest(address));
+        var token = ConfirmLink().Match(Assert.Single(factory.Emails.To(address)).Text).Groups[1].Value;
+
+        var opened = await visitor.GetAsync($"/api/updates/unsubscribe?token={token}");
+
+        Assert.Equal(HttpStatusCode.Redirect, opened.StatusCode);
+        Assert.Equal($"/updates/unsubscribe?token={token}", opened.Headers.Location!.PathAndQuery);
+        var list = await (await SignedInClientAsync()).GetFromJsonAsync<PagedResponse<SubscriberDto>>("/api/updates/subscribers?pageSize=50");
+        Assert.Contains(list!.Items, s => s.Email == address);
+    }
+
+    [Fact]
+    public async Task Deleting_an_app_whose_email_waits_marks_the_email_not_sent()
+    {
+        var admin = await SignedInClientAsync();
+        var title = $"Gone {Guid.NewGuid():N}";
+        var created = await admin.PostAsJsonAsync("/api/apps", new Portfolio.Api.Features.Apps.AppRequest(title, "About it", []));
+        var location = created.Headers.Location!.ToString();
+        var alert = Assert.Single(factory.Alerts.All, a => a.Title == $"New app: {title}");
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync(location)).StatusCode);
+
+        var listed = await admin.GetFromJsonAsync<PagedResponse<AnnouncementDto>>("/api/updates/announcements?pageSize=50");
+        Assert.Equal("ignored", Assert.Single(listed!.Items, a => a.Title == title).Status);
+        // The phone's Send button no longer works for it.
+        var send = new Uri(alert.Actions![0].Url);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().PostAsync(send.PathAndQuery, null)).StatusCode);
+    }
+
+    [Fact]
     public async Task An_invalid_address_gets_a_field_error()
     {
         var response = await factory.CreateBrowserClient().PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest("nope"));
