@@ -4221,3 +4221,7 @@ button.media-card {
     transition: none;
   }
 }
+
+.whats-new-admin-note {
+  margin: 0 0 12px;
+}

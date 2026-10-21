@@ -6,8 +6,8 @@ import { useWhatsNewPageViewModel } from './WhatsNewPage.viewModel'
 
 /**
  * The most recent thing I made: the newest app or YouTube video, whichever came last, shown in
- * full; only from the sections visitors may see. If one of them can't be loaded (e.g. YouTube isn't
- * set up), the other is shown.
+ * full; only from the sections visitors may see (the admin sees the same, with a note on what's left
+ * out). If one of them can't be loaded (e.g. YouTube isn't set up), the other is shown.
  */
 export function WhatsNewPage() {
   const vm = useWhatsNewPageViewModel()
@@ -15,6 +15,7 @@ export function WhatsNewPage() {
 
   return (
     <section className="whats-new" aria-label={texts.label}>
+      {vm.adminNote && <p className="muted whats-new-admin-note">{vm.adminNote}</p>}
       {vm.status === 'loading' && <WhatsNewSkeleton label={texts.loading} />}
       {vm.status === 'error' && <ErrorState message={texts.error} onRetry={vm.retry} />}
       {vm.empty && <p className="muted">{texts.empty}</p>}

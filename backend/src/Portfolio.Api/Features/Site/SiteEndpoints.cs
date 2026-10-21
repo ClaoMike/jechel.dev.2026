@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Options;
 using Portfolio.Api.Data;
@@ -94,6 +95,10 @@ public static class SiteEndpoints
 
     private static Dictionary<string, bool> Merge(IReadOnlyDictionary<string, bool> current, IReadOnlyDictionary<string, bool>? changes) =>
         current.ToDictionary(p => p.Key, p => changes?.TryGetValue(p.Key, out var value) == true ? value : p.Value);
+
+    /// <summary>What visitors see now, straight from the database (for work that runs outside a request, or must not be a minute late).</summary>
+    public static async Task<SiteStatus> VisibleAsync(PortfolioDbContext db, SiteOptions options, CancellationToken cancellationToken) =>
+        ToStatus(await db.SiteStates.AsNoTracking().FirstOrDefaultAsync(s => s.Id == SiteState.SingletonId, cancellationToken), options.PagesVisibleByDefault);
 
     /// <summary>Every known page and feature, from the row (or the default for those it doesn't have).</summary>
     public static SiteStatus ToStatus(SiteState? row, bool visibleByDefault)

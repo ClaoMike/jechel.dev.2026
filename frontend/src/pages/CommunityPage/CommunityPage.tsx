@@ -76,7 +76,7 @@ function Subscribers() {
   )
 }
 
-const STATUS_TEXT = { pending: 'Waiting for you', approved: 'Sending…', sent: 'Sent', ignored: 'Not sent' } as const
+const STATUS_TEXT = { pending: 'Waiting for you', approved: 'To be sent', sent: 'Sent', ignored: 'Not sent' } as const
 
 function Announcements() {
   const vm = useAnnouncementsViewModel()
@@ -85,7 +85,10 @@ function Announcements() {
   return (
     <section className="card community-card" aria-labelledby="announcements-title">
       <h3 id="announcements-title">Update emails</h3>
-      <p className="muted">A new app waits for you: send or ignore it here, or from the alert on your phone. New videos are emailed by themselves.</p>
+      <p className="muted">
+        A new app waits for you: send or ignore it here, or from the alert on your phone. New videos are emailed by themselves. Only what visitors can see goes out:
+        nothing while Get updates is off, no apps while Apps is hidden, no videos while YouTube is (Settings → Visitor pages).
+      </p>
       {state.status === 'loading' && (
         <Loading label="Loading the update emails…">
           <SkeletonList rows={3} pill />

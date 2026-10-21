@@ -39,6 +39,8 @@ public class UpdatesAnnouncer(
     public async Task<int> AnnounceNewAsync(CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
+        // What visitors can see (Settings → Visitor pages): only that is announced.
+        var visible = await Site.SiteEndpoints.VisibleAsync(db, site.Value, cancellationToken);
         var state = await db.UpdatesStates.FindAsync([UpdatesState.SingletonId], cancellationToken);
         if (state is null)
         {
@@ -48,8 +50,13 @@ public class UpdatesAnnouncer(
         }
         else
         {
-            await ApproveNewVideosAsync(state.AnnounceAfter, now, cancellationToken);
+            // While the YouTube page or the updates are off, new videos are seen but not news: switching
+            // them on later doesn't email a backlog.
+            await RecordNewVideosAsync(state.AnnounceAfter, now, visible.Pages["youtube"] && visible.Features["updates"], cancellationToken);
         }
+
+        // Updates switched off: what's approved waits until they're back on.
+        if (!visible.Features["updates"]) return 0;
 
         var approved = await db.Announcements
             .Where(a => a.Status == AnnouncementStatus.Approved)
@@ -68,10 +75,10 @@ public class UpdatesAnnouncer(
         var sent = 0;
         foreach (var announcement in approved)
         {
-            var item = await ItemAsync(announcement, cancellationToken);
+            var item = await ItemAsync(announcement, visible, cancellationToken);
             if (item is null)
             {
-                // Deleted (the app) or gone from YouTube since.
+                // Deleted (the app) or gone from YouTube since, or its page is hidden from visitors.
                 announcement.Status = AnnouncementStatus.Ignored;
                 await db.SaveChangesAsync(cancellationToken);
                 continue;
@@ -108,8 +115,11 @@ public class UpdatesAnnouncer(
         return sent;
     }
 
-    /// <summary>Videos published since announcing started, not seen before: approved, so they go out this run.</summary>
-    private async Task ApproveNewVideosAsync(DateTimeOffset after, DateTimeOffset now, CancellationToken cancellationToken)
+    /// <summary>
+    /// Videos published since announcing started, not seen before: approved, so they go out this run, or
+    /// (<paramref name="announce"/> false) recorded as ignored, so they never go out.
+    /// </summary>
+    private async Task RecordNewVideosAsync(DateTimeOffset after, DateTimeOffset now, bool announce, CancellationToken cancellationToken)
     {
         var videos = await VideosAsync(cancellationToken);
         if (videos.Count == 0) return;
@@ -122,28 +132,29 @@ public class UpdatesAnnouncer(
                 Kind = VideoKind,
                 ItemKey = video.Id,
                 Title = video.Title.Length <= 200 ? video.Title : video.Title[..200],
-                Status = AnnouncementStatus.Approved,
+                Status = announce ? AnnouncementStatus.Approved : AnnouncementStatus.Ignored,
                 CreatedAt = now,
             });
         }
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>What the email shows, read now (an app may have been edited since); null when it's gone.</summary>
-    private async Task<Item?> ItemAsync(Announcement announcement, CancellationToken cancellationToken)
+    /// <summary>What the email shows, read now (an app may have been edited since); null when it's gone, or its page is hidden.</summary>
+    private async Task<Item?> ItemAsync(Announcement announcement, Site.SiteStatus visible, CancellationToken cancellationToken)
     {
         if (announcement.Kind == AppKind)
         {
-            if (!int.TryParse(announcement.ItemKey, out var id)) return null;
+            if (!visible.Pages["apps"] || !int.TryParse(announcement.ItemKey, out var id)) return null;
             var app = await db.Apps.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
             if (app is null) return null;
 
             var media = JsonSerializer.Deserialize<AppMedia[]>(app.Media, JsonSerializerOptions.Web) ?? [];
             var image = media.FirstOrDefault(m => m.Kind == AppMediaKinds.Image)?.Url;
-            // "What's new?" shows the newest app in full.
-            return new Item(app.Title, UpdateEmails.Summary(app.Description), site.Value.UrlFor("/"), Absolute(image));
+            // The Apps page: it always lists the app (What's new? may be hidden, or showing something newer by then).
+            return new Item(app.Title, UpdateEmails.Summary(app.Description), site.Value.UrlFor("/apps"), Absolute(image));
         }
 
+        if (!visible.Pages["youtube"]) return null;
         var video = (await VideosAsync(cancellationToken)).FirstOrDefault(v => v.Id == announcement.ItemKey);
         return video is null ? null : new Item(video.Title, UpdateEmails.Summary(video.Description), video.Url, video.ThumbnailUrl);
     }

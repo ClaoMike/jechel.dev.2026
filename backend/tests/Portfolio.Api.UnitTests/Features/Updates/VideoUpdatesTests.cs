@@ -39,7 +39,7 @@ public class VideoUpdatesTests
     private async Task<int> AnnounceAsync()
     {
         using var db = _db.Open();
-        var announcer = new UpdatesAnnouncer(db, _emails, Options.Create(new SiteOptions { PublicUrl = "https://jechel.dev" }), TestOptions.Monitor(_options), _store, _alerts, _time, NullLogger<UpdatesAnnouncer>.Instance);
+        var announcer = new UpdatesAnnouncer(db, _emails, Options.Create(new SiteOptions { PublicUrl = "https://jechel.dev", PagesVisibleByDefault = true }), TestOptions.Monitor(_options), _store, _alerts, _time, NullLogger<UpdatesAnnouncer>.Instance);
         return await announcer.AnnounceNewAsync(CancellationToken.None);
     }
 

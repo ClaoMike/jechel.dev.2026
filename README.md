@@ -390,7 +390,30 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 | Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](#settings-connections)) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
-**What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later; the admin sees everything); if one fails (e.g. YouTube isn't set up), the other is shown.
+**What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later). The signed-in admin sees exactly what visitors see, with a note saying which section is left out and why; the empty and error messages name only what's shown (apps, videos, or both). If one list fails (e.g. YouTube isn't set up), the other is shown.
+
+```
+  Settings → Visitor pages (GET/PUT /api/site; site_state)
+     Apps on?        YouTube on?        (the same switches for visitors and the admin)
+        │                 │
+        ▼                 ▼
+  GET /api/apps?page=1&pageSize=1    GET /api/youtube/videos?page=1&pageSize=1     (only the ones switched on)
+        │ newest app (createdAt)         │ newest video (publishedAt)
+        └──────────────┬─────────────────┘
+                       ▼  getLatest (store/api/appsApi.ts): whichever came last (an app on a tie)
+  What's new?   app ──▶ LatestApp (the app's popup view: slider, labels, description, platforms, store links)
+                video ─▶ LatestVideo (YouTube's privacy-enhanced player, description, Watch on YouTube)
+                none ──▶ "Nothing here yet. New apps / videos / apps and videos will show up here."
+                one list failed, the other empty ──▶ "The newest … can't be loaded right now." + Try again
+  It loads again when a switch changes, an app is saved, or the admin refreshes from YouTube.
+
+  Email updates follow the same switches (UpdatesAnnouncer, every 10 minutes or when poked):
+     Get updates off ──▶ nothing is emailed (approved apps wait); new videos are recorded as not sent
+     YouTube hidden ──▶ new videos are recorded as not sent (no backlog when it's switched on)
+     Apps hidden ─────▶ a new app isn't offered to email; an approved one isn't sent
+     otherwise ───────▶ new videos go out by themselves; a new app asks the admin's phone first (Send email / Ignore)
+                         emails link to the video on YouTube, or to the Apps page
+```
 
 **Apps** (`src/pages/AppsPage/AppsPage.tsx`, `src/features/apps/`, API in `backend/.../Features/Apps/`):
 
@@ -574,10 +597,14 @@ require of bulk senders).
   phone gets the email service's reason.
 - **The links** open pages on the site (`/updates/confirm`, `/updates/unsubscribe`, in `pages/UpdatesPages/UpdatesPages.tsx`) that call the
   API, rather than API URLs, so mail scanners that open every link don't confirm anyone.
-- **A new app asks first:** adding an app records it as `pending` and sends a phone alert with **Send email** and **Ignore** buttons
+- **A new app asks first:** adding an app (while Apps and Get updates are on for visitors) records it as `pending` and sends a phone alert with **Send email** and **Ignore** buttons
   (`AnnouncementDecisions.cs`). The buttons post to the API with a one-time token in the link, since the phone isn't signed in (so
   they only work once the site is online; locally, decide in the Community tab, which has the same two buttons).
 - **New videos don't ask:** one published after announcing started is approved by itself.
+- **Only what visitors can see:** nothing is emailed while **Get updates** is off (approved apps wait until it's on); a new video
+  found while the YouTube page (or Get updates) is off is recorded as not sent, so switching it on later doesn't email a backlog;
+  a new app isn't offered to email while Apps (or Get updates) is off, and an approved one isn't sent while Apps is hidden. An app's
+  email links to the Apps page (What's new? may be hidden, or showing something newer by then).
 - **Sending** (`UpdatesAnnouncer.cs`, run every 10 minutes by `UpdatesWorker`, and at once after an approval): emails what's approved,
   reading the app as it is then (edits since are included; a deleted one is skipped). Each item is marked sent *before* the emails go
   out: a crash halfway means some miss it, never that anyone gets it twice. At most 3 items per run; 600 ms between emails.

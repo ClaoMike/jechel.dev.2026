@@ -37,10 +37,14 @@ public static class AnnouncementDecisions
 {
     /// <summary>
     /// Records the new app as pending and alerts the phone, with "Send email" and "Ignore" buttons.
-    /// The buttons' links carry a one-time token, since the phone isn't signed in.
+    /// The buttons' links carry a one-time token, since the phone isn't signed in. Not while the Apps page
+    /// or the updates are hidden from visitors: there's nothing to email them about then.
     /// </summary>
     public static async Task ProposeAppAsync(AppEntry app, PortfolioDbContext db, IPhoneAlerts alerts, SiteOptions site, TimeProvider time, CancellationToken cancellationToken)
     {
+        var visible = await Site.SiteEndpoints.VisibleAsync(db, site, cancellationToken);
+        if (!visible.Pages["apps"] || !visible.Features["updates"]) return;
+
         var token = UpdatesEndpoints.NewToken();
         var announcement = new Announcement
         {

@@ -8,6 +8,7 @@ import { APPS, makeApp, pageOf } from '../../test/fixtures/apps'
 import { makeVideo, pageOfVideos, SITE, VIDEOS } from '../../test/fixtures/site'
 import { ADMIN, forever, renderView, shootWhole, textOf, type RenderViewOptions } from '../../test/render'
 import { RefreshVideosButton } from '../../features/youtube/RefreshVideosButton/RefreshVideosButton'
+import { saveSite } from '../../store/siteSlice'
 import { WhatsNewPage } from './WhatsNewPage'
 
 let api: ApiStubs
@@ -113,17 +114,91 @@ describe("What's new?", () => {
       expect(api.youtube.listVideos).not.toHaveBeenCalled()
     })
 
-    it('says it failed when the only section visitors may see fails', async () => {
+    it('says it failed, naming only what it shows, when the only section visitors may see fails', async () => {
       api = stubApi()
       api.youtube.listVideos.mockRejectedValue(new ApiError('/api/youtube', 503))
       await renderWhatsNew({ site: siteWith({ apps: false }) })
-      await expect.poll(() => textOf(page.getByRole('alert'))).toContain("The newest app and video can't be loaded right now.")
+      await expect.poll(() => textOf(page.getByRole('alert'))).toContain("The newest video can't be loaded right now.")
     })
 
-    it('shows the admin the newest of everything, hidden sections too', async () => {
-      api = stubApi({ user: ADMIN })
-      api.apps.list.mockResolvedValue(NEWER_APP())
-      await renderWhatsNew({ user: ADMIN, site: siteWith({ apps: false, youtube: false }) })
+    it('names only apps when YouTube is hidden: empty, and failed', async () => {
+      api = stubApi()
+      api.apps.list.mockResolvedValue(pageOf([]))
+      const empty = await renderWhatsNew({ site: siteWith({ youtube: false }) })
+      await expect.element(page.getByText('Nothing here yet. New apps will show up here.')).toBeVisible()
+      await empty.unmount()
+
+      api.apps.list.mockRejectedValue(new ApiError('/api/apps', 500))
+      await renderWhatsNew({ site: siteWith({ youtube: false }) })
+      await expect.poll(() => textOf(page.getByRole('alert'))).toContain("The newest app can't be loaded right now.")
+    })
+
+    it('names only videos when Apps is hidden and there are none yet', async () => {
+      api = stubApi()
+      api.youtube.listVideos.mockResolvedValue(pageOfVideos([]))
+      await renderWhatsNew({ site: siteWith({ apps: false }) })
+      await expect.element(page.getByText('Nothing here yet. New videos will show up here.')).toBeVisible()
+    })
+
+    describe('for the admin: what visitors see, and what is left out', () => {
+      const note = () => document.querySelector('.whats-new-admin-note')?.textContent ?? null
+
+      it('shows the newest video when Apps is hidden, though an app came later, and says why', async () => {
+        api = stubApi({ user: ADMIN })
+        api.apps.list.mockResolvedValue(NEWER_APP())
+        await renderWhatsNew({ user: ADMIN, site: siteWith({ apps: false }) })
+        await expect.element(card()).toHaveAccessibleName(VIDEOS[0].title)
+        expect(note()).toBe('As visitors see it: Apps is hidden from them (Settings → Visitor pages), so only videos count.')
+        expect(api.apps.list).not.toHaveBeenCalled()
+      })
+
+      it('shows the newest app when YouTube is hidden, and says why', async () => {
+        api = stubApi({ user: ADMIN })
+        api.apps.list.mockResolvedValue(pageOf([makeApp(1, { ...APPS[0], createdAt: '2026-01-01T00:00:00Z' })]))
+        await renderWhatsNew({ user: ADMIN, site: siteWith({ youtube: false }) })
+        await expect.element(card()).toHaveAccessibleName('LIGHTHOUSE')
+        expect(note()).toBe('As visitors see it: YouTube is hidden from them (Settings → Visitor pages), so only apps count.')
+      })
+
+      it('has nothing to show when both are hidden, and says so', async () => {
+        api = stubApi({ user: ADMIN })
+        await renderWhatsNew({ user: ADMIN, site: siteWith({ apps: false, youtube: false }) })
+        await expect.element(page.getByText('Nothing here yet. New apps and videos will show up here.')).toBeVisible()
+        expect(note()).toBe("Apps and YouTube are hidden from visitors (Settings → Visitor pages), so What's new? has nothing to show them.")
+      })
+
+      it('says nothing when both are visible: the newest of the two shows', async () => {
+        api = stubApi({ user: ADMIN })
+        api.apps.list.mockResolvedValue(NEWER_APP())
+        await renderWhatsNew({ user: ADMIN })
+        await expect.element(card()).toHaveAccessibleName('LIGHTHOUSE')
+        expect(note()).toBeNull()
+      })
+
+      it('never shows the note to visitors', async () => {
+        api = stubApi()
+        await renderWhatsNew({ site: siteWith({ apps: false }) })
+        await expect.element(card()).toBeVisible()
+        expect(note()).toBeNull()
+      })
+
+      it('follows a switch flipped in Settings at once', async () => {
+        api = stubApi({ user: ADMIN })
+        api.apps.list.mockResolvedValue(NEWER_APP())
+        const view = await renderWhatsNew({ user: ADMIN })
+        await expect.element(card()).toHaveAccessibleName('LIGHTHOUSE')
+
+        view.store.dispatch(saveSite.fulfilled(siteWith({ apps: false }), 'test', { pages: { apps: false } }))
+
+        await expect.element(card()).toHaveAccessibleName(VIDEOS[0].title)
+        expect(note()).toContain('Apps is hidden')
+      })
+    })
+
+    it('shows the app when an app and a video came at the same moment', async () => {
+      api = stubApi()
+      api.apps.list.mockResolvedValue(pageOf([makeApp(1, { ...APPS[0], createdAt: VIDEOS[0].publishedAt })]))
+      await renderWhatsNew()
       await expect.element(card()).toHaveAccessibleName('LIGHTHOUSE')
     })
 
