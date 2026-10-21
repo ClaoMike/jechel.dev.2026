@@ -14,6 +14,8 @@ export interface TermsValue {
   version: string
   /** A visitor who hasn't accepted this version is asked before using the site (not the admin, not on /admin). */
   mustAccept: boolean
+  /** This browser accepted the terms in force (or, while they can't be loaded, some version of them). Visits are only recorded then. */
+  acceptedTerms: boolean
   /** True while the welcome popup is up, or may still come up (the terms or the session are loading). The footer hides meanwhile. */
   welcomeOpen: boolean
   /** Opens the terms in a popup, on top of anything else that's open. */
@@ -51,6 +53,7 @@ export function useTerms(): TermsValue {
     state,
     version,
     mustAccept,
+    acceptedTerms: accepted !== null && (state.status === 'loaded' ? accepted === version : state.status === 'error'),
     welcomeOpen: mustAccept || authStatus === 'loading' || state.status === 'loading',
     openTerms: useCallback(() => dispatch(termsOpened()), [dispatch]),
     // Asks once more (not a subscription: see useLoadTerms).

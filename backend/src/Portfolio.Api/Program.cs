@@ -45,6 +45,8 @@ builder.AddPortfolioAuth();
 builder.Services.AddScoped<IFileStorage, DatabaseFileStorage>();
 builder.Services.AddSingleton<CityIndex>();
 builder.Services.AddSingleton<VisitorHasher>();
+// Visits are kept for as long as the terms say, then deleted.
+builder.Services.AddHostedService<AnalyticsRetention>();
 
 builder.Services.AddHttpClient<ILeetCodeClient, LeetCodeClient>(http =>
 {

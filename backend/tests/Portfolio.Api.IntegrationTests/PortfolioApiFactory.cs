@@ -65,6 +65,8 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
                 Microsoft.AspNetCore.Authentication.Google.GoogleDefaults.AuthenticationScheme,
                 options => options.Backchannel = new HttpClient(Google));
             services.AddSingleton<IYouTubeClient>(YouTube);
+            // Deleting old visits runs on a timer; its test calls AnalyticsRetention.DeleteExpiredAsync.
+            services.Remove(services.Single(s => s.ImplementationType == typeof(Portfolio.Api.Features.Analytics.AnalyticsRetention)));
             // Refreshing runs on a timer; tests that need it call YouTubeVideoStore.RefreshAsync.
             services.Remove(services.Single(s => s.ImplementationType == typeof(YouTubeRefreshWorker)));
             services.AddSingleton<IStartupFilter, TestSignInStartupFilter>();

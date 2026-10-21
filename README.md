@@ -172,7 +172,8 @@ on the icon links in `index.html` (browsers keep tab icons cached).
 
 ## Terms and conditions
 
-- **Welcome popup:** a visitor who hasn't accepted the terms (anywhere but the sign-in page, `/admin`) gets a popup that can't be closed: they tick every box (placeholders for now, in `features/terms/TermsGate/TermsGate.tsx`), then **Continue**. Accepting is remembered in the browser (`localStorage["terms.accepted"]`) against the terms' `updatedAt`, so saving new terms asks everyone again. The signed-in admin isn't asked.
+- **Welcome popup:** a visitor who hasn't accepted the terms (anywhere but the sign-in page, `/admin`) gets a popup that can't be closed: one box, "I have read and I accept the Terms and Conditions of this website", then **Continue**. Everything else is in the terms themselves. Accepting is remembered in the browser (`localStorage["terms.accepted"]`) against the terms' date (`updatedAt`), so new terms ask everyone again. The signed-in admin isn't asked.
+- **The default terms** (`backend/.../Features/Terms/TermsContent.cs`, `TermsDefaults`) are shown until the admin saves terms in the Terms tab. They describe, from the code, what the site records and keeps, who handles it and visitors' rights (UK GDPR), and point to the Contact page for requests. They have their own date (`TermsDefaults.UpdatedAt`): **move it whenever their text changes**, so visitors are asked again. Tests check they still name every browser-storage key and outside service (`TermsEndpointsTests`); add to both when the site starts keeping something new. They're a starting point, not legal advice.
 - **Reading them:** the footer on every page, and the welcome popup, have a **Terms and Conditions** link that opens them in a popup above anything else that's open. It closes with **×** at the top (or Escape, or a click outside).
 - **Seeing the welcome popup again** (to try it): run the site locally (`npm run dev`), not signed in. A **User** bar sits above
   the header (`layout/UserBar`), the visitor's counterpart of the Admin bar, with **Reset terms acceptance**: it forgets this
@@ -203,7 +204,9 @@ The site records how it's used itself: no third parties, no cookies. The admin r
 
 Summaries are worked out in memory from the period's rows: plenty for a personal site; move the grouping into SQL if traffic grows a lot.
 
-**Privacy:** the terms (Terms tab) should say what's recorded. Cookieless counting of totals is generally treated as low-risk under UK PECR/GDPR, but the visit id in `sessionStorage` and the replay of clicks are worth stating.
+**Privacy:** nothing is recorded until the visitor has accepted the terms (`AnalyticsTracker` waits; a visitor who never
+accepts is never sent), and the terms say exactly what's recorded. Visits are deleted 12 months after they were last
+seen (`AnalyticsRetention`, daily; `TermsDefaults.VisitRetentionMonths`). IP addresses aren't stored (`VisitorHasher`).
 
 ## Authentication (Google, admin only)
 
@@ -535,7 +538,7 @@ require of bulk senders).
 - **Setting up Resend:** add and verify your domain in Resend (its DNS records for SPF/DKIM), then set the **Sender** in Settings (e.g.
   `jechel.dev <updates@jechel.dev>`) and press **Send me a test email**. Until then the sender is `jechel.dev <onboarding@resend.dev>`,
   which Resend only delivers to the Resend account's own address: enough to try subscribing yourself, not for visitors.
-- **Privacy:** the terms should say what's stored (the address and when it was confirmed) and that unsubscribing deletes it.
+- **Privacy:** the default terms say what's stored (the address, its code, when it was confirmed) and that unsubscribing deletes it.
 
 ## Résumé generator
 

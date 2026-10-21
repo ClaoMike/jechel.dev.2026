@@ -3,12 +3,8 @@ import { useAppDispatch } from '../../../store'
 import { termsAccepted } from '../../../store/termsSlice'
 import { useTerms } from '../useTerms'
 
-/** What visitors confirm before they can use the site. Placeholders for now. */
-export const CONSENTS = [
-  'I have read and I accept the Terms and Conditions of this website.',
-  'I understand that this website is a personal portfolio, provided as it is.',
-  'I agree that messages I send through the contact form are stored so that they can be answered.',
-] as const
+/** What visitors confirm before they can use the site: everything else is in the terms themselves. */
+export const CONSENTS = ['I have read and I accept the Terms and Conditions of this website.'] as const
 
 export function useTermsGateViewModel() {
   const dispatch = useAppDispatch()

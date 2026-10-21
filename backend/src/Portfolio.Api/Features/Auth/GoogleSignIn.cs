@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.Extensions.Options;
 using Portfolio.Api.Features.Alerts;
@@ -46,7 +47,11 @@ public static class GoogleSignIn
             return;
         }
 
-        await services.GetRequiredService<AdminSessionService>().StartAsync(principal, http, http.RequestAborted);
+        var sessions = services.GetRequiredService<AdminSessionService>();
+        // Signing in again in a browser that's still signed in replaces its session (one entry per device).
+        var previous = await http.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        if (previous.Principal is { } signedIn) await sessions.EndAsync(signedIn, http.RequestAborted);
+        await sessions.StartAsync(principal, http, http.RequestAborted);
         context.Properties!.IsPersistent = true;
         alerts.Send(new PhoneAlert("Signed in to jechel.dev", $"{device}\nNot you? Sign that device out in Settings.", "/settings", AlertPriority.High, "key"));
     }

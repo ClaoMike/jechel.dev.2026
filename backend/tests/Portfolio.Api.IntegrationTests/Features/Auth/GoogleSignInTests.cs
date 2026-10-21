@@ -59,6 +59,22 @@ public class GoogleSignInTests(PortfolioApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Signing_in_again_in_the_same_browser_replaces_its_session()
+    {
+        var (browser, _) = await factory.SignInWithGoogleAsync();
+        var first = (await browser.GetFromJsonAsync<List<AdminSessionInfo>>("/api/auth/sessions"))!.Single(s => s.Current).Id;
+
+        var login = await browser.GetAsync("/api/auth/login?returnUrl=%2F");
+        var state = HttpUtility.ParseQueryString(login.Headers.Location!.Query)["state"]!;
+        var again = await browser.GetAsync($"/api/auth/signin-google?code=the-code&state={Uri.EscapeDataString(state)}");
+
+        Assert.Equal("/", again.Headers.Location!.OriginalString);
+        var devices = (await browser.GetFromJsonAsync<List<AdminSessionInfo>>("/api/auth/sessions"))!;
+        Assert.DoesNotContain(devices, d => d.Id == first);
+        Assert.Single(devices, d => d.Current);
+    }
+
+    [Fact]
     public async Task Swaps_the_code_for_a_token_with_the_PKCE_verifier()
     {
         var before = factory.Google.TokenRequests.Count;

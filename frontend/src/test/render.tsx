@@ -79,6 +79,7 @@ export interface RenderAppOptions {
 export async function renderApp({ path = '/', theme = 'dark', acceptedTerms = termsVersion(TERMS) }: RenderAppOptions = {}) {
   localStorage.setItem('theme', theme)
   if (acceptedTerms !== null) localStorage.setItem('terms.accepted', acceptedTerms)
+  else localStorage.removeItem('terms.accepted')
   const store = makeStore()
   showTheme(store.getState().theme.theme)
   const screen = await render(

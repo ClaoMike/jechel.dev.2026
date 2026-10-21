@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatLink, parseRichText, plainText } from './textLinks'
+import { formatLink, isSitePage, parseRichText, plainText } from './textLinks'
 
 describe('links in text', () => {
   it('splits text into plain parts and links', () => {
@@ -26,5 +26,15 @@ describe('links in text', () => {
   it('writes a link, dropping brackets from its text and falling back to the URL', () => {
     expect(formatLink('The [best] uni', ' https://uni.ac.uk ')).toBe('[The best uni](https://uni.ac.uk)')
     expect(formatLink('  ', 'https://x.dev')).toBe('[https://x.dev](https://x.dev)')
+  })
+})
+
+describe('isSitePage', () => {
+  it('is a page of this site for a path, not for a file the API serves, another site, or a protocol-relative address', () => {
+    expect(isSitePage('/contact')).toBe(true)
+    expect(isSitePage('/youtube?page=2')).toBe(true)
+    expect(isSitePage('/api/files/1234/paper.pdf')).toBe(false)
+    expect(isSitePage('https://example.com')).toBe(false)
+    expect(isSitePage('//example.com')).toBe(false)
   })
 })
