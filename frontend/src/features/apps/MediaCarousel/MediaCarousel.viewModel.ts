@@ -15,7 +15,9 @@ export function useMediaCarouselViewModel({ media, title }: { media: AppMedia[];
   const goTo = (next: number) => {
     const clamped = Math.max(0, Math.min(media.length - 1, next))
     const el = track.current
-    el?.scrollTo?.({ left: clamped * el.clientWidth, behavior: 'smooth' })
+    // Slides over, unless the visitor asked for less motion.
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    el?.scrollTo?.({ left: clamped * el.clientWidth, behavior: still ? 'instant' : 'smooth' })
     setIndex(clamped)
   }
 
@@ -42,10 +44,15 @@ export function useMediaCarouselViewModel({ media, title }: { media: AppMedia[];
             next: () => goTo(index + 1),
           }
         : null,
-    // Swiping or scrolling the track itself.
+    // Swiping or scrolling the track itself. Only where it rests on a slide (scroll-snap and the arrows'
+    // scrolls end there), so the slides passed on the way don't count: the count doesn't flicker back, and a
+    // video passed by isn't loaded.
     onScroll: () => {
       const el = track.current
-      if (el && el.clientWidth > 0) setIndex(Math.round(el.scrollLeft / el.clientWidth))
+      if (!el || el.clientWidth === 0) return
+      const position = el.scrollLeft / el.clientWidth
+      const slide = Math.round(position)
+      if (Math.abs(position - slide) < 0.01) setIndex(slide)
     },
     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
