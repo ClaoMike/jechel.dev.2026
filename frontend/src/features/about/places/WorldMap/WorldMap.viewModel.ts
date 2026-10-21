@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type { AboutColors, Place } from '../../../../services/api'
+import { trackEvent } from '../../../analytics'
 import { VISIT_LABELS } from '../../legend'
 import { plainText } from '../../textLinks'
 import { placeLabel } from '../placeLabel'
@@ -71,6 +72,15 @@ export function useWorldMapViewModel({ places, colors, highlight, onSelect }: Wo
   const closeTimer = useRef<number | undefined>(undefined)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const dragged = useRef(false)
+  // What the current gesture did, reported once it ends (a scroll-zoom ends when the wheel stops).
+  const gesture = useRef<{ zoomed: string | null; moved: boolean }>({ zoomed: null, moved: false })
+  const wheelEnd = useRef<number | undefined>(undefined)
+  const report = () => {
+    const { zoomed, moved } = gesture.current
+    if (zoomed) trackEvent('Zoomed the map', { how: zoomed })
+    else if (moved) trackEvent('Moved the map')
+    gesture.current = { zoomed: null, moved: false }
+  }
   // The map's width on screen, to keep pins the same size on a phone as on a desktop.
   const [screenWidth, setScreenWidth] = useState(800)
   useEffect(() => {
@@ -104,13 +114,19 @@ export function useWorldMapViewModel({ places, colors, highlight, onSelect }: Wo
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) return
       event.preventDefault()
+      gesture.current.zoomed = 'scroll'
+      window.clearTimeout(wheelEnd.current)
+      wheelEnd.current = window.setTimeout(report, 500)
       setView((current) => {
         const [px, py] = toMap(element, current, event.clientX, event.clientY)
         return zoomAround(current, Math.exp(-event.deltaY * 0.01), px, py)
       })
     }
     element.addEventListener('wheel', onWheel, { passive: false })
-    return () => element.removeEventListener('wheel', onWheel)
+    return () => {
+      element.removeEventListener('wheel', onWheel)
+      window.clearTimeout(wheelEnd.current)
+    }
   }, [])
 
   function onPointerDown(event: ReactPointerEvent<SVGSVGElement>) {
@@ -131,12 +147,14 @@ export function useWorldMapViewModel({ places, colors, highlight, onSelect }: Wo
       const [px, py] = toMap(svg.current, view, (current.x + other.x) / 2, (current.y + other.y) / 2)
       if (before > 0) setView((v) => zoomAround(v, after / before, px, py))
       dragged.current = true
+      gesture.current.zoomed = 'pinch'
     } else if (zoom > 1) {
       const dx = current.x - previous.x
       const dy = current.y - previous.y
       if (!dragged.current && Math.hypot(dx, dy) < 3) return
       if (!dragged.current) svg.current.setPointerCapture(event.pointerId)
       dragged.current = true
+      gesture.current.moved = true
       const unit = view.width / rect.width
       setView((v) => clampView({ ...v, x: v.x - dx * unit, y: v.y - dy * unit }))
     }
@@ -145,12 +163,14 @@ export function useWorldMapViewModel({ places, colors, highlight, onSelect }: Wo
 
   function onPointerUp(event: ReactPointerEvent<SVGSVGElement>) {
     pointers.current.delete(event.pointerId)
+    if (pointers.current.size === 0) report()
   }
 
   const zoomBy = (factor: number) => setView((v) => zoomAround(v, factor, v.x + v.width / 2, v.y + height / 2))
 
   function show(index: number, pinned: boolean) {
     window.clearTimeout(closeTimer.current)
+    if (active?.index !== index && places[index]) trackEvent('Looked at a place on the map', { place: placeLabel(places[index]) })
     setActive((current) => (pinned || !current?.pinned ? { index, pinned } : current))
   }
   // A short delay lets the pointer move from the pin onto the card, to click its links.

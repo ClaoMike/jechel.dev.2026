@@ -2,7 +2,7 @@
 
 import { API_BASE_URL, type Page, get, http, post } from '../http'
 
-export const VISIT_EVENT_TYPES = ['pageview', 'click', 'key', 'event', 'error', 'leave'] as const
+export const VISIT_EVENT_TYPES = ['pageview', 'click', 'key', 'change', 'submit', 'event', 'scroll', 'tab', 'error', 'leave'] as const
 export type VisitEventType = (typeof VISIT_EVENT_TYPES)[number]
 
 /** Where and on what a visit started. Sizes are CSS pixels. */
@@ -84,12 +84,16 @@ export interface AnalyticsSummary {
   devices: NamedCount[]
   browsers: NamedCount[]
   timeZones: NamedCount[]
+  /** Two-letter codes (Cloudflare's), or "Unknown". */
+  countries: NamedCount[]
   topClicks: NamedCount[]
   topErrors: NamedCount[]
   /** The theme visits ended in: what visitors prefer (first-time visitors start in Vice). */
   themes: NamedCount[]
   /** "vice → dark": switches made during visits. */
   themeSwitches: NamedCount[]
+  /** What the site reported, e.g. "Message sent" (theme changes have their own list). */
+  siteEvents: NamedCount[]
 }
 
 export interface VisitSummary {

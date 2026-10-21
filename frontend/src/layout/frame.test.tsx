@@ -72,6 +72,35 @@ describe('the header', () => {
     await expect.element(tabs().getByRole('link', { name: 'About Me' })).toHaveAttribute('aria-current', 'page')
     await expect.element(tabs().getByRole('link', { name: 'Apps' })).not.toHaveAttribute('aria-current')
   })
+
+  it("colours the admin's own tabs pink to violet, the same in every theme, current or not", async () => {
+    const adminTabs = ['Engagement', 'Community', 'Terms', 'Settings']
+    for (const name of ['dark', 'light', 'vice'] as const) {
+      stubApi({ user: ADMIN })
+      const app = await renderApp({ path: '/engagement', theme: name })
+      await expect.element(tabs().getByRole('link', { name: 'Settings' })).toBeVisible()
+      const links = tabs().getByRole('link').elements()
+      const own = links.filter((link) => adminTabs.includes(link.textContent!.trim()))
+      expect(own.map((link) => link.textContent!.trim())).toEqual(adminTabs)
+      for (const link of own) {
+        const style = getComputedStyle(link)
+        expect(link.classList.contains('tab-admin')).toBe(true)
+        expect(style.backgroundImage).toBe('linear-gradient(90deg, rgb(217, 18, 137), rgb(153, 66, 240))')
+        expect(style.color).toBe('rgba(0, 0, 0, 0)')
+        expect(style.backgroundClip).toBe('text')
+      }
+      // The visitors' pages keep the theme's colours.
+      for (const link of links.filter((link) => !own.includes(link))) expect(getComputedStyle(link).backgroundImage).toBe('none')
+      await app.unmount()
+    }
+  })
+
+  it("has no pink tabs for visitors (they don't see the admin's)", async () => {
+    stubApi()
+    await renderApp()
+    await expect.element(tabs().getByRole('link', { name: 'Apps' })).toBeVisible()
+    expect(document.querySelector('.tab-admin')).toBeNull()
+  })
 })
 
 describe('the admin bar', () => {

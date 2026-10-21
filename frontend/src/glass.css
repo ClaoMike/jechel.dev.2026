@@ -741,6 +741,30 @@ html {
   user-select: none;
 }
 
+/*
+ * The admin's own tabs (Engagement, Community, Terms, Settings): the jechel.dev pink to violet, the
+ * same in every theme so they're easy to spot. Mid-tones, about 4.4:1 on black, Vice and light alike.
+ */
+.tabs .tab-admin,
+.tabs .tab-admin:hover,
+.tabs .tab-admin[aria-current='page'] {
+  background: linear-gradient(90deg, #d91289, #9942f0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
+}
+
+/* Windows high contrast: forced colours drop the gradient, so the text keeps a colour of its own. */
+@media (forced-colors: active) {
+  .tabs .tab-admin,
+  .tabs .tab-admin:hover,
+  .tabs .tab-admin[aria-current='page'] {
+    background: none;
+    color: LinkText;
+  }
+}
+
 .tab-indicator {
   position: absolute;
   top: 4px;

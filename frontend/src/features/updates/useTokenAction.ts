@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { failureOf } from '../../services/api'
+import { trackEvent } from '../analytics'
 import { useConfirmSubscriptionMutation, useUnsubscribeMutation } from '../../store/api/communityApi'
 
 export type TokenState = { status: 'working' } | { status: 'done'; email?: string } | { status: 'unknown' } | { status: 'error' }
@@ -17,7 +18,10 @@ export function useTokenAction(action: 'confirm' | 'unsubscribe'): TokenState {
     let current = true
     const run = action === 'confirm' ? confirm(token).unwrap().then((email) => ({ email })) : unsubscribe(token).unwrap().then(() => ({}))
     run
-      .then((result) => current && setState({ status: 'done', ...result }))
+      .then((result) => {
+        trackEvent(action === 'confirm' ? 'Subscription confirmed' : 'Unsubscribed')
+        if (current) setState({ status: 'done', ...result })
+      })
       .catch((error: unknown) => current && setState(failureOf(error).status === 404 ? { status: 'unknown' } : { status: 'error' }))
     return () => {
       current = false

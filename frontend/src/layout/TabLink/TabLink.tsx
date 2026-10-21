@@ -1,10 +1,10 @@
 import { NavLink } from 'react-router'
 import { EyeOffIcon } from '../../components/icons/icons'
 
-/** One tab: a link that's marked current on its page; the admin sees which visitor pages are hidden. */
-export function TabLink({ to, label, hiddenFromVisitors }: { to: string; label: string; hiddenFromVisitors: boolean }) {
+/** One tab: a link that's marked current on its page; the admin sees which visitor pages are hidden, and their own tabs in pink and violet. */
+export function TabLink({ to, label, hiddenFromVisitors, adminOnly = false }: { to: string; label: string; hiddenFromVisitors: boolean; adminOnly?: boolean }) {
   return (
-    <NavLink to={to} end className="tab" draggable={false} title={hiddenFromVisitors ? 'Hidden from visitors' : undefined}>
+    <NavLink to={to} end className={adminOnly ? 'tab tab-admin' : 'tab'} draggable={false} title={hiddenFromVisitors ? 'Hidden from visitors' : undefined}>
       {label}
       {hiddenFromVisitors && (
         <>

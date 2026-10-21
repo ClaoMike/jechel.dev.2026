@@ -1,6 +1,5 @@
 import { createListenerMiddleware, isAnyOf } from '@reduxjs/toolkit'
 import { tellOtherTabs } from '../auth/authChannel'
-import { trackEvent } from '../features/analytics/tracker'
 import { rememberAcceptance } from '../features/terms/acceptance'
 import { rememberTheme, showTheme } from '../layout/theme'
 import { setRequestPreview } from '../services/api'
@@ -34,8 +33,8 @@ startListening({
 startListening({
   actionCreator: termsAccepted,
   effect: ({ payload }) => {
+    // The tracker records the acceptance itself, once it's allowed to (AnalyticsTracker).
     rememberAcceptance(payload)
-    trackEvent('Terms accepted')
   },
 })
 

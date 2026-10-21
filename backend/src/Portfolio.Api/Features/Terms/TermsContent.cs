@@ -37,7 +37,7 @@ public static class TermsDefaults
     /// When these defaults last changed: shown as "Last updated", and the version visitors accept. Move it
     /// whenever the text below changes, so everyone is asked to accept the new terms.
     /// </summary>
-    public static readonly DateTimeOffset UpdatedAt = new(2026, 10, 21, 18, 0, 0, TimeSpan.Zero);
+    public static readonly DateTimeOffset UpdatedAt = new(2026, 10, 21, 19, 0, 0, TimeSpan.Zero);
 
     /// <summary>How long a visit's record is kept (AnalyticsRetention deletes older ones).</summary>
     public const int VisitRetentionMonths = 12;
@@ -74,8 +74,12 @@ public static class TermsDefaults
                 Paragraph("Once you've accepted these terms, the website records how it is used, so that I can see which parts are read and find and fix errors. Nothing is recorded before you accept, and nothing is recorded for the site owner's own visits. This is what a visit's record holds:"),
                 Bullets(
                     "the pages you open, and when;",
-                    "what you click: the words on the button or link (never what you type into a form), the address of a link, and whether a box is ticked;",
-                    "pressing Escape, which closes popups;",
+                    "what you click: the words on the button or link (never what you type into a form), the address of a link, and whether a box is ticked; clicking into a YouTube video or the meeting calendar is recorded too, but not what you do inside them;",
+                    "the fields you change: for a list, the option you pick; for a text box, only that you edited it, never what you typed; and when you send a form;",
+                    "pressing Escape, which closes popups, and copying text from a page (not what you copied);",
+                    "how far down each page you scroll, when you switch to another tab and come back, and when you leave;",
+                    "playing, pausing and finishing a video in an app's gallery, swiping between its images and videos, and zooming, moving or looking at places on the map;",
+                    "what you do with the forms: whether a message was sent, a subscription made, confirmed or cancelled, a meeting booked, and why it didn't work if it didn't (for example a missing field, never its content);",
                     "errors on the page: what went wrong, where, and the technical details needed to fix it, such as a file that didn't load;",
                     "the theme you use, and when you switch themes;",
                     "the address of the page that brought you here (the referrer), and any campaign tags in the link you followed (utm_source, utm_medium, utm_campaign);",

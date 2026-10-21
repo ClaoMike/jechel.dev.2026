@@ -53,8 +53,9 @@ export function useContactFormViewModel() {
       setStatus('sent')
       trackEvent('Message sent')
     } catch (error) {
-      const { validationErrors } = failureOf(error)
+      const { status: code, validationErrors } = failureOf(error)
       const apiErrors = validationErrors ? fromApiErrors(validationErrors) : {}
+      trackEvent('Message not sent', { reason: Object.keys(apiErrors).length > 0 ? `invalid ${Object.keys(apiErrors).join(', ')}` : String(code || 'no response') })
       if (Object.keys(apiErrors).length > 0) setErrors(apiErrors)
       else setStatus('failed')
     }

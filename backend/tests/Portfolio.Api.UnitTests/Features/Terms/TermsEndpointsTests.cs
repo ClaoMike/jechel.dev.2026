@@ -24,6 +24,29 @@ public class TermsEndpointsTests
         Assert.Equal(TermsDefaults.UpdatedAt, terms.UpdatedAt);
     }
 
+    /// <summary>Every kind of event the tracker records (AnalyticsRules.EventTypes), and words the terms use for it.</summary>
+    [Theory]
+    [InlineData("pageview", "the pages you open")]
+    [InlineData("click", "what you click")]
+    [InlineData("key", "pressing Escape")]
+    [InlineData("change", "the fields you change")]
+    [InlineData("submit", "when you send a form")]
+    [InlineData("event", "what you do with the forms")]
+    [InlineData("scroll", "how far down each page you scroll")]
+    [InlineData("tab", "switch to another tab")]
+    [InlineData("error", "errors on the page")]
+    [InlineData("leave", "when you leave")]
+    public void The_default_terms_say_what_is_recorded(string type, string words)
+    {
+        Assert.Contains(type, Portfolio.Api.Features.Analytics.AnalyticsRules.EventTypes);
+        var recorded = TermsDefaults.Content.Sections.Single(s => s.Heading == "What is recorded when you visit");
+        Assert.Contains(recorded.Blocks.SelectMany(b => b.Items), item => item.Contains(words));
+    }
+
+    [Fact]
+    public void A_new_kind_of_event_needs_a_line_in_the_terms_above() =>
+        Assert.Equal(10, Portfolio.Api.Features.Analytics.AnalyticsRules.EventTypes.Count);
+
     [Fact]
     public void The_default_terms_can_be_saved_unchanged_in_the_editor() =>
         Assert.Empty(TermsRules.Validate(TermsDefaults.Content));

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { AppMedia } from '../../../services/api'
 import { motionAllowed } from '../../../utils/motion'
+import { trackEvent } from '../../analytics'
 
 /** How long an arrow's scroll may take to arrive before the track's own position counts again. */
 export const ARRIVAL_TIMEOUT_MS = 1000
@@ -83,12 +84,17 @@ export function useMediaCarouselViewModel({ media, title }: { media: AppMedia[];
         }
         return
       }
-      if (slide !== null) setIndex(slide)
+      if (slide !== null && slide !== index) {
+        setIndex(slide)
+        trackEvent('Swiped to another slide', { app: title, slide: `${slide + 1} of ${media.length}` })
+      }
     },
     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault()
-        goTo(index + (event.key === 'ArrowLeft' ? -1 : 1))
+        const next = Math.max(0, Math.min(media.length - 1, index + (event.key === 'ArrowLeft' ? -1 : 1)))
+        if (next !== index) trackEvent('Moved to another slide with the keyboard', { app: title, slide: `${next + 1} of ${media.length}` })
+        goTo(next)
       }
     },
   }

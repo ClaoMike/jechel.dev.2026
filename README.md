@@ -208,25 +208,49 @@ The site records how it's used itself: no third parties, no cookies. The admin r
 
 **Recording** (`src/features/analytics/tracker.ts`, mounted by `<AnalyticsTracker>` in `App/App.tsx`):
 
-- **What:** pages opened (with the query), clicks on buttons, links and fields (the label the visitor saw, plus a link's address; **never what was typed**), Escape, the site's own events (`trackEvent('Message sent')`, `'Terms accepted'`, `'Contact form invalid'` with the field names), leaving the tab, and every **error**: script errors with file, line and stack, unhandled promise rejections, React crashes with the component stack (`createRoot` callbacks in `main.tsx`), requests that fail with 5xx or no answer (`onRequestFailed` in `api.ts`; 4xx answers are expected and skipped), and images or files that didn't load.
+- **What:** pages opened (with the query); clicks on buttons, links and fields (the label the visitor saw, plus a link's address; **never what was typed**), and clicks into embedded players (YouTube, the Cal.com calendar: the window loses focus to the frame); fields changed (`change`: a list's option, a slider's value, how many files; a text field only that it was edited); forms sent (`submit`, with Enter or a button); Escape; copying text (not what); videos played, paused and finished; how far down each page was read (`scroll`, in quarters, recorded on leaving the page); the tab hidden and back (`tab`); leaving (`leave`); the site's own events (`trackEvent`: Terms accepted, Message sent / not sent and why, Contact form invalid with the field names, Subscribed / again / failed and why, Subscription confirmed, Unsubscribed, Meeting booked, Support clicked, Swiped to another slide, Moved to another slide with the keyboard, Zoomed / Moved the map, Looked at a place on the map, Theme changed); and every **error**: script errors with file, line and stack, unhandled promise rejections, React crashes with the component stack (`createRoot` callbacks in `main.tsx`), requests that fail with 5xx or no answer (`onRequestFailed` in `api.ts`; 4xx answers are expected and skipped), and images or files that didn't load.
 - **A visit** is a browser tab: a random id in `sessionStorage`, so it survives reloads and ends with the tab. It starts with the page, the referring site (host and path; no query), `utm_*` tags, language, time zone, screen and window size, and theme.
 - **Theme:** a visit keeps the theme it started in (Vice for first-time visitors, their earlier choice for those coming back) and the one it ended in: every batch says the theme on show, and the last is sent as the tab closes. Each switch is a `Theme changed` event with `from` and `to`.
-- **Who isn't recorded:** the signed-in admin (the tracker waits for the sign-in check, and the API ignores requests with the admin cookie), and bots and headless browsers (by User-Agent, which includes the Playwright runs).
+- **Who isn't recorded:** visitors who haven't accepted the terms (the tracker is off: nothing is kept for later; once they accept, the visit starts with the page on show and `Terms accepted`), the signed-in admin (the tracker waits for the sign-in check, and the API ignores requests with the admin cookie), and bots and headless browsers (by User-Agent, which includes the Playwright runs).
 - **Sending:** batches every 5 seconds, and `sendBeacon` when the tab is hidden or closed. Limits: 1,000 events per page load, the same error 5 times, and the API stops a visit at 2,000.
 - **Unique visitors without cookies:** the API hashes IP + User-Agent with a random salt that changes every UTC day and is never stored (`VisitorHasher`), like Plausible. The same person counts once a day, can't be followed across days, and no IP is stored. A restart picks a new salt, so someone may count twice that day.
 
-**Storage:** `visit_sessions` (one row per visit, with counters) and `visit_events` (one row per event, `detail` as `jsonb`; unique on visit + sequence number, so a batch sent twice is stored once). Deleting a visit deletes its events. There is no automatic clean-up yet.
+**Storage:** `visit_sessions` (one row per visit, with counters) and `visit_events` (one row per event, `detail` as `jsonb`; unique on visit + sequence number, so a batch sent twice is stored once). Deleting a visit deletes its events, and `AnalyticsRetention` deletes visits after 12 months.
+
+```
+ Visitor's browser                                                       API                          Admin
+ ─────────────────                                                       ───                          ─────
+ Welcome popup ── not accepted ──► tracker OFF (nothing recorded or kept)
+       │ accepted (Terms accepted)
+       ▼
+ tracker ON ◄── <AnalyticsTracker>: pages opened, theme switches, signed-in? (admin ⇒ OFF)
+   │ listens: click · change · submit · Escape · copy · play/pause/ended · scroll depth
+   │          · tab hidden/back · leave · frame focus (YouTube, Cal.com) · errors · failed requests
+   │ trackEvent(): Message sent · Subscribed · Meeting booked · Swiped · Zoomed the map · …
+   ▼
+ queue ──every 5 s──► POST /api/analytics/events ──► Collect: skip admin & bots, dedupe by seq,
+   └──tab hidden/closed──► sendBeacon (15 a piece)       date by age, hash IP+UA (daily salt),
+                                                         country (CF-IPCountry) ──► visit_sessions
+                                                         errors ──► phone alert (throttled)  visit_events
+                                                                                    │
+ Engagement tab ◄── GET /api/analytics/summary?range= ◄── counters, chart, top lists ┤ (admin only)
+   visits table ◄── GET /api/analytics/sessions?errorsOnly= ◄───────────────────────┤
+   a visit ◄────── GET /api/analytics/sessions/{id} (timeline, Copy steps) ◄────────┘
+                   DELETE …/{id}            AnalyticsRetention: deletes visits after 12 months
+```
 
 **The tab** (`src/pages/EngagementPage/EngagementPage.tsx`, `src/features/analytics/`): a period of 1 hour, 1 day, 7 / 30 / 90 days, 1 year, 5 years or all time, with
-- counters: visitors, visits, page views, average visit, bounce rate (one page and no clicks), errors
+- counters: visitors, visits, page views, average visit, bounce rate (one page and nothing done on purpose: clicks, keys, changes, forms and site events count; scrolling, the tab and leaving don't; `AnalyticsRules.InteractionTypes`), errors
 - visitors, page views or errors as a column chart, one column per 5 minutes (1 hour), hour (1 day), day (7 to 90 days), month (1 and 5 years; all time) or year (all time beyond 6 years). Columns are aligned in UTC (`AnalyticsRange.cs`); "1 hour" and "1 day" are rolling. Visits count when they started, page views and errors when they happened. Hover a column for its number; a hidden table gives screen readers the same
-- top pages, where visitors come from, most clicked, errors, **preferred theme** (the one visits ended in), **theme switches** ("vice → dark"), devices, browsers, time zones
+- top pages, where visitors come from, most clicked, **what visitors did** (the site's events, theme changes aside), errors, **preferred theme** (the one visits ended in), **theme switches** ("vice → dark"), devices, browsers, **countries** (Cloudflare's, by name), time zones
+- **Refresh** loads the numbers and the visits again, and a visit seen before is asked for again when it's next opened (it may still be going on)
 - every visit (optionally only those with errors). One opens its timeline: what it ran on, then each step with its time, errors with their stack. **Copy steps to reproduce** gives it all as text, for an issue or an AI. Visits can be deleted.
 
 Summaries are worked out in memory from the period's rows: plenty for a personal site; move the grouping into SQL if traffic grows a lot.
 
-**Privacy:** nothing is recorded until the visitor has accepted the terms (`AnalyticsTracker` waits; a visitor who never
-accepts is never sent), and the terms say exactly what's recorded. Visits are deleted 12 months after they were last
+**Privacy:** nothing is recorded until the visitor has accepted the terms (`AnalyticsTracker` keeps the tracker off, so
+not even clicks under the welcome popup are sent later), and the terms say exactly what's recorded: a backend test
+(`The_default_terms_say_what_is_recorded`) fails when a kind of event is added without a line in the terms. Visits are deleted 12 months after they were last
 seen (`AnalyticsRetention`, daily; `TermsDefaults.VisitRetentionMonths`). IP addresses aren't stored (`VisitorHasher`).
 
 ## Authentication (Google, admin only)
@@ -376,7 +400,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
 ## Site sections and the contact feature
 
-The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch) above five tabs (nine for the signed-in admin), each a route rendered inside `src/layout/AppLayout/AppLayout.tsx`:
+The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch) above five tabs (nine for the signed-in admin, whose own four are written in the jechel.dev pink to violet, the same in every theme: `.tab-admin` in `glass.css`), each a route rendered inside `src/layout/AppLayout/AppLayout.tsx`:
 
 | Tab | Route | Status |
 | --- | --- | --- |

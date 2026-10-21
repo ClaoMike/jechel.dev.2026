@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { useGetMeetingsLinkQuery } from '../../../store/api/meetingsApi'
+import { trackEvent } from '../../analytics'
 
 type Mode = 'message' | 'meeting'
 
@@ -21,6 +22,9 @@ export function useVisitorContactViewModel() {
     mode,
     modes: MODES.map(([value, label]) => ({ value, label, checked: mode === value, choose: () => setMode(value) })),
     booked,
-    markBooked: () => setBooked(true),
+    markBooked: () => {
+      setBooked(true)
+      trackEvent('Meeting booked')
+    },
   }
 }

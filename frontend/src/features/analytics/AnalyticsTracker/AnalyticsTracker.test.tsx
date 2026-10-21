@@ -25,17 +25,18 @@ describe('recording a visit', () => {
   // The tracker is the site's one instance: forget what a test left behind.
   afterEach(() => tracker.setMode('off'))
 
-  it('waits while the welcome popup is up, and records nothing for a visitor who never accepts', async () => {
+  it('records nothing while the welcome popup is up, and nothing for a visitor who never accepts', async () => {
     const api = stubApi()
     await renderApp({ path: freshPath(), acceptedTerms: null })
     await expect.element(gate()).toBeVisible()
 
-    expect(tracker.state.mode).toBe('waiting')
+    expect(tracker.state.mode).toBe('off')
+    expect(tracker.state.queued).toEqual([])
     expect(await sent(api)).toEqual([])
     expect(api.analytics.beacon).not.toHaveBeenCalled()
   })
 
-  it('starts once the terms are accepted, with the page the visit began on', async () => {
+  it('starts once the terms are accepted, with the page the visit began on and the acceptance, keeping nothing from before', async () => {
     const api = stubApi()
     const path = freshPath()
     await renderApp({ path, acceptedTerms: null })
@@ -43,16 +44,32 @@ describe('recording a visit', () => {
     await gate().getByRole('button', { name: 'Continue' }).click()
 
     await expect.poll(() => tracker.state.mode).toBe('on')
-    await expect.poll(() => sent(api)).toContain(`pageview ${path}`)
+    await expect.poll(() => sent(api)).toEqual([`pageview ${path}`, `event ${path}`])
+    expect(api.analytics.send.mock.calls.flatMap(([batch]) => batch.events)[1].label).toBe('Terms accepted')
+    // The tick and the button under the welcome popup were before accepting: not recorded.
+    expect(api.analytics.send.mock.calls.flatMap(([batch]) => batch.events).some((e) => e.type === 'click')).toBe(false)
   })
 
-  it('records a visitor who accepted these terms before, from the start', async () => {
+  it('records what the visitor does once they accepted', async () => {
+    const api = stubApi()
+    await renderApp({ path: freshPath(), acceptedTerms: null })
+    await gate().getByRole('checkbox').click()
+    await gate().getByRole('button', { name: 'Continue' }).click()
+    await expect.poll(() => tracker.state.mode).toBe('on')
+    await page.getByRole('link', { name: 'Apps' }).click()
+    await expect.poll(async () => (await sent(api)).at(-1)).toBe('pageview /apps')
+    const events = api.analytics.send.mock.calls.flatMap(([batch]) => batch.events)
+    expect(events.some((e) => e.type === 'click' && e.label === 'Apps')).toBe(true)
+  })
+
+  it('records a visitor who accepted these terms before, from the start, without accepting again', async () => {
     const api = stubApi()
     const path = freshPath()
     await renderApp({ path })
 
     await expect.poll(() => tracker.state.mode).toBe('on')
     await expect.poll(() => sent(api)).toContain(`pageview ${path}`)
+    expect(api.analytics.send.mock.calls.flatMap(([batch]) => batch.events).some((e) => e.label === 'Terms accepted')).toBe(false)
   })
 
   it('waits again when the terms have changed since they were accepted', async () => {
@@ -60,7 +77,7 @@ describe('recording a visit', () => {
     await renderApp({ acceptedTerms: '2025-01-01T00:00:00Z' })
     await expect.element(gate()).toBeVisible()
 
-    expect(tracker.state.mode).toBe('waiting')
+    expect(tracker.state.mode).toBe('off')
     expect(await sent(api)).toEqual([])
   })
 
@@ -76,7 +93,7 @@ describe('recording a visit', () => {
     never.terms.get.mockRejectedValue(new ApiError('/api/terms', 503))
     await renderApp({ acceptedTerms: null })
     await expect.element(gate()).toBeVisible()
-    expect(tracker.state.mode).toBe('waiting')
+    expect(tracker.state.mode).toBe('off')
   })
 
   it('never records the signed-in admin', async () => {
@@ -85,5 +102,21 @@ describe('recording a visit', () => {
 
     await expect.poll(() => tracker.state.mode).toBe('off')
     expect(await sent(api)).toEqual([])
+  })
+
+  it('records each theme switch, and says the theme the visit started and is in with every batch', async () => {
+    const api = stubApi()
+    await renderApp({ path: freshPath() })
+    await expect.poll(() => tracker.state.mode).toBe('on')
+    const start = document.documentElement.dataset.theme
+    const other = start === 'light' ? 'dark' : 'light'
+    await page.getByTitle(`${other === 'light' ? 'Light' : 'Dark'} mode`).click()
+    await expect.poll(async () => (await sent(api)).some((e) => e.startsWith('event'))).toBe(true)
+    const events = api.analytics.send.mock.calls.flatMap(([batch]) => batch.events)
+    const switched = events.find((e) => e.label === 'Theme changed')!
+    expect(switched.detail).toEqual({ from: start, to: other })
+    const batch = api.analytics.send.mock.calls.at(-1)![0]
+    expect(batch.session.currentTheme).toBe(other)
+    expect(batch.session.theme).toBe(start)
   })
 })

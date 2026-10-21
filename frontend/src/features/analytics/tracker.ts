@@ -2,18 +2,25 @@ import { api, ApiError, onRequestFailed, type FailedRequest, type VisitBatch, ty
 
 /**
  * Records what a visit does, to see how the site is used and to replay what led to an error:
- * pages opened, clicks (the label of what was clicked, never what was typed), Escape, the site's own
- * events (e.g. "Message sent") and every error: script errors, crashes, failed requests and files
- * that didn't load. No cookies: the visit's id lives in sessionStorage, so it ends with the tab.
+ * pages opened, clicks (the label of what was clicked, never what was typed), clicks into embedded
+ * content (the YouTube player), fields changed (a choice's option; for text, only that it was edited),
+ * forms sent, Escape, copying text, how far each page was scrolled, the tab hidden and back, the
+ * site's own events (e.g. "Message sent") and every error: script errors, crashes, failed requests and
+ * files that didn't load. No cookies: the visit's id lives in sessionStorage, so it ends with the tab.
  *
- * Events wait until the sign-in check is done: the signed-in admin is never recorded. Then they go
- * to the API in batches every few seconds, and when the tab is hidden or closed (sendBeacon).
+ * Events wait until the sign-in check is done: the signed-in admin is never recorded, and neither is
+ * a visitor who hasn't accepted the terms (nothing is kept for later). Then they go to the API in
+ * batches every few seconds, and when the tab is hidden or closed (sendBeacon).
  */
 
+/** waiting: kept until the sign-in check says who it is. on: recorded. off: nothing is recorded or kept. */
 export type TrackerMode = 'waiting' | 'on' | 'off'
 
 /** The event sent when the visitor picks another theme (the API counts these: AnalyticsRules.ThemeChangedEvent). */
 export const THEME_CHANGED = 'Theme changed'
+
+/** The event a visit starts with when the visitor accepts the terms during it. */
+export const TERMS_ACCEPTED = 'Terms accepted'
 
 export interface TrackerTransport {
   send(batch: VisitBatch): Promise<void>
@@ -34,6 +41,9 @@ const MAX_EVENTS = 1000
 const MAX_SAME_ERROR = 5
 const LABEL_MAX = 120
 const STACK_MAX = 3000
+const MEDIA_EVENTS = ['play', 'pause', 'ended'] as const
+/** Scroll depth is recorded in steps of this many percent, and only past the first step. */
+const SCROLL_STEP = 25
 
 const INTERACTIVE = [
   'a[href]',
@@ -66,7 +76,13 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
   let failures = 0
   let recorded = 0
   let lastPageview: string | null = null
+  // The page on show when recording was off: recorded as the visit's first page once it's on.
+  let missedPageview: string | null = null
   let entryPath: string | null = null
+  // How far down the page on show was scrolled (percent), and how far was already recorded.
+  let scrollDepth = 0
+  let scrollRecorded = 0
+  let scrollFrame = 0
   // Taken with the first event: main.tsx sets the theme after this module loads, and before the first render.
   let startTheme: string | null = null
   const errorCounts = new Map<string, number>()
@@ -77,7 +93,11 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
   }
 
   function record(type: VisitEventType, label?: string, detail?: Record<string, string>, path = currentPath()) {
-    if (mode === 'off' || recorded >= MAX_EVENTS) return
+    if (mode === 'off') {
+      if (type === 'pageview') missedPageview = path
+      return
+    }
+    if (recorded >= MAX_EVENTS) return
     startTheme ??= document.documentElement.dataset.theme ?? ''
     recorded++
     session.seq++
@@ -151,6 +171,95 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
     if (event.key === 'Escape') record('key', 'Escape')
   }
 
+  /**
+   * A field changed. A choice says what was chosen (a select's option, a slider's value, how many
+   * files); a text field only that it was edited, never what was typed. Ticks are recorded as clicks.
+   */
+  function onChange(event: Event) {
+    const field = event.target
+    if (field instanceof HTMLSelectElement) {
+      record('change', describe(field) || '(select)', { element: 'select', value: cut(squash(field.selectedOptions[0]?.textContent), LABEL_MAX) })
+    } else if (field instanceof HTMLInputElement) {
+      if (field.type === 'checkbox' || field.type === 'radio') return
+      const detail: Record<string, string> = { element: `input[type=${field.type}]` }
+      if (field.type === 'range' || field.type === 'color') detail.value = field.value
+      if (field.type === 'file') detail.files = String(field.files?.length ?? 0)
+      record('change', describe(field) || '(input)', detail)
+    } else if (field instanceof HTMLTextAreaElement) {
+      record('change', describe(field) || '(textarea)', { element: 'textarea' })
+    }
+  }
+
+  /** A form sent; with a button, its click was recorded too. */
+  function onSubmit(event: SubmitEvent) {
+    const form = event.target
+    if (!(form instanceof HTMLFormElement)) return
+    record('submit', formName(form), { via: event.submitter ? 'button' : 'Enter' })
+  }
+
+  /** A video (or sound) played, paused or watched to the end, with its address on this site. Media events don't bubble: caught on the way down. */
+  function onMedia(event: Event) {
+    const media = event.target
+    if (!(media instanceof HTMLMediaElement)) return
+    const what = media instanceof HTMLVideoElement ? 'video' : 'sound'
+    const name = event.type === 'play' ? `Played a ${what}` : event.type === 'ended' ? `Watched a ${what} to the end` : `Paused a ${what}`
+    // Pausing at the end is part of ending.
+    if (event.type === 'pause' && media.ended) return
+    let src = ''
+    try {
+      const url = new URL(media.currentSrc || media.getAttribute('src') || '', location.href)
+      src = url.origin === location.origin ? url.pathname : url.origin + url.pathname
+    } catch {
+      // Not an address: left out.
+    }
+    record('event', name, clean({ src, at: `${Math.round(media.currentTime)}s` }))
+  }
+
+  /** Copying text from the page (not what was copied). */
+  function onCopy() {
+    record('event', 'Copied text')
+  }
+
+  /**
+   * A click into embedded content (the YouTube player, a booking widget) isn't seen by the page: the
+   * window loses focus to the frame instead. Once per focus.
+   */
+  function onWindowBlur() {
+    setTimeout(() => {
+      const frame = document.activeElement
+      if (!(frame instanceof HTMLIFrameElement)) return
+      const src = frame.getAttribute('src') ?? ''
+      let where = ''
+      try {
+        const url = new URL(src, location.href)
+        where = url.origin + url.pathname
+      } catch {
+        // Not an address: left out.
+      }
+      record('click', squash(frame.title) || '(embedded content)', clean({ element: 'iframe', href: where }))
+    })
+  }
+
+  function measureScroll() {
+    scrollFrame = 0
+    const room = document.documentElement.scrollHeight - window.innerHeight
+    if (room <= 0) return
+    const depth = Math.min(100, Math.round((window.scrollY / room) * 100))
+    scrollDepth = Math.max(scrollDepth, Math.floor(depth / SCROLL_STEP) * SCROLL_STEP)
+  }
+
+  function onScroll() {
+    if (!scrollFrame) scrollFrame = requestAnimationFrame(measureScroll)
+  }
+
+  /** How far down the page was read, once it's further than recorded (on leaving it, hiding or closing the tab). */
+  function recordScroll() {
+    if (scrollDepth > scrollRecorded) {
+      record('scroll', `${scrollDepth}%`)
+      scrollRecorded = scrollDepth
+    }
+  }
+
   /** Script errors (an ErrorEvent on window) and files that didn't load (an error event on the element; caught on the way down). */
   function onError(event: Event) {
     if (event instanceof ErrorEvent) {
@@ -184,10 +293,17 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
   }
 
   function onVisibilityChange() {
-    if (document.visibilityState === 'hidden') flushNow()
+    if (document.visibilityState === 'hidden') {
+      recordScroll()
+      record('tab', 'Hidden')
+      flushNow()
+    } else {
+      record('tab', 'Back')
+    }
   }
 
   function onPageHide() {
+    recordScroll()
     record('leave')
     flushNow()
   }
@@ -197,6 +313,12 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
     install(): () => void {
       document.addEventListener('click', onClick, true)
       document.addEventListener('keydown', onKeyDown, true)
+      document.addEventListener('change', onChange, true)
+      document.addEventListener('submit', onSubmit, true)
+      document.addEventListener('copy', onCopy, true)
+      for (const type of MEDIA_EVENTS) document.addEventListener(type, onMedia, true)
+      window.addEventListener('blur', onWindowBlur)
+      window.addEventListener('scroll', onScroll, { passive: true })
       window.addEventListener('error', onError, true)
       window.addEventListener('unhandledrejection', onRejection)
       document.addEventListener('visibilitychange', onVisibilityChange)
@@ -206,6 +328,14 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
       return () => {
         document.removeEventListener('click', onClick, true)
         document.removeEventListener('keydown', onKeyDown, true)
+        document.removeEventListener('change', onChange, true)
+        document.removeEventListener('submit', onSubmit, true)
+        document.removeEventListener('copy', onCopy, true)
+        for (const type of MEDIA_EVENTS) document.removeEventListener(type, onMedia, true)
+        window.removeEventListener('blur', onWindowBlur)
+        window.removeEventListener('scroll', onScroll)
+        cancelAnimationFrame(scrollFrame)
+        scrollFrame = 0
         window.removeEventListener('error', onError, true)
         window.removeEventListener('unhandledrejection', onRejection)
         document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -216,21 +346,36 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
       }
     },
 
-    /** Waiting until the sign-in check is done; on for visitors; off (and forgetting) for the admin. */
+    /**
+     * Waiting until the sign-in check is done; on for visitors who accepted the terms; off (and
+     * forgetting) for the admin and for visitors who haven't. Turned on, the page on show is the first.
+     */
     setMode(next: TrackerMode) {
+      const was = mode
       mode = next
       if (mode === 'off') {
+        // Whatever waited is dropped, the page on show with it: the visit will start where it's turned on.
         queue = []
+        entryPath = null
         clearTimeout(timer)
         timer = undefined
+        missedPageview = lastPageview
+      }
+      if (mode !== 'off' && was === 'off' && missedPageview !== null && missedPageview === lastPageview) {
+        missedPageview = null
+        entryPath ??= lastPageview
+        record('pageview', undefined, undefined, lastPageview)
       }
       schedule()
     },
 
-    /** A page opened (path with its query). The same page twice in a row counts once. */
+    /** A page opened (path with its query). The same page twice in a row counts once. Says how far the last one was scrolled. */
     pageview(path: string) {
       if (path === lastPageview) return
-      entryPath ??= path
+      recordScroll()
+      scrollDepth = 0
+      scrollRecorded = 0
+      if (mode !== 'off') entryPath ??= path
       lastPageview = path
       record('pageview', undefined, undefined, path)
     },
@@ -352,12 +497,27 @@ export function describe(element: Element): string {
 
   if (element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement) {
     const label = element.labels?.[0]
-    return squash(label?.textContent) || element.name || ('placeholder' in element ? element.placeholder : '') || ''
+    return labelText(label) || element.name || ('placeholder' in element ? element.placeholder : '') || ''
   }
 
   const text = squash(element.textContent)
   if (text) return text
   return squash(element.querySelector('img[alt]')?.getAttribute('alt')) || squash(element.getAttribute('title'))
+}
+
+/** A form's name: its label, else its heading, else its name. Never its fields' text. */
+function formName(form: HTMLFormElement): string {
+  const named = form.getAttribute('aria-label') ?? form.getAttribute('aria-labelledby')?.split(/\s+/).map((id) => document.getElementById(id)?.textContent).join(' ')
+  const heading = form.querySelector('h1, h2, h3, legend')?.textContent
+  return squash(named) || squash(heading) || form.getAttribute('name') || '(form)'
+}
+
+/** A label's own words: a field inside it (a list's options, a text box's text) is left out. */
+function labelText(label: HTMLLabelElement | undefined): string {
+  if (!label) return ''
+  const copy = label.cloneNode(true) as HTMLLabelElement
+  copy.querySelectorAll('select, textarea, input, button').forEach((field) => field.remove())
+  return squash(copy.textContent)
 }
 
 function clickDetail(element: Element): Record<string, string> {
