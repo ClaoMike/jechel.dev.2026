@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NARROW, useMediaQuery } from '../useMediaQuery'
 
 /** How long without the pointer moving (or a key) before the button and the cursor fade away. */
@@ -9,39 +9,22 @@ const ACTIVITY = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart'
 export interface ContentToggleProps {
   hidden: boolean
   onToggle: () => void
-  anchor?: RefObject<HTMLElement | null>
+  /** On phones, where the button sits in the header while the page shows. */
+  slot?: HTMLElement | null
 }
 
-export function useContentToggleViewModel({ hidden, onToggle, anchor }: ContentToggleProps) {
+export function useContentToggleViewModel({ hidden, onToggle, slot }: ContentToggleProps) {
   const [idle, setIdle] = useState(false)
   const narrow = useMediaQuery(NARROW)
-  const [place, setPlace] = useState<CSSProperties | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  // Moving between the header and the corner makes a new button: one that had focus hands it on.
+  const refocus = useRef(false)
 
-  // Follows the slot while the page shows (scrolling, resizing). The header slides back in after
-  // "Show page", so the slot is measured again once it has landed (transitionend, and a timer in
-  // case there's no transition), not only right away, while it's still off screen.
-  useLayoutEffect(() => {
-    if (!narrow || hidden || !anchor) return
-    const update = () => {
-      const rect = anchor.current?.getBoundingClientRect()
-      if (rect) setPlace({ top: rect.top, left: rect.left })
-    }
-    update()
-    const header = anchor.current?.closest('.site-header')
-    const settle = window.setTimeout(update, 700)
-    window.addEventListener('resize', update)
-    window.addEventListener('scroll', update, { passive: true })
-    header?.addEventListener('transitionend', update)
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
-    if (anchor.current?.parentElement) observer?.observe(anchor.current.parentElement)
-    return () => {
-      window.clearTimeout(settle)
-      window.removeEventListener('resize', update)
-      window.removeEventListener('scroll', update)
-      header?.removeEventListener('transitionend', update)
-      observer?.disconnect()
-    }
-  }, [narrow, hidden, anchor])
+  useEffect(() => {
+    if (!refocus.current) return
+    refocus.current = false
+    buttonRef.current?.focus()
+  }, [hidden])
 
   useEffect(() => {
     if (!hidden) return
@@ -67,15 +50,19 @@ export function useContentToggleViewModel({ hidden, onToggle, anchor }: ContentT
     return () => document.documentElement.classList.remove('scene-idle')
   }, [idle])
 
-  const compact = narrow && place !== null
+  const compact = narrow && slot != null
   // While the page is hidden, a phone's button waits in the bottom-right corner, within thumb's reach.
   const cornered = compact && hidden
   return {
     hidden,
     compact,
+    buttonRef,
+    container: compact && !cornered ? slot : null,
     label: hidden ? 'Show page' : 'Hide page',
     className: `button button-secondary content-toggle${compact ? ' content-toggle-compact' : ''}${cornered ? ' content-toggle-cornered' : ''}${idle ? ' content-toggle-idle' : ''}`,
-    style: compact && !cornered ? (place ?? undefined) : undefined,
-    toggle: onToggle,
+    toggle: () => {
+      refocus.current = document.activeElement === buttonRef.current
+      onToggle()
+    },
   }
 }

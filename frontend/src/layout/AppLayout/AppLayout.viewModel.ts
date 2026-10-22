@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useFeature } from '../../features/site/useSite'
 import { useAppSelector } from '../../store'
 import { activePreview } from '../../store/previewSlice'
@@ -15,15 +15,16 @@ export function useAppLayoutViewModel() {
   const [hideContent, setHideContent] = useState(false)
   if (theme !== 'vice' && hideContent) setHideContent(false)
   const toggleContent = useCallback(() => setHideContent((hidden) => !hidden), [])
-  // On phones, Vice's hide / show button sits here (pinned over this slot; see ContentToggle).
-  const toggleSlot = useRef<HTMLSpanElement>(null)
+  // On phones, Vice's hide / show button sits in this slot in the header while the page shows (see ContentToggle).
+  const [toggleSlot, setToggleSlot] = useState<HTMLSpanElement | null>(null)
 
   return {
     preview,
     vice: theme === 'vice',
     contentHidden: theme === 'vice' && hideContent,
     toggleContent,
-    toggleSlotRef: toggleSlot,
+    toggleSlot,
+    toggleSlotRef: setToggleSlot,
     showUpdates: updates,
   }
 }

@@ -136,6 +136,19 @@ body {
     color 0.3s;
 }
 
+/*
+ * Vice: the black goes on <html>, and <body> stays clear. The scene sits under the page (z-index: -1),
+ * which paints above the root's background but below <body>'s own. Body's background only moves down to
+ * the root while <html> has none: give <html> one (Firefox on iPhone does) and body's black covers the scene.
+ */
+:root[data-theme='vice'] {
+  background: var(--background);
+}
+
+:root[data-theme='vice'] body {
+  background: transparent;
+}
+
 a {
   color: var(--link);
 }
@@ -156,6 +169,11 @@ a {
   height: 100%;
   object-fit: cover;
   object-position: 42% 50%;
+}
+
+.scene-background img {
+  position: absolute;
+  inset: 0;
 }
 
 .scene-background canvas {
@@ -466,7 +484,7 @@ html {
   transition: opacity 0.5s;
 }
 
-/* Phones: an icon in the header's row (positioned over .content-toggle-slot by ContentToggle). */
+/* Phones: an icon in the header's row (rendered inside .content-toggle-slot by ContentToggle). */
 .content-toggle-slot {
   display: none;
 }
@@ -479,9 +497,8 @@ html {
     height: 36px;
   }
 
-  .content-toggle.content-toggle-compact:not(.content-toggle-cornered) {
-    right: auto;
-    bottom: auto;
+  .content-toggle-slot .content-toggle {
+    position: static;
   }
 
   .content-toggle.content-toggle-compact {

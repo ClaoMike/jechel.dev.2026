@@ -1141,10 +1141,19 @@ in Resend, it only reaches your own address.
 
 ## Vice on phones and on weak devices
 
-- **Phones** (≤ 640 px): Vice's hide / show button is an icon in the header, left of **Buy me a coffee**. It's pinned over an empty
-  slot there (`ContentToggle`'s `anchor`), not inside the header, because the header slides away with the page and the button must
-  stay to bring it back. While the page is hidden it waits in the bottom-right corner; when the page comes back it returns to the
-  slot once the header has landed. The neon title gets some room from the screen's edge.
+- **Phones** (≤ 640 px): Vice's hide / show button is an icon in the header, left of **Buy me a coffee**. While the page shows it's
+  rendered inside a slot there (`ContentToggle`'s `slot`, through a portal), so it scrolls and bounces with the header (an earlier
+  version measured the slot and pinned the button over it, which drifted when a phone over-scrolled past the top or bottom). The
+  header slides away with the page, so while the page is hidden the button waits in the bottom-right corner instead, keeping the
+  focus as it moves. The neon title gets some room from the screen's edge.
+- **Reduce motion** (iPhone: Settings → Accessibility → Motion; Android: Remove animations): the scene draws one still frame, on
+  purpose. Turn it off to see the scene move.
+- **When the scene can't be drawn** (`riviera.ts`, `onFail`): a picture that won't load, a texture the GPU refused (the first frame
+  is read back once, and a black one counts), or a lost WebGL context. The still picture shows instead of a black screen; a lost
+  context the browser gives back starts the scene again.
+- **The black behind the scene is on `<html>`, not `<body>`** (`glass.css`). The scene sits under the page (`z-index: -1`): above the
+  root's background, below body's. Body's background only moves to the root while `<html>` has none, and Firefox on iPhone gives
+  `<html>` one, so body's black covered the scene there. In Vice, body is transparent.
 
 **Scrolling:** each page remembers how far down it was (for this tab, `layout/useScrollMemory.ts`): a page you haven't opened
 yet starts at the top, and going back to one returns to where you were, retried while its content loads.
