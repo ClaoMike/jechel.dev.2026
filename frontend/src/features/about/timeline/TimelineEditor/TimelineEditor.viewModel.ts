@@ -19,7 +19,6 @@ export function useTimelineEditorViewModel<T>({ config, value: items, onChange: 
 
   return {
     header: {
-      note: 'Shown in this order. Move entries with the arrows, or sort them by end date.',
       sortLabel: 'Sort by end date',
       sortedMessage: 'Sorted by end date, ongoing first. Save to keep this order, or Cancel to undo.',
       canSort: value.length >= 2,

@@ -11,8 +11,8 @@ namespace Portfolio.Api.Features.Resume;
 
 /// <summary>
 /// The résumé generated from the About Me page. Generating makes two PDFs, stored until the next
-/// time: one without the phone number, which the page's "Download résumé" button serves to
-/// everyone, and one with it, for the admin only.
+/// time: one without the email and phone number, which the page's "Download résumé" button serves
+/// to everyone (so the email isn't picked up for spam), and one with them, for the admin only.
 /// </summary>
 public static class ResumeEndpoints
 {
@@ -37,7 +37,7 @@ public static class ResumeEndpoints
         return app;
     }
 
-    /// <summary>Public. The last generated résumé without the phone number; 404 before the first.</summary>
+    /// <summary>Public. The last generated résumé without the email and phone number; 404 before the first.</summary>
     /// <param name="inline">True opens it in the browser instead of downloading it.</param>
     public static async Task<Results<FileContentHttpResult, NotFound>> GetPublicPdf(PortfolioDbContext db, HttpContext http, CancellationToken cancellationToken, bool inline = false)
     {
@@ -65,7 +65,7 @@ public static class ResumeEndpoints
         return TypedResults.Ok(new ResumeHeadline(headline ?? ""));
     }
 
-    /// <summary>Admin only. The same résumé with the phone number.</summary>
+    /// <summary>Admin only. The same résumé with the email and phone number.</summary>
     public static async Task<Results<FileContentHttpResult, NotFound>> GetPrivatePdf(PortfolioDbContext db, HttpContext http, CancellationToken cancellationToken, bool inline = false)
     {
         var row = await db.ResumeSettings.AsNoTracking()
@@ -146,9 +146,9 @@ public static class ResumeEndpoints
         SetChoices(row, choices);
 
         var now = time.GetUtcNow();
-        var input = new ResumeInput(about, new ResumeContact(row.Phone, row.Email, row.Headline), choices, stats, IncludePhone: false, DateOnly.FromDateTime(now.UtcDateTime), site.Value.PublicUrl.TrimEnd('/'));
+        var input = new ResumeInput(about, new ResumeContact(row.Phone, row.Email, row.Headline), choices, stats, IncludePrivate: false, DateOnly.FromDateTime(now.UtcDateTime), site.Value.PublicUrl.TrimEnd('/'));
         row.PublicPdf = ResumeDocument.Build(input);
-        row.PrivatePdf = ResumeDocument.Build(input with { IncludePhone = true });
+        row.PrivatePdf = ResumeDocument.Build(input with { IncludePrivate = true });
         row.GeneratedAt = now;
 
         // Visitors' "Download résumé" now gets this one.

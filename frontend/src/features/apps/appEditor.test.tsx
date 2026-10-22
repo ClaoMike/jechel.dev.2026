@@ -16,7 +16,7 @@ const saved = (create: ReturnType<typeof vi.spyOn>) => (create.mock.calls[0] as 
 const stubCreate = () => vi.spyOn(api.apps, 'create').mockImplementation(async (app) => ({ ...APPS[0], ...app, categories: [], id: 99 }))
 const kindOfApp = () => dialog().getByRole('group', { name: 'Kind of app' })
 const runsOn = () => dialog().getByRole('group', { name: 'Runs on' })
-const whereToGet = () => dialog().getByRole('group', { name: 'Where to get it' })
+const whereToGet = () => dialog().getByRole('group', { name: 'Check it on…' })
 const media = () => dialog().getByRole('group', { name: 'Images and videos' })
 
 describe("the app form's categories", () => {

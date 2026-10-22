@@ -40,7 +40,6 @@ export function AppForm({ draft, categories, errors, mediaError, message, saving
       <div className="switch-field">
         <span className="switch-field-text">
           <span className="field-label">Show in What's new?</span>
-          <span className="field-hint">Off: What's new? skips it, for the next app in the order (Organise) that's on.</span>
         </span>
         <OnOffSwitch label="Show in What's new?" on={draft.showInWhatsNew} onChange={(showInWhatsNew) => change({ showInWhatsNew })} />
       </div>

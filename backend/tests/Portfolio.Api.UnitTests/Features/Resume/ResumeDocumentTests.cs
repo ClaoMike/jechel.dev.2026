@@ -28,24 +28,25 @@ public class ResumeDocumentTests
         return string.Join("\n", document.GetPages().Select(p => p.Text));
     }
 
-    private static ResumeInput Input(ResumeChoices choices, bool includePhone) =>
-        new(About, Contact, choices, new LeetCodeStats("NeetCode", new DifficultyCounts(205, 103, 98, 4), new DifficultyCounts(4000, 900, 2100, 1000), default), includePhone, Today, "https://jechel.dev");
+    private static ResumeInput Input(ResumeChoices choices, bool includePrivate) =>
+        new(About, Contact, choices, new LeetCodeStats("NeetCode", new DifficultyCounts(205, 103, 98, 4), new DifficultyCounts(4000, 900, 2100, 1000), default), includePrivate, Today, "https://jechel.dev");
 
     [Fact]
-    public void The_phone_number_is_only_in_the_private_copy()
+    public void The_email_and_phone_number_are_only_in_the_private_copy()
     {
-        var publicText = TextOf(ResumeDocument.Build(Input(Settings(), includePhone: false)));
-        var privateText = TextOf(ResumeDocument.Build(Input(Settings(), includePhone: true)));
+        var publicText = TextOf(ResumeDocument.Build(Input(Settings(), includePrivate: false)));
+        var privateText = TextOf(ResumeDocument.Build(Input(Settings(), includePrivate: true)));
 
         Assert.DoesNotContain("7700", publicText);
+        Assert.DoesNotContain("claudiu@example.com", publicText);
         Assert.Contains("7700", privateText);
-        Assert.Contains("claudiu@example.com", publicText);
+        Assert.Contains("claudiu@example.com", privateText);
     }
 
     [Fact]
     public void It_holds_the_chosen_sections_and_links_print_as_their_text()
     {
-        var text = TextOf(ResumeDocument.Build(Input(Settings(), includePhone: false)));
+        var text = TextOf(ResumeDocument.Build(Input(Settings(), includePrivate: false)));
 
         Assert.Contains(ResumeDocument.Name, text);
         Assert.Contains("Senior Engineer", text);
@@ -60,7 +61,7 @@ public class ResumeDocumentTests
     [Fact]
     public void Sections_left_out_are_not_printed()
     {
-        var text = TextOf(ResumeDocument.Build(Input(Settings(ResumeSections.Experience), includePhone: true)));
+        var text = TextOf(ResumeDocument.Build(Input(Settings(ResumeSections.Experience), includePrivate: true)));
 
         Assert.Contains("Senior Engineer", text);
         Assert.DoesNotContain("PROBLEM SOLVING", text);
@@ -83,10 +84,10 @@ public class ResumeDocumentTests
     [Fact]
     public void Links_are_named_not_spelled_out()
     {
-        var links = ResumeDocument.Links(Input(Settings(), includePhone: false)).ToList();
+        var links = ResumeDocument.Links(Input(Settings(), includePrivate: false)).ToList();
 
         Assert.Equal([("jechel.dev", "https://jechel.dev"), ("GitHub", "https://github.com/cjechel"), ("LinkedIn", "https://www.linkedin.com/in/cjechel")], links);
-        var text = TextOf(ResumeDocument.Build(Input(Settings(), includePhone: false)));
+        var text = TextOf(ResumeDocument.Build(Input(Settings(), includePrivate: false)));
         Assert.DoesNotContain("github.com", text);
     }
 
@@ -94,7 +95,7 @@ public class ResumeDocumentTests
     public void Only_the_first_page_has_the_header()
     {
         var experience = Enumerable.Range(1, 30).Select(i => new ExperienceItem($"Role {i}", "Company", "", new DateOnly(2000 + i % 20, 1, 1), null, ["Did a lot of things.", "Did more things."])).ToList();
-        var input = Input(Settings(), includePhone: true) with { About = About with { Experience = experience } };
+        var input = Input(Settings(), includePrivate: true) with { About = About with { Experience = experience } };
 
         using var document = PdfDocument.Open(ResumeDocument.Build(input));
         var pages = document.GetPages().Select(p => p.Text).ToList();
@@ -119,7 +120,7 @@ public class ResumeDocumentTests
     [Fact]
     public void Without_a_headline_email_or_phone_the_header_is_just_the_name_and_links()
     {
-        var input = Input(Settings(ResumeSections.Links), includePhone: true) with { Contact = new ResumeContact("", "", "") };
+        var input = Input(Settings(ResumeSections.Links), includePrivate: true) with { Contact = new ResumeContact("", "", "") };
 
         var text = TextOf(ResumeDocument.Build(input));
 
@@ -132,7 +133,7 @@ public class ResumeDocumentTests
     [Fact]
     public void Placeholder_profile_links_are_left_out()
     {
-        var input = Input(Settings(), includePhone: false) with { About = About with { Links = AboutDefaults.Content.Links } };
+        var input = Input(Settings(), includePrivate: false) with { About = About with { Links = AboutDefaults.Content.Links } };
 
         Assert.Equal([("jechel.dev", "https://jechel.dev")], ResumeDocument.Links(input));
         Assert.Equal([("example.org", "https://www.example.org")], ResumeDocument.Links(input with { SiteUrl = "https://www.example.org" }));
@@ -151,7 +152,7 @@ public class ResumeDocumentTests
         Assert.Null(ResumeDocument.ProblemSolvingLine(new ProblemSolving("", []), null));
         Assert.Equal("NeetCode lists completed: Blind 75, NeetCode 150", ResumeDocument.ProblemSolvingLine(new ProblemSolving("", [NeetCodeListIds.Blind75, NeetCodeListIds.NeetCode150]), null));
 
-        var text = TextOf(ResumeDocument.Build(Input(Settings(ResumeSections.ProblemSolving), includePhone: false) with { About = About with { ProblemSolving = new ProblemSolving("", []) }, LeetCode = null }));
+        var text = TextOf(ResumeDocument.Build(Input(Settings(ResumeSections.ProblemSolving), includePrivate: false) with { About = About with { ProblemSolving = new ProblemSolving("", []) }, LeetCode = null }));
         Assert.DoesNotContain("PROBLEM SOLVING", text);
     }
 
@@ -160,7 +161,7 @@ public class ResumeDocumentTests
     {
         var empty = About with { Experience = [], Education = [], Papers = [], Hackathons = [], Qualifications = [], Languages = [], Licences = [], Places = [], Skills = [] };
 
-        var text = TextOf(ResumeDocument.Build(Input(Settings(), includePhone: false) with { About = empty, LeetCode = null }));
+        var text = TextOf(ResumeDocument.Build(Input(Settings(), includePrivate: false) with { About = empty, LeetCode = null }));
 
         foreach (var heading in new[] { "EXPERIENCE", "SKILLS", "EDUCATION", "PUBLICATIONS", "HACKATHONS", "LANGUAGES", "LICENCES", "PLACES", "QUALIFICATIONS" })
         {
@@ -171,7 +172,7 @@ public class ResumeDocumentTests
     [Fact]
     public void Every_section_is_printed_in_order_when_chosen()
     {
-        var text = TextOf(ResumeDocument.Build(Input(Settings(), includePhone: false)));
+        var text = TextOf(ResumeDocument.Build(Input(Settings(), includePrivate: false)));
 
         var headings = new[] { "EXPERIENCE", "SKILLS", "EDUCATION", "QUALIFICATIONS", "PUBLICATIONS", "HACKATHONS", "PROBLEM SOLVING", "LANGUAGES", "LICENCES", "PLACES" };
         var positions = headings.Select(h => text.IndexOf(h, StringComparison.Ordinal)).ToList();
@@ -188,7 +189,7 @@ public class ResumeDocumentTests
     [Fact]
     public void A_paper_with_its_file_links_to_it_on_the_site_and_one_without_is_plain()
     {
-        var input = Input(Settings(), includePhone: false) with
+        var input = Input(Settings(), includePrivate: false) with
         {
             About = About with { Papers = [new Paper("Lighthouse beams", "/api/files/0b9e3c1a-6f5d-4b8e-9a1c-2d3e4f5a6b7c/beams.pdf"), new Paper("Unpublished", "")] },
         };
@@ -203,7 +204,7 @@ public class ResumeDocumentTests
     [Fact]
     public void A_link_in_text_that_isnt_safe_shows_as_plain_words()
     {
-        var input = Input(Settings(), includePhone: false) with
+        var input = Input(Settings(), includePrivate: false) with
         {
             About = About with { Experience = [new ExperienceItem("Engineer", "Acme", "", new DateOnly(2023, 1, 1), null, ["Built [the tool](javascript:alert(1)) and [the site](/apps)."])] },
         };
@@ -218,7 +219,7 @@ public class ResumeDocumentTests
     [Fact]
     public void Choices_without_a_skills_list_hide_none_and_a_www_site_is_named_without_it()
     {
-        var input = Input(new ResumeChoices(ResumeSections.All, null!), includePhone: false) with { SiteUrl = "https://www.jechel.dev" };
+        var input = Input(new ResumeChoices(ResumeSections.All, null!), includePrivate: false) with { SiteUrl = "https://www.jechel.dev" };
 
         Assert.NotEmpty(ResumeDocument.Build(input));
         Assert.Equal("jechel.dev", ResumeDocument.Links(input).First().Label);

@@ -164,7 +164,7 @@ public class ResumeEndpointsTests
     }
 
     [Fact]
-    public async Task Generating_makes_a_public_copy_without_the_phone_and_a_private_one_with_it()
+    public async Task Generating_makes_a_public_copy_without_the_email_and_phone_and_a_private_one_with_them()
     {
         await SaveContactAsync(Phone, "me@example.com", "Full-stack engineer");
 
@@ -179,9 +179,11 @@ public class ResumeEndpointsTests
         Assert.Equal("application/pdf", publicPdf.ContentType);
         var publicText = TextOf(publicPdf.FileContents.ToArray());
         Assert.Contains("Full-stack engineer", publicText);
-        Assert.Contains("me@example.com", publicText);
+        Assert.DoesNotContain("me@example.com", publicText);
         Assert.DoesNotContain("7700", publicText);
-        Assert.Contains("7700", TextOf(privatePdf.FileContents.ToArray()));
+        var privateText = TextOf(privatePdf.FileContents.ToArray());
+        Assert.Contains("me@example.com", privateText);
+        Assert.Contains("7700", privateText);
         Assert.Equal(_time.GetUtcNow(), publicPdf.LastModified);
 
         Assert.Equal("public, max-age=300", publicHttp.Response.Headers.CacheControl.ToString());
