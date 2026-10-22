@@ -13,8 +13,8 @@ public static class SiteParts
 {
     public static readonly IReadOnlyList<string> Pages = ["whatsNew", "apps", "youtube", "about", "contact"];
 
-    /// <param>meetings: "Book a meeting" (Contact); coffee: "Buy me a coffee" (header); updates: "Get updates" (header).</param>
-    public static readonly IReadOnlyList<string> Features = ["meetings", "coffee", "updates"];
+    /// <param>coffee: "Buy me a coffee" (header); updates: "Get updates" (header). Meetings are by invitation only: no switch.</param>
+    public static readonly IReadOnlyList<string> Features = ["coffee", "updates"];
 }
 
 /// <summary>What visitors see, as the API answers it: every page and feature, each on or off.</summary>

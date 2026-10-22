@@ -84,7 +84,7 @@ function Connections() {
         <ServiceCard
           title="Cal.com (meetings)"
           status={status('Cal:Link', 'Cal:ApiKey', 'Cal:WebhookSecret')}
-          what="Book a meeting on the Contact page, the calendar above your messages, accepting or declining requests (here or from your phone), and the reminders."
+          what="By invitation: Add booking link in your answers, the calendar above your messages, accepting or declining requests (here or from your phone), and the reminders."
           links={[
             ['Event types', 'https://app.cal.com/event-types'],
             ['Webhooks', 'https://app.cal.com/settings/developer/webhooks'],
@@ -94,8 +94,8 @@ function Connections() {
         >
           <Steps>
             <li>
-              In <strong>Event types</strong>, make one (e.g. 30 minutes), set your availability, and under <strong>Advanced</strong> turn on <strong>Requires confirmation</strong>
-              , so you accept each request. Paste its link below.
+              In <strong>Event types</strong>, make one (e.g. 30 minutes), set your availability, turn on <strong>Hidden</strong> (only people you send the link can book), and
+              under <strong>Advanced</strong> turn on <strong>Requires confirmation</strong>, so you accept each request. Paste its link below.
             </li>
             <li>
               In <strong>Webhooks</strong>, add this link, with a secret of your choice, for Booking requested, created, rescheduled, cancelled and rejected:

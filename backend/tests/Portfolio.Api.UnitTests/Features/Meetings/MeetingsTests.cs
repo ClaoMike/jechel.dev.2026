@@ -48,6 +48,17 @@ public class MeetingsTests
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
         .Options);
 
+    public MeetingsTests()
+    {
+        // Ada wrote first, and was sent the booking link: an invited guest.
+        _db.ContactMessages.Add(new ContactMessage { Name = "Ada", Email = "Ada@Example.com", Message = new string('m', 100), ReceivedAt = Now, LastActivityAt = Now });
+        _db.SaveChanges();
+    }
+
+    private static string Stranger(string trigger, string uid = "s1") =>
+        "{\"triggerEvent\":\"" + trigger + "\",\"payload\":{\"uid\":\"" + uid + "\",\"title\":\"30 min\",\"startTime\":\"2026-10-22T14:00:00Z\",\"endTime\":\"2026-10-22T14:30:00Z\","
+        + "\"attendees\":[{\"name\":\"Mallory\",\"email\":\"mallory@example.com\"}]}}";
+
     private static string Booking(string trigger, string uid = "b1", string start = "2026-10-22T14:00:00Z", string? extra = null) =>
         "{\"triggerEvent\":\"" + trigger + "\",\"createdAt\":\"2026-10-20T09:00:00Z\",\"payload\":{\"uid\":\"" + uid + "\",\"title\":\"30 min with Ada\",\"startTime\":\"" + start
         + "\",\"endTime\":\"2026-10-22T14:30:00Z\",\"attendees\":[{\"name\":\"Ada\",\"email\":\"ada@example.com\",\"timeZone\":\"Europe/London\"}],"
@@ -398,6 +409,58 @@ public class MeetingsTests
         var september = (await MeetingsEndpoints.ListMeetings(_db, _time, default, Now.AddDays(-35), Now.AddDays(-5))).Value!;
         Assert.Equal(["long ago"], september.Select(m => m.Title));
     }
+
+    // ---------- By invitation ----------
+
+    [Fact]
+    public async Task A_request_from_someone_who_never_wrote_says_so_on_the_phone()
+    {
+        await Webhook(Stranger("BOOKING_REQUESTED"));
+
+        var alert = _alerts.Sent.Single();
+        Assert.Equal("Meeting request: Mallory", alert.Title);
+        Assert.StartsWith($"{MeetingsEndpoints.NotFromConversation}\nThu 22 Oct, 15:00 (Europe/London)", alert.Message);
+        // Still decidable from the phone: declining it is one tap.
+        Assert.Equal(["Accept", "Decline"], alert.Actions!.Select(a => a.Label));
+    }
+
+    [Fact]
+    public async Task An_invited_guest_s_request_has_no_such_note()
+    {
+        await Webhook(Booking("BOOKING_REQUESTED"));
+
+        Assert.DoesNotContain(MeetingsEndpoints.NotFromConversation, _alerts.Sent.Single().Message);
+    }
+
+    [Fact]
+    public async Task A_stranger_booking_without_confirmation_is_marked_but_their_later_changes_aren_t()
+    {
+        await Webhook(Stranger("BOOKING_CREATED"));
+        await Webhook(Stranger("BOOKING_CANCELLED"));
+
+        Assert.Equal(["Meeting booked: Mallory", "Meeting cancelled: Mallory"], _alerts.Sent.Select(a => a.Title));
+        Assert.StartsWith(MeetingsEndpoints.NotFromConversation, _alerts.Sent[0].Message);
+        Assert.DoesNotContain(MeetingsEndpoints.NotFromConversation, _alerts.Sent[1].Message);
+    }
+
+    [Fact]
+    public async Task The_calendar_tells_invited_guests_from_strangers()
+    {
+        await Webhook(Booking("BOOKING_REQUESTED"));
+        await Webhook(Stranger("BOOKING_REQUESTED"));
+
+        var meetings = (await MeetingsEndpoints.ListMeetings(_db, _time, default)).Value!;
+
+        Assert.Equal([("Ada", true), ("Mallory", false)], meetings.Select(m => (m.AttendeeName, m.FromConversation)).OrderBy(m => m.AttendeeName));
+    }
+
+    [Theory]
+    [InlineData("claomike/30min", "https://cal.com/claomike/30min")]
+    [InlineData("https://cal.com/claomike/30min", "https://cal.com/claomike/30min")]
+    [InlineData("", "")]
+    [InlineData("https://evil.example/x", "")]
+    public void The_admin_gets_the_booking_link_to_send(string link, string expected) =>
+        Assert.Equal(expected, MeetingsEndpoints.GetInfo(TestOptions.Monitor(new CalOptions { Link = link })).Value!.BookingUrl);
 
     [Theory]
     [InlineData("claomike/30min", "claomike/30min")]

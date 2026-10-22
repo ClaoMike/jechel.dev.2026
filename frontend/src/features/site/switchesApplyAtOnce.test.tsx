@@ -4,16 +4,15 @@ import { api, type SiteStatus } from '../../services/api'
 import { stubApi } from '../../test/api'
 import { SITE, SUPPORT_URL } from '../../test/fixtures/site'
 import { settings } from '../../test/fixtures/settings'
-import { ADMIN, renderApp, renderView } from '../../test/render'
+import { ADMIN, renderApp } from '../../test/render'
 import { makeStore } from '../../store'
 import { communityApi } from '../../store/api/communityApi'
 import { meetingsApi } from '../../store/api/meetingsApi'
 import { settingsApi } from '../../store/api/settingsApi'
 import { saveSite } from '../../store/siteSlice'
-import { useVisitorContactViewModel } from '../meetings/VisitorContact/VisitorContact.viewModel'
 
-// Switching Buy me a coffee or Book a meeting in Settings shows on the site at once: no reload. (They
-// ask the API where they lead, and that answer was kept until the page was loaded again.)
+// Switching Buy me a coffee in Settings shows on the site at once: no reload. (It asks the API where it
+// leads, and that answer was kept until the page was loaded again.) The admin's booking link, too, when it's saved.
 
 const coffee = () => page.getByRole('link', { name: 'Buy me a coffee (opens in a new tab)' })
 const toggle = (name: string) => page.getByRole('switch', { name })
@@ -80,29 +79,31 @@ describe('Settings → Visitor pages, applied at once', () => {
 describe('what asks the API again, in the store', () => {
   const watch = (store: ReturnType<typeof makeStore>) => {
     const coffee = store.dispatch(communityApi.endpoints.getSupport.initiate())
-    const meetings = store.dispatch(meetingsApi.endpoints.getMeetingsLink.initiate())
+    const meetings = store.dispatch(meetingsApi.endpoints.getBookingLink.initiate())
     return () => {
       coffee.unsubscribe()
       meetings.unsubscribe()
     }
   }
 
-  it('asks again where Buy me a coffee and Book a meeting lead after any switch is saved', async () => {
+  it('asks again where Buy me a coffee leads after any switch is saved, but not for the booking link', async () => {
     const stubs = stubApi()
-    const meetings = vi.spyOn(api.meetings, 'info').mockResolvedValue('claudiu/30min')
+    const meetings = vi.spyOn(api.meetings, 'info').mockResolvedValue('https://cal.com/claudiu/30min')
     vi.spyOn(api.site, 'save').mockResolvedValue(structuredClone(SITE))
     const store = makeStore()
     const stop = watch(store)
     await expect.poll(() => [stubs.support.get.mock.calls.length, meetings.mock.calls.length]).toEqual([1, 1])
 
-    await store.dispatch(saveSite({ features: { meetings: false } }))
-    await expect.poll(() => [stubs.support.get.mock.calls.length, meetings.mock.calls.length]).toEqual([2, 2])
+    await store.dispatch(saveSite({ features: { coffee: false } }))
+    await expect.poll(() => stubs.support.get.mock.calls.length).toBe(2)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(meetings.mock.calls.length).toBe(1)
     stop()
   })
 
   it('asks again for the one whose link was saved in Settings, and for neither after another setting', async () => {
     const stubs = stubApi()
-    const meetings = vi.spyOn(api.meetings, 'info').mockResolvedValue('claudiu/30min')
+    const meetings = vi.spyOn(api.meetings, 'info').mockResolvedValue('https://cal.com/claudiu/30min')
     vi.spyOn(api.settings, 'save').mockResolvedValue(settings())
     const store = makeStore()
     const stop = watch(store)
@@ -116,24 +117,5 @@ describe('what asks the API again, in the store', () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect([stubs.support.get.mock.calls.length, meetings.mock.calls.length]).toEqual([2, 2])
     stop()
-  })
-})
-
-describe('Book a meeting on the Contact page', () => {
-  function Booking() {
-    const vm = useVisitorContactViewModel()
-    return <p>{vm.calLink ? `Booking: ${vm.calLink}` : 'Message only'}</p>
-  }
-
-  it('goes the moment the switch is off, without waiting for the API', async () => {
-    stubApi()
-    vi.spyOn(api.meetings, 'info').mockResolvedValue('claudiu/30min')
-    const save = vi.spyOn(api.site, 'save').mockResolvedValue({ ...structuredClone(SITE), features: { ...SITE.features, meetings: false } })
-    const { store } = await renderView(<Booking />, { site: structuredClone(SITE) })
-    await expect.element(page.getByText('Booking: claudiu/30min')).toBeVisible()
-
-    await store.dispatch(saveSite({ features: { meetings: false } }))
-    await expect.element(page.getByText('Message only')).toBeVisible()
-    expect(save).toHaveBeenCalledOnce()
   })
 })

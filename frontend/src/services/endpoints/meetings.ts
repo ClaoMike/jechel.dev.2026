@@ -1,4 +1,4 @@
-/** Meetings booked with Cal.com: the booking link, and the admin's calendar. */
+/** Meetings booked with Cal.com, by invitation: the admin's booking link, and calendar. */
 
 import { get, post } from '../http'
 
@@ -17,6 +17,8 @@ export interface Meeting {
   attendeeTimeZone: string | null
   notes: string | null
   status: MeetingStatus
+  /** Booked by someone who has written to the site (a conversation with their address); false for a stranger who found the link. */
+  fromConversation?: boolean
 }
 
 export interface MeetingDecision {
@@ -26,10 +28,10 @@ export interface MeetingDecision {
 }
 
 export const meetingsEndpoints = {
-  /** Public. The Cal.com booking page ("username/event"), or "" when meetings aren't offered. */
+  /** Admin only. The booking page to send in an answer ("https://cal.com/you/30min"), or "" when none is set. */
   async info(signal?: AbortSignal): Promise<string> {
-    const { calLink } = await get<{ calLink: string }>('/api/meetings/info', { signal })
-    return calLink
+    const { bookingUrl } = await get<{ bookingUrl: string }>('/api/meetings/info', { signal })
+    return bookingUrl
   },
 
   /** Admin only. Meetings overlapping [from, to), soonest first. */

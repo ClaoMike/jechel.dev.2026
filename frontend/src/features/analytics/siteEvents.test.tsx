@@ -9,7 +9,6 @@ import sunset from '../../test/fixtures/tile-sunset.svg?url'
 import { MediaCarousel } from '../apps/MediaCarousel/MediaCarousel'
 import { WorldMap } from '../about/places/WorldMap/WorldMap'
 import { ContactForm } from '../contact/ContactForm/ContactForm'
-import { useVisitorContactViewModel } from '../meetings/VisitorContact/VisitorContact.viewModel'
 import { SubscribeDialog } from '../updates/SubscribeDialog/SubscribeDialog'
 import { tracker } from './tracker'
 
@@ -28,7 +27,10 @@ describe('getting updates', () => {
   const subscribe = async (email = 'reader@example.com', open = true) => {
     if (open) await renderView(<SubscribeDialog onClose={() => {}} />)
     await page.getByRole('textbox', { name: 'Email' }).fill(email)
-    await page.getByRole('dialog').getByRole('button', { name: /Subscribe/ }).click()
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /Subscribe/ })
+      .click()
   }
 
   it('says whether the visitor subscribed, or already had', async () => {
@@ -82,7 +84,9 @@ describe('the contact form', () => {
   const fill = async () => {
     await page.getByRole('textbox', { name: 'Name' }).fill('Ada')
     await page.getByRole('textbox', { name: 'Email' }).fill('ada@example.com')
-    await page.getByRole('textbox', { name: 'Message' }).fill('Hello, I would like to talk about your apps and how you built the slider on the Apps page. Could we book a call next week, please?')
+    await page
+      .getByRole('textbox', { name: 'Message' })
+      .fill('Hello, I would like to talk about your apps and how you built the slider on the Apps page. Could we book a call next week, please?')
   }
 
   it('reports which fields stopped the visitor, then the message sent', async () => {
@@ -106,25 +110,6 @@ describe('the contact form', () => {
     await page.getByRole('button', { name: 'Send message' }).click()
     await expect.poll(lastReport).toEqual(['Message not sent', { reason: 'invalid email' }])
     expect(JSON.stringify(reported.mock.calls)).not.toMatch(/Hello|ada@/)
-  })
-})
-
-describe('booking a meeting', () => {
-  function Booking() {
-    const vm = useVisitorContactViewModel()
-    return (
-      <button type="button" onClick={vm.markBooked}>
-        {vm.booked ? 'Booked' : 'Book'}
-      </button>
-    )
-  }
-
-  it('reports a meeting booked through the calendar', async () => {
-    stubApi()
-    await renderView(<Booking />)
-    await page.getByRole('button', { name: 'Book' }).click()
-    await expect.element(page.getByRole('button', { name: 'Booked' })).toBeVisible()
-    expect(names()).toEqual(['Meeting booked'])
   })
 })
 
@@ -186,7 +171,8 @@ describe('the map', () => {
     await renderMap()
     const map = svg()
     const box = map.getBoundingClientRect()
-    for (let i = 0; i < 5; i++) map.dispatchEvent(new WheelEvent('wheel', { deltaY: -40, ctrlKey: true, clientX: box.left + 50, clientY: box.top + 50, bubbles: true, cancelable: true }))
+    for (let i = 0; i < 5; i++)
+      map.dispatchEvent(new WheelEvent('wheel', { deltaY: -40, ctrlKey: true, clientX: box.left + 50, clientY: box.top + 50, bubbles: true, cancelable: true }))
     expect(gestures()).toEqual([])
     await expect.poll(gestures, { timeout: 2000 }).toEqual(['Zoomed the map'])
     expect(lastReport()[1]).toEqual({ how: 'scroll' })
@@ -199,7 +185,8 @@ describe('the map', () => {
     // Made-up pointers can't be captured; a real one is.
     map.setPointerCapture = () => {}
     const box = map.getBoundingClientRect()
-    const at = (x: number, type: string) => map.dispatchEvent(new PointerEvent(type, { pointerId: 7, clientX: box.left + x, clientY: box.top + 60, bubbles: true, pointerType: 'mouse' }))
+    const at = (x: number, type: string) =>
+      map.dispatchEvent(new PointerEvent(type, { pointerId: 7, clientX: box.left + x, clientY: box.top + 60, bubbles: true, pointerType: 'mouse' }))
     at(100, 'pointerdown')
     at(140, 'pointermove')
     at(200, 'pointermove')

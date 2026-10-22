@@ -29,9 +29,9 @@ startListening({
 
 startListening({ actionCreator: slowSceneSwitched, effect: ({ payload }) => showTheme(payload) })
 
-// The header's Buy me a coffee and the Contact page's Book a meeting ask the API whether they're offered (and
-// where they lead): switching them in Settings, or saving their link there, asks again at once, no reload.
-startListening({ actionCreator: saveSite.fulfilled, effect: (_, { dispatch }) => void dispatch(baseApi.util.invalidateTags(['Support', 'MeetingsLink'])) })
+// The header's Buy me a coffee asks the API whether it's offered (and where it leads): switching it in Settings, or
+// saving its link there, asks again at once, no reload. Saving the Cal.com page asks again for the admin's booking link.
+startListening({ actionCreator: saveSite.fulfilled, effect: (_, { dispatch }) => void dispatch(baseApi.util.invalidateTags(['Support'])) })
 
 startListening({
   matcher: settingsApi.endpoints.saveSetting.matchFulfilled,

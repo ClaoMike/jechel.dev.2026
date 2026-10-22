@@ -145,7 +145,7 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | PUT    | `/api/resume/contact`       | cookie  | `{ phone, email, headline }` (edited with About Me's profile): **200**, or **400** with field errors |
 | PUT    | `/api/resume/choices`       | cookie  | `{ sections, excludedSkills }` without generating: **200**, or **400** |
 | POST   | `/api/resume/generate`      | cookie  | `{ sections, excludedSkills }`: saves them, makes both PDFs, and points About Me's résumé link at the public one: **200**, or **400** |
-| GET    | `/api/meetings/info`        | public  | `{ calLink }`: the Cal.com booking page ("user/event") for **Book a meeting**, or `""` |
+| GET    | `/api/meetings/info`        | cookie  | `{ bookingUrl }`: the Cal.com booking page to send in an answer (**Add booking link**), or `""` |
 | POST   | `/api/meetings/cal`         | signature | Cal.com's webhook (HMAC-SHA256 of the body, hex, in `x-cal-signature-256`): keeps bookings up to date, alerts the phone. **401** bad signature, **503** until the secret is set |
 | GET    | `/api/meetings?from=&to=`   | cookie  | Meetings overlapping the range (a calendar month), soonest first |
 | POST   | `/api/meetings/{id}/accept` | cookie or token | `{ message? }`: confirms a requested meeting with Cal.com and emails the message: **200** `{ status, emailSent }`, **502** when Cal.com refuses |
@@ -209,7 +209,7 @@ The site records how it's used itself: no third parties, no cookies. The admin r
 
 **Recording** (`src/features/analytics/tracker.ts`, mounted by `<AnalyticsTracker>` in `App/App.tsx`):
 
-- **What:** pages opened (with the query); clicks on buttons, links and fields (the label the visitor saw, plus a link's address; **never what was typed**), and clicks into embedded players (YouTube, the Cal.com calendar: the window loses focus to the frame); fields changed (`change`: a list's option, a slider's value, how many files; a text field only that it was edited); forms sent (`submit`, with Enter or a button); Escape; copying text (not what); videos played, paused and finished; how far down each page was read (`scroll`, in quarters, recorded on leaving the page); the tab hidden and back (`tab`); leaving (`leave`); the site's own events (`trackEvent`: Terms accepted, Message sent / not sent and why, Contact form invalid with the field names, Subscribed / again / failed and why, Subscription confirmed, Unsubscribed, Meeting booked, Support clicked, Swiped to another slide, Moved to another slide with the keyboard, Zoomed / Moved the map, Looked at a place on the map, Theme changed); and every **error**: script errors with file, line and stack, unhandled promise rejections, React crashes with the component stack (`createRoot` callbacks in `main.tsx`), requests that fail with 5xx or no answer (`onRequestFailed` in `api.ts`; 4xx answers are expected and skipped), and images or files that didn't load.
+- **What:** pages opened (with the query); clicks on buttons, links and fields (the label the visitor saw, plus a link's address; **never what was typed**), and clicks into embedded players (YouTube: the window loses focus to the frame); fields changed (`change`: a list's option, a slider's value, how many files; a text field only that it was edited); forms sent (`submit`, with Enter or a button); Escape; copying text (not what); videos played, paused and finished; how far down each page was read (`scroll`, in quarters, recorded on leaving the page); the tab hidden and back (`tab`); leaving (`leave`); the site's own events (`trackEvent`: Terms accepted, Message sent / not sent and why, Contact form invalid with the field names, Subscribed / again / failed and why, Subscription confirmed, Unsubscribed, Support clicked, Swiped to another slide, Moved to another slide with the keyboard, Zoomed / Moved the map, Looked at a place on the map, Theme changed); and every **error**: script errors with file, line and stack, unhandled promise rejections, React crashes with the component stack (`createRoot` callbacks in `main.tsx`), requests that fail with 5xx or no answer (`onRequestFailed` in `api.ts`; 4xx answers are expected and skipped), and images or files that didn't load.
 - **A visit** is a browser tab: a random id in `sessionStorage`, so it survives reloads and ends with the tab. It starts with the page, the referring site (host and path; no query), `utm_*` tags, language, time zone, screen and window size, and theme.
 - **Theme:** a visit keeps the theme it started in (Vice for first-time visitors, their earlier choice for those coming back) and the one it ended in: every batch says the theme on show, and the last is sent as the tab closes. Each switch is a `Theme changed` event with `from` and `to`.
 - **Who isn't recorded:** visitors who haven't accepted the terms (the tracker is off: nothing is kept for later; once they accept, the visit starts with the page on show and `Terms accepted`), the signed-in admin (the tracker waits for the sign-in check, and the API ignores requests with the admin cookie), and bots and headless browsers (by User-Agent, which includes the Playwright runs).
@@ -226,8 +226,8 @@ The site records how it's used itself: no third parties, no cookies. The admin r
        ▼
  tracker ON ◄── <AnalyticsTracker>: pages opened, theme switches, signed-in? (admin ⇒ OFF)
    │ listens: click · change · submit · Escape · copy · play/pause/ended · scroll depth
-   │          · tab hidden/back · leave · frame focus (YouTube, Cal.com) · errors · failed requests
-   │ trackEvent(): Message sent · Subscribed · Meeting booked · Swiped · Zoomed the map · …
+   │          · tab hidden/back · leave · frame focus (YouTube) · errors · failed requests
+   │ trackEvent(): Message sent · Subscribed · Swiped · Zoomed the map · …
    ▼
  queue ──every 5 s──► POST /api/analytics/events ──► Collect: skip admin & bots, dedupe by seq,
    └──tab hidden/closed──► sendBeacon (15 a piece)       date by age, hash IP+UA (daily salt),
@@ -328,7 +328,7 @@ end, the browser (User-Agent), IP address and country.
   (`data_protection_keys`), and encrypted there with AES-256-GCM when `DataProtection:KeyEncryptionKey` is set (production;
   `KeyRingEncryption.cs`). Locally they're stored as they are.
 - **Headers**: the site's pages (`frontend/public/_headers`, Cloudflare Pages) get a Content-Security-Policy (only the site's own
-  scripts and Cal.com's embed run; only YouTube and Cal.com can be framed; the site can't be framed), HSTS, a Permissions-Policy
+  scripts run; only YouTube can be framed; the site can't be framed), HSTS, a Permissions-Policy
   (no camera, microphone or location), `nosniff` and a Referrer-Policy. The API's own responses get `nosniff`,
   `X-Frame-Options: DENY` and the Referrer-Policy.
 - `returnUrl` must be a local path (`/...`); anything else falls back to `/` (no open redirects).
@@ -1006,14 +1006,14 @@ callback), and a test button: Buy Me a Coffee, Cal.com, Google sign-in, ntfy, Re
  Settings                                   Store (RTK Query)                          On the site
  ────────                                   ─────────────────                          ───────────
  Visitor pages: a switch ──► PUT /api/site ──► site state ──────────────────────────► tabs, Get updates (at once)
-                                     │         saveSite fulfilled ─► Support, MeetingsLink stale
+                                     │         saveSite fulfilled ─► Support stale
                                      │                                   │ asked again (once nothing else is in flight)
                                      ▼                                   ▼
-                       Buy me a coffee / Book a meeting: off ─► gone at once (they read the switch too)
-                                                         on  ─► GET /api/support, /api/meetings/info ─► back, with the link
+                       Buy me a coffee: off ─► gone at once (it reads the switch too)
+                                        on  ─► GET /api/support ─► back, with the link
  Connections: a key or link ──► PUT /api/settings/{key} ──► Settings answer kept
                                      │  Support:* saved ─► Support stale ─► the header's coffee link
-                                     │  Cal:* saved     ─► MeetingsLink stale ─► Book a meeting's link
+                                     │  Cal:* saved     ─► MeetingsLink stale ─► the reply box's booking link
                                      ▼
                        the API applies it at once (SettingsStore ─► IOptionsMonitor)
 ```
@@ -1030,14 +1030,13 @@ callback), and a test button: Buy Me a Coffee, Cal.com, Google sign-in, ntfy, Re
 ## Visitor pages and maintenance
 
 **Settings → Visitor pages** (above the connections) switches each visitor page (What's new, Apps, YouTube, About Me, Contact)
-and each feature that needs setting up once live (Book a meeting, Buy me a coffee, Get updates) on or off. **Everything starts
+and each feature that needs setting up once live (Buy me a coffee, Get updates) on or off. **Everything starts
 off**, so going live shows nothing half-finished: switch each part on once it's ready. (The E2E tests and the integration tests
 start with everything on: `Site:PagesVisibleByDefault`.)
 
 - A page that's off is gone from visitors' tabs, and its link leads to the first page that's on, or **Coming soon** when none is.
   You always see every page; hidden ones have an eye-off mark in the tabs.
-- A feature that's off is off for everyone: its button goes, and the API agrees (`/api/meetings/info` and `/api/support` answer
-  `""`, subscribing answers 404). The page data APIs stay public: hiding a page is about what's ready, not about secrecy.
+- A feature that's off is off for everyone: its button goes, and the API agrees (`/api/support` answers `""`, subscribing answers 404). The page data APIs stay public: hiding a page is about what's ready, not about secrecy.
 - **Under maintenance** (with an optional message) gives visitors the maintenance card in the site's usual frame (the name, the
   theme switch, Vice's scene), without the tabs, the pages, the footer or the header's other buttons; you still see
   everything, with a reminder in the admin bar. Signing in (`/admin`) and the links in emails (`/updates/confirm`,
@@ -1085,11 +1084,29 @@ State lives in the `site_state` table (one row) and is read through `SiteEndpoin
   `redis` service in docker-compose (port 6380, in memory only, 128 MB, least-recently-used out first). Without Redis the API just
   caches in memory. The first value cached this way is `/api/site`; the older in-memory cache (LeetCode) can move to it; YouTube's list has its own store with a database copy.
 
-## Meetings (Cal.com) and replies
+## Meetings (Cal.com), by invitation, and replies
 
-**Visitors** choose between **Send a message** and **Book a meeting** on the Contact page (the second once a Cal.com page is
-set in Settings). Booking shows Cal.com's own calendar inline (`features/meetings/CalBooking/CalBooking.tsx`, Cal.com's embed script from
-`app.cal.com`), so they see when you're free and pick a slot.
+**Meetings are by invitation only.** Visitors get the contact form alone: no booking page on the site, and the Cal.com event type is
+**Hidden**, so it isn't on your public Cal.com profile either. When a conversation is worth a call, press **Add booking link** in the
+reply box (shown once a Cal.com page is set in Settings): it adds the link (`/api/meetings/info`, admin only) under what you wrote,
+and it goes in your answer, from hello@. A request from an address with no conversation (the link was passed on, or found) is
+marked **Not from a conversation**: in the calendar, and first in the phone alert (also on a booking that needed no confirmation),
+so it's quick to decline.
+
+```mermaid
+flowchart LR
+  visitor["Visitor"] -- "contact form or email" --> inbox["Contact inbox<br/>(a conversation)"]
+  inbox -- "worth a call: Add booking link" --> answer["Your answer, from hello@<br/>with https://cal.com/you/30min"]
+  answer --> cal["Cal.com (hidden event type)<br/>Requires confirmation"]
+  cal -- "webhook: request" --> api["/api/meetings/cal"]
+  api --> known{"Their address has<br/>a conversation?"}
+  known -- yes --> invited["📱 Meeting request: Ada<br/>calendar: amber"]
+  known -- "no (link passed on)" --> stranger["📱 Not from a conversation<br/>calendar: red chip"]
+  invited --> decide["Accept / Decline<br/>(calendar or phone)"]
+  stranger --> decide
+  decide -- "Cal.com API" --> cal
+  decide -- "your message, from hello@" --> visitor
+```
 
 **You decide:** with **Requires confirmation** on the Cal.com event type, a booking is a *request*:
 - your phone gets **Meeting request: Grace** with **Accept** / **Decline** buttons (a one-time token in their links)
@@ -1112,7 +1129,9 @@ message; their answer comes back into the same thread (see [Conversations](#conv
 in Resend, it only reaches your own address.
 
 **Setting up Cal.com** (Settings → Cal.com has the links and the URL to paste):
-1. An event type (e.g. 30 minutes) with your availability, and **Advanced → Requires confirmation** on. Its link goes in Settings.
+1. An event type (e.g. 30 minutes) with your availability, **Hidden** on (only people you send the link can book), and
+   **Advanced → Requires confirmation** on. Its link goes in Settings. Also worth setting there: booker email verification,
+   booking limits (e.g. 2 a week), a minimum notice and how far ahead people can book.
 2. Connect your calendar in Cal.com (Google, Outlook…) so busy times are blocked and accepted meetings land in it.
 3. **Settings → Developer → Webhooks:** `https://<your-domain>/api/meetings/cal`, a secret (also in Settings), and the booking
    events: requested, created, rescheduled, cancelled, rejected. Cal.com can't reach `localhost`, so this needs the site online.
@@ -1251,7 +1270,7 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Updates:SubscribeLimitPer10Minutes` | Subscribe attempts per IP per 10 minutes (default 5) |
 | `Alerts:NtfyTopic`            | The ntfy topic phone alerts go to (secret). Empty: alerts are written to the log |
 | `Alerts:NtfyToken` / `Alerts:NtfyServer` | Optional ntfy access token, and server (default `https://ntfy.sh`) |
-| `Cal:Link`                    | The Cal.com booking page (`you/30min` or its link). Empty hides **Book a meeting** |
+| `Cal:Link`                    | The Cal.com booking page (`you/30min` or its link), sent by **Add booking link**. Empty hides the button |
 | `Cal:ApiKey`                  | Cal.com API key (secret), to accept and decline from this site |
 | `Cal:WebhookSecret`           | The Cal.com webhook's secret. The webhook answers 503 until it's set |
 | `Site:TimeZone`               | Your time zone for times in phone alerts (default `Europe/London`) |

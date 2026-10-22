@@ -11,8 +11,11 @@ public class CalOptions
 {
     public const string Section = "Cal";
 
-    /// <summary>The booking page, as "username/event" (or its cal.com link). Empty hides "Request a meeting".</summary>
+    /// <summary>The booking page, as "username/event" (or its cal.com link): the link the admin sends to people they invite.</summary>
     public string Link { get; set; } = "";
+
+    /// <summary>"https://cal.com/username/event", or "" when <see cref="Link"/> isn't one.</summary>
+    public string BookingUrl => NormalizeLink(Link) is { Length: > 0 } link ? $"https://cal.com/{link}" : "";
 
     /// <summary>A Cal.com API key ("cal_live_…"), to accept and decline requests from this site.</summary>
     public string ApiKey { get; set; } = "";

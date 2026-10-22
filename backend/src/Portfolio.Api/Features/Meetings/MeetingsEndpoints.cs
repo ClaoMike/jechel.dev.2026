@@ -25,10 +25,11 @@ public static class MeetingStatus
     public const string Cancelled = "cancelled";
 }
 
-/// <param name="CalLink">"username/event" for the booking page, or "" when meetings aren't offered.</param>
-public record MeetingsInfo(string CalLink);
+/// <param name="BookingUrl">The Cal.com booking page, e.g. "https://cal.com/claomike/30min", or "" when none is set.</param>
+public record MeetingsInfo(string BookingUrl);
 
-public record MeetingDto(int Id, string Title, DateTimeOffset StartTime, DateTimeOffset EndTime, string AttendeeName, string AttendeeEmail, string? AttendeeTimeZone, string? Notes, string Status);
+/// <param name="FromConversation">Booked by someone who has written to the site (a conversation with their address): an invited guest. False for a stranger who found the link.</param>
+public record MeetingDto(int Id, string Title, DateTimeOffset StartTime, DateTimeOffset EndTime, string AttendeeName, string AttendeeEmail, string? AttendeeTimeZone, string? Notes, string Status, bool FromConversation = true);
 
 /// <param name="Message">Emailed to the attendee with the decision (and, for a decline, given to Cal.com as the reason). Optional.</param>
 public record MeetingDecisionRequest(string? Message);
@@ -36,7 +37,11 @@ public record MeetingDecisionRequest(string? Message);
 /// <param name="EmailSent">False when there was a message but it couldn't be emailed (the decision still stands).</param>
 public record MeetingDecisionResult(string Status, bool EmailSent);
 
-/// <summary>Meetings booked with Cal.com: the webhook that reports them, the admin's calendar, and accepting or declining requests.</summary>
+/// <summary>
+/// Meetings booked with Cal.com, by invitation only: the admin sends the booking link in an answer to a conversation
+/// (the page itself is hidden on Cal.com). The webhook that reports them, the admin's calendar, and accepting or declining
+/// requests; a request from someone with no conversation is marked as such.
+/// </summary>
 public static class MeetingsEndpoints
 {
     public const int MessageMaxLength = 2000;
@@ -45,7 +50,7 @@ public static class MeetingsEndpoints
     {
         var meetings = app.MapGroup("/meetings");
 
-        meetings.MapGet("/info", GetInfo).WithName("GetMeetingsInfo");
+        meetings.MapGet("/info", GetInfo).WithName("GetMeetingsInfo").RequireAuthorization();
         // Called by Cal.com, checked with the webhook's signature.
         meetings.MapPost("/cal", CalWebhook).WithName("CalWebhook");
 
@@ -59,12 +64,8 @@ public static class MeetingsEndpoints
         return app;
     }
 
-    /// <summary>Public. Where "Book a meeting" books, or "" to hide it (no page set, or switched off in Settings).</summary>
-    public static async Task<Ok<MeetingsInfo>> GetInfo(IOptionsMonitor<CalOptions> options, Microsoft.Extensions.Caching.Hybrid.HybridCache cache, IServiceProvider services, CancellationToken cancellationToken)
-    {
-        var site = await Site.SiteEndpoints.LoadAsync(cache, services, cancellationToken);
-        return TypedResults.Ok(new MeetingsInfo(site.Features["meetings"] ? CalOptions.NormalizeLink(options.CurrentValue.Link) : ""));
-    }
+    /// <summary>Admin only. The booking link to send in an answer, or "" when no booking page is set.</summary>
+    public static Ok<MeetingsInfo> GetInfo(IOptionsMonitor<CalOptions> options) => TypedResults.Ok(new MeetingsInfo(options.CurrentValue.BookingUrl));
 
     /// <summary>
     /// Cal.com's webhook (Settings → Developer → Webhooks). The body is signed: HMAC-SHA256 of it with
@@ -142,7 +143,9 @@ public static class MeetingsEndpoints
         if (token is not null)
         {
             var url = (string action) => site.Value.UrlFor($"/api/meetings/{meeting.Id}/{action}?token={token}");
-            alerts.Send(new PhoneAlert(AlertKinds.MeetingRequest, $"Meeting request: {who}", $"{when}\n{meeting.Notes ?? meeting.Title}", "/contact", AlertPriority.High, "calendar",
+            var invited = await IsInvitedAsync(db, meeting.AttendeeEmail, cancellationToken);
+            var details = $"{when}\n{meeting.Notes ?? meeting.Title}";
+            alerts.Send(new PhoneAlert(AlertKinds.MeetingRequest, $"Meeting request: {who}", invited ? details : $"{NotFromConversation}\n{details}", "/contact", AlertPriority.High, "calendar",
                 [new AlertAction("Accept", url("accept")), new AlertAction("Decline", url("decline"))]));
         }
         else if (previous != meeting.Status)
@@ -154,7 +157,9 @@ public static class MeetingsEndpoints
                 MeetingStatus.Declined => $"Meeting declined: {who}",
                 _ => $"Meeting: {who}",
             };
-            alerts.Send(new PhoneAlert(AlertKinds.MeetingChange, title, when, "/contact", AlertPriority.Default, "calendar"));
+            // Booked straight away (the event type doesn't ask for confirmation) by someone who hasn't written: worth knowing.
+            var stranger = previous is null && meeting.Status == MeetingStatus.Accepted && !await IsInvitedAsync(db, meeting.AttendeeEmail, cancellationToken);
+            alerts.Send(new PhoneAlert(AlertKinds.MeetingChange, title, stranger ? $"{NotFromConversation}\n{when}" : when, "/contact", AlertPriority.Default, "calendar"));
         }
         return TypedResults.Ok();
     }
@@ -217,6 +222,16 @@ public static class MeetingsEndpoints
         _ => null,
     };
 
+    /// <summary>On a request from someone who hasn't written to the site: the link was passed on, or found.</summary>
+    public const string NotFromConversation = "Not from a conversation";
+
+    /// <summary>Whether this address has a conversation in the Contact inbox (any case).</summary>
+    public static Task<bool> IsInvitedAsync(PortfolioDbContext db, string email, CancellationToken cancellationToken)
+    {
+        var address = email.Trim().ToLower();
+        return db.ContactMessages.AnyAsync(c => c.Email.ToLower() == address, cancellationToken);
+    }
+
     /// <summary>Admin only. Meetings that overlap [from, to) (a calendar month), soonest first; by default the next 60 days.</summary>
     public static async Task<Ok<IReadOnlyList<MeetingDto>>> ListMeetings(PortfolioDbContext db, TimeProvider time, CancellationToken cancellationToken, DateTimeOffset? from = null, DateTimeOffset? to = null)
     {
@@ -225,7 +240,8 @@ public static class MeetingsEndpoints
         var meetings = await db.Meetings.AsNoTracking()
             .Where(m => m.StartTime < end && m.EndTime >= start)
             .OrderBy(m => m.StartTime)
-            .Select(m => new MeetingDto(m.Id, m.Title, m.StartTime, m.EndTime, m.AttendeeName, m.AttendeeEmail, m.AttendeeTimeZone, m.Notes, m.Status))
+            .Select(m => new MeetingDto(m.Id, m.Title, m.StartTime, m.EndTime, m.AttendeeName, m.AttendeeEmail, m.AttendeeTimeZone, m.Notes, m.Status,
+                db.ContactMessages.Any(c => c.Email.ToLower() == m.AttendeeEmail.ToLower())))
             .ToListAsync(cancellationToken);
         return TypedResults.Ok<IReadOnlyList<MeetingDto>>(meetings);
     }

@@ -139,9 +139,16 @@ function Replies({ messageId, name, replies }: { messageId: number; name: string
             </p>
           )}
         </div>
-        <button type="submit" className="button button-small" disabled={vm.busy}>
-          {vm.busy ? 'Sending…' : 'Send reply'}
-        </button>
+        <div className="reply-actions">
+          <button type="submit" className="button button-small" disabled={vm.busy}>
+            {vm.busy ? 'Sending…' : 'Send reply'}
+          </button>
+          {vm.bookingLink && (
+            <button type="button" className="button button-small button-secondary" onClick={vm.addBookingLink} disabled={!vm.canAddBookingLink}>
+              Add booking link
+            </button>
+          )}
+        </div>
       </form>
     </section>
   )

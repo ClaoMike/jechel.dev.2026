@@ -5,6 +5,7 @@ import { api, ApiError, type ContactMessageDetails, type ContactReply } from '..
 import { a11yViolations } from '../../../test/a11y'
 import { stubApi } from '../../../test/api'
 import { ADA, INBOX, pageOfMessages } from '../../../test/fixtures/contact'
+import { BOOKING_LINK } from '../../../test/fixtures/meetings'
 import { ADMIN, forever, renderView, textOf } from '../../../test/render'
 import { formatDateTime } from '../../../utils/formatDate'
 import { MessagesInbox } from './MessagesInbox'
@@ -189,6 +190,62 @@ describe('a conversation, opened', () => {
     await conversation().getByRole('button', { name: 'Send reply' }).click()
     await expect.element(conversation().getByRole('alert')).toHaveTextContent('Write the reply first.')
     expect(calls.reply).not.toHaveBeenCalled()
+  })
+})
+
+describe('inviting them to a meeting', () => {
+  const add = () => conversation().getByRole('button', { name: 'Add booking link' })
+  const box = () => conversation().getByRole('textbox', { name: 'Write to Ada again' })
+
+  it('adds the booking link under what is written, once, and sends it', async () => {
+    vi.spyOn(api.meetings, 'info').mockResolvedValue(BOOKING_LINK)
+    await show()
+    await open()
+
+    await box().fill('Happy to talk!  ')
+    await add().click()
+    await expect.element(box()).toHaveValue(`Happy to talk!\n\n${BOOKING_LINK}`)
+    await expect.element(add()).toBeDisabled()
+    expect(document.activeElement).toBe(box().element())
+
+    await conversation().getByRole('button', { name: 'Send reply' }).click()
+    await expect.poll(() => calls.reply.mock.calls).toEqual([[1, `Happy to talk!\n\n${BOOKING_LINK}`]])
+    // Sent: the box is empty, and the link can go in the next answer.
+    await expect.element(add()).toBeEnabled()
+  })
+
+  it('in an empty box, the link is all there is', async () => {
+    vi.spyOn(api.meetings, 'info').mockResolvedValue(BOOKING_LINK)
+    await show()
+    await open()
+
+    await add().click()
+
+    await expect.element(box()).toHaveValue(BOOKING_LINK)
+  })
+
+  it('clears the "write the reply first" error', async () => {
+    vi.spyOn(api.meetings, 'info').mockResolvedValue(BOOKING_LINK)
+    await show()
+    await open()
+    await conversation().getByRole('button', { name: 'Send reply' }).click()
+    await expect.element(conversation().getByRole('alert')).toBeVisible()
+
+    await add().click()
+
+    expect(conversation().getByRole('alert').query()).toBeNull()
+  })
+
+  it('has no button while no booking page is set, or the link is unknown', async () => {
+    const first = await show()
+    await open()
+    expect(add().query()).toBeNull()
+    await first.unmount()
+
+    vi.spyOn(api.meetings, 'info').mockRejectedValue(new ApiError('/api/meetings/info', 500))
+    await show()
+    await open()
+    expect(add().query()).toBeNull()
   })
 })
 

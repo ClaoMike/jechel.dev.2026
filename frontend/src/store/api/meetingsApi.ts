@@ -8,13 +8,13 @@ export interface MeetingRange {
   to: string
 }
 
-/** Cal.com meetings: the visitor's booking page, and the admin's calendar. */
+/** Cal.com meetings, by invitation: the admin's booking link (to send in an answer), and calendar. */
 export const meetingsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    /** The Cal.com booking page ("username/event"), or "" when meetings aren't offered. */
-    getMeetingsLink: build.query<string, void>({
+    /** Admin only. The booking page to send ("https://cal.com/you/30min"), or "" when none is set. */
+    getBookingLink: build.query<string, void>({
       queryFn: (_, { signal }) => run(api.meetings.info(signal)),
-      // Asked again when the admin switches Book a meeting or changes the Cal.com link (store/listeners.ts).
+      // Asked again when the Cal.com page is saved in Settings (store/listeners.ts).
       providesTags: ['MeetingsLink'],
     }),
 
@@ -42,4 +42,4 @@ export const meetingsApi = baseApi.injectEndpoints({
   }),
 })
 
-export const { useGetMeetingsLinkQuery, useListMeetingsQuery, useDecideMeetingMutation } = meetingsApi
+export const { useGetBookingLinkQuery, useListMeetingsQuery, useDecideMeetingMutation } = meetingsApi

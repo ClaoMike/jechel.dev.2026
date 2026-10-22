@@ -31,11 +31,13 @@ public class MeetingsEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
-    public async Task Anyone_gets_the_booking_page()
+    public async Task Only_the_admin_gets_the_booking_link()
     {
-        var info = await factory.CreateBrowserClient().GetFromJsonAsync<MeetingsInfo>("/api/meetings/info");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateBrowserClient().GetAsync("/api/meetings/info")).StatusCode);
 
-        Assert.Equal("claomike/30min", info!.CalLink);
+        var info = await (await SignedInClientAsync()).GetFromJsonAsync<MeetingsInfo>("/api/meetings/info");
+
+        Assert.Equal("https://cal.com/claomike/30min", info!.BookingUrl);
     }
 
     [Fact]
