@@ -139,7 +139,7 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/updates/announcements?page=&pageSize=` | cookie | Update emails, newest first, with their `status` (`pending`, `approved`, `sent`, `ignored`) |
 | POST   | `/api/updates/announcements/{id}/send?token=` | cookie or token | Approves a pending one (emailed at once): **200** `{ status }`. The phone alert's button sends the token |
 | POST   | `/api/updates/announcements/{id}/ignore?token=` | cookie or token | Ignores a pending one |
-| GET    | `/api/resume?inline=`       | public  | The last generated résumé **without** the phone number (PDF), or **404** |
+| GET    | `/api/resume?inline=`       | public  | The last generated résumé **without** the email and phone number (PDF), or **404** |
 | GET    | `/api/resume/private?inline=` | cookie | The same **with** the phone number |
 | GET    | `/api/resume/headline`      | public  | `{ headline }`: shown under the name on About Me (`""` until set); never the phone or email. `no-cache` |
 | GET    | `/api/resume/settings`      | cookie  | `{ phone, email, headline, sections, excludedSkills, generatedAt }` |
@@ -484,7 +484,7 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 - **Organise** (before **Categories**, above the grid) opens the admin's list of every app, in order: drag one (a mouse anywhere on its row, a finger on its handle, or the arrow keys on the handle) to move it, and switch **In What's new?** on or off for each. **Save**, top left, is on once something changed, and the popup stays open on the saved order. Only **×** closes it (not Escape, not a click beside it: `Modal`'s `dismissible={false}`), asking first if there are changes not saved. The add / edit form has the same **Show in What's new?** switch (on for a new app).
 - **Categories** (e.g. Mobile app, Website, Video game, the three it starts with) are the admin's own list, edited with **Categories** above the grid (the tab bar names the page, so What's new?, Apps and YouTube have no title of their own): rename, reorder, add, remove (which takes it off every app). An app can have several; they show as labels under its title, on the tile and in the popup, in the list's order.
 - **Runs on:** platforms (iOS, Android, … with one click, or typed in), shown in the popup only.
-- **Where to get it:** links shown in the popup as **Check it on {name}** buttons, e.g. App Store, Google Play, Steam (suggested while typing; anything else works).
+- **Check it on…:** links shown in the popup as **Check it on {name}** buttons, e.g. App Store, Google Play, Steam (suggested while typing; anything else works).
 - `GET /api/apps` and `GET /api/apps/whats-new` (public), `POST /api/apps`, `PUT /api/apps/{id}`, `DELETE /api/apps/{id}`, `GET /api/apps/order` and `PUT /api/apps/order` (admin), stored in the `apps` table (media, category ids, platforms and links as `jsonb`). `GET /api/apps/categories` (public) and `PUT /api/apps/categories` (admin, the whole ordered list) use `app_categories`. `POST /api/files/app-media` takes one file: images (JPEG, PNG, WebP, GIF up to 15 MB) become a WebP of at most 1920 px without metadata; videos (MP4, MOV, WebM up to 200 MB, recognised by their first bytes) are kept as they are. Files are served with range requests, so videos can start before they're fully downloaded (Safari needs this).
 - Saving About Me or an app deletes uploads that **nothing** uses any more, once a day old (`FileCleanup.cs`).
 - Videos live in the database like every other upload and are read whole for each request. That's fine for a few short clips; for many or long videos, move `IFileStorage` to object storage (R2, S3) or link YouTube videos instead.
@@ -608,7 +608,7 @@ How About Me is put together, and who sees what:
         │     pick ─► popup (worked / studied / visited + notes) ─► map + list (A→Z)
         │     a place removed from the list leaves the open popup on its own place
         │
-        └► Résumé generator: POST /api/resume/generate ─► public PDF (no phone) at /api/resume
+        └► Résumé generator: POST /api/resume/generate ─► public PDF (no email or phone) at /api/resume
                                                           private PDF (phone) at /api/resume/private
                                                           "Download résumé" ─► /api/resume?v=<time>
 ```
@@ -811,12 +811,12 @@ résumé is the only one the site offers: there's no upload any more.
   name, **GitHub**, **LinkedIn**. Skills are a plain list, without years.
 - **Generate résumés** makes two A4 PDFs from the page as it is now (`Features/Resume/ResumeDocument.cs`, with
   [QuestPDF](https://www.questpdf.com), free under its Community licence for individuals and companies under $1M revenue):
-  - **public**, without the phone number: stored, and served to everyone at `/api/resume`. The page's **Download résumé** button
+  - **public**, without the email and phone number (so the email isn't harvested for spam): stored, and served to everyone at `/api/resume`. The page's **Download résumé** button
     is pointed at it (`/api/resume?v=<time>`, so browsers fetch the new one), replacing an uploaded PDF if there was one.
-  - **private**, with the phone number: stored, and only served to the admin (`/api/resume/private`, `no-store`).
+  - **private**, with the email and phone number: stored, and only served to the admin (`/api/resume/private`, `no-store`).
   Then **Download private copy** and **Download public copy** in the panel.
-- The phone number lives in its own table (`resume`), never in the About Me JSON, so it can't leak through `/api/about`. Tests check
-  it's in the private PDF's text and not in the public one's.
+- The email and phone number live in their own table (`resume`), never in the About Me JSON, so they can't leak through `/api/about`. Tests check
+  they're in the private PDF's text and not in the public one's.
 - `[text](url)` links on the page become real links in the PDF.
 
 ## Phone alerts
@@ -1161,6 +1161,10 @@ in Resend, it only reaches your own address.
 - **When the scene can't be drawn** (`riviera.ts`, `onFail`): a picture that won't load, a texture the GPU refused (the first frame
   is read back once, and a black one counts), or a lost WebGL context. The still picture shows instead of a black screen; a lost
   context the browser gives back starts the scene again.
+- **Scrolling on phones** slides the browser's bars in and out, which changes the visible height. The scene is as tall as the
+  screen with the bars hidden (`100lvh`, `glass.css`), so it doesn't follow them; and since resizing a WebGL canvas clears it, any
+  resize that's left (turning the phone) draws it again at once (`riviera.ts`), animating or holding still. Before, the black behind it
+  flashed between frames while scrolling.
 - **The black behind the scene is on `<html>`, not `<body>`** (`glass.css`). The scene sits under the page (`z-index: -1`): above the
   root's background, below body's. Body's background only moves to the root while `<html>` has none, and Firefox on iPhone gives
   `<html>` one, so body's black covered the scene there. In Vice, body is transparent.

@@ -11,9 +11,9 @@ namespace Portfolio.Api.Features.Resume;
 /// <param name="Contact">Normalized (<see cref="ResumeRules.Normalize(ResumeContact)"/>).</param>
 /// <param name="Choices">Normalized (<see cref="ResumeRules.Normalize(ResumeChoices)"/>).</param>
 /// <param name="LeetCode">The saved stats, for the "Problem solving" section; null leaves them out.</param>
-/// <param name="IncludePhone">True only for the admin's copy.</param>
+/// <param name="IncludePrivate">The email and phone: true only for the admin's copy.</param>
 /// <param name="SiteUrl">The site's public address, e.g. "https://jechel.dev": paths in links are made absolute with it.</param>
-public record ResumeInput(AboutContent About, ResumeContact Contact, ResumeChoices Choices, LeetCodeStats? LeetCode, bool IncludePhone, DateOnly Today, string SiteUrl);
+public record ResumeInput(AboutContent About, ResumeContact Contact, ResumeChoices Choices, LeetCodeStats? LeetCode, bool IncludePrivate, DateOnly Today, string SiteUrl);
 
 /// <summary>
 /// Lays the About Me page out as an A4 résumé (QuestPDF), without page numbers. The name and contact
@@ -99,8 +99,8 @@ public static class ResumeDocument
                     first = false;
                 }
 
-                if (contact.Email!.Length > 0) { Separator(); text.Hyperlink(contact.Email, $"mailto:{contact.Email}"); }
-                if (input.IncludePhone && contact.Phone!.Length > 0) { Separator(); text.Hyperlink(contact.Phone, $"tel:{contact.Phone.Replace(" ", "")}"); }
+                if (input.IncludePrivate && contact.Email!.Length > 0) { Separator(); text.Hyperlink(contact.Email, $"mailto:{contact.Email}"); }
+                if (input.IncludePrivate && contact.Phone!.Length > 0) { Separator(); text.Hyperlink(contact.Phone, $"tel:{contact.Phone.Replace(" ", "")}"); }
                 if (links)
                 {
                     foreach (var (label, url) in Links(input))

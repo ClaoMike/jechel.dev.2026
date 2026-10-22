@@ -29,6 +29,7 @@ public static class ResumeSections
 
 /// <summary>The résumé's contact details, edited with the About Me profile. Only the headline is public (under the name on About Me).</summary>
 /// <param name="Phone">Private: only in the admin's copy.</param>
+/// <param name="Email">Private: only in the admin's copy.</param>
 /// <param name="Headline">Under the name, e.g. "Full-stack engineer · .NET, React, PostgreSQL".</param>
 public record ResumeContact(string? Phone, string? Email, string? Headline);
 

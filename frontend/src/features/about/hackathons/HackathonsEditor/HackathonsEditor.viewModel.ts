@@ -12,7 +12,6 @@ export function useHackathonsEditorViewModel({ value, onChange, errors }: Editor
   }
   return {
     header: {
-      note: 'Shown in this order. Move entries with the arrows, or sort them by year.',
       sortLabel: 'Sort by year',
       sortedMessage: 'Sorted by year, newest first. Save to keep this order, or Cancel to undo.',
       canSort: value.length >= 2,

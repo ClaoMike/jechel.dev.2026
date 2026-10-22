@@ -193,7 +193,28 @@ describe('the scene', () => {
     expect(name.style.getPropertyValue('--neon-shift')).toBe('')
   })
 
-  it('stops listening for input once destroyed', async (context) => {
+  it('draws again at once when the canvas is resized (which clears it), even while holding still', async (context) => {
+    const { canvas, draws } = stage()
+    if (!(await start(canvas, 300))) context.skip()
+    // Nobody uses the page: no more frames.
+    await expect
+      .poll(
+        async () => {
+          const before = draws()
+          await new Promise((resolve) => setTimeout(resolve, 150))
+          return draws() - before
+        },
+        { timeout: 3000 },
+      )
+      .toBe(0)
+    const held = draws()
+
+    canvas.style.height = '240px'
+
+    await expect.poll(draws).toBeGreaterThan(held)
+  })
+
+    it('stops listening for input once destroyed', async (context) => {
     const { canvas, draws } = stage()
     if (!(await start(canvas, 200))) context.skip()
     await new Promise((resolve) => setTimeout(resolve, 400))

@@ -44,7 +44,7 @@ public class ResumeEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
-    public async Task Generating_gives_visitors_a_copy_without_the_phone_and_the_admin_one_with_it()
+    public async Task Generating_gives_visitors_a_copy_without_the_email_and_phone_and_the_admin_one_with_them()
     {
         var admin = await SignedInClientAsync();
         var contact = await admin.PutAsJsonAsync("/api/resume/contact", new ResumeContact(Phone, "claudiu@example.com", "Full-stack engineer"));
@@ -66,9 +66,11 @@ public class ResumeEndpointTests(PortfolioApiFactory factory)
         Assert.Contains("Full-stack engineer", publicText);
         // The number's last part: specific enough that nothing else in the document (dates, a version) has it.
         Assert.DoesNotContain("900456", publicText);
+        Assert.DoesNotContain("claudiu@example.com", publicText);
 
         var privateText = TextOf(await admin.GetByteArrayAsync("/api/resume/private"));
         Assert.Contains("900456", privateText);
+        Assert.Contains("claudiu@example.com", privateText);
 
         // The page's download button now points at the generated copy, and the page never holds the phone.
         var aboutJson = await visitor.GetStringAsync("/api/about");

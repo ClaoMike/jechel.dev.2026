@@ -7,8 +7,7 @@ export function LinksEditor(props: LinksEditorProps) {
   const vm = useLinksEditorViewModel(props)
   return (
     <fieldset className="app-field">
-      <legend className="field-label">Where to get it</legend>
-      <p className="field-hint">Each shows as a “Check it on …” button in the popup.</p>
+      <legend className="field-label">Check it on…</legend>
       {vm.links.map((row) => (
         <div key={row.key} className="app-link-editor">
           <TextField label={row.labelField} value={row.link.label} placeholder="App Store" suggestions={vm.suggestions} onChange={row.setLabel} error={row.labelError} />

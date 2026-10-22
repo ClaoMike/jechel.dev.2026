@@ -236,9 +236,11 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
     watch(now)
   }
 
+  // Resizing a WebGL canvas clears it: drawn again at once (before the browser shows it), however the scene is
+  // running, or the black behind it would show until the next frame (or, holding still, the next input).
   const observer = new ResizeObserver(() => {
     resize()
-    if (options.still) draw()
+    draw()
   })
 
   // Did the frame just drawn come out as the picture? Checked once, at the start.

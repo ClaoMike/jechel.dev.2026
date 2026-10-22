@@ -3,12 +3,14 @@ import { useTextFieldViewModel, type TextFieldProps } from './TextField.viewMode
 
 /** A labelled text box (or text area), with an optional hint, error, suggestions and "Add link". */
 export function TextField(props: TextFieldProps) {
-  const { label, value, onChange, error, hint, multiline = false, type = 'text', min, max, allowLinks = false, suggestions } = props
+  const { label, value, onChange, error, hint, multiline = false, type = 'text', min, max, allowLinks = false, suggestions, labelClassName } = props
   const { inputRef, ...vm } = useTextFieldViewModel(props)
 
   return (
     <div className="field">
-      <label htmlFor={vm.id}>{label}</label>
+      <label htmlFor={vm.id} className={labelClassName}>
+        {label}
+      </label>
       {multiline ? <textarea ref={inputRef} {...vm.common} rows={3} /> : <input ref={inputRef} {...vm.common} type={type} min={min} max={max} list={vm.suggestionsId} />}
       {suggestions && (
         <datalist id={vm.suggestionsId}>

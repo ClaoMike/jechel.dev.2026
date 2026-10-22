@@ -29,20 +29,15 @@ export function ProfileEditor(props: EditorProps<Profile>) {
       {vm.contact && (
         <fieldset className="editor-item">
           <legend>For the résumé</legend>
-          <p className="muted editor-note">
-            The header of the résumé you generate above. Everyone sees the headline, under your name; only you see the email and phone here, and the phone number is only in your private
-            copy.
-          </p>
           <div className="editor-grid">
             <TextField label="Headline" value={vm.contact.headline} onChange={vm.setContact('headline')} error={errors['contact.headline']} placeholder="Full-stack engineer · .NET, React, PostgreSQL" />
-            <TextField label="Email" type="email" value={vm.contact.email} onChange={vm.setContact('email')} error={errors['contact.email']} />
-            <TextField label="Phone" type="tel" value={vm.contact.phone} onChange={vm.setContact('phone')} error={errors['contact.phone']} />
+            <TextField label="Email" type="email" value={vm.contact.email} onChange={vm.setContact('email')} error={errors['contact.email']} labelClassName="label-admin" />
+            <TextField label="Phone" type="tel" value={vm.contact.phone} onChange={vm.setContact('phone')} error={errors['contact.phone']} labelClassName="label-admin" />
           </div>
         </fieldset>
       )}
       <fieldset className="editor-item">
         <legend>Citizenship and residence</legend>
-        <p className="muted editor-note">Labels under the photo, e.g. Romanian citizenship, EU citizenship, UK Settled Status.</p>
         <StatusesEditor value={value.statuses} onChange={vm.setStatuses} errors={errors} />
       </fieldset>
       <div className="editor-grid">
