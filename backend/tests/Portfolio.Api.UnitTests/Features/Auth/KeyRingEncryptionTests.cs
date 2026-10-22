@@ -106,6 +106,27 @@ public class KeyRingEncryptionTests
     [InlineData("   ")]
     public void Is_off_when_the_setting_is_empty(string? key) => Assert.Null(KeyRingEncryption.KeyFrom(Settings(key)));
 
+    [Fact]
+    public void Takes_the_key_however_it_was_pasted()
+    {
+        var key = RandomNumberGenerator.GetBytes(32);
+        var base64 = Convert.ToBase64String(key);
+
+        foreach (var pasted in new[] { base64, $" {base64} ", $"\"{base64}\"", $"'{base64}'", base64.TrimEnd('='), base64.Replace('+', '-').Replace('/', '_') })
+        {
+            Assert.Equal(key, KeyRingEncryption.KeyFrom(Settings(pasted)));
+        }
+    }
+
+    [Fact]
+    public void Says_how_long_a_wrong_key_is_but_never_shows_it()
+    {
+        var error = Assert.Throws<InvalidOperationException>(() => KeyRingEncryption.KeyFrom(Settings("c2hvcnQ=")));
+
+        Assert.Contains("it's 5 bytes", error.Message);
+        Assert.DoesNotContain("c2hvcnQ", error.Message);
+    }
+
     [Theory]
     [InlineData("not base64!")]
     [InlineData("c2hvcnQ=")]

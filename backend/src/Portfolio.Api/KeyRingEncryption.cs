@@ -16,20 +16,28 @@ public static class KeyRingEncryption
 {
     public const string ConfigurationKey = "DataProtection:KeyEncryptionKey";
 
-    /// <summary>The 32-byte key from configuration, or null when it isn't set. Throws when it's set but not 32 bytes of base64.</summary>
+    /// <summary>
+    /// The 32-byte key from configuration, or null when it isn't set. Forgiving of how it was pasted: quotes around
+    /// it, spaces, a lost trailing "=" (some .env importers drop it), or the URL-safe alphabet. Throws when it still
+    /// isn't 32 bytes of base64, saying what it got (never the key itself).
+    /// </summary>
     public static byte[]? KeyFrom(IConfiguration configuration)
     {
         var text = configuration[ConfigurationKey];
         if (string.IsNullOrWhiteSpace(text)) return null;
+        var cleaned = text.Trim().Trim('"', '\'').Trim().Replace('-', '+').Replace('_', '/');
+        var padded = cleaned.TrimEnd('=').PadRight((cleaned.TrimEnd('=').Length + 3) / 4 * 4, '=');
+        byte[]? key = null;
         try
         {
-            var key = Convert.FromBase64String(text.Trim());
+            key = Convert.FromBase64String(padded);
             if (key.Length == 32) return key;
         }
         catch (FormatException)
         {
         }
-        throw new InvalidOperationException($"{ConfigurationKey} must be 32 bytes in base64 (openssl rand -base64 32).");
+        var got = key is null ? $"{cleaned.Length} characters that aren't base64" : $"{key.Length} bytes";
+        throw new InvalidOperationException($"{ConfigurationKey} must be 32 bytes in base64 (openssl rand -base64 32: 44 characters ending in \"=\"); it's {got}.");
     }
 
     private const int NonceSize = 12;
