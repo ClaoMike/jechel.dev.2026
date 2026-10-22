@@ -430,15 +430,25 @@ describe('who is recorded', () => {
 })
 
 describe('errors nobody caught', () => {
-  it('records a script error with where it happened, and one without a message as "Script error"', () => {
+  it('records a script error with where it happened, one without a message as "Script error", and one without a file by its message', () => {
     window.dispatchEvent(
       new ErrorEvent('error', { message: 'x is not a function', filename: 'https://jechel.dev/assets/app.js', lineno: 12, colno: 4, error: new TypeError('x is not a function') }),
     )
     expect(last()).toMatchObject({ type: 'error', label: 'x is not a function', detail: { kind: 'script', source: 'https://jechel.dev/assets/app.js:12:4' } })
 
-    window.dispatchEvent(new ErrorEvent('error', { message: '' }))
-    expect(last()).toMatchObject({ label: 'Script error', detail: { kind: 'script' } })
+    window.dispatchEvent(new ErrorEvent('error', { message: '', filename: 'https://jechel.dev/assets/app.js' }))
+    expect(last()).toMatchObject({ label: 'Script error', detail: { kind: 'script', source: 'https://jechel.dev/assets/app.js:0:0' } })
+
+    window.dispatchEvent(new ErrorEvent('error', { message: 'Out of memory' }))
+    expect(last()).toMatchObject({ label: 'Out of memory', detail: { kind: 'script' } })
     expect(last().detail!.source).toBeUndefined()
+  })
+
+  it("leaves out a bare \"Script error.\" with no file: a script the browser or an extension put in the page, not the site's", () => {
+    const before = queued().length
+    window.dispatchEvent(new ErrorEvent('error', { message: 'Script error.' }))
+    window.dispatchEvent(new ErrorEvent('error', { message: '' }))
+    expect(queued()).toHaveLength(before)
   })
 
   it('records a promise nobody waited for, whatever it failed with', () => {

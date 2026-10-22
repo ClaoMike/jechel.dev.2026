@@ -68,8 +68,22 @@ function Switch({ item }: { item: SwitchItem }) {
     <div className="switch-row">
       <span className="switch-text">
         <span id={`${id}-label`}>{item.label}</span>
+        {item.note && (
+          <span id={`${id}-note`} className="field-hint switch-note">
+            {item.note}
+          </span>
+        )}
       </span>
-      <button type="button" role="switch" className="switch" aria-checked={item.on} aria-labelledby={`${id}-label`} disabled={item.busy} onClick={item.toggle}>
+      <button
+        type="button"
+        role="switch"
+        className="switch"
+        aria-checked={item.on}
+        aria-labelledby={`${id}-label`}
+        aria-describedby={item.note ? `${id}-note` : undefined}
+        disabled={item.busy}
+        onClick={item.toggle}
+      >
         <span className="switch-thumb" aria-hidden="true" />
         <span className="switch-state" aria-hidden="true">
           {item.on ? 'On' : 'Off'}

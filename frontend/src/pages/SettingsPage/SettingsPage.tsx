@@ -75,7 +75,7 @@ function Connections() {
               <Copyable value={`${data.siteUrl}/api/support/buymeacoffee`} />
             </li>
             <li>
-              Copy the webhook's secret into the field below, save, then press its <strong>Send test</strong>: a coffee should land in the Community tab and on your phone.
+              Copy the webhook's secret into the field below and save. Then, on that webhook in Buy Me a Coffee's dashboard, press <strong>Send test</strong>: a coffee marked Test should land in the Community tab and on your phone.
             </li>
           </Steps>
           {field('Support:BuyMeACoffeeWebhookSecret')}

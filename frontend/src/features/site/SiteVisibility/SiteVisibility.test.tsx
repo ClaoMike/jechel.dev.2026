@@ -86,6 +86,28 @@ describe('Settings → Visitor pages', () => {
     await expect.element(toggle('Apps')).toHaveAttribute('aria-checked', 'true')
   })
 
+  it("says when Buy me a coffee is on but visitors can't see it: there's no page link yet", async () => {
+    const note = "Visitors don't see the button yet: it needs a page link (Buy Me a Coffee, below)."
+    stub()
+    const support = vi.spyOn(api.support, 'get').mockResolvedValue({ url: '' })
+    const view = await show({ ...SITE, features: { ...SITE.features, coffee: true } })
+    await expect.element(toggle('Buy me a coffee')).toHaveAccessibleDescription(note)
+    expect(await a11yViolations()).toEqual([])
+    await view.unmount()
+
+    // With a link, or switched off: nothing to say.
+    support.mockResolvedValue({ url: 'https://buymeacoffee.com/me' })
+    const linked = await show({ ...SITE, features: { ...SITE.features, coffee: true } })
+    await expect.element(toggle('Buy me a coffee')).toHaveAttribute('aria-checked', 'true')
+    await expect.element(page.getByText(note)).not.toBeInTheDocument()
+    await linked.unmount()
+
+    support.mockResolvedValue({ url: '' })
+    await show({ ...SITE, features: { ...SITE.features, coffee: false } })
+    await expect.element(toggle('Buy me a coffee')).toHaveAttribute('aria-checked', 'false')
+    await expect.element(page.getByText(note)).not.toBeInTheDocument()
+  })
+
   it('warns that visitors get "Coming soon" when every page is off', async () => {
     stub(ALL_OFF)
     await show(ALL_OFF)
