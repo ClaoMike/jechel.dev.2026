@@ -6,9 +6,9 @@ import { stubApi } from '../../test/api'
 import { SITE } from '../../test/fixtures/site'
 import { renderView } from '../../test/render'
 
-// The header buttons' icons on hover: the Get updates bell turns yellow and rings (the bell swings, its
-// clapper follows), the coffee's steam turns into rising waves. Tests run with reduced motion: what shows
-// is checked on the page, how it moves in the stylesheet.
+// The header buttons' icons: on hover the Get updates bell turns yellow and rings (the bell swings, its
+// clapper follows); the coffee always steams, and on hover its cup fills. Tests run with reduced motion:
+// what shows is checked on the page, how it moves in the stylesheet.
 
 const bell = () => page.getByRole('button', { name: 'Get updates by email' })
 const coffee = () => page.getByRole('link', { name: 'Buy me a coffee (opens in a new tab)' })
@@ -92,30 +92,54 @@ describe('the Get updates bell', () => {
   })
 })
 
-describe('the Buy me a coffee steam', () => {
+describe('the Buy me a coffee cup', () => {
   const show = async () => {
     stubApi()
     await renderView(<SupportButton />, { site: structuredClone(SITE) })
     await expect.element(coffee()).toBeVisible()
   }
-  const still = () => part(coffee().element(), '.coffee-steam-still')
   const waves = () => part(coffee().element(), '.coffee-steam')
+  const fill = () => part(coffee().element(), '.coffee-fill')
+  const EMPTY = 'matrix(1, 0, 0, 0, 0, 0)'
+  const FULL = 'matrix(1, 0, 0, 1, 0, 0)'
 
-  it('shows three straight lines at rest, and three waves instead on hover and keyboard focus', async () => {
+  it('steams always: three waves, at rest as on hover (no straight lines any more)', async () => {
     await show()
     expect(waves().querySelectorAll('path')).toHaveLength(3)
-    expect(getComputedStyle(still()).display).not.toBe('none')
-    expect(getComputedStyle(waves()).display).toBe('none')
+    expect(coffee().element().querySelector('.coffee-steam-still')).toBeNull()
+    expect(getComputedStyle(waves()).display).not.toBe('none')
+    await coffee().hover()
+    expect(getComputedStyle(waves()).display).not.toBe('none')
+    const wave = rules('.coffee-steam path').find((r) => r.rule.style.animationName === 'coffee-steam')!
+    expect(wave.rule.selectorText).not.toContain(':hover')
+  })
+
+  it('fills the cup with coffee on hover and keyboard focus, and empties it after', async () => {
+    await show()
+    expect(getComputedStyle(fill()).transform).toBe(EMPTY)
 
     await coffee().hover()
-    await expect.poll(() => getComputedStyle(waves()).display).not.toBe('none')
-    expect(getComputedStyle(still()).display).toBe('none')
+    await expect.poll(() => getComputedStyle(fill()).transform).toBe(FULL)
 
     await page.elementLocator(document.body).hover({ position: { x: 1, y: 1 } })
-    await expect.poll(() => getComputedStyle(waves()).display).toBe('none')
+    await expect.poll(() => getComputedStyle(fill()).transform).toBe(EMPTY)
     ;(coffee().element() as HTMLElement).focus()
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}{Tab}')
-    await expect.poll(() => getComputedStyle(waves()).display).not.toBe('none')
+    await expect.poll(() => getComputedStyle(fill()).transform).toBe(FULL)
+  })
+
+  it('pours it in bottom to top, only inside the cup', async () => {
+    await show()
+    // Grows from its bottom edge.
+    expect(getComputedStyle(fill()).transformBox).toBe('fill-box')
+    expect(getComputedStyle(fill()).transformOrigin).toMatch(/ 13px$/)
+    const pour = rules('.support-button', '.coffee-fill').find((r) => r.rule.selectorText.includes(':hover'))!
+    expect(pour.rule.selectorText).toContain(':focus-visible')
+    expect(pour.rule.style.transitionProperty).toBe('transform')
+    // Clipped to the cup's own shape, one clip per icon on the page.
+    const clip = fill().getAttribute('clip-path')!.match(/^url\(#(.+)\)$/)![1]
+    const cup = coffee().element().querySelector(`[id="${clip}"] path`)!
+    expect(cup.getAttribute('d')).toBe('M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z')
   })
 
   it('makes each wave a curve that bends both ways, over its own line', async () => {
@@ -137,10 +161,10 @@ describe('the Buy me a coffee steam', () => {
     expect(y(frames.at(-1)!)).toBeLessThan(y(frames[0]))
   })
 
-  it("doesn't move for visitors who ask for less motion", async () => {
+  it("doesn't move for visitors who ask for less motion: the steam stays still, the cup is full at once", async () => {
     await show()
-    await coffee().hover()
-    await expect.poll(() => getComputedStyle(waves()).display).not.toBe('none')
     expect(getComputedStyle(waves().querySelector('path')!).animationName).toBe('none')
+    expect(rules('.coffee-steam path').some((r) => r.media.includes('prefers-reduced-motion') && r.rule.style.animationName === 'none')).toBe(true)
+    expect(rules('.coffee-fill').some((r) => r.media.includes('prefers-reduced-motion') && r.rule.style.transitionProperty === 'none')).toBe(true)
   })
 })

@@ -1000,22 +1000,7 @@ html {
   background: linear-gradient(180deg, rgb(255 222 128), rgb(255 188 80));
 }
 
-/*
- * The coffee's steam: three straight lines at rest; on hover (or keyboard focus) they turn into waves that
- * rise, sway and fade, one after another, like heat leaving the cup.
- */
-.coffee-steam {
-  display: none;
-}
-
-.support-button:is(:hover, :focus-visible) .coffee-steam-still {
-  display: none;
-}
-
-.support-button:is(:hover, :focus-visible) .coffee-steam {
-  display: inline;
-}
-
+/* The coffee's steam: three waves that rise, sway and fade, one after another, like heat leaving the cup. */
 .coffee-steam path {
   transform-box: fill-box;
   transform-origin: 50% 100%;
@@ -1028,6 +1013,22 @@ html {
 
 .coffee-steam path:nth-child(3) {
   animation-delay: 1s;
+}
+
+/* The coffee: empty at rest; on hover (or keyboard focus) it pours in, filling the cup bottom to top. */
+.coffee-fill {
+  fill: currentColor;
+  stroke: none;
+  opacity: 0.75;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: scaleY(0);
+  transition: transform 0.25s ease-in;
+}
+
+.support-button:is(:hover, :focus-visible) .coffee-fill {
+  transform: scaleY(1);
+  transition: transform 0.9s ease-out;
 }
 
 @keyframes coffee-steam {
@@ -1135,12 +1136,16 @@ html {
   }
 }
 
-/* Reduce motion: the colour and the waves' shape, without the movement. */
+/* Reduce motion: the colour and the waves' shape, without the movement; on hover the cup is full at once. */
 @media (prefers-reduced-motion: reduce) {
   .coffee-steam path,
   .subscribe-button .bell-body,
   .subscribe-button .bell-clapper {
     animation: none !important;
+  }
+
+  .coffee-fill {
+    transition: none;
   }
 }
 
