@@ -40,13 +40,15 @@ public record AnalyticsSummary(
     IReadOnlyList<NamedCount> Devices,
     IReadOnlyList<NamedCount> Browsers,
     IReadOnlyList<NamedCount> TimeZones,
+    IReadOnlyList<NamedCount> Countries,
     IReadOnlyList<NamedCount> TopClicks,
     IReadOnlyList<NamedCount> TopErrors,
     IReadOnlyList<NamedCount> Themes,
-    IReadOnlyList<NamedCount> ThemeSwitches);
+    IReadOnlyList<NamedCount> ThemeSwitches,
+    IReadOnlyList<NamedCount> SiteEvents);
 
 /// <param name="Visitors">Unique per day, added up: the same person on two days counts twice.</param>
-/// <param name="BounceRate">Share of visits (0 to 1) that saw one page and did nothing else.</param>
+/// <param name="BounceRate">Share of visits (0 to 1) that saw one page and did nothing else (<see cref="AnalyticsRules.InteractionTypes"/>; scrolling alone doesn't count).</param>
 public record AnalyticsTotals(int Visitors, int Sessions, int PageViews, double AverageSessionSeconds, double BounceRate, int Errors);
 
 /// <summary>

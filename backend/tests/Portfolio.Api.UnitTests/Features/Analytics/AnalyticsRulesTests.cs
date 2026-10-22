@@ -40,6 +40,8 @@ public class AnalyticsRulesTests
     [InlineData("https://jechel.dev/apps", null, null)]
     [InlineData("https://www.jechel.dev/apps", null, null)]
     [InlineData("android-app://com.slack/", null, null)]
+    [InlineData("ftp://files.example.com/x", null, null)]
+    [InlineData("not a link", null, null)]
     [InlineData("", null, null)]
     [InlineData(null, null, null)]
     public void NormalizeReferrer_keeps_other_sites_without_their_query(string? referrer, string? expected, string? expectedHost)
@@ -103,5 +105,13 @@ public class AnalyticsRulesTests
     public void NormalizeCountry_reads_cloudflares_header(string header, string? expected)
     {
         Assert.Equal(expected, AnalyticsRules.NormalizeCountry(header));
+    }
+
+    [Fact]
+    public void NormalizeDetail_drops_entries_with_a_blank_key()
+    {
+        var result = AnalyticsRules.NormalizeDetail(new Dictionary<string, string> { [" "] = "x", ["to"] = "dark" })!;
+
+        Assert.Equal(["to"], result.Keys);
     }
 }

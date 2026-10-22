@@ -1,18 +1,22 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api.Features.Analytics;
+using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.Contact;
 using Portfolio.Api.Features.Files;
 
 namespace Portfolio.Api.Data;
 
-public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : DbContext(options)
+public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : DbContext(options), IDataProtectionKeyContext
 {
     public DbSet<Profile> Profiles => Set<Profile>();
+    public DbSet<AdminSession> AdminSessions => Set<AdminSession>();
     public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
     public DbSet<AboutPage> AboutPages => Set<AboutPage>();
     public DbSet<TermsPage> TermsPages => Set<TermsPage>();
     public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
     public DbSet<LeetCodeSnapshot> LeetCodeStats => Set<LeetCodeSnapshot>();
+    public DbSet<YouTubeSnapshot> YouTubeSnapshots => Set<YouTubeSnapshot>();
     public DbSet<AppEntry> Apps => Set<AppEntry>();
     public DbSet<AppCategory> AppCategories => Set<AppCategory>();
     public DbSet<VisitSession> VisitSessions => Set<VisitSession>();
@@ -21,11 +25,17 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<Subscriber> Subscribers => Set<Subscriber>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<UpdatesState> UpdatesStates => Set<UpdatesState>();
+    public DbSet<UpdateEmailsPage> UpdateEmailsPages => Set<UpdateEmailsPage>();
     public DbSet<ResumeSettings> ResumeSettings => Set<ResumeSettings>();
     public DbSet<SiteSetting> SiteSettings => Set<SiteSetting>();
     public DbSet<Meeting> Meetings => Set<Meeting>();
     public DbSet<ContactReply> ContactReplies => Set<ContactReply>();
     public DbSet<SiteState> SiteStates => Set<SiteState>();
+    public DbSet<PhoneAlertLog> PhoneAlertLogs => Set<PhoneAlertLog>();
+    public DbSet<AlertPreference> AlertPreferences => Set<AlertPreference>();
+
+    /// <summary>ASP.NET Core Data Protection's keys (they encrypt cookies and saved secrets), so they survive redeploys.</summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,10 +45,27 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.HasKey(p => p.Id);
             entity.Property(p => p.Id).HasColumnName("id");
             entity.Property(p => p.FirstName).HasColumnName("first_name").HasMaxLength(100).IsRequired();
-            entity.Property(p => p.SessionTokenHash).HasColumnName("session_token_hash").HasMaxLength(64);
-            entity.Property(p => p.SessionExpiresAt).HasColumnName("session_expires_at");
 
             entity.HasData(new Profile { Id = 1, FirstName = "Claudiu" });
+        });
+
+        modelBuilder.Entity<AdminSession>(entity =>
+        {
+            entity.ToTable("admin_sessions");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(s => s.TokenHash).HasColumnName("token_hash").HasMaxLength(64).IsRequired();
+            entity.Property(s => s.Email).HasColumnName("email").HasMaxLength(320).IsRequired();
+            entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+            entity.Property(s => s.LastSeenAt).HasColumnName("last_seen_at");
+            entity.Property(s => s.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(s => s.EndsAt).HasColumnName("ends_at");
+            entity.Property(s => s.UserAgent).HasColumnName("user_agent").HasMaxLength(AdminSessionService.UserAgentMaxLength).IsRequired();
+            entity.Property(s => s.IpAddress).HasColumnName("ip_address").HasMaxLength(45);
+            entity.Property(s => s.Country).HasColumnName("country").HasMaxLength(2);
+
+            // Every request with the cookie finds its session by the token's hash.
+            entity.HasIndex(s => s.TokenHash).IsUnique();
         });
 
         modelBuilder.Entity<ContactMessage>(entity =>
@@ -48,12 +75,21 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(m => m.Id).HasColumnName("id");
             entity.Property(m => m.Name).HasColumnName("name").HasMaxLength(ContactRules.NameMaxLength).IsRequired();
             entity.Property(m => m.Email).HasColumnName("email").HasMaxLength(ContactRules.EmailMaxLength).IsRequired();
-            entity.Property(m => m.Message).HasColumnName("message").HasMaxLength(ContactRules.MessageMaxLength).IsRequired();
+            // Longer than the form allows: a conversation can start with an email.
+            entity.Property(m => m.Message).HasColumnName("message").HasMaxLength(Features.Contact.ContactEndpoints.ReplyMaxLength).IsRequired();
             entity.Property(m => m.ReceivedAt).HasColumnName("received_at");
             entity.Property(m => m.ReadAt).HasColumnName("read_at");
+            entity.Property(m => m.LastActivityAt).HasColumnName("last_activity_at");
+            entity.Property(m => m.Subject).HasColumnName("subject").HasMaxLength(300);
+            entity.Property(m => m.EmailId).HasColumnName("email_id").HasMaxLength(100);
+            entity.Property(m => m.EmailMessageId).HasColumnName("email_message_id").HasMaxLength(500);
 
-            // The inbox lists newest first.
+            // The inbox lists the latest conversations first.
             entity.HasIndex(m => m.ReceivedAt);
+            entity.HasIndex(m => m.LastActivityAt);
+            entity.HasIndex(m => m.EmailId).IsUnique();
+            // An email from someone joins their latest conversation.
+            entity.HasIndex(m => m.Email);
         });
 
         modelBuilder.Entity<AboutPage>(entity =>
@@ -91,6 +127,15 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.HasKey(s => s.Username);
             entity.Property(s => s.Username).HasColumnName("username").HasMaxLength(50);
             entity.Property(s => s.Stats).HasColumnName("stats").HasColumnType("jsonb").IsRequired();
+            entity.Property(s => s.FetchedAt).HasColumnName("fetched_at");
+        });
+
+        modelBuilder.Entity<YouTubeSnapshot>(entity =>
+        {
+            entity.ToTable("youtube_videos");
+            entity.HasKey(s => s.Channel);
+            entity.Property(s => s.Channel).HasColumnName("channel").HasMaxLength(100);
+            entity.Property(s => s.Videos).HasColumnName("videos").HasColumnType("jsonb").IsRequired();
             entity.Property(s => s.FetchedAt).HasColumnName("fetched_at");
         });
 
@@ -190,8 +235,9 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(d => d.Email).HasColumnName("email").HasMaxLength(320);
             entity.Property(d => d.Payload).HasColumnName("payload").HasColumnType("jsonb");
             entity.Property(d => d.ReceivedAt).HasColumnName("received_at");
+            entity.Property(d => d.IsTest).HasColumnName("is_test");
 
-            // A webhook is retried until it gets a 200: one row per payment.
+            // A webhook is retried until it gets a 200: one row per event on a payment.
             entity.HasIndex(d => d.TransactionId).IsUnique();
             entity.HasIndex(d => d.ReceivedAt);
         });
@@ -235,6 +281,40 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.HasKey(s => s.Id);
             entity.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
             entity.Property(s => s.AnnounceAfter).HasColumnName("announce_after");
+        });
+
+        modelBuilder.Entity<PhoneAlertLog>(entity =>
+        {
+            entity.ToTable("phone_alerts");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Id).HasColumnName("id");
+            entity.Property(a => a.Kind).HasColumnName("kind").HasMaxLength(40).IsRequired();
+            entity.Property(a => a.Title).HasColumnName("title").HasMaxLength(200).IsRequired();
+            entity.Property(a => a.Message).HasColumnName("message").HasMaxLength(1000).IsRequired();
+            entity.Property(a => a.Path).HasColumnName("path").HasMaxLength(200);
+            entity.Property(a => a.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(a => a.CreatedAt).HasColumnName("created_at");
+            // Newest first, all or of one kind.
+            entity.HasIndex(a => a.CreatedAt);
+            entity.HasIndex(a => new { a.Kind, a.CreatedAt });
+        });
+
+        modelBuilder.Entity<AlertPreference>(entity =>
+        {
+            entity.ToTable("alert_preferences");
+            entity.HasKey(p => p.Kind);
+            entity.Property(p => p.Kind).HasColumnName("kind").HasMaxLength(40);
+            entity.Property(p => p.Enabled).HasColumnName("enabled");
+            entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<UpdateEmailsPage>(entity =>
+        {
+            entity.ToTable("update_emails");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(p => p.Content).HasColumnName("content").HasColumnType("jsonb").IsRequired();
+            entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         });
 
         modelBuilder.Entity<ResumeSettings>(entity =>
@@ -294,10 +374,14 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(r => r.MessageId).HasColumnName("message_id");
             entity.Property(r => r.Text).HasColumnName("text").HasMaxLength(Features.Contact.ContactEndpoints.ReplyMaxLength).IsRequired();
             entity.Property(r => r.SentAt).HasColumnName("sent_at");
+            entity.Property(r => r.FromVisitor).HasColumnName("from_visitor");
+            entity.Property(r => r.EmailId).HasColumnName("email_id").HasMaxLength(100);
+            entity.Property(r => r.EmailMessageId).HasColumnName("email_message_id").HasMaxLength(500);
 
             // Deleting a message deletes its replies.
             entity.HasOne<ContactMessage>().WithMany().HasForeignKey(r => r.MessageId).OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(r => r.MessageId);
+            entity.HasIndex(r => r.EmailId).IsUnique();
         });
 
         modelBuilder.Entity<SiteState>(entity =>
@@ -310,6 +394,14 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(s => s.MaintenanceEnabled).HasColumnName("maintenance_enabled");
             entity.Property(s => s.MaintenanceMessage).HasColumnName("maintenance_message").HasMaxLength(Features.Site.SiteEndpoints.MessageMaxLength).IsRequired();
             entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<DataProtectionKey>(entity =>
+        {
+            entity.ToTable("data_protection_keys");
+            entity.Property(k => k.Id).HasColumnName("id");
+            entity.Property(k => k.FriendlyName).HasColumnName("friendly_name");
+            entity.Property(k => k.Xml).HasColumnName("xml");
         });
     }
 }

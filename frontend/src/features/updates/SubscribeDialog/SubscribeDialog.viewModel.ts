@@ -27,11 +27,14 @@ export function useSubscribeDialogViewModel() {
     try {
       const result = await subscribe(value).unwrap()
       setStatus({ kind: 'done', email: value, result })
-      if (result === 'sent') trackEvent('Subscribed')
+      trackEvent(result === 'sent' ? 'Subscribed' : result === 'pending' ? 'Subscribed again (not confirmed yet)' : 'Subscribed again (already subscribed)')
     } catch (e) {
       const { status: code, validationErrors } = failureOf(e)
+      trackEvent('Subscribing failed', { reason: validationErrors?.email ? 'invalid address' : code === 429 ? 'too many tries' : String(code || 'no response') })
       if (validationErrors?.email) setError(validationErrors.email[0])
       else if (code === 429) setStatus({ kind: 'failed', message: 'Too many tries. Please try again in a few minutes.' })
+      // Switched off (Settings → Visitor pages) since the page loaded.
+      else if (code === 404) setStatus({ kind: 'failed', message: "Email updates aren't open right now. Please try again later." })
       else setStatus({ kind: 'failed', message: "That didn't work. Please try again later." })
     }
   }

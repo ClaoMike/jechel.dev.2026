@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api;
@@ -31,11 +32,21 @@ builder.Services.AddDbContext<PortfolioDbContext>(options =>
 
 builder.Services.AddHealthChecks().AddDbContextCheck<PortfolioDbContext>();
 
+// Keys for cookies and saved secrets live in the database, so redeploys (new containers) keep them;
+// encrypted there when DataProtection:KeyEncryptionKey is set (production).
+var dataProtection = builder.Services.AddDataProtection().PersistKeysToDbContext<PortfolioDbContext>();
+if (KeyRingEncryption.KeyFrom(builder.Configuration) is { } keyEncryptionKey)
+{
+    dataProtection.AddKeyManagementOptions(options => options.XmlEncryptor = new KeyRingEncryptor(keyEncryptionKey));
+}
+
 builder.AddPortfolioAuth();
 
 builder.Services.AddScoped<IFileStorage, DatabaseFileStorage>();
 builder.Services.AddSingleton<CityIndex>();
 builder.Services.AddSingleton<VisitorHasher>();
+// Visits are kept for as long as the terms say, then deleted.
+builder.Services.AddHostedService<AnalyticsRetention>();
 
 builder.Services.AddHttpClient<ILeetCodeClient, LeetCodeClient>(http =>
 {
@@ -55,8 +66,8 @@ builder.Services.AddHttpClient<IYouTubeClient, YouTubeClient>(http =>
     http.BaseAddress = YouTubeClient.BaseAddress;
     http.Timeout = TimeSpan.FromSeconds(15);
 });
-builder.Services.AddSingleton(services => new RefreshingCache<IReadOnlyList<YouTubeVideo>>(
-    services.GetRequiredService<TimeProvider>(), YouTubeEndpoints.FreshFor, YouTubeEndpoints.RetryAfter));
+builder.Services.AddSingleton<YouTubeVideoStore>();
+builder.Services.AddHostedService<YouTubeRefreshWorker>();
 
 builder.Services.Configure<SiteOptions>(builder.Configuration.GetSection(SiteOptions.Section));
 
@@ -77,18 +88,28 @@ builder.Services.AddHybridCache();
 // Phone alerts (ntfy): queued by any request, sent in the background.
 builder.Services.BindWithSettings<AlertOptions>(builder.Configuration, AlertOptions.Section);
 builder.Services.AddSingleton<PhoneAlerts>();
+builder.Services.AddSingleton<AlertPreferences>();
 builder.Services.AddSingleton<IPhoneAlerts>(services => services.GetRequiredService<PhoneAlerts>());
 builder.Services.AddHttpClient(NtfySender.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<NtfySender>();
 builder.Services.AddHostedService<AlertWorker>();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<CrashAlertHandler>();
+// Malformed requests keep their status (400) in Development too, where ASP.NET throws for them.
+builder.Services.Configure<ExceptionHandlerOptions>(options =>
+    options.StatusCodeSelector = exception => exception is BadHttpRequestException bad ? bad.StatusCode : StatusCodes.Status500InternalServerError);
 
 builder.Services.BindWithSettings<SupportOptions>(builder.Configuration, SupportOptions.Section);
 
 // Email updates: Resend while a key is set, otherwise emails are only logged.
 builder.Services.BindWithSettings<EmailOptions>(builder.Configuration, EmailOptions.Section);
 builder.Services.AddHttpClient<ResendEmailSender>(http =>
+{
+    http.BaseAddress = ResendEmailSender.BaseAddress;
+    http.Timeout = TimeSpan.FromSeconds(15);
+});
+// Emails to the site's address, received by Resend: the Contact inbox's conversations.
+builder.Services.AddHttpClient<IResendInbox, ResendInbox>(http =>
 {
     http.BaseAddress = ResendEmailSender.BaseAddress;
     http.Timeout = TimeSpan.FromSeconds(15);
@@ -111,9 +132,20 @@ builder.Services.AddHostedService<UpdatesWorker>();
 
 // Subscribing sends an email, so each address (IP) gets a few tries per 10 minutes.
 var subscribeLimit = builder.Configuration.GetValue("Updates:SubscribeLimitPer10Minutes", 5);
+// The contact form.
+var contactLimit = builder.Configuration.GetValue("Contact:LimitPer10Minutes", 10);
+// Visit analytics: a browser sends a batch at most every 5 seconds (120 in 10 minutes), so this leaves room for a few tabs, or a
+// household or office behind one address, while a script can't fill the database with made-up visits.
+var analyticsLimit = builder.Configuration.GetValue("Analytics:LimitPer10Minutes", 600);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(Portfolio.Api.Features.Contact.ContactEndpoints.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
+        http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = contactLimit, Window = TimeSpan.FromMinutes(10) }));
+    options.AddPolicy(AnalyticsEndpoints.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
+        http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = analyticsLimit, Window = TimeSpan.FromMinutes(10) }));
     options.AddPolicy(UpdatesEndpoints.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
         http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = subscribeLimit, Window = TimeSpan.FromMinutes(10) }));
@@ -121,7 +153,7 @@ builder.Services.AddRateLimiter(options =>
 
 // Honour X-Forwarded-* from a reverse proxy (the Vite dev proxy locally), so URLs the API
 // generates, like Google's OAuth callback, use the host and scheme the browser sees.
-// Only loopback proxies are trusted by default; add KnownProxies/KnownNetworks when deploying.
+// Only loopback proxies are trusted. In production the proxy is trusted by a shared secret instead (ProxyHeaders).
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost);
 
@@ -133,13 +165,25 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
     scope.ServiceProvider.GetRequiredService<PortfolioDbContext>().Database.Migrate();
 }
 
-// The settings saved in the Settings tab, before anything reads them.
+// The settings saved in the Settings tab, and the alerts switched off, before anything reads them.
 using (var scope = app.Services.CreateScope())
 {
     await app.Services.GetRequiredService<SettingsStore>().ReloadAsync(scope.ServiceProvider.GetRequiredService<PortfolioDbContext>(), CancellationToken.None);
+    // The kinds of phone alert switched off in the Notifications tab.
+    await app.Services.GetRequiredService<AlertPreferences>().ReloadAsync(scope.ServiceProvider.GetRequiredService<PortfolioDbContext>(), CancellationToken.None);
 }
 
 app.UseForwardedHeaders();
+app.UseProxyHeaders(app.Configuration["Proxy:Secret"]);
+// The API answers JSON and files: browsers mustn't guess other types, frame it, or leak its addresses.
+app.Use((context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers.XContentTypeOptions = "nosniff";
+    headers.XFrameOptions = "DENY";
+    headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    return next();
+});
 app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
@@ -147,12 +191,23 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseSameOriginWrites();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
 var api = app.MapGroup("/api");
-api.MapHealthChecks("/health");
+// Says which build is running (the commit it was built from), so a deploy can wait until the new one answers.
+var appVersion = app.Configuration["APP_VERSION"] ?? "dev";
+api.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = (context, report) =>
+    {
+        context.Response.Headers["X-App-Version"] = appVersion;
+        context.Response.ContentType = "text/plain";
+        return context.Response.WriteAsync(report.Status.ToString());
+    },
+});
 api.MapProfileEndpoints();
 api.MapAuthEndpoints();
 api.MapContactEndpoints();
@@ -166,8 +221,10 @@ api.MapTermsEndpoints();
 api.MapAnalyticsEndpoints();
 api.MapSupportEndpoints();
 api.MapUpdatesEndpoints();
+api.MapUpdateEmailsEndpoints();
 api.MapResumeEndpoints();
 api.MapSettingsEndpoints();
+api.MapNotificationsEndpoints();
 api.MapMeetingsEndpoints();
 api.MapSiteEndpoints();
 

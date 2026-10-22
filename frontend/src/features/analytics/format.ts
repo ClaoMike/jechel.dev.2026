@@ -82,12 +82,32 @@ export function describeEvent(event: VisitEvent): string {
       return `Clicked “${event.label ?? '?'}”${event.detail?.href ? ` (${event.detail.href})` : ''}${event.detail?.checked ? ` → ${event.detail.checked === 'true' ? 'ticked' : 'unticked'}` : ''}`
     case 'key':
       return `Pressed ${event.label}`
+    case 'change':
+      return `Changed “${event.label ?? '?'}”${event.detail?.value ? ` → ${event.detail.value}` : event.detail?.files ? ` → ${event.detail.files} ${event.detail.files === '1' ? 'file' : 'files'}` : ''}`
+    case 'submit':
+      return `Sent the form “${event.label ?? '?'}”${event.detail?.via === 'Enter' ? ' (pressed Enter)' : ''}`
+    case 'scroll':
+      return `Scrolled ${event.label} down the page`
+    case 'tab':
+      return event.label === 'Back' ? 'Came back to the tab' : 'Switched away (hid the tab)'
     case 'event':
       return `${event.label}${event.detail ? ` (${Object.entries(event.detail).map(([k, v]) => `${k}: ${v}`).join(', ')})` : ''}`
     case 'error':
       return `ERROR: ${event.label ?? 'Unknown error'}`
     case 'leave':
-      return 'Left the site (closed or hid the tab)'
+      return 'Left the site (closed the tab or went elsewhere)'
+  }
+}
+
+const regions = new Intl.DisplayNames(['en-GB'], { type: 'region' })
+
+/** "GB" → "United Kingdom"; anything that isn't a known code ("Unknown") stays as it is. */
+export function countryName(code: string): string {
+  if (!/^[A-Z]{2}$/.test(code)) return code
+  try {
+    return regions.of(code) ?? code
+  } catch {
+    return code
   }
 }
 

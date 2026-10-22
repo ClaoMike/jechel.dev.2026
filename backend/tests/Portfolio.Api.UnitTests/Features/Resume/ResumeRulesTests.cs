@@ -29,4 +29,23 @@ public class ResumeRulesTests
         Assert.Equal([ResumeSections.Experience, ResumeSections.Skills], choices.Sections);
         Assert.Equal(["Cobol"], choices.ExcludedSkills);
     }
+
+    [Fact]
+    public void Missing_contact_fields_count_as_empty()
+    {
+        var contact = new ResumeContact(null!, null!, null!);
+
+        Assert.Empty(ResumeRules.Validate(contact));
+        Assert.Equal(new ResumeContact("", "", ""), ResumeRules.Normalize(contact));
+    }
+
+    [Theory]
+    [InlineData(" ")]
+    [InlineData("")]
+    public void A_blank_skill_to_leave_out_is_refused(string skill) =>
+        Assert.Contains("excludedSkills", ResumeRules.Validate(new ResumeChoices(ResumeSections.All, [skill])).Keys);
+
+    [Fact]
+    public void A_skill_name_too_long_to_be_one_is_refused() =>
+        Assert.Contains("excludedSkills", ResumeRules.Validate(new ResumeChoices(ResumeSections.All, [new string('x', 201)])).Keys);
 }

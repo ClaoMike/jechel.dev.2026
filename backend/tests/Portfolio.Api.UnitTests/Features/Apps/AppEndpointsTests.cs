@@ -20,7 +20,7 @@ public class AppEndpointsTests
         .Options);
 
     private readonly FakePhoneAlerts _alerts = new();
-    private static readonly IOptions<SiteOptions> Site = Options.Create(new SiteOptions { PublicUrl = "https://jechel.dev" });
+    private static readonly IOptions<SiteOptions> Site = Options.Create(new SiteOptions { PublicUrl = "https://jechel.dev", PagesVisibleByDefault = true });
 
     private DatabaseFileStorage Files => new(_db, _time);
 

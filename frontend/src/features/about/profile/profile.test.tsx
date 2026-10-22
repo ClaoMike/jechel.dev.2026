@@ -9,9 +9,19 @@ import { ProfileSection } from './ProfileSection/ProfileSection'
 const PROFILE: Profile = { photoUrl: ABOUT.photoUrl, statuses: ABOUT.statuses, links: ABOUT.links }
 const CONTACT: ResumeContact = { headline: 'Full-stack engineer', email: 'me@example.com', phone: '+44 7700 900123' }
 
-function renderProfile({ value = PROFILE, canEdit = false, onSave = vi.fn(async () => {}), onRetryContact, leetCodeUsername = 'jechel' }: { value?: Profile; canEdit?: boolean; onSave?: (p: Profile) => Promise<void>; onRetryContact?: () => void; leetCodeUsername?: string } = {}) {
-  return renderView(<ProfileSection value={value} canEdit={canEdit} onSave={onSave} onRetryContact={onRetryContact} leetCodeUsername={leetCodeUsername} />)
+function renderProfile({
+  value = PROFILE,
+  headline,
+  canEdit = false,
+  onSave = vi.fn(async () => {}),
+  onRetryContact,
+  leetCodeUsername = 'jechel',
+}: { value?: Profile; headline?: string; canEdit?: boolean; onSave?: (p: Profile) => Promise<void>; onRetryContact?: () => void; leetCodeUsername?: string } = {}) {
+  return renderView(<ProfileSection value={value} headline={headline} canEdit={canEdit} onSave={onSave} onRetryContact={onRetryContact} leetCodeUsername={leetCodeUsername} />)
 }
+
+const privateLine = () => page.getByText('Only you see this:').element().closest('.profile-private')!
+const privateItems = () => [...privateLine().querySelectorAll('li')].map((li) => li.textContent)
 
 const link = (name: string) => page.getByRole('list', { name: 'Links' }).getByRole('link', { name })
 const form = () => page.getByRole('form', { name: 'Edit Photo and links' })
@@ -53,6 +63,23 @@ describe('Photo and links, for a visitor', () => {
     await expect.element(page.getByText(/No citizenship or residence labels yet/)).not.toBeInTheDocument()
   })
 
+  it('shows the headline under the name', async () => {
+    await renderProfile({ headline: '  Full-stack engineer · .NET, React  ' })
+    const name = page.getByText('Claudiu Mihai Jechel')
+    const headline = page.getByText('Full-stack engineer · .NET, React')
+    await expect.element(headline).toBeVisible()
+    expect(headline.element().textContent).toBe('Full-stack engineer · .NET, React')
+    expect(name.element().nextElementSibling).toBe(headline.element())
+  })
+
+  it('shows the name alone without a headline', async () => {
+    await renderProfile({ headline: '   ' })
+    await expect.element(page.getByText('Claudiu Mihai Jechel')).toBeVisible()
+    expect(document.querySelector('.profile-headline')).toBeNull()
+    await renderProfile()
+    expect(document.querySelector('.profile-headline')).toBeNull()
+  })
+
   it('has no Edit button and no private details', async () => {
     await renderProfile()
     await expect.element(page.getByRole('button', { name: 'Edit Photo and links' })).not.toBeInTheDocument()
@@ -61,16 +88,49 @@ describe('Photo and links, for a visitor', () => {
 })
 
 describe('Photo and links, for the admin', () => {
-  it("shows where labels go, and the résumé's private line (or how to fill it in)", async () => {
-    await renderProfile({ canEdit: true, value: { ...PROFILE, statuses: [], contact: CONTACT } })
+  it('shows where labels go, and only the email and phone as private, each with a copy button', async () => {
+    await renderProfile({ canEdit: true, headline: CONTACT.headline, value: { ...PROFILE, statuses: [], contact: CONTACT } })
     await expect.element(page.getByText('No citizenship or residence labels yet. Use Edit to add them.')).toBeVisible()
-    await expect.poll(() => textOf(page.getByText(/Only you see this/).element().parentElement ? page.getByText(/Only you see this/) : page.getByText('x'))).toContain('Only you see this:')
-    expect(document.querySelector('.profile-private')?.textContent).toBe('Only you see this: Full-stack engineer · me@example.com · +44 7700 900123')
+    await expect.element(page.getByText('Only you see this:')).toBeVisible()
+    expect(privateItems()).toEqual(['me@example.com', '+44 7700 900123'])
+    // The headline is under the name, for everyone; not in the private part.
+    expect(privateLine().textContent).not.toContain(CONTACT.headline)
+    await expect.element(page.getByRole('button', { name: 'Copy email' })).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Copy phone number' })).toBeVisible()
+    // Each button comes before what it copies.
+    const [email, phone] = privateLine().querySelectorAll('li')
+    expect(email.firstElementChild).toBe(page.getByRole('button', { name: 'Copy email' }).element())
+    expect(phone.firstElementChild).toBe(page.getByRole('button', { name: 'Copy phone number' }).element())
   })
 
-  it("says how to fill in an empty private line", async () => {
-    await renderProfile({ canEdit: true, value: { ...PROFILE, contact: { headline: '', email: '', phone: '' } } })
-    expect(document.querySelector('.profile-private')?.textContent).toBe('Only you see this: no headline, email or phone for the résumé yet. Use Edit to add them.')
+  it('copies the email and the phone number', async () => {
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+    await renderProfile({ canEdit: true, value: { ...PROFILE, contact: CONTACT } })
+    await page.getByRole('button', { name: 'Copy email' }).click()
+    expect(writeText).toHaveBeenLastCalledWith('me@example.com')
+    await expect.element(page.getByRole('button', { name: 'Copy email' })).toHaveAttribute('title', 'Copied!')
+    await page.getByRole('button', { name: 'Copy phone number' }).click()
+    expect(writeText).toHaveBeenLastCalledWith('+44 7700 900123')
+    await expect.poll(() => textOf(page.getByRole('status').filter({ hasText: 'copied' }).last())).toBe('phone number copied')
+  })
+
+  it('says when copying fails', async () => {
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'))
+    await renderProfile({ canEdit: true, value: { ...PROFILE, contact: CONTACT } })
+    await page.getByRole('button', { name: 'Copy email' }).click()
+    await expect.element(page.getByRole('button', { name: 'Copy email' })).toHaveAttribute('title', "Couldn't copy")
+  })
+
+  it('leaves out an empty email or phone', async () => {
+    await renderProfile({ canEdit: true, value: { ...PROFILE, contact: { ...CONTACT, email: ' ' } } })
+    expect(privateItems()).toEqual(['+44 7700 900123'])
+    await expect.element(page.getByRole('button', { name: 'Copy email' })).not.toBeInTheDocument()
+  })
+
+  it('says how to fill in an empty private line', async () => {
+    await renderProfile({ canEdit: true, value: { ...PROFILE, contact: { headline: 'Engineer', email: '', phone: '' } } })
+    expect(privateLine().textContent).toBe('Only you see this: no email or phone for the résumé yet. Use Edit to add them.')
+    await expect.element(page.getByRole('button', { name: /^Copy/ })).not.toBeInTheDocument()
   })
 
   it("says when the résumé's private details couldn't be loaded, with a retry", async () => {

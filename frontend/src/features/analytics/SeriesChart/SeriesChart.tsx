@@ -56,23 +56,27 @@ export function SeriesChart({ series, bucketSize }: { series: SeriesPoint[]; buc
         )}
       </div>
 
-      <table className="visually-hidden">
-        <caption>{vm.title}</caption>
-        <thead>
-          <tr>
-            <th scope="col">From</th>
-            <th scope="col">{vm.metricLabel}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {vm.columns.map((column) => (
-            <tr key={column.key}>
-              <td>{column.fullLabel}</td>
-              <td>{column.value}</td>
+      {/* The numbers for screen readers. Hidden around the table, not on it: a table's caption sits outside the table's own
+          box, so hiding the table left "Visitors per day" showing under the chart. */}
+      <div className="visually-hidden">
+        <table>
+          <caption>{vm.title}</caption>
+          <thead>
+            <tr>
+              <th scope="col">From</th>
+              <th scope="col">{vm.metricLabel}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {vm.columns.map((column) => (
+              <tr key={column.key}>
+                <td>{column.fullLabel}</td>
+                <td>{column.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   )
 }

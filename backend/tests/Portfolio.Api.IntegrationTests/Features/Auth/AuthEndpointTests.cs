@@ -91,13 +91,72 @@ public class AuthEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
-    public async Task Signing_in_elsewhere_signs_out_the_previous_browser()
+    public async Task Signing_in_on_another_device_keeps_both_signed_in_and_lists_both()
     {
         var laptop = await SignedInClientAsync();
         var phone = await SignedInClientAsync();
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await laptop.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await laptop.GetAsync("/api/auth/me")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await phone.GetAsync("/api/auth/me")).StatusCode);
+
+        var seenFromLaptop = (await laptop.GetFromJsonAsync<List<AdminSessionInfo>>("/api/auth/sessions"))!;
+        var seenFromPhone = (await phone.GetFromJsonAsync<List<AdminSessionInfo>>("/api/auth/sessions"))!;
+        var laptopId = Assert.Single(seenFromLaptop, s => s.Current).Id;
+        var phoneId = Assert.Single(seenFromPhone, s => s.Current).Id;
+        Assert.NotEqual(laptopId, phoneId);
+        Assert.Contains(seenFromLaptop, s => s.Id == phoneId && !s.Current);
+    }
+
+    [Fact]
+    public async Task Signing_out_another_device_ends_it_at_once_and_only_it()
+    {
+        var laptop = await SignedInClientAsync();
+        var phone = await SignedInClientAsync();
+        var phoneId = Assert.Single((await phone.GetFromJsonAsync<List<AdminSessionInfo>>("/api/auth/sessions"))!, s => s.Current).Id;
+
+        Assert.Equal(HttpStatusCode.NoContent, (await laptop.DeleteAsync($"/api/auth/sessions/{phoneId}")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await phone.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await laptop.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await laptop.DeleteAsync($"/api/auth/sessions/{phoneId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await laptop.DeleteAsync($"/api/auth/sessions/{Guid.NewGuid()}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Signing_out_every_other_device_keeps_this_one()
+    {
+        var others = new[] { await SignedInClientAsync(), await SignedInClientAsync() };
+        var here = await SignedInClientAsync();
+
+        var ended = await here.PostAsync("/api/auth/sessions/end-others", null);
+
+        Assert.Equal(HttpStatusCode.OK, ended.StatusCode);
+        Assert.True((await ended.Content.ReadFromJsonAsync<EndedSessions>())!.Count >= 2);
+        foreach (var other in others) Assert.Equal(HttpStatusCode.Unauthorized, (await other.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await here.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal([true], (await here.GetFromJsonAsync<List<AdminSessionInfo>>("/api/auth/sessions"))!.Select(s => s.Current));
+    }
+
+    [Fact]
+    public async Task A_device_can_sign_itself_out_from_the_list()
+    {
+        var laptop = await SignedInClientAsync();
+        var id = Assert.Single((await laptop.GetFromJsonAsync<List<AdminSessionInfo>>("/api/auth/sessions"))!, s => s.Current).Id;
+
+        Assert.Equal(HttpStatusCode.NoContent, (await laptop.DeleteAsync($"/api/auth/sessions/{id}")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await laptop.GetAsync("/api/auth/me")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("GET", "/api/auth/sessions")]
+    [InlineData("DELETE", "/api/auth/sessions/6f9619ff-8b86-d011-b42d-00cf4fc964ff")]
+    [InlineData("POST", "/api/auth/sessions/end-others")]
+    public async Task Visitors_cant_see_or_end_the_admins_devices(string method, string path)
+    {
+        var response = await factory.CreateBrowserClient().SendAsync(new HttpRequestMessage(new HttpMethod(method), path));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

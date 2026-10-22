@@ -3,7 +3,7 @@ import type { Profile } from '../../features/about/profile/profile'
 import { plainText } from '../../features/about/textLinks'
 import { failureOf, type AboutContent, type ApiFailure, type ResumeContact } from '../../services/api'
 import { useGetAboutQuery, useUpdateAboutMutation } from '../../store/api/aboutApi'
-import { useGetResumeSettingsQuery, useSaveResumeContactMutation } from '../../store/api/resumeApi'
+import { useGetResumeHeadlineQuery, useGetResumeSettingsQuery, useSaveResumeContactMutation } from '../../store/api/resumeApi'
 import { toLoadable } from '../../store/loadable'
 
 const TEXTS = { heading: 'About Me', loading: 'Loading About Me…', error: "This page couldn't be loaded." }
@@ -24,6 +24,8 @@ export function useAboutPageViewModel() {
   const resume = useGetResumeSettingsQuery(undefined, { skip: !isAuthenticated })
   const contact: ResumeContact | undefined = resume.data && { phone: resume.data.phone, email: resume.data.email, headline: resume.data.headline }
   const [saveResumeContact] = useSaveResumeContactMutation()
+  // Public, under the name; the admin's save updates it at once. Without it, the name stands alone.
+  const headline = useGetResumeHeadlineQuery().data ?? ''
 
   const save = async (patch: Partial<AboutContent>) => {
     if (page) await updateAbout({ ...page, ...patch }).unwrap()
@@ -53,6 +55,7 @@ export function useAboutPageViewModel() {
       resumeSkills: page.skills.map((skill) => plainText(skill.name)),
       profile: {
         value: { photoUrl: page.photoUrl, statuses: page.statuses, links: page.links, contact: isAuthenticated ? contact : undefined } satisfies Profile,
+        headline,
         leetCodeUsername: page.problemSolving.leetCodeUsername,
         canEdit,
         onRetryContact: isAuthenticated && resume.isError ? () => void resume.refetch() : undefined,

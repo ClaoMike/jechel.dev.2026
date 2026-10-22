@@ -3,8 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using Portfolio.Api.Features.Files;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 namespace Portfolio.Api.IntegrationTests.Features.Files;
 
@@ -28,10 +27,11 @@ public class FileEndpointTests(PortfolioApiFactory factory)
 
     private static byte[] Png(int width, int height)
     {
-        using var image = new Image<Rgba32>(width, height, new Rgba32(10, 20, 30));
-        using var stream = new MemoryStream();
-        image.SaveAsPng(stream);
-        return stream.ToArray();
+        using var bitmap = new SKBitmap(width, height);
+        bitmap.Erase(new SKColor(10, 20, 30));
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
     }
 
     [Fact]
@@ -60,7 +60,9 @@ public class FileEndpointTests(PortfolioApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, served.StatusCode);
         Assert.Equal("image/webp", served.Content.Headers.ContentType!.MediaType);
         Assert.Equal("nosniff", served.Headers.GetValues("X-Content-Type-Options").Single());
-        using var image = Image.Load(await served.Content.ReadAsByteArrayAsync());
+        // A file never changes (a new upload gets a new id): browsers keep it.
+        Assert.Equal("public, max-age=31536000, immutable", served.Headers.CacheControl!.ToString());
+        using var image = SKBitmap.Decode(await served.Content.ReadAsByteArrayAsync());
         Assert.Equal((800, 800), (image.Width, image.Height));
     }
 

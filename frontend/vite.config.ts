@@ -9,6 +9,11 @@ const apiUrl = process.env.API_URL ?? 'http://localhost:5105'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Pre-bundled up front: found halfway through a test run (a fresh cache, as in CI), Vite would reload the
+  // test page and the tests in it fail ("Vite unexpectedly reloaded a test").
+  optimizeDeps: {
+    include: ['react-dom/client'],
+  },
   server: {
     port: webPort,
     strictPort: true,

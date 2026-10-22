@@ -1,6 +1,7 @@
 import { SupportButton } from '../../features/support/SupportButton/SupportButton'
 import { SubscribeButton } from '../../features/updates/SubscribeButton/SubscribeButton'
 import { AdminBar } from '../AdminBar/AdminBar'
+import { UserBar } from '../UserBar/UserBar'
 import { Brand } from '../Brand/Brand'
 import { useAppLayoutViewModel } from './AppLayout.viewModel'
 import { RivieraBackground } from '../background/RivieraBackground/RivieraBackground'
@@ -32,6 +33,7 @@ export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
       {vm.vice && <RivieraBackground />}
       <header className="site-header" inert={vm.contentHidden}>
         <AdminBar />
+        <UserBar />
         <div className="site-header-top">
           <Brand />
           <div className="header-actions">

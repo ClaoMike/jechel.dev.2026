@@ -64,14 +64,17 @@ public class ResumeEndpointTests(PortfolioApiFactory factory)
         Assert.Equal(ResumeDocument.FileName, publicPdf.Content.Headers.ContentDisposition!.FileName!.Trim('"'));
         var publicText = TextOf(await publicPdf.Content.ReadAsByteArrayAsync());
         Assert.Contains("Full-stack engineer", publicText);
-        Assert.DoesNotContain("7700", publicText);
+        // The number's last part: specific enough that nothing else in the document (dates, a version) has it.
+        Assert.DoesNotContain("900456", publicText);
 
         var privateText = TextOf(await admin.GetByteArrayAsync("/api/resume/private"));
-        Assert.Contains("7700", privateText);
+        Assert.Contains("900456", privateText);
 
         // The page's download button now points at the generated copy, and the page never holds the phone.
         var aboutJson = await visitor.GetStringAsync("/api/about");
-        Assert.DoesNotContain("7700", aboutJson);
+        // Not "7700": the résumé link's version (a time) can hold those digits.
+        Assert.DoesNotContain(Phone, aboutJson);
+        Assert.DoesNotContain("900456", aboutJson);
         var about = await visitor.GetFromJsonAsync<AboutContent>("/api/about");
         Assert.StartsWith("/api/resume?v=", about!.Links.ResumeUrl);
 
@@ -91,5 +94,23 @@ public class ResumeEndpointTests(PortfolioApiFactory factory)
         Assert.Contains("phone", await contact.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.BadRequest, choices.StatusCode);
         Assert.Contains("sections", await choices.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Visitors_see_the_headline_but_not_the_email_or_phone()
+    {
+        var admin = await SignedInClientAsync();
+        await admin.PutAsJsonAsync("/api/resume/contact", new ResumeContact(Phone, "claudiu@example.com", " Full-stack engineer "));
+
+        var response = await factory.CreateBrowserClient().GetAsync("/api/resume/headline");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Equal("""{"headline":"Full-stack engineer"}""", body);
+        Assert.Equal("no-cache", response.Headers.CacheControl!.ToString());
+
+        // A change shows at once.
+        await admin.PutAsJsonAsync("/api/resume/contact", new ResumeContact(Phone, "claudiu@example.com", "Engineer"));
+        Assert.Equal("Engineer", (await factory.CreateBrowserClient().GetFromJsonAsync<ResumeHeadline>("/api/resume/headline"))!.Headline);
     }
 }

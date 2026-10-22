@@ -7,21 +7,36 @@ namespace Portfolio.Api.Features.Meetings;
 /// <summary>The admin's own words, by email: an answer to a contact message, or a note with a meeting decision.</summary>
 public static class PersonalEmails
 {
-    /// <param name="original">Quoted under the answer.</param>
-    public static EmailMessage Reply(string to, string name, string text, string original, string replyTo) => new(
+    public const string DefaultSubject = "Re: your message to jechel.dev";
+
+    /// <param name="original">What they last wrote: quoted under the answer.</param>
+    /// <param name="subject">The subject of the email that started the conversation, if one did: the answer is "Re: " it.</param>
+    /// <param name="replyTo">Where their answer goes when not to the sender (while the site doesn't receive email). Optional.</param>
+    /// <param name="inReplyTo">The Message-ID of their latest email, so the answer joins its thread. Optional.</param>
+    public static EmailMessage Reply(string to, string name, string text, string original, string? subject = null, string? replyTo = null, string? inReplyTo = null) => new(
         to,
-        "Re: your message to jechel.dev",
+        ReplySubject(subject),
         Html($"""
-            <p>Hi {Encode(name)},</p>
+            <p>{Encode(Greeting(name))}</p>
             {Paragraphs(text)}
             <p>Claudiu</p>
             <blockquote style="margin:24px 0 0;padding:8px 14px;border-left:3px solid #ccc;color:#666">{Paragraphs(original)}</blockquote>
             """),
-        $"Hi {name},\n\n{text}\n\nClaudiu\n\n> {original.Replace("\n", "\n> ")}",
-        ReplyTo: replyTo);
+        $"{Greeting(name)}\n\n{text}\n\nClaudiu\n\n> {original.Replace("\n", "\n> ")}",
+        ReplyTo: replyTo,
+        InReplyTo: inReplyTo);
+
+    /// <summary>"Re: " their subject (once), or <see cref="DefaultSubject"/>.</summary>
+    public static string ReplySubject(string? subject)
+    {
+        var trimmed = subject?.Trim() ?? "";
+        if (trimmed.Length == 0) return DefaultSubject;
+        return trimmed.StartsWith("re:", StringComparison.OrdinalIgnoreCase) ? trimmed : $"Re: {trimmed}";
+    }
 
     /// <param name="accepted">True for an accepted meeting, false for a declined one.</param>
-    public static EmailMessage MeetingNote(string to, string name, bool accepted, DateTimeOffset start, string? timeZone, string text, string replyTo)
+    /// <param name="replyTo">Where their answer goes when not to the sender (while the site doesn't receive email). Optional.</param>
+    public static EmailMessage MeetingNote(string to, string name, bool accepted, DateTimeOffset start, string? timeZone, string text, string? replyTo = null)
     {
         var when = FormatWhen(start, timeZone);
         var subject = accepted ? $"Our meeting on {when}" : $"About the meeting you asked for on {when}";
@@ -29,14 +44,17 @@ public static class PersonalEmails
             to,
             subject,
             Html($"""
-                <p>Hi {Encode(name)},</p>
+                <p>{Encode(Greeting(name))}</p>
                 {Paragraphs(text)}
                 <p>Claudiu</p>
                 <p style="color:#888;font-size:13px">{Encode(accepted ? $"The meeting is confirmed for {when}; Cal.com has sent the invitation." : $"The meeting on {when} won't go ahead.")}</p>
                 """),
-            $"Hi {name},\n\n{text}\n\nClaudiu\n\n{(accepted ? $"The meeting is confirmed for {when}; Cal.com has sent the invitation." : $"The meeting on {when} won't go ahead.")}",
+            $"{Greeting(name)}\n\n{text}\n\nClaudiu\n\n{(accepted ? $"The meeting is confirmed for {when}; Cal.com has sent the invitation." : $"The meeting on {when} won't go ahead.")}",
             ReplyTo: replyTo);
     }
+
+    /// <summary>"Hi Ada,", or just "Hi," when all there is of their name is their address (an email from someone new).</summary>
+    public static string Greeting(string name) => name.Trim().Length == 0 || name.Contains('@') ? "Hi," : $"Hi {name.Trim()},";
 
     /// <summary>"Tue 21 Oct, 14:30 (Europe/London)", in the attendee's time zone when it's known.</summary>
     public static string FormatWhen(DateTimeOffset start, string? timeZone)

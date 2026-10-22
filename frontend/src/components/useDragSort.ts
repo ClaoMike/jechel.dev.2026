@@ -60,8 +60,13 @@ export function useDragSort(count: number, onMove: (from: number, to: number) =>
       const over = positionAt(event.currentTarget.parentElement, event.clientX, event.clientY)
       if (over !== null && dragRef.current && over !== dragRef.current.to) update({ ...dragRef.current, to: over })
     },
-    onPointerUp: () => finish(true),
-    onPointerCancel: () => finish(false),
+    // Only the pointer that started it ends it: another finger lifting doesn't drop the item.
+    onPointerUp: (event: PointerEvent<HTMLElement>) => {
+      if (!pointer.current || pointer.current.id === event.pointerId) finish(true)
+    },
+    onPointerCancel: (event: PointerEvent<HTMLElement>) => {
+      if (!pointer.current || pointer.current.id === event.pointerId) finish(false)
+    },
   })
 
   const handleProps = (position: number, name: string) => ({

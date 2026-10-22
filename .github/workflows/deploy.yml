@@ -1,0 +1,101 @@
+name: Deploy
+
+# `main` is production: it only changes through pull requests whose tests passed (see ci.yml), and every change
+# to it is deployed. The images are built here and pushed to the GitHub container registry; Sliplane is told to
+# run them (its deploy hooks), and the site goes to Cloudflare Pages once the new API answers (it migrates the
+# database as it starts).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time, never cancelled halfway.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  API_IMAGE: ghcr.io/claomike/jechel-api
+  BACKUP_IMAGE: ghcr.io/claomike/jechel-backup
+
+jobs:
+  images:
+    name: Images → GitHub container registry
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Tagged with the commit: Sliplane runs exactly this build, and the API says so on /api/health.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          build-args: APP_VERSION=${{ github.sha }}
+          tags: ${{ env.API_IMAGE }}:${{ github.sha }}
+          push: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend/db-backup
+          tags: ${{ env.BACKUP_IMAGE }}:${{ github.sha }}
+          push: true
+          cache-from: type=gha,scope=backup
+          cache-to: type=gha,scope=backup,mode=max
+
+  api:
+    name: API → Sliplane
+    needs: images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run the new images
+        env:
+          API_HOOK: ${{ secrets.SLIPLANE_API_DEPLOY_HOOK }}
+          BACKUP_HOOK: ${{ secrets.SLIPLANE_BACKUP_DEPLOY_HOOK }}
+        run: |
+          deploy() { case "$1" in *\?*) curl --fail --silent --show-error "$1&tag=$GITHUB_SHA" ;; *) curl --fail --silent --show-error "$1?tag=$GITHUB_SHA" ;; esac; echo; }
+          deploy "$API_HOOK"
+          # The backup service is optional (it can be set up later).
+          if [ -n "$BACKUP_HOOK" ]; then deploy "$BACKUP_HOOK"; fi
+      - name: Wait for the new API to answer
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          for i in $(seq 1 60); do
+            version=$(curl --silent --max-time 10 --dump-header - --output /dev/null "$API_URL/api/health" | tr -d '\r' | sed -n 's/^[Xx]-[Aa]pp-[Vv]ersion: //p')
+            if [ "$version" = "$GITHUB_SHA" ]; then echo "The new API is up."; exit 0; fi
+            echo "Waiting… (running: ${version:-nothing yet})"
+            sleep 10
+          done
+          echo "The new API didn't come up within 10 minutes: see its logs on Sliplane. The site wasn't deployed."
+          exit 1
+
+  site:
+    name: Site → Cloudflare Pages
+    needs: api
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      # dist/ plus functions/ (the /api proxy).
+      - run: npx wrangler pages deploy dist --project-name "${{ vars.CLOUDFLARE_PAGES_PROJECT }}" --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

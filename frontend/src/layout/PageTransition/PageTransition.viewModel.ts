@@ -1,5 +1,6 @@
 import { useEffect, useState, type AnimationEvent, type ReactNode } from 'react'
 import { useLocation, useOutlet } from 'react-router'
+import { motionAllowed } from '../../utils/motion'
 import { tabIndex } from '../tabs'
 
 type Direction = 'left' | 'right'
@@ -9,10 +10,6 @@ interface Leaving {
   page: ReactNode
   /** Which way the pages move: "left" when going to a tab further right. */
   direction: Direction
-}
-
-function motionAllowed() {
-  return window.matchMedia !== undefined && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 /** The page on show, and the one sliding out (kept until its animation ends) and which way. */

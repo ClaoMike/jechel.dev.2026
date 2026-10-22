@@ -160,6 +160,81 @@ public class AnalyticsEndpointsTests
     }
 
     [Fact]
+    public async Task Collect_keeps_every_kind_of_action_the_tracker_records()
+    {
+        var id = Guid.NewGuid();
+
+        await Collect(id, null,
+            Event(1, "pageview"),
+            Event(2, "change", label: "Flag", detail: new() { ["element"] = "select", ["value"] = "Romania" }),
+            Event(3, "submit", label: "Get updates", detail: new() { ["via"] = "Enter" }),
+            Event(4, "scroll", label: "75%"),
+            Event(5, "tab", label: "Hidden"),
+            Event(6, "tab", label: "Back"),
+            Event(7, "key", label: "Escape"),
+            Event(8, "leave"));
+
+        var stored = await _db.VisitEvents.OrderBy(e => e.Sequence).Select(e => e.Type).ToListAsync();
+        Assert.Equal(["pageview", "change", "submit", "scroll", "tab", "tab", "key", "leave"], stored);
+        var session = await _db.VisitSessions.SingleAsync();
+        // Changing, sending and pressing a key are interactions; scrolling, the tab and leaving aren't.
+        Assert.Equal((8, 3), (session.EventCount, session.InteractionCount));
+    }
+
+    [Theory]
+    [InlineData("scroll", true)]
+    [InlineData("tab", true)]
+    [InlineData("leave", true)]
+    [InlineData("change", false)]
+    [InlineData("submit", false)]
+    [InlineData("event", false)]
+    [InlineData("click", false)]
+    public async Task Only_doing_something_on_purpose_stops_a_one_page_visit_being_a_bounce(string type, bool bounce)
+    {
+        await Collect(Guid.NewGuid(), null, Event(1, "pageview"), Event(2, type, label: "x"));
+
+        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "7d")).Value!;
+
+        Assert.Equal(bounce ? 1 : 0, summary.Totals.BounceRate);
+    }
+
+    [Fact]
+    public async Task GetSummary_lists_what_the_site_reported_without_theme_changes()
+    {
+        await Collect(Guid.NewGuid(), null,
+            Event(1, "pageview"),
+            Event(2, "event", label: "Message sent"),
+            Event(3, "event", label: AnalyticsRules.ThemeChangedEvent, detail: new() { ["from"] = "vice", ["to"] = "light" }),
+            Event(4, "event", label: "Subscribed"),
+            Event(5, "click", label: "Apps"));
+        await Collect(Guid.NewGuid(), Http(ip: "198.51.100.9"), Event(1, "event", label: "Message sent"), Event(2, "event"));
+
+        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "7d")).Value!;
+
+        Assert.Equal([new NamedCount("Message sent", 2), new NamedCount("Subscribed", 1)], summary.SiteEvents);
+        Assert.Equal([new NamedCount("Apps", 1)], summary.TopClicks);
+        Assert.Equal([new NamedCount("vice → light", 1)], summary.ThemeSwitches);
+    }
+
+    [Fact]
+    public async Task GetSummary_counts_visits_by_country_from_cloudflare()
+    {
+        var britain = Http();
+        britain.Request.Headers["CF-IPCountry"] = "GB";
+        var romania = Http(ip: "198.51.100.2");
+        romania.Request.Headers["CF-IPCountry"] = "ro";
+        var tor = Http(ip: "198.51.100.3");
+        tor.Request.Headers["CF-IPCountry"] = "T1";
+        var again = Http(ip: "198.51.100.4");
+        again.Request.Headers["CF-IPCountry"] = "GB";
+        foreach (var http in new[] { britain, romania, tor, again }) await Collect(Guid.NewGuid(), http, Event(1, "pageview"));
+
+        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "7d")).Value!;
+
+        Assert.Equal([new NamedCount("GB", 2), new NamedCount("RO", 1), new NamedCount("Unknown", 1)], summary.Countries);
+    }
+
+    [Fact]
     public async Task The_preferred_theme_is_the_one_a_visit_ends_in_and_switches_are_counted()
     {
         var switched = Guid.NewGuid();
@@ -234,6 +309,37 @@ public class AnalyticsEndpointsTests
         Assert.Equal([newer, older], all.Items.Select(s => s.Id));
         Assert.Equal([older], errors.Items.Select(s => s.Id));
         Assert.Equal(1, errors.TotalCount);
+    }
+
+    [Fact]
+    public async Task ListSessions_pages_through_many_visits_with_every_one_on_exactly_one_page()
+    {
+        var ids = new List<Guid>();
+        for (var i = 0; i < 45; i++)
+        {
+            var id = Guid.NewGuid();
+            ids.Add(id);
+            await Collect(id, null, Event(1, "pageview"));
+            _time.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        var pages = new List<PagedResponse<SessionSummary>>();
+        for (var page = 1; page <= 3; page++) pages.Add((await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None, page, 20)).Value!);
+
+        Assert.Equal([20, 20, 5], pages.Select(p => p.Items.Count));
+        Assert.All(pages, p => Assert.Equal(45, p.TotalCount));
+        Assert.Equal(Enumerable.Reverse(ids), pages.SelectMany(p => p.Items).Select(s => s.Id));
+        Assert.Empty((await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None, 4, 20)).Value!.Items);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 1, 1)]
+    [InlineData(-5, 10_000, 1, AnalyticsEndpoints.MaxPageSize)]
+    public async Task ListSessions_brings_page_numbers_and_sizes_into_range(int page, int pageSize, int expectedPage, int expectedSize)
+    {
+        var list = (await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None, page, pageSize)).Value!;
+
+        Assert.Equal((expectedPage, expectedSize), (list.Page, list.PageSize));
     }
 
     [Fact]

@@ -14,13 +14,85 @@ public class TermsEndpointsTests
         .Options);
 
     [Fact]
-    public async Task GetTerms_returns_the_defaults_without_a_date_before_the_first_save()
+    public async Task GetTerms_returns_the_defaults_with_their_own_date_before_the_first_save()
     {
         var terms = (await TermsEndpoints.GetTerms(_db, CancellationToken.None)).Value!;
 
         Assert.Equal(TermsDefaults.Content.Title, terms.Title);
         Assert.Equal(TermsDefaults.Content.Sections.Count, terms.Sections.Count);
-        Assert.Null(terms.UpdatedAt);
+        // The date is the version visitors accept: changing the defaults (and their date) asks everyone again.
+        Assert.Equal(TermsDefaults.UpdatedAt, terms.UpdatedAt);
+    }
+
+    /// <summary>Every kind of event the tracker records (AnalyticsRules.EventTypes), and words the terms use for it.</summary>
+    [Theory]
+    [InlineData("pageview", "the pages you open")]
+    [InlineData("click", "what you click")]
+    [InlineData("key", "pressing Escape")]
+    [InlineData("change", "the fields you change")]
+    [InlineData("submit", "when you send a form")]
+    [InlineData("event", "what you do with the forms")]
+    [InlineData("scroll", "how far down each page you scroll")]
+    [InlineData("tab", "switch to another tab")]
+    [InlineData("error", "errors on the page")]
+    [InlineData("leave", "when you leave")]
+    public void The_default_terms_say_what_is_recorded(string type, string words)
+    {
+        Assert.Contains(type, Portfolio.Api.Features.Analytics.AnalyticsRules.EventTypes);
+        var recorded = TermsDefaults.Content.Sections.Single(s => s.Heading == "What is recorded when you visit");
+        Assert.Contains(recorded.Blocks.SelectMany(b => b.Items), item => item.Contains(words));
+    }
+
+    [Fact]
+    public void A_new_kind_of_event_needs_a_line_in_the_terms_above() =>
+        Assert.Equal(10, Portfolio.Api.Features.Analytics.AnalyticsRules.EventTypes.Count);
+
+    [Fact]
+    public void The_default_terms_can_be_saved_unchanged_in_the_editor() =>
+        Assert.Empty(TermsRules.Validate(TermsDefaults.Content));
+
+    /// <summary>All of the default terms' text, to check what they say.</summary>
+    private static string DefaultText() => string.Join("\n",
+        new[] { TermsDefaults.Content.Intro }.Concat(TermsDefaults.Content.Sections.SelectMany(s =>
+            new[] { s.Heading }.Concat(s.Blocks.SelectMany(b => new[] { b.Text }.Concat(b.Items))))));
+
+    [Fact]
+    public void The_default_terms_say_how_long_visits_are_kept_as_long_as_they_are() =>
+        Assert.Contains($"deleted automatically {TermsDefaults.VisitRetentionMonths} months after the visit", DefaultText());
+
+    [Theory]
+    // Every key the site keeps in a visitor's browser (frontend: theme.ts, acceptance.ts, EditableSection, useScrollMemory, tracker.ts).
+    [InlineData("terms.accepted")]
+    [InlineData("theme")]
+    [InlineData("theme.slowDevice")]
+    [InlineData("about.collapsed.")]
+    [InlineData("scroll.positions")]
+    [InlineData("analytics.session")]
+    // Every service a visitor's data passes through.
+    [InlineData("Cloudflare")]
+    [InlineData("Sliplane")]
+    [InlineData("Meetings are by invitation")]
+    [InlineData("an email you send to the website's address")]
+    [InlineData("Resend")]
+    [InlineData("ntfy.sh")]
+    [InlineData("youtube-nocookie.com")]
+    [InlineData("Cal.com")]
+    [InlineData("Buy Me a Coffee")]
+    // Apps: their media from elsewhere, and the stores they're offered in.
+    [InlineData("an app's images and videos may come from")]
+    [InlineData("App Store, Google Play and Steam")]
+    // How to use your rights, and where to complain.
+    [InlineData("[Contact](/contact)")]
+    [InlineData("ico.org.uk")]
+    public void The_default_terms_name_what_the_site_keeps_and_who_handles_it(string mentioned) =>
+        Assert.Contains(mentioned, DefaultText());
+
+    [Fact]
+    public void The_default_terms_say_the_IP_address_isnt_stored_and_nothing_is_recorded_before_accepting()
+    {
+        var text = DefaultText();
+        Assert.Contains("Your IP address itself is not stored", text);
+        Assert.Contains("Nothing is recorded before you accept", text);
     }
 
     [Fact]

@@ -27,7 +27,6 @@ export function useAppsPageViewModel() {
     pageSize: isAuthenticated ? 8 : 9,
     categories,
     open,
-    openApp: (app: AppDetails) => setOpen(app),
     addApp: () => setOpen(null),
     closeApp: () => setOpen(undefined),
     // A new app becomes an existing one once saved: its popup shows it.

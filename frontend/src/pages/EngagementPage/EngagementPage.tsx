@@ -65,9 +65,7 @@ function Dashboard() {
           </div>
         </Loading>
       )}
-      {state.status === 'error' && (
-        <ErrorState message="The numbers couldn't be loaded." onRetry={vm.retry} />
-      )}
+      {state.status === 'error' && <ErrorState message="The numbers couldn't be loaded." onRetry={vm.retry} />}
       {state.status === 'loaded' && (
         <>
           <StatTiles totals={state.data.totals} />
@@ -76,17 +74,15 @@ function Dashboard() {
             <RankedList title="Top pages" items={state.data.topPages} />
             <RankedList title="Where visitors come from" items={state.data.referrers} />
             <RankedList title="Most clicked" items={state.data.topClicks} />
+            <RankedList title="What visitors did" items={state.data.siteEvents} empty="Nothing reported yet." />
             <RankedList title="Errors" items={state.data.topErrors} empty="No errors. 🎉" />
             <RankedList title="Preferred theme" items={state.data.themes} />
             <RankedList title="Theme switches" items={state.data.themeSwitches} empty="Nobody has switched yet." />
             <RankedList title="Devices" items={state.data.devices} />
             <RankedList title="Browsers" items={state.data.browsers} />
+            <RankedList title="Countries" items={vm.countries} />
             <RankedList title="Time zones" items={state.data.timeZones} />
           </div>
-          <p className="muted engagement-note">
-            Preferred theme is the one a visit ended in (first-time visitors start in Vice). Days, months and years are UTC; minutes and hours are shown in your time zone. Visitors are counted once a day without cookies, so the same person on two days counts twice. Your own visits while
-            signed in aren't recorded.
-          </p>
         </>
       )}
 

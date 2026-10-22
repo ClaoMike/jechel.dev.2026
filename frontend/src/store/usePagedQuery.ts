@@ -4,19 +4,22 @@ import { pageCount, toLoadable, type Loadable } from './loadable'
 import type { PageArgs } from './api/appsApi'
 
 /** An RTK Query hook for a paged list, e.g. `useListAppsQuery`. */
-export type PagedQueryHook<T, A extends PageArgs = PageArgs> = (args: A) => {
-  currentData?: Page<T>
-  isError: boolean
-  isFetching: boolean
-  refetch: () => unknown
+export type PagedQueryHook<T, A extends PageArgs = PageArgs> = (
+  args: A,
+  options?: PagedQueryOptions,
+) => { currentData?: Page<T>; isError: boolean; isFetching: boolean; refetch: () => unknown }
+
+/** E.g. `{ pollingInterval: 60_000 }`: loads the page again every minute while it's shown. */
+export interface PagedQueryOptions {
+  pollingInterval?: number
 }
 
 /**
  * One page of a list from the store, for a view model that keeps the page number (in the URL, or its
  * own state). A stale page (e.g. ?page=9 after items were deleted) moves to the last one there is.
  */
-export function usePagedQuery<T, A extends PageArgs>(useItems: PagedQueryHook<T, A>, args: A, goToPage: (page: number) => void) {
-  const query = useItems(args)
+export function usePagedQuery<T, A extends PageArgs>(useItems: PagedQueryHook<T, A>, args: A, goToPage: (page: number) => void, options?: PagedQueryOptions) {
+  const query = useItems(args, options)
   const state: Loadable<Page<T>> = toLoadable(query)
   const totalPages = state.status === 'loaded' ? pageCount(state.data.totalCount, args.pageSize) : 1
 

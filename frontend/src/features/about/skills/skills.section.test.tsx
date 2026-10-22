@@ -10,7 +10,11 @@ import { SkillsSection, type SkillsValue } from './SkillsSection/SkillsSection'
 const NOW = new Date(2026, 9, 19)
 const VALUE: SkillsValue = { skills: ABOUT.skills, colors: ABOUT.colors.skills }
 
-function renderSkills({ value = VALUE, canEdit = false, onSave = vi.fn(async () => {}) }: { value?: SkillsValue; canEdit?: boolean; onSave?: (v: SkillsValue) => Promise<void> } = {}) {
+function renderSkills({
+  value = VALUE,
+  canEdit = false,
+  onSave = vi.fn(async () => {}),
+}: { value?: SkillsValue; canEdit?: boolean; onSave?: (v: SkillsValue) => Promise<void> } = {}) {
   return renderView(<SkillsSection value={value} canEdit={canEdit} onSave={onSave} />)
 }
 
@@ -48,7 +52,7 @@ describe('the skills chart', () => {
     expect([...document.querySelectorAll('.skill-axis-ticks span')].map((s) => s.textContent)).toEqual(['2018', '2020', '2022', '2024', '2026'])
   })
 
-  it("has a legend of only the uses that appear", async () => {
+  it('has a legend of only the uses that appear', async () => {
     await renderView(<SkillsChart skills={[{ name: 'Go', periods: [{ start: '2024-01-01', end: null, uses: ['personal'] }] }]} colors={VALUE.colors} now={NOW} />)
     await expect.poll(() => textOf(page.getByRole('list', { name: 'Colours' }))).toBe('Personal')
   })
@@ -68,8 +72,15 @@ describe('Skills, for the admin', () => {
   it('folds each skill to its name and experience until opened', async () => {
     await renderSkills({ canEdit: true })
     await page.getByRole('button', { name: 'Edit Skills' }).click()
-    const toggles = form().getByRole('button').elements().filter((b) => b.classList.contains('accordion-toggle'))
-    expect(toggles.map((b) => b.textContent)).toEqual([`C#${toggles[0].querySelector('.accordion-meta')!.textContent}`, `React${toggles[1].querySelector('.accordion-meta')!.textContent}`, 'COBOLno dates'])
+    const toggles = form()
+      .getByRole('button')
+      .elements()
+      .filter((b) => b.classList.contains('accordion-toggle'))
+    expect(toggles.map((b) => b.textContent)).toEqual([
+      `C#${toggles[0].querySelector('.accordion-meta')!.textContent}`,
+      `React${toggles[1].querySelector('.accordion-meta')!.textContent}`,
+      'COBOLno dates',
+    ])
     expect(toggles.every((b) => b.getAttribute('aria-expanded') === 'false')).toBe(true)
     // Folded: their fields are out of sight (and out of the accessibility tree).
     expect(form().getByRole('textbox', { name: 'Skill', exact: true }).elements()).toHaveLength(0)
@@ -112,7 +123,7 @@ describe('Skills, for the admin', () => {
     expect(saved.colors).toEqual({ ...VALUE.colors, academic: '#123456' })
   })
 
-  it("edits a period: dates, still in use, and what it was used for; adds one after the last, and removes one", async () => {
+  it('edits a period: dates, still in use, and what it was used for; adds one after the last, and removes one', async () => {
     const onSave = vi.fn(async () => {})
     await renderSkills({ canEdit: true, onSave })
     await page.getByRole('button', { name: 'Edit Skills' }).click()
@@ -135,6 +146,20 @@ describe('Skills, for the admin', () => {
     ])
   })
 
+  it('moves when a period started, and folds a skill again', async () => {
+    const onSave = vi.fn(async () => {})
+    await renderSkills({ canEdit: true, onSave })
+    await page.getByRole('button', { name: 'Edit Skills' }).click()
+    await skillToggle(/^React/).click()
+    const react = form().getByRole('group', { name: 'Skill 2' })
+    await react.getByRole('group', { name: 'Period 1' }).getByRole('textbox', { name: 'From year' }).fill('2018')
+    await skillToggle(/^React/).click()
+    await expect.element(skillToggle(/^React/)).toHaveAttribute('aria-expanded', 'false')
+    await form().getByRole('button', { name: 'Save' }).click()
+    const saved = (onSave.mock.calls[0] as unknown as [SkillsValue])[0]
+    expect(saved.skills[1].periods[0].start).toMatch(/^2018-/)
+  })
+
   it('moves and removes skills, keeping each open one open', async () => {
     const onSave = vi.fn(async () => {})
     await renderSkills({ canEdit: true, onSave })
@@ -151,7 +176,16 @@ describe('Skills, for the admin', () => {
   })
 
   it('keeps a skill with an error open, showing its errors in place', async () => {
-    const onSave = vi.fn().mockRejectedValue(new ApiError('/api/about', 400, { 'skills[2].name': ['Required.'], 'skills[2].periods': ['Add a period.'], 'skills[0].periods[0].uses': ['Tick one.'], 'colors.skills.work': ['Not a colour.'] }))
+    const onSave = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError('/api/about', 400, {
+          'skills[2].name': ['Required.'],
+          'skills[2].periods': ['Add a period.'],
+          'skills[0].periods[0].uses': ['Tick one.'],
+          'colors.skills.work': ['Not a colour.'],
+        }),
+      )
     await renderSkills({ canEdit: true, onSave })
     await page.getByRole('button', { name: 'Edit Skills' }).click()
     await form().getByRole('button', { name: 'Save' }).click()

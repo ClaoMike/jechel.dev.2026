@@ -86,7 +86,7 @@ public static class SettingsEndpoints
         SaveSettingRequest request,
         PortfolioDbContext db,
         SettingsStore store,
-        RefreshingCache<IReadOnlyList<YouTubeVideo>> videos,
+        YouTubeVideoStore videos,
         IConfiguration configuration,
         IOptionsMonitor<AdminOptions> admins,
         IOptions<SiteOptions> site,
@@ -144,7 +144,7 @@ public static class SettingsEndpoints
             switch (service)
             {
                 case "ntfy":
-                    if (!await ntfy.SendAsync(new PhoneAlert("It works!", "Alerts from jechel.dev will arrive here.", "/settings", AlertPriority.Default, "tada"), cancellationToken))
+                    if (!await ntfy.SendAsync(new PhoneAlert(AlertKinds.Test, "It works!", "Alerts from jechel.dev will arrive here.", "/settings", AlertPriority.Default, "tada"), cancellationToken))
                         return TypedResults.Ok(new TestResult(false, "Set the topic first."));
                     return TypedResults.Ok(new TestResult(true, "Sent. It should be on your phone now."));
 

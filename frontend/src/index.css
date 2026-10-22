@@ -1,5 +1,10 @@
 :root {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   line-height: 1.5;
   color-scheme: light dark;
   --border: light-dark(#dadce0, #5f6368);
@@ -383,6 +388,11 @@ h2 {
 
 .paged-grid {
   scroll-margin-top: 16px;
+}
+
+/* Moving to another page: the old page slides out over the new one sliding in (PagedGrid). */
+.paged-grid-stage {
+  position: relative;
 }
 
 .paged-grid-items {
@@ -1120,7 +1130,7 @@ button.media-card {
   grid-template-columns: 1fr auto;
 }
 
-.detail-row-multiline dd {
+.detail-row-multiline dd:not(.detail-copy) {
   grid-column: 1 / -1;
   grid-row: 2;
 }
@@ -1169,7 +1179,7 @@ button.media-card {
     grid-template-columns: 1fr auto;
   }
 
-  .detail-row dd {
+  .detail-row dd:not(.detail-copy) {
     grid-column: 1 / -1;
     grid-row: 2;
   }
@@ -1240,12 +1250,24 @@ button.media-card {
   text-align: center;
 }
 
+.profile-heading {
+  display: grid;
+  gap: 4px;
+}
+
 .profile-name {
   margin: 0;
   font-size: 24px;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.01em;
+}
+
+.profile-headline {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.4;
 }
 
 .profile-photo {
@@ -2669,12 +2691,6 @@ button.media-card {
   margin-top: -8px;
 }
 
-.terms-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 24px;
-}
-
 /* The welcome popup: tick every box to continue. */
 .modal.terms-gate {
   width: min(480px, 100%);
@@ -2838,11 +2854,6 @@ button.media-card {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-}
-
-.engagement-note {
-  margin: 0;
-  font-size: 13px;
 }
 
 .stat-tiles {
@@ -3249,6 +3260,215 @@ button.media-card {
   color: var(--text-muted);
 }
 
+/* Community → Emails to subscribers: the fields beside the preview, stacked on narrow screens. */
+.email-wording-kinds,
+.email-wording-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.email-wording-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.email-wording-fields {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.email-wording-footer {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 8px 12px 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.email-wording-preview {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.email-wording-preview h4 {
+  margin: 0;
+}
+
+.email-wording-envelope {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 12px;
+  margin: 0;
+}
+
+.email-wording-envelope dt {
+  color: var(--text-muted);
+}
+
+.email-wording-envelope dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The email as mail apps show it, on its own light page whatever the site's theme, under a pane of glass:
+ * a faint sheen over it, and nothing in it reacts (the wrapper is inert). The frame is as tall as the email.
+ */
+.email-wording-glass {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: default;
+  transition: opacity 0.2s;
+}
+
+.email-wording-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.18), rgb(255 255 255 / 0) 40%, rgb(255 255 255 / 0) 70%, rgb(255 255 255 / 0.1));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35);
+  pointer-events: none;
+}
+
+.email-wording-glass.is-stale {
+  opacity: 0.6;
+}
+
+.email-wording-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: #f3f0f8;
+}
+
+@media (max-width: 760px) {
+  .email-wording-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Notifications (admin only) ---------- */
+
+.notifications,
+.notifications-card {
+  display: grid;
+  gap: 16px;
+}
+
+.notifications-card h3 {
+  margin: 0;
+}
+
+.notification-group {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.notification-group legend {
+  margin-bottom: 4px;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.notification-kind {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.notification-group .notification-kind:last-child {
+  border-bottom: 0;
+}
+
+.notification-kind-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notification-kind-meta {
+  font-size: 13px;
+}
+
+.notification-history-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notification-filter {
+  max-width: 320px;
+}
+
+.notification-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-width: 0;
+}
+
+/* Held back, not sent or failed: faded, so what reached the phone stands out. */
+.notification-item:not([data-status='sent']) {
+  opacity: 0.75;
+}
+
+.notification-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification-item-head strong {
+  overflow-wrap: anywhere;
+}
+
+.notification-status-held {
+  margin-left: auto;
+  border-color: transparent;
+  background: rgb(255 179 64 / 0.22);
+  color: var(--text);
+}
+
+.notification-item-head .chip-muted:last-child {
+  margin-left: auto;
+}
+
+.notification-message {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Settings (admin only) ---------- */
 
 .settings {
@@ -3262,12 +3482,12 @@ button.media-card {
 }
 
 .settings-card {
-  padding: 8px 20px;
+  padding: 2px 14px;
 }
 
 .settings-card-heading {
   margin: 0;
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .settings-card-heading .accordion-toggle {
@@ -3300,8 +3520,7 @@ button.media-card {
   color: var(--text);
 }
 
-.settings-status-off,
-.settings-status-later {
+.settings-status-off {
   color: var(--text-muted);
 }
 
@@ -3371,6 +3590,39 @@ button.media-card {
 
 .settings-test p {
   margin: 0;
+}
+
+/* Settings → Signed-in devices */
+.device-list {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.device-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.device-what {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.device-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
 }
 
 .settings-ok {
@@ -3468,11 +3720,28 @@ button.media-card {
   border-radius: 10px;
   color: var(--text-muted);
   font-size: 14px;
+  text-align: left;
 }
 
-.profile-private svg {
+.profile-private > svg {
   flex: none;
   margin-top: 2px;
+}
+
+.profile-private-list {
+  display: grid;
+  gap: 2px;
+  /* The copy icons line up with the text above (the buttons are wider than their icons). */
+  margin: 4px 0 0 -8px;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-private-list li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-wrap: anywhere;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3648,6 +3917,20 @@ button.media-card {
 
 /* ---------- When loading fails (components/ErrorState/ErrorState.tsx) ---------- */
 
+/* An empty list: a quiet tray and a few words, centred. */
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
 .error-state {
   display: flex;
   flex-wrap: wrap;
@@ -3703,7 +3986,9 @@ button.media-card {
   border-radius: 999px;
   background: var(--selected, var(--surface-muted));
   transform: translateX(calc(var(--preview-index, 0) * var(--stop)));
-  transition: transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1), background 0.2s;
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1),
+    background 0.2s;
 }
 
 /* Solid, so the labels stay readable over them (5.4:1 and 6:1). */
@@ -3754,7 +4039,7 @@ button.media-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 64px;
+  min-height: 52px;
 }
 
 @media (max-width: 640px) {
@@ -3796,59 +4081,11 @@ button.media-card {
   gap: 8px;
 }
 
-/* ---------- Contact: message or meeting (features/meetings/VisitorContact/VisitorContact.tsx) ---------- */
+/* ---------- Contact (admin): the meetings calendar above the messages ---------- */
 
-.visitor-contact,
 .admin-contact {
   display: grid;
   gap: 16px;
-}
-
-.contact-mode {
-  display: inline-flex;
-  justify-self: center;
-  gap: 4px;
-  margin: 0;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--glass-fill, var(--surface));
-}
-
-.contact-mode-option {
-  padding: 8px 18px;
-  border-radius: 999px;
-  color: var(--text-muted);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.contact-mode-option:has(input:checked) {
-  background: var(--accent-fill, var(--accent));
-  color: var(--accent-text);
-}
-
-.contact-mode-option:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.contact-meeting {
-  display: grid;
-  gap: 12px;
-}
-
-.contact-meeting-booked {
-  margin: 0;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--tint, rgb(10 132 255 / 0.12));
-}
-
-.cal-embed {
-  min-height: 620px;
-  overflow: auto;
-  border-radius: 12px;
 }
 
 /* ---------- Meetings calendar (admin) ---------- */
@@ -3963,6 +4200,12 @@ button.media-card {
   list-style: none;
 }
 
+/* What the visitor wrote back, set apart from your answers. */
+.reply.reply-from-visitor {
+  border-left: 3px solid var(--accent);
+  background: var(--raised);
+}
+
 .meeting,
 .reply {
   display: grid;
@@ -4010,6 +4253,12 @@ button.media-card {
   color: var(--text-muted);
 }
 
+.chip.meeting-stranger {
+  margin-left: 6px;
+  border-color: transparent;
+  background: rgb(255 69 58 / 0.16);
+}
+
 .message-meetings,
 .message-replies {
   display: grid;
@@ -4033,21 +4282,31 @@ button.media-card {
   width: 100%;
 }
 
+.reply-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* ---------- Settings → Visitor pages: switches ---------- */
 
-.site-visibility {
+.site-visibility,
+.signed-in-devices,
+.settings-connections {
   display: grid;
   gap: 14px;
 }
 
 .site-visibility h3,
-.settings-section-title {
+.signed-in-devices h3,
+.settings-connections h3 {
   margin: 0;
 }
 
-.settings-section-title {
-  margin-top: 8px;
-  font-size: 18px;
+/* Settings → Connections: each service a bordered accordion row inside the card, as the skills are in the editor. */
+.settings-connection-list {
+  display: grid;
+  gap: 8px;
 }
 
 .switch-list {
@@ -4074,10 +4333,6 @@ button.media-card {
 .switch-text {
   display: grid;
   gap: 2px;
-}
-
-.switch-hint {
-  font-size: 13px;
 }
 
 .switch {
@@ -4186,4 +4441,8 @@ button.media-card {
   .switch-thumb {
     transition: none;
   }
+}
+
+.whats-new-admin-note {
+  margin: 0 0 12px;
 }

@@ -3,7 +3,7 @@ import { AddAppTile } from '../../features/apps/AddAppTile/AddAppTile'
 import { AppDialog } from '../../features/apps/AppDialog/AppDialog'
 import { AppTile } from '../../features/apps/AppTile/AppTile'
 import { CategoriesButton } from '../../features/apps/CategoriesButton/CategoriesButton'
-import { useListAppsQuery } from '../../store/api/appsApi'
+import { useListAppsQuery, usePrefetchApps } from '../../store/api/appsApi'
 import { useAppsPageViewModel } from './AppsPage.viewModel'
 
 /**
@@ -17,7 +17,7 @@ export function AppsPage() {
     <section className="apps" aria-label="Apps">
       {vm.canEdit && <CategoriesButton />}
       <PagedGrid
-        useItems={useListAppsQuery}
+        useItems={useListAppsQuery} usePrefetchItems={usePrefetchApps}
         pageSize={vm.pageSize}
         itemKey={vm.itemKey}
         texts={vm.texts}

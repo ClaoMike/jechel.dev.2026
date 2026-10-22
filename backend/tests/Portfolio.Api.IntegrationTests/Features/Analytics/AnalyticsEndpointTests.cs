@@ -61,6 +61,34 @@ public class AnalyticsEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
+    public async Task Everything_a_visitor_does_is_replayed_and_summed_up()
+    {
+        var id = Guid.NewGuid();
+        var visitor = Visitor();
+        visitor.DefaultRequestHeaders.Add("CF-IPCountry", "NZ");
+        // First among the rarely seen ones (ties go alphabetically), whatever other tests recorded.
+        var marker = $"Aaa booked {id:N}";
+        await SendAsync(visitor, id,
+            Event(1, "pageview", "/contact"),
+            Event(2, "change", "/contact", "Message", new() { ["element"] = "textarea" }),
+            Event(3, "submit", "/contact", "Contact", new() { ["via"] = "button" }),
+            Event(4, "event", "/contact", marker),
+            Event(5, "scroll", "/contact", "100%"),
+            Event(6, "tab", "/contact", "Hidden"),
+            Event(7, "leave", "/contact"));
+
+        var admin = await SignedInClientAsync();
+        var details = await admin.GetFromJsonAsync<SessionDetails>($"/api/analytics/sessions/{id}");
+        Assert.Equal(["pageview", "change", "submit", "event", "scroll", "tab", "leave"], details!.Events.Select(e => e.Type));
+        Assert.Equal("NZ", details.Country);
+        Assert.Equal("button", details.Events[2].Detail!["via"]);
+
+        var summary = await admin.GetFromJsonAsync<AnalyticsSummary>("/api/analytics/summary?range=1h");
+        Assert.Contains(new NamedCount(marker, 1), summary!.SiteEvents);
+        Assert.Contains(summary.Countries, c => c.Name == "NZ");
+    }
+
+    [Fact]
     public async Task The_summary_counts_todays_visits()
     {
         var admin = await SignedInClientAsync();

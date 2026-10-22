@@ -28,8 +28,11 @@ export function ProfileEditor(props: EditorProps<Profile>) {
       </div>
       {vm.contact && (
         <fieldset className="editor-item">
-          <legend>For the résumé (only you see these)</legend>
-          <p className="muted editor-note">The header of the résumé you generate above. The phone number is only in your private copy.</p>
+          <legend>For the résumé</legend>
+          <p className="muted editor-note">
+            The header of the résumé you generate above. Everyone sees the headline, under your name; only you see the email and phone here, and the phone number is only in your private
+            copy.
+          </p>
           <div className="editor-grid">
             <TextField label="Headline" value={vm.contact.headline} onChange={vm.setContact('headline')} error={errors['contact.headline']} placeholder="Full-stack engineer · .NET, React, PostgreSQL" />
             <TextField label="Email" type="email" value={vm.contact.email} onChange={vm.setContact('email')} error={errors['contact.email']} />

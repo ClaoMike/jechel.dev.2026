@@ -11,6 +11,9 @@ namespace Portfolio.Api.Features.Auth;
 /// </param>
 public record CurrentUserResponse(string Email, string? Name, string? PictureUrl, int SessionExpiresInSeconds);
 
+/// <param name="Count">How many devices were signed out.</param>
+public record EndedSessions(int Count);
+
 public static class AuthEndpoints
 {
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
@@ -20,6 +23,11 @@ public static class AuthEndpoints
         auth.MapGet("/login", Login).WithName("Login");
         auth.MapGet("/me", GetCurrentUser).WithName("GetCurrentUser").RequireAuthorization();
         auth.MapPost("/logout", Logout).WithName("Logout");
+
+        var sessions = auth.MapGroup("/sessions").RequireAuthorization();
+        sessions.MapGet("/", ListSessions).WithName("ListSessions");
+        sessions.MapDelete("/{id:guid}", EndSession).WithName("EndSession");
+        sessions.MapPost("/end-others", EndOtherSessions).WithName("EndOtherSessions");
 
         return app;
     }
@@ -48,13 +56,14 @@ public static class AuthEndpoints
         return TypedResults.Ok(new CurrentUserResponse(
             user.FindFirstValue(ClaimTypes.Email)!,
             user.FindFirstValue(ClaimTypes.Name),
-            user.FindFirstValue("picture"),
-            (int)Math.Max(0, expiresIn.TotalSeconds)));
+            user.FindFirstValue(GoogleSignIn.PictureClaimType),
+            // Whole seconds, rounded up: the database keeps microseconds, so a fresh 10-minute session reads 599.9999999s.
+            (int)Math.Ceiling(Math.Max(0, expiresIn.TotalSeconds))));
     }
 
     /// <summary>
-    /// Clears this browser's cookie. If the caller has a valid session, it's also ended in the
-    /// database, which signs the admin out everywhere. Anonymous callers can't end the admin's session.
+    /// Signs out this device: clears its cookie and ends its session in the database. Other devices stay
+    /// signed in (Settings → Signed-in devices ends them). Anonymous callers only clear their own cookie.
     /// </summary>
     public static async Task<SignOutHttpResult> Logout(
         ClaimsPrincipal user,
@@ -63,18 +72,34 @@ public static class AuthEndpoints
     {
         if (user.Identity?.IsAuthenticated == true)
         {
-            await sessions.EndAsync(cancellationToken);
+            await sessions.EndCurrentAsync(cancellationToken);
         }
 
         return TypedResults.SignOut(authenticationSchemes: [CookieAuthenticationDefaults.AuthenticationScheme]);
     }
 
-    /// <summary>Only allow same-site relative paths, to prevent open redirects.</summary>
+    /// <summary>Admin only. Every device signed in, the most recently active first, this one marked.</summary>
+    public static async Task<Ok<IReadOnlyList<AdminSessionInfo>>> ListSessions(AdminSessionService sessions, CancellationToken cancellationToken) =>
+        TypedResults.Ok(await sessions.ListAsync(cancellationToken));
+
+    /// <summary>Admin only. Signs one device out (this one too, if it's asked: its next request is anonymous).</summary>
+    public static async Task<Results<NoContent, NotFound>> EndSession(Guid id, AdminSessionService sessions, CancellationToken cancellationToken) =>
+        await sessions.EndAsync(id, cancellationToken) ? TypedResults.NoContent() : TypedResults.NotFound();
+
+    /// <summary>Admin only. Signs out every device but this one.</summary>
+    public static async Task<Ok<EndedSessions>> EndOtherSessions(AdminSessionService sessions, CancellationToken cancellationToken) =>
+        TypedResults.Ok(new EndedSessions(await sessions.EndOthersAsync(cancellationToken)));
+
+    /// <summary>
+    /// Only allow same-site relative paths, to prevent open redirects. Browsers drop tabs and line breaks from a
+    /// URL and read "\\" as "/", so "/\t/evil.example" would become "//evil.example": no control characters, spaces
+    /// or backslashes anywhere.
+    /// </summary>
     public static string ToSafeReturnUrl(string? returnUrl) =>
         !string.IsNullOrEmpty(returnUrl) &&
         returnUrl.StartsWith('/') &&
         !returnUrl.StartsWith("//") &&
-        !returnUrl.StartsWith("/\\")
+        !returnUrl.Any(c => char.IsControl(c) || char.IsWhiteSpace(c) || c == '\\')
             ? returnUrl
             : "/";
 }

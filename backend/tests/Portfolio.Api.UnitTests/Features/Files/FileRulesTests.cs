@@ -1,84 +1,10 @@
 using Portfolio.Api.Features.Files;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
-using SixLabors.ImageSharp.PixelFormats;
 
 namespace Portfolio.Api.UnitTests.Features.Files;
 
 public class FileRulesTests
 {
-    private static MemoryStream Jpeg(int width, int height, bool withGps = false)
-    {
-        using var image = new Image<Rgb24>(width, height, new Rgb24(200, 100, 50));
-        if (withGps)
-        {
-            image.Metadata.ExifProfile = new ExifProfile();
-            image.Metadata.ExifProfile.SetValue(ExifTag.GPSLatitudeRef, "N");
-            image.Metadata.ExifProfile.SetValue(ExifTag.Orientation, (ushort)6); // rotated 90°: stored sideways
-        }
-        var stream = new MemoryStream();
-        image.SaveAsJpeg(stream);
-        stream.Position = 0;
-        return stream;
-    }
-
-    [Fact]
-    public async Task A_large_photo_becomes_a_webp_that_fits_800_pixels()
-    {
-        var webp = await FileRules.PreparePhotoAsync(Jpeg(2000, 1000), CancellationToken.None);
-
-        using var image = Image.Load(webp);
-        Assert.Equal("image/webp", image.Metadata.DecodedImageFormat!.DefaultMimeType);
-        Assert.Equal((800, 400), (image.Width, image.Height));
-    }
-
-    [Fact]
-    public async Task A_small_photo_is_not_enlarged()
-    {
-        var webp = await FileRules.PreparePhotoAsync(Jpeg(300, 200), CancellationToken.None);
-
-        using var image = Image.Load(webp);
-        Assert.Equal((300, 200), (image.Width, image.Height));
-    }
-
-    [Fact]
-    public async Task The_photo_is_turned_upright_and_loses_its_metadata()
-    {
-        var webp = await FileRules.PreparePhotoAsync(Jpeg(400, 200, withGps: true), CancellationToken.None);
-
-        using var image = Image.Load(webp);
-        Assert.Equal((200, 400), (image.Width, image.Height));
-        Assert.Null(image.Metadata.ExifProfile);
-    }
-
-    [Fact]
-    public async Task Bytes_that_are_not_an_image_are_rejected()
-    {
-        await Assert.ThrowsAnyAsync<ImageFormatException>(() =>
-            FileRules.PreparePhotoAsync(new MemoryStream("%PDF-1.7 not an image"u8.ToArray()), CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task Only_jpeg_png_webp_and_gif_are_read()
-    {
-        using var image = new Image<Rgb24>(10, 10);
-        var tiff = new MemoryStream();
-        image.SaveAsTiff(tiff);
-        tiff.Position = 0;
-
-        await Assert.ThrowsAnyAsync<ImageFormatException>(() => FileRules.PreparePhotoAsync(tiff, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task A_png_is_read()
-    {
-        using var image = new Image<Rgb24>(10, 10);
-        var png = new MemoryStream();
-        image.SaveAsPng(png);
-        png.Position = 0;
-
-        Assert.NotEmpty(await FileRules.PreparePhotoAsync(png, CancellationToken.None));
-    }
+    // Photos (PreparePhotoAsync) are tested in PreparePhotoTests.
 
     [Theory]
     [InlineData("%PDF-1.7\n...", true)]
@@ -134,4 +60,30 @@ public class FileRulesTests
     {
         Assert.Equal(contentType, FileRules.VideoContentType(start));
     }
+
+    // Photos from phones (HEIC, AVIF) are "ftyp" files too, but not videos: they're refused here, then read as images (or not).
+    [Theory]
+    [InlineData("heic")]
+    [InlineData("heix")]
+    [InlineData("heim")]
+    [InlineData("heis")]
+    [InlineData("hevc")]
+    [InlineData("hevx")]
+    [InlineData("mif1")]
+    [InlineData("msf1")]
+    [InlineData("avif")]
+    [InlineData("avis")]
+    public void Pictures_in_a_video_container_arent_videos(string brand)
+    {
+        byte[] start = [0, 0, 0, 0x18, .. "ftyp"u8, .. System.Text.Encoding.ASCII.GetBytes(brand)];
+
+        Assert.Null(FileRules.VideoContentType(start));
+    }
+
+    [Theory]
+    [InlineData("video/mp4", ".mp4")]
+    [InlineData("video/quicktime", ".mov")]
+    [InlineData("video/webm", ".webm")]
+    public void A_video_keeps_the_extension_of_its_kind(string contentType, string extension) =>
+        Assert.Equal(extension, FileRules.VideoExtension(contentType));
 }

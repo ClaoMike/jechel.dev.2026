@@ -65,6 +65,61 @@ describe('About Me, for a visitor', () => {
   })
 })
 
+describe('About Me, the headline under the name', () => {
+  const headline = () => document.querySelector('.profile-headline')?.textContent
+
+  it("shows the résumé's headline to visitors, from the public headline only", async () => {
+    await renderAbout()
+    await expect.poll(headline).toBe(RESUME.headline)
+    expect(api.resume.getHeadline).toHaveBeenCalled()
+    expect(api.resume.getSettings).not.toHaveBeenCalled()
+    await expect.element(page.getByText('Only you see this:')).not.toBeInTheDocument()
+  })
+
+  it('shows the name alone when there is no headline', async () => {
+    api = stubApi()
+    api.resume.getHeadline.mockResolvedValue('')
+    await renderAbout()
+    await expect.element(page.getByText('Claudiu Mihai Jechel')).toBeVisible()
+    await expect.element(page.getByRole('region', { name: 'Hackathons' })).toBeVisible()
+    expect(headline()).toBeUndefined()
+  })
+
+  it('shows the name alone, and the rest of the page, when the headline fails to load', async () => {
+    api = stubApi()
+    api.resume.getHeadline.mockRejectedValue(new ApiError('/api/resume/headline', 500))
+    await renderAbout()
+    await expect.element(page.getByRole('region', { name: 'Hackathons' })).toBeVisible()
+    expect(headline()).toBeUndefined()
+    await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it("shows the admin's new headline as soon as it's saved", async () => {
+    await asAdmin()
+    await expect.poll(headline).toBe(RESUME.headline)
+    await page.getByRole('button', { name: 'Edit Photo and links' }).click()
+    const form = page.getByRole('form', { name: 'Edit Photo and links' })
+    await expect.element(form.getByRole('textbox', { name: 'Headline' })).toHaveValue(RESUME.headline)
+    await form.getByRole('textbox', { name: 'Headline' }).fill('Engineer')
+    await form.getByRole('button', { name: 'Save' }).click()
+    await expect.poll(headline).toBe('Engineer')
+    // From the save's answer: the headline isn't asked for again.
+    expect(api.resume.getHeadline).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps the old headline when the contact can't be saved", async () => {
+    await asAdmin()
+    api.resume.saveContact.mockRejectedValue(new ApiError('/api/resume/contact', 400, { headline: ['Too long.'] }))
+    await page.getByRole('button', { name: 'Edit Photo and links' }).click()
+    const form = page.getByRole('form', { name: 'Edit Photo and links' })
+    await form.getByRole('textbox', { name: 'Headline' }).fill('x'.repeat(151))
+    await form.getByRole('button', { name: 'Save' }).click()
+    await expect.element(form.getByRole('textbox', { name: 'Headline' })).toHaveAccessibleDescription('Too long.')
+    await form.getByRole('button', { name: 'Cancel' }).click()
+    await expect.poll(headline).toBe(RESUME.headline)
+  })
+})
+
 describe('About Me, for the admin', () => {
   it('has the résumé generator first, and Edit on every section', async () => {
     await asAdmin()
@@ -115,6 +170,16 @@ describe('About Me, for the admin', () => {
     expect(api.about.update).not.toHaveBeenCalled()
   })
 
+  it('shows only the email and phone as private, each with a copy button', async () => {
+    await asAdmin()
+    const profile = page.getByRole('region', { name: 'Photo and links' })
+    await expect.element(profile.getByRole('button', { name: 'Copy email' })).toBeVisible()
+    await expect.element(profile.getByRole('button', { name: 'Copy phone number' })).toBeVisible()
+    const line = document.querySelector('.profile-private')!
+    expect([...line.querySelectorAll('li')].map((li) => li.textContent)).toEqual([RESUME.email, RESUME.phone])
+    expect(line.textContent).not.toContain(RESUME.headline)
+  })
+
   it("says when the résumé's private details couldn't be loaded, and loads them on retry", async () => {
     api = stubApi({ user: ADMIN })
     // Failing every time (the generator panel asking too gets the same answer) until the retry.
@@ -124,7 +189,7 @@ describe('About Me, for the admin', () => {
     await expect.poll(() => textOf(profile.getByRole('alert'))).toContain("Your résumé's phone, email and headline couldn't be loaded.")
     api.resume.getSettings.mockResolvedValue(structuredClone(RESUME))
     await profile.getByRole('button', { name: 'Try again' }).click()
-    await expect.poll(() => document.querySelector('.profile-private')?.textContent).toContain(RESUME.headline)
+    await expect.poll(() => document.querySelector('.profile-private')?.textContent).toContain(RESUME.email)
   })
 })
 

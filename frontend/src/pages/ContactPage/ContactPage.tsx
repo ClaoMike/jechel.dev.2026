@@ -1,11 +1,11 @@
 import { SignedIn, SignedOut } from '../../auth'
+import { ContactForm } from '../../features/contact/ContactForm/ContactForm'
 import { MessagesInbox } from '../../features/contact/MessagesInbox/MessagesInbox'
 import { MeetingsCalendar } from '../../features/meetings/MeetingsCalendar/MeetingsCalendar'
-import { VisitorContact } from '../../features/meetings/VisitorContact/VisitorContact'
 import { Loading, Skeleton } from '../../components/Skeleton'
 import { useContactPageViewModel } from './ContactPage.viewModel'
 
-/** Visitors get the contact form (and booking a meeting); the signed-in admin gets the meetings calendar and the messages. */
+/** Visitors get the contact form (meetings are by invitation: the booking link comes in an answer); the signed-in admin gets the meetings calendar and the messages. */
 export function ContactPage() {
   const vm = useContactPageViewModel()
 
@@ -26,7 +26,7 @@ export function ContactPage() {
         </Loading>
       )}
       <SignedOut>
-        <VisitorContact />
+        <ContactForm />
       </SignedOut>
       <SignedIn>
         <div className="admin-contact">

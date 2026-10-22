@@ -1,6 +1,8 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Portfolio.Api.Data;
 
 namespace Portfolio.Api.Features.Alerts;
 
@@ -96,24 +98,81 @@ public class NtfySender(IHttpClientFactory http, IOptionsMonitor<AlertOptions> o
         return body;
     }
 
-    private static string Cut(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + "…";
+    /// <summary>At most <paramref name="max"/> characters, ending in "…" when cut; never half an emoji (a split surrogate pair shows as "�").</summary>
+    public static string Cut(string text, int max)
+    {
+        if (text.Length <= max) return text;
+        var end = max - 1;
+        if (char.IsHighSurrogate(text[end - 1])) end--;
+        return text[..end] + "…";
+    }
 }
 
-/// <summary>Sends the queued <see cref="PhoneAlert"/>s, one at a time. A failed alert is logged and dropped.</summary>
-public class AlertWorker(PhoneAlerts alerts, NtfySender ntfy, ILogger<AlertWorker> logger) : BackgroundService
+/// <summary>
+/// Sends the queued <see cref="PhoneAlert"/>s, one at a time: those of a kind switched off in the Notifications
+/// tab aren't. Each is then written to the history (<see cref="PhoneAlertLog"/>) with what became of it, and the
+/// history is kept for <see cref="KeptFor"/>. A failed alert, or a failed write, is logged and dropped.
+/// </summary>
+public class AlertWorker(PhoneAlerts alerts, NtfySender ntfy, AlertPreferences preferences, IServiceScopeFactory scopes, TimeProvider time, ILogger<AlertWorker> logger) : BackgroundService
 {
+    public static readonly TimeSpan KeptFor = TimeSpan.FromDays(90);
+
+    /// <summary>How often older history is cleared away (not on every alert).</summary>
+    private static readonly TimeSpan PruneEvery = TimeSpan.FromHours(1);
+
+    private DateTimeOffset _lastPruned = DateTimeOffset.MinValue;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await foreach (var alert in alerts.Reader.ReadAllAsync(stoppingToken))
         {
+            var status = await DeliverAsync(alert, stoppingToken);
             try
             {
-                await ntfy.SendAsync(alert, stoppingToken);
+                await RecordAsync(alert, status, stoppingToken);
             }
             catch (Exception e) when (!stoppingToken.IsCancellationRequested)
             {
-                logger.LogWarning(e, "Couldn't send the phone alert \"{Title}\".", alert.Title);
+                logger.LogWarning(e, "Couldn't write the phone alert \"{Title}\" to the history.", alert.Title);
             }
         }
+    }
+
+    /// <summary>Sends it, unless its kind is switched off; says what became of it.</summary>
+    private async Task<string> DeliverAsync(PhoneAlert alert, CancellationToken stoppingToken)
+    {
+        if (!preferences.IsEnabled(alert.Kind)) return AlertStatus.Off;
+        try
+        {
+            return await ntfy.SendAsync(alert, stoppingToken) ? AlertStatus.Sent : AlertStatus.NotSetUp;
+        }
+        catch (Exception e) when (!stoppingToken.IsCancellationRequested)
+        {
+            logger.LogWarning(e, "Couldn't send the phone alert \"{Title}\".", alert.Title);
+            return AlertStatus.Failed;
+        }
+    }
+
+    private async Task RecordAsync(PhoneAlert alert, string status, CancellationToken stoppingToken)
+    {
+        using var scope = scopes.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PortfolioDbContext>();
+        var now = time.GetUtcNow();
+        db.PhoneAlertLogs.Add(new PhoneAlertLog
+        {
+            Kind = NtfySender.Cut(alert.Kind, 40),
+            Title = NtfySender.Cut(alert.Title, 200),
+            Message = NtfySender.Cut(alert.Message, 1000),
+            Path = alert.Path is { Length: > 0 and <= 200 } path ? path : null,
+            Status = status,
+            CreatedAt = now,
+        });
+        if (now - _lastPruned >= PruneEvery)
+        {
+            _lastPruned = now;
+            var before = now - KeptFor;
+            db.PhoneAlertLogs.RemoveRange(await db.PhoneAlertLogs.Where(a => a.CreatedAt < before).ToListAsync(stoppingToken));
+        }
+        await db.SaveChangesAsync(stoppingToken);
     }
 }

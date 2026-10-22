@@ -3,9 +3,9 @@ import { failureOf, type Setting, type TestResult } from '../../services/api'
 import { useGetSettingsQuery, useSaveSettingMutation, useTestServiceMutation, type TestableService } from '../../store/api/settingsApi'
 import { toLoadable } from '../../store/loadable'
 
-export type ServiceStatus = 'ready' | 'partial' | 'off' | 'later'
+export type ServiceStatus = 'ready' | 'partial' | 'off'
 
-const STATUS_TEXT: Record<ServiceStatus, string> = { ready: 'Set up', partial: 'Partly set up', off: 'Not set up', later: 'Later' }
+const STATUS_TEXT: Record<ServiceStatus, string> = { ready: 'Set up', partial: 'Partly set up', off: 'Not set up' }
 
 function randomHex(bytes: number): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('')
@@ -33,10 +33,10 @@ export function useSettingsViewModel() {
   }
 }
 
-/** One service, folded to its name and status until clicked open. */
-export function useServiceCardViewModel(status: ServiceStatus) {
+/** One service, folded to its name and status (none for one that's only links) until clicked open. */
+export function useServiceCardViewModel(status?: ServiceStatus) {
   const [open, setOpen] = useState(false)
-  return { id: useId(), open, toggle: () => setOpen(!open), statusText: STATUS_TEXT[status] }
+  return { id: useId(), open, toggle: () => setOpen(!open), statusText: status && STATUS_TEXT[status] }
 }
 
 export function useTestButtonViewModel(service: TestableService) {

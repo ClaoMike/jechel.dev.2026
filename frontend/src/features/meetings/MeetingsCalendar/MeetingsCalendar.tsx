@@ -91,6 +91,8 @@ export function MeetingsCalendar() {
                     <a href={`mailto:${meeting.attendeeEmail}`} className="muted">
                       {meeting.attendeeEmail}
                     </a>
+                    {/* Meetings are by invitation: someone who never wrote got the link elsewhere. */}
+                    {meeting.fromConversation === false && <span className="chip meeting-stranger">Not from a conversation</span>}
                   </p>
                   <p className="muted">{meeting.title}</p>
                   {meeting.notes && <p className="meeting-notes">“{meeting.notes}”</p>}

@@ -4,6 +4,7 @@ import masksCUrl from '../../assets/riviera/masks-c.webp'
 import planeUrl from '../../assets/riviera/plane.webp'
 import plate1920Url from '../../assets/riviera/riviera-1920.webp'
 import plate3840Url from '../../assets/riviera/riviera-3840.webp'
+import { ACTIVITY, IDLE_MS } from '../idle'
 import { FRAGMENT_SHADER, VERTEX_SHADER } from './rivieraShader'
 
 export { plate1920Url }
@@ -21,6 +22,10 @@ const MAX_PIXELS = 2560 * 1440
 const FRAME_MS = 1000 / 30
 /** How long the neon colours take to flow once through the letters (as in glass.css). */
 const NEON_CYCLE_S = 16
+/** How often the neon colours move: as the CSS animation steps in the other themes (128 steps in 16 s). */
+const NEON_STEPS_PER_S = 8
+/** The neon site name and Vice mark (glass.css), which take the scene's time. */
+const NEON_SELECTOR = '.site-header .neon-text, .site-header .neon-fill, .site-header .brand-fill'
 /** While another window has focus (the page is only glanced at), half that. */
 const UNFOCUSED_FRAME_MS = 1000 / 15
 
@@ -39,6 +44,8 @@ export interface RivieraOptions {
    * (it aims for ~30) while the tab was visible and focused. The device is too weak for it.
    */
   onSlow?: () => void
+  /** How long without input before the scene holds still (IDLE_MS; shorter in tests). */
+  idleMs?: number
 }
 
 export interface Riviera {
@@ -123,8 +130,9 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
   if (!gl) return null
 
   let destroyed = false
+  let ready = false
   let frame = 0
-  const start = performance.now()
+  const clock = idleClock(performance.now(), options.idleMs ?? IDLE_MS)
 
   const program = gl.createProgram()!
   try {
@@ -171,20 +179,31 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
   }
 
   // The neon site name and Vice (glass.css) move with the scene's frames, so the frosted header behind
-  // them is only re-blurred on frames that are drawn anyway.
-  const header = document.querySelector<HTMLElement>('.site-header')
+  // them is only re-blurred on frames that are drawn anyway: 8 times a second, not on each of the 30, and
+  // set on those few elements, not on the header (where every element in it would be restyled each time).
+  // Together that took the scene's cost from about 25% of a CPU to 15%.
+  let neonStep = -1
+  const moveNeon = (time: number) => {
+    const step = Math.floor(time * NEON_STEPS_PER_S)
+    if (step === neonStep) return
+    neonStep = step
+    const shift = `${(((step / NEON_STEPS_PER_S / NEON_CYCLE_S) % 1) * 100).toFixed(2)}%`
+    for (const element of document.querySelectorAll<HTMLElement>(NEON_SELECTOR)) element.style.setProperty('--neon-shift', shift)
+  }
 
   const draw = () => {
-    const time = options.still ? 30 : (performance.now() - start) / 1000
+    const time = options.still ? 30 : clock.elapsed(performance.now()) / 1000
     gl.uniform1f(uTime, time)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
-    header?.style.setProperty('--neon-shift', `${(((time / NEON_CYCLE_S) % 1) * 100).toFixed(2)}%`)
+    moveNeon(time)
   }
 
   let last = -Infinity
   const watch = frameRateWatch(options.onSlow)
   const loop = (now: number) => {
     if (destroyed) return
+    // Nobody's using the page: stop asking for frames until they are (wake).
+    if (clock.idle(now)) return
     frame = requestAnimationFrame(loop)
     // Displays refresh at 60–120 Hz; skip frames to hold ~30 fps (15 when the window isn't focused).
     if (now - last < (document.hasFocus() ? FRAME_MS : UNFOCUSED_FRAME_MS) - 2) return
@@ -215,9 +234,19 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
       observer.observe(canvas)
       if (options.still) draw()
       else frame = requestAnimationFrame(loop)
+      ready = true
       options.onReady?.()
     })
     .catch((error: unknown) => console.error('Riviera background:', error))
+
+  const wake = () => {
+    if (!clock.input(performance.now()) || destroyed || !ready || options.still) return
+    // Held still until now: the next frame draws at once.
+    last = -Infinity
+    frame = requestAnimationFrame(loop)
+  }
+  for (const type of ACTIVITY) window.addEventListener(type, wake, { capture: true, passive: true })
+  window.addEventListener('focus', wake)
 
   const onLost = (event: Event) => {
     event.preventDefault()
@@ -230,8 +259,37 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
       destroyed = true
       cancelAnimationFrame(frame)
       observer.disconnect()
+      for (const type of ACTIVITY) window.removeEventListener(type, wake, { capture: true })
+      window.removeEventListener('focus', wake)
       canvas.removeEventListener('webglcontextlost', onLost)
-      header?.style.removeProperty('--neon-shift')
+      for (const element of document.querySelectorAll<HTMLElement>(NEON_SELECTOR)) element.style.removeProperty('--neon-shift')
+    },
+  }
+}
+
+/**
+ * The scene's time, which stops while nobody uses the page: after `idleMs` without input it holds still,
+ * and the next input carries on from that moment (no jump). Times are performance.now() milliseconds.
+ */
+export function idleClock(start: number, idleMs = IDLE_MS) {
+  let lastInput = start
+  let pausedAt: number | null = null
+  let pausedFor = 0
+  return {
+    /** Milliseconds of scene time at `now`: the time since start, less the time held still. */
+    elapsed: (now: number) => (pausedAt ?? now) - start - pausedFor,
+    /** True once `now` is idleMs past the last input: the scene holds still from then. */
+    idle(now: number) {
+      if (pausedAt === null && now - lastInput >= idleMs) pausedAt = lastInput + idleMs
+      return pausedAt !== null
+    },
+    /** Someone used the page at `now`. True when the scene was holding still, so it has to start again. */
+    input(now: number) {
+      lastInput = now
+      if (pausedAt === null) return false
+      pausedFor += now - pausedAt
+      pausedAt = null
+      return true
     },
   }
 }
@@ -246,7 +304,10 @@ const MEASURE_MS = 4000
  * shaders compiling), if MEASURE_MS of them came in under SLOW_FPS a second, calls onSlow once.
  * A pause (hidden tab, lost focus, a long gap) restarts the count rather than counting as slow.
  */
-export function frameRateWatch(onSlow: (() => void) | undefined, clock: { visible: () => boolean } = { visible: () => document.visibilityState === 'visible' && document.hasFocus() }) {
+export function frameRateWatch(
+  onSlow: (() => void) | undefined,
+  clock: { visible: () => boolean } = { visible: () => document.visibilityState === 'visible' && document.hasFocus() },
+) {
   let started: number | null = null
   let windowStart = 0
   let frames = 0

@@ -9,11 +9,17 @@ namespace Portfolio.Api.Features.Analytics;
 public static partial class AnalyticsRules
 {
     /// <summary>
-    /// pageview: a page opened. click: a button, link or field clicked (its label, never what was typed).
-    /// key: Escape pressed. event: something the site reports, e.g. "Message sent". error: a script error,
-    /// a crash, a failed request or a file that didn't load. leave: the tab was closed or left.
+    /// pageview: a page opened. click: a button, link or field clicked (its label, never what was typed),
+    /// or embedded content such as the YouTube player. key: Escape pressed. change: a field changed (a
+    /// choice's option; for a text field only that it was edited). submit: a form sent (with Enter or a
+    /// button). event: something the site reports, e.g. "Message sent". scroll: how far down a page was
+    /// read ("75%"). tab: the tab hidden or back. error: a script error, a crash, a failed request or a
+    /// file that didn't load. leave: the tab was closed or the visitor went to another site.
     /// </summary>
-    public static readonly IReadOnlySet<string> EventTypes = new HashSet<string> { "pageview", "click", "key", "event", "error", "leave" };
+    public static readonly IReadOnlySet<string> EventTypes = new HashSet<string> { "pageview", "click", "key", "change", "submit", "event", "scroll", "tab", "error", "leave" };
+
+    /// <summary>What the visitor did on purpose: a visit with any of these isn't a bounce.</summary>
+    public static readonly IReadOnlySet<string> InteractionTypes = new HashSet<string> { "click", "key", "change", "submit", "event" };
 
     /// <summary>The site event the tracker sends when the visitor picks another theme, with "from" and "to".</summary>
     public const string ThemeChangedEvent = "Theme changed";

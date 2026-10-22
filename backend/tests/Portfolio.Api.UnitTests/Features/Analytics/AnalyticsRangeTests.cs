@@ -68,4 +68,10 @@ public class AnalyticsRangeTests
 
         Assert.Equal(("30d", 30), (range.Name, range.Buckets.Count));
     }
+
+    [Fact]
+    public void A_column_size_it_doesnt_know_is_a_mistake_in_the_code()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => AnalyticsRange.Floor(Now, "week"));
+    }
 }

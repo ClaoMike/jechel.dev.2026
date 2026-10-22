@@ -37,10 +37,7 @@
 
   /* Panes: fill, specular edges, drop shadow, and the lit rim. */
   --glass-fill: linear-gradient(160deg, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0.03) 55%, rgb(255 255 255 / 0.06));
-  --glass-shine:
-    inset 0 1px 0 rgb(255 255 255 / 0.28),
-    inset 0 -1px 0 rgb(255 255 255 / 0.06),
-    inset 0 0 24px rgb(255 255 255 / 0.03);
+  --glass-shine: inset 0 1px 0 rgb(255 255 255 / 0.28), inset 0 -1px 0 rgb(255 255 255 / 0.06), inset 0 0 24px rgb(255 255 255 / 0.03);
   --glass-shadow: 0 10px 40px rgb(0 0 0 / 0.55);
   --glass-hover-shadow: 0 16px 48px rgb(0 0 0 / 0.6);
   --glass-rim: linear-gradient(150deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.06) 35%, rgb(255 255 255 / 0.02) 65%, rgb(255 255 255 / 0.25));
@@ -105,10 +102,7 @@
   --solid-surface: #fff;
 
   --glass-fill: linear-gradient(160deg, rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.6) 55%, rgb(255 255 255 / 0.75));
-  --glass-shine:
-    inset 0 1px 0 rgb(255 255 255 / 1),
-    inset 0 -1px 0 rgb(0 0 0 / 0.03),
-    inset 0 0 24px rgb(255 255 255 / 0.5);
+  --glass-shine: inset 0 1px 0 rgb(255 255 255 / 1), inset 0 -1px 0 rgb(0 0 0 / 0.03), inset 0 0 24px rgb(255 255 255 / 0.5);
   --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.04);
   --glass-hover-shadow: 0 16px 40px rgb(0 0 0 / 0.12);
   --glass-rim: linear-gradient(150deg, rgb(255 255 255 / 1), rgb(255 255 255 / 0.4) 35%, rgb(0 0 0 / 0.05) 65%, rgb(255 255 255 / 0.9));
@@ -182,29 +176,14 @@ a {
  *
  * Cheap to run: the shadow and glow are a separate, still layer, and the colours only step 8 times
  * a second. Each step re-blurs the frosted header behind them, so in Vice they don't animate on their
- * own at all: the Riviera scene's frame loop moves them (--neon-shift on the header) on the frames
- * it draws anyway.
+ * own at all: the Riviera scene's frame loop moves them (--neon-shift on each of them, 8 times a
+ * second) on frames it draws anyway.
  */
 .neon-text,
 .neon-fill,
 :root[data-theme='vice'] .brand-fill,
 :root[data-theme='vice'] .brand-fill .brand-j::before {
-  background-image: linear-gradient(
-    90deg,
-    #ff3ea5,
-    #ff8a5c,
-    #ffd36e,
-    #ff5fc4,
-    #9b5cff,
-    #4fa3ff,
-    #ff3ea5,
-    #ff8a5c,
-    #ffd36e,
-    #ff5fc4,
-    #9b5cff,
-    #4fa3ff,
-    #ff3ea5
-  );
+  background-image: linear-gradient(90deg, #ff3ea5, #ff8a5c, #ffd36e, #ff5fc4, #9b5cff, #4fa3ff, #ff3ea5, #ff8a5c, #ffd36e, #ff5fc4, #9b5cff, #4fa3ff, #ff3ea5);
   background-size: 200% 100%;
   animation: neon-flow 16s steps(128) infinite;
 }
@@ -223,6 +202,12 @@ a {
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
+}
+
+/* Nobody's used the page for a minute (layout/idle.ts): the colours hold still until someone does. */
+:root[data-idle] .neon-text,
+:root[data-idle] .neon-fill {
+  animation-play-state: paused;
 }
 
 @keyframes neon-flow {
@@ -375,6 +360,38 @@ html {
 }
 
 .page-leave.page-to-right {
+  animation: page-out-to-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/*
+ * A paged grid's pages (PagedGrid) slide the same way as the tabs' pages. While the grid's height
+ * follows (an animation from PagedGrid.viewModel), what's past its bottom is cut off rather than drawn
+ * over Previous / Next; sideways, the pages still slide past the screen's edges.
+ */
+.paged-grid-stage.grid-resizing {
+  overflow-y: clip;
+  overflow-x: visible;
+}
+
+.grid-leave {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+}
+
+.grid-enter.grid-to-left {
+  animation: page-in-from-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.grid-enter.grid-to-right {
+  animation: page-in-from-left 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.grid-leave.grid-to-left {
+  animation: page-out-to-left 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.grid-leave.grid-to-right {
   animation: page-out-to-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
@@ -677,7 +694,9 @@ html {
   gap: 2px;
   border-radius: 999px;
   background: var(--glass-fill);
-  box-shadow: var(--glass-shine), 0 0 0 1px var(--glass-edge);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge);
 }
 
 .tab {
@@ -707,6 +726,30 @@ html {
   z-index: 1;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/*
+ * The admin's own tabs (Engagement, Community, Terms, Settings): the jechel.dev pink to violet, the
+ * same in every theme so they're easy to spot. Mid-tones, about 4.4:1 on black, Vice and light alike.
+ */
+.tabs .tab-admin,
+.tabs .tab-admin:hover,
+.tabs .tab-admin[aria-current='page'] {
+  background: linear-gradient(90deg, #d91289, #9942f0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
+}
+
+/* Windows high contrast: forced colours drop the gradient, so the text keeps a colour of its own. */
+@media (forced-colors: active) {
+  .tabs .tab-admin,
+  .tabs .tab-admin:hover,
+  .tabs .tab-admin[aria-current='page'] {
+    background: none;
+    color: LinkText;
+  }
 }
 
 .tab-indicator {
@@ -743,7 +786,9 @@ html {
 .site-footer-bar {
   border: 0;
   background: var(--glass-fill);
-  box-shadow: var(--glass-shine), 0 0 0 1px var(--glass-edge);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }
@@ -755,7 +800,9 @@ html {
   padding: 6px;
   border-radius: 999px;
   background: var(--glass-fill);
-  box-shadow: var(--glass-shine), 0 0 0 1px var(--glass-edge);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }
@@ -804,7 +851,9 @@ html {
   border: 0;
   border-radius: 999px;
   background: var(--glass-fill);
-  box-shadow: var(--glass-shine), 0 0 0 1px var(--glass-edge);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge);
 }
 
 .theme-switch-thumb {
@@ -842,6 +891,25 @@ html {
 .theme-switch-option:has(input:focus-visible) {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+/* On / Off (components/OnOffSwitch): the theme slider with two stops, wide enough for a word each. */
+.on-off-switch {
+  --stop: 46px;
+  flex: none;
+}
+
+.on-off-switch .theme-switch-option {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.on-off-switch:disabled {
+  opacity: 0.6;
+}
+
+.on-off-switch:disabled .theme-switch-option {
+  cursor: progress;
 }
 
 /* ---------- Buttons ---------- */
@@ -902,6 +970,150 @@ html {
 
 .support-button:hover {
   background: linear-gradient(180deg, rgb(255 222 128), rgb(255 188 80));
+}
+
+/*
+ * The coffee's steam: three straight lines at rest; on hover (or keyboard focus) they turn into waves that
+ * rise, sway and fade, one after another, like heat leaving the cup.
+ */
+.coffee-steam {
+  display: none;
+}
+
+.support-button:is(:hover, :focus-visible) .coffee-steam-still {
+  display: none;
+}
+
+.support-button:is(:hover, :focus-visible) .coffee-steam {
+  display: inline;
+}
+
+.coffee-steam path {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: coffee-steam 1.5s ease-in-out infinite;
+}
+
+.coffee-steam path:nth-child(2) {
+  animation-delay: 0.5s;
+}
+
+.coffee-steam path:nth-child(3) {
+  animation-delay: 1s;
+}
+
+@keyframes coffee-steam {
+  0% {
+    opacity: 0;
+    transform: translate(0, 2px) scaleY(0.7);
+  }
+
+  30% {
+    opacity: 1;
+  }
+
+  60% {
+    transform: translate(0.6px, -0.5px) scaleY(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-0.4px, -2.5px) scaleY(1.1);
+  }
+}
+
+/*
+ * The Get updates bell: on hover (or keyboard focus) it turns YouTube's yellow and keeps ringing. The bell
+ * swings from its top; the clapper hangs from the same point, a beat behind and further out, so it strikes
+ * the rim as a real one does. Yellow fill, amber outline: it shows on the light buttons as on the dark.
+ */
+.subscribe-button:is(:hover, :focus-visible) .bell-icon {
+  color: #e8a800;
+}
+
+.subscribe-button:is(:hover, :focus-visible) .bell-body {
+  fill: #ffcc00;
+}
+
+.bell-body,
+.bell-clapper {
+  transform-box: view-box;
+  /* The hook at the top of the bell. */
+  transform-origin: 12px 2px;
+}
+
+.subscribe-button:is(:hover, :focus-visible) .bell-body {
+  animation: bell-ring 1.2s ease-in-out infinite;
+}
+
+.subscribe-button:is(:hover, :focus-visible) .bell-clapper {
+  animation: bell-clapper 1.2s ease-in-out infinite;
+}
+
+@keyframes bell-ring {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0);
+  }
+
+  10% {
+    transform: rotate(16deg);
+  }
+
+  20% {
+    transform: rotate(-14deg);
+  }
+
+  30% {
+    transform: rotate(11deg);
+  }
+
+  40% {
+    transform: rotate(-8deg);
+  }
+
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+/* The same swing, later and wider: the clapper lags the bell, then strikes each side. */
+@keyframes bell-clapper {
+  0%,
+  65%,
+  100% {
+    transform: rotate(0);
+  }
+
+  14% {
+    transform: rotate(24deg) translateX(1px);
+  }
+
+  24% {
+    transform: rotate(-22deg) translateX(-1px);
+  }
+
+  34% {
+    transform: rotate(17deg) translateX(0.6px);
+  }
+
+  44% {
+    transform: rotate(-12deg) translateX(-0.6px);
+  }
+
+  55% {
+    transform: rotate(6deg);
+  }
+}
+
+/* Reduce motion: the colour and the waves' shape, without the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .coffee-steam path,
+  .subscribe-button .bell-body,
+  .subscribe-button .bell-clapper {
+    animation: none !important;
+  }
 }
 
 .licence-toggle[aria-pressed='true'] {

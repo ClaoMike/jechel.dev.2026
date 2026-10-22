@@ -11,8 +11,11 @@ public class CalOptions
 {
     public const string Section = "Cal";
 
-    /// <summary>The booking page, as "username/event" (or its cal.com link). Empty hides "Request a meeting".</summary>
+    /// <summary>The booking page, as "username/event" (or its cal.com link): the link the admin sends to people they invite.</summary>
     public string Link { get; set; } = "";
+
+    /// <summary>"https://cal.com/username/event", or "" when <see cref="Link"/> isn't one.</summary>
+    public string BookingUrl => NormalizeLink(Link) is { Length: > 0 } link ? $"https://cal.com/{link}" : "";
 
     /// <summary>A Cal.com API key ("cal_live_…"), to accept and decline requests from this site.</summary>
     public string ApiKey { get; set; } = "";
@@ -61,7 +64,8 @@ public class CalClient(HttpClient http, IOptionsMonitor<CalOptions> options) : I
     public async Task<string> WhoAmIAsync(CancellationToken cancellationToken)
     {
         var body = await SendAsync(HttpMethod.Get, "me", null, cancellationToken);
-        return body?["data"]?["username"]?.GetValue<string>() ?? body?["data"]?["email"]?.GetValue<string>() ?? "your account";
+        var data = (body as JsonObject)?["data"] as JsonObject;
+        return Text(data?["username"]) ?? Text(data?["email"]) ?? "your account";
     }
 
     private async Task<JsonNode?> SendAsync(HttpMethod method, string path, object? body, CancellationToken cancellationToken)
@@ -86,9 +90,13 @@ public class CalClient(HttpClient http, IOptionsMonitor<CalOptions> options) : I
         }
         if (!response.IsSuccessStatusCode)
         {
-            var reason = json?["error"]?["message"]?.GetValue<string>() ?? json?["message"]?.GetValue<string>() ?? $"{(int)response.StatusCode} {response.StatusCode}";
+            var answer = json as JsonObject;
+            var reason = Text((answer?["error"] as JsonObject)?["message"]) ?? Text(answer?["message"]) ?? $"{(int)response.StatusCode} {response.StatusCode}";
             throw new ServiceException($"Cal.com refused it: {reason}");
         }
         return json;
     }
+
+    /// <summary>A text value; null for anything else (a number, an object), which isn't something to show.</summary>
+    private static string? Text(JsonNode? node) => node is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 }

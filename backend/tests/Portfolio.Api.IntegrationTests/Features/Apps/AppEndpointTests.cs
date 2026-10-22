@@ -3,8 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Portfolio.Api.Features.Apps;
 using Portfolio.Api.Features.Files;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 namespace Portfolio.Api.IntegrationTests.Features.Apps;
 
@@ -27,10 +26,11 @@ public class AppEndpointTests(PortfolioApiFactory factory)
 
     private static byte[] Png(int width, int height)
     {
-        using var image = new Image<Rgba32>(width, height, new Rgba32(10, 20, 30));
-        using var stream = new MemoryStream();
-        image.SaveAsPng(stream);
-        return stream.ToArray();
+        using var bitmap = new SKBitmap(width, height);
+        bitmap.Erase(new SKColor(10, 20, 30));
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
     }
 
     /// <summary>The start of an MP4 ("ftyp" box), then filler: enough for the API, which doesn't decode videos.</summary>
@@ -59,7 +59,7 @@ public class AppEndpointTests(PortfolioApiFactory factory)
         Assert.Equal((AppMediaKinds.Video, "Demo clip.mp4"), (video.Kind, video.FileName));
 
         var served = await factory.CreateBrowserClient().GetAsync(image.Url);
-        using (var webp = Image.Load(await served.Content.ReadAsByteArrayAsync()))
+        using (var webp = SKBitmap.Decode(await served.Content.ReadAsByteArrayAsync()))
         {
             Assert.Equal((FileRules.AppImageMaxPixels, 960), (webp.Width, webp.Height));
         }

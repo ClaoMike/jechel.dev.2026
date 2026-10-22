@@ -1,0 +1,194 @@
+using System.Net;
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Portfolio.Api.Features.Settings;
+using Portfolio.Api.Features.Updates;
+
+namespace Portfolio.Api.UnitTests.Features.Updates;
+
+/// <summary>How emails leave: Resend's API when a key is set, the log otherwise.</summary>
+public class EmailSendingTests
+{
+    private static readonly EmailMessage Update = new("ada@example.com", "A new app is out: Space Game", "<p>Hi</p>", "Hi", UnsubscribeUrl: "https://jechel.dev/updates/unsubscribe?token=t");
+
+    /// <summary>Resend's API, answering <paramref name="status"/> with <paramref name="body"/>; keeps what it was sent.</summary>
+    private sealed class FakeResend(HttpStatusCode status = HttpStatusCode.OK, string body = """{"id":"1"}""") : HttpMessageHandler
+    {
+        public HttpRequestMessage? Request { get; private set; }
+        public JsonNode? Body { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Request = request;
+            Body = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+            return new HttpResponseMessage(status) { Content = new StringContent(body) };
+        }
+    }
+
+    private static ResendEmailSender Resend(FakeResend api, string key = " re_key ", string? from = null) =>
+        new(new HttpClient(api) { BaseAddress = ResendEmailSender.BaseAddress },
+            TestOptions.Monitor(from is null ? new EmailOptions { ResendApiKey = key } : new EmailOptions { ResendApiKey = key, From = from }));
+
+    [Fact]
+    public async Task Sends_through_Resend_with_the_key_the_sender_and_both_versions_of_the_email()
+    {
+        var api = new FakeResend();
+
+        await Resend(api, from: "jechel.dev <updates@jechel.dev>").SendAsync(Update, default);
+
+        Assert.Equal(HttpMethod.Post, api.Request!.Method);
+        Assert.Equal("https://api.resend.com/emails", api.Request.RequestUri!.ToString());
+        Assert.Equal(("Bearer", "re_key"), (api.Request.Headers.Authorization!.Scheme, api.Request.Headers.Authorization.Parameter));
+        Assert.Equal("jechel.dev <updates@jechel.dev>", (string?)api.Body!["from"]);
+        Assert.Equal(["ada@example.com"], api.Body["to"]!.AsArray().Select(t => (string?)t));
+        Assert.Equal(("A new app is out: Space Game", "<p>Hi</p>", "Hi"), ((string?)api.Body["subject"], (string?)api.Body["html"], (string?)api.Body["text"]));
+    }
+
+    [Fact]
+    public async Task Adds_one_click_unsubscribe_headers_to_updates_as_mail_services_require()
+    {
+        var api = new FakeResend();
+
+        await Resend(api).SendAsync(Update, default);
+
+        var headers = api.Body!["headers"]!;
+        Assert.Equal("<https://jechel.dev/updates/unsubscribe?token=t>", (string?)headers["List-Unsubscribe"]);
+        Assert.Equal("List-Unsubscribe=One-Click", (string?)headers["List-Unsubscribe-Post"]);
+    }
+
+    [Fact]
+    public async Task Leaves_out_what_an_email_doesnt_have_and_adds_a_reply_address_when_it_does()
+    {
+        var plain = new FakeResend();
+        var reply = new FakeResend();
+
+        await Resend(plain).SendAsync(new EmailMessage("ada@example.com", "S", "<p>H</p>", "T"), default);
+        await Resend(reply).SendAsync(new EmailMessage("ada@example.com", "S", "<p>H</p>", "T", ReplyTo: "admin@example.com"), default);
+
+        Assert.Null(plain.Body!["headers"]!["List-Unsubscribe"]);
+        Assert.Null(plain.Body["reply_to"]);
+        Assert.Equal("admin@example.com", (string?)reply.Body!["reply_to"]);
+    }
+
+    [Fact]
+    public async Task Sends_pictures_inside_the_email_for_its_cid_links_and_none_when_there_are_none()
+    {
+        var api = new FakeResend();
+        var plain = new FakeResend();
+
+        await Resend(api).SendAsync(Update with { Images = [new InlineImage("logo", "logo.png", "image/png", [1, 2, 3])] }, default);
+        await Resend(plain).SendAsync(Update, default);
+
+        var attachment = Assert.Single(api.Body!["attachments"]!.AsArray())!;
+        Assert.Equal(("logo", "logo.png", "image/png", "AQID"), ((string?)attachment["content_id"], (string?)attachment["filename"], (string?)attachment["content_type"], (string?)attachment["content"]));
+        Assert.Null(plain.Body!["attachments"]);
+    }
+
+    [Fact]
+    public async Task Gives_every_email_its_own_id_so_gmail_never_stacks_a_test_and_the_real_one_together()
+    {
+        var first = new FakeResend();
+        var second = new FakeResend();
+
+        await Resend(first).SendAsync(Update, default);
+        await Resend(second).SendAsync(Update with { UnsubscribeUrl = null }, default);
+
+        var a = (string?)first.Body!["headers"]!["X-Entity-Ref-ID"];
+        var b = (string?)second.Body!["headers"]!["X-Entity-Ref-ID"];
+        Assert.Matches("^[0-9a-f]{32}$", a);
+        Assert.Matches("^[0-9a-f]{32}$", b);
+        Assert.NotEqual(a, b);
+    }
+
+    [Fact]
+    public async Task Says_why_Resend_refused_it()
+    {
+        var api = new FakeResend(HttpStatusCode.Forbidden, """{"statusCode":403,"message":"The jechel.dev domain is not verified."}""");
+
+        var error = await Assert.ThrowsAsync<ServiceException>(() => Resend(api).SendAsync(Update, default));
+
+        Assert.Equal("Resend refused it: The jechel.dev domain is not verified.", error.Message);
+    }
+
+    [Theory]
+    [InlineData("<html>Bad gateway</html>")]
+    [InlineData("""{"error":"no message here"}""")]
+    [InlineData("")]
+    // Shapes it isn't known to send: still a clear refusal (the admin's reply says "check Resend"), never a crash.
+    [InlineData("""[{"message":"odd"}]""")]
+    [InlineData("""{"message":{"text":"nested"}}""")]
+    [InlineData("""{"message":42}""")]
+    public async Task Says_the_status_when_Resend_gives_no_reason(string body)
+    {
+        var error = await Assert.ThrowsAsync<ServiceException>(() => Resend(new FakeResend(HttpStatusCode.BadGateway, body)).SendAsync(Update, default));
+
+        Assert.Equal("Resend refused it: 502 BadGateway", error.Message);
+    }
+
+    [Fact]
+    public async Task Emails_to_subscribers_go_out_from_the_updates_sender_and_the_rest_from_the_main_one()
+    {
+        var options = new EmailOptions { ResendApiKey = "re_key", From = "Claudiu <hello@jechel.dev>", UpdatesFrom = " jechel.dev <updates@jechel.dev> " };
+        var update = new FakeResend();
+        var reply = new FakeResend();
+        ResendEmailSender Sender(FakeResend api) => new(new HttpClient(api) { BaseAddress = ResendEmailSender.BaseAddress }, TestOptions.Monitor(options));
+
+        await Sender(update).SendAsync(Update with { FromUpdates = true }, default);
+        await Sender(reply).SendAsync(new EmailMessage("ada@example.com", "Re: your message", "<p>H</p>", "T", ReplyTo: "admin@example.com"), default);
+
+        Assert.Equal("jechel.dev <updates@jechel.dev>", (string?)update.Body!["from"]);
+        Assert.Null(update.Body["reply_to"]);
+        Assert.Equal("Claudiu <hello@jechel.dev>", (string?)reply.Body!["from"]);
+        Assert.Equal("admin@example.com", (string?)reply.Body["reply_to"]);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Without_an_updates_sender_subscribers_get_emails_from_the_main_one(string updatesFrom)
+    {
+        var options = new EmailOptions { From = "jechel.dev <updates@jechel.dev>", UpdatesFrom = updatesFrom };
+
+        Assert.Equal("jechel.dev <updates@jechel.dev>", options.SenderOf(Update with { FromUpdates = true }));
+        Assert.Equal("", new EmailOptions().UpdatesFrom);
+    }
+
+    [Fact]
+    public void Defaults_to_Resends_own_sender_until_a_domain_is_verified() =>
+        Assert.Equal("jechel.dev <onboarding@resend.dev>", new EmailOptions().From);
+
+    [Theory]
+    [InlineData("re_key", true)]
+    [InlineData("  ", false)]
+    [InlineData("", false)]
+    public void Uses_Resend_only_with_a_key(string key, bool configured) =>
+        Assert.Equal(configured, new EmailOptions { ResendApiKey = key }.IsConfigured);
+
+    [Fact]
+    public async Task Writes_emails_to_the_log_until_Resend_has_a_key_and_sends_them_once_it_has()
+    {
+        var options = new EmailOptions();
+        var api = new FakeResend();
+        var log = new ListLogger();
+        var sender = new SwitchingEmailSender(Resend(api), new LogEmailSender(log), TestOptions.Monitor(options));
+
+        await sender.SendAsync(Update, default);
+        Assert.False(sender.IsConfigured);
+        Assert.Null(api.Request);
+        Assert.Contains("ada@example.com", Assert.Single(log.Lines));
+
+        options.ResendApiKey = "re_key";
+        await sender.SendAsync(Update, default);
+        Assert.True(sender.IsConfigured);
+        Assert.NotNull(api.Request);
+    }
+
+    private sealed class ListLogger : ILogger<LogEmailSender>
+    {
+        public List<string> Lines { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) => Lines.Add(formatter(state, exception));
+    }
+}

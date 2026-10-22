@@ -14,21 +14,31 @@ const consents = () => gate().getByRole('checkbox')
 const continueButton = () => gate().getByRole('button', { name: 'Continue' })
 
 describe('the welcome popup', () => {
-  it('asks a visitor who never accepted the terms to tick every box, then continue', async () => {
+  it('asks a visitor who never accepted the terms to tick the one box (accepting them), then continue', async () => {
     stubApi()
     await renderApp({ acceptedTerms: null })
     await expect.element(gate()).toBeVisible()
-    expect(consents().elements()).toHaveLength(3)
+    expect(consents().elements()).toHaveLength(1)
+    await expect.element(consents()).toHaveAccessibleName('I have read and I accept the Terms and Conditions of this website.')
     await expect.element(continueButton()).toBeDisabled()
-    await expect.element(gate().getByText('Tick every box to continue.')).toBeVisible()
-    await consents().nth(0).click()
-    await consents().nth(1).click()
+    await expect.element(gate().getByText('Tick the box to continue.')).toBeVisible()
+    await consents().click()
+    await expect.element(gate().getByText('Tick the box to continue.')).not.toBeInTheDocument()
+    await consents().click()
     await expect.element(continueButton()).toBeDisabled()
-    await consents().nth(2).click()
-    await expect.element(gate().getByText('Tick every box to continue.')).not.toBeInTheDocument()
+    await consents().click()
     await continueButton().click()
     await expect.element(gate()).not.toBeInTheDocument()
     expect(localStorage.getItem('terms.accepted')).toBe(TERMS.updatedAt)
+  })
+
+  it('asks nothing else: everything else is in the terms themselves', async () => {
+    stubApi()
+    await renderApp({ acceptedTerms: null })
+    await expect.element(gate()).toBeVisible()
+    await expect.poll(() => textOf(gate())).toContain('Before you continue, please read the Terms and Conditions and confirm that you accept them.')
+    expect(textOf(gate())).not.toContain('contact form')
+    expect(textOf(gate())).not.toContain('provided as it is')
   })
 
   it("can't be closed with Escape, and hides the footer while it's up", async () => {
@@ -101,6 +111,41 @@ describe('the terms popup', () => {
     await expect.poll(() => textOf(termsDialog().getByRole('list'))).toBe('Use it lawfully.Read the privacy notes.')
     await expect.element(termsDialog().getByRole('button', { name: 'Close' }).first()).toHaveFocus()
     await userEvent.keyboard('{Escape}')
+    await expect.element(termsDialog()).not.toBeInTheDocument()
+  })
+
+  it('closes with × at the top only (no button at the bottom), Escape or a click outside', async () => {
+    stubApi()
+    await renderApp()
+    const footerLink = page.getByRole('contentinfo').getByRole('button', { name: 'Terms and Conditions' })
+
+    await footerLink.click()
+    await expect.element(termsDialog()).toBeVisible()
+    expect(termsDialog().getByRole('button').all().map((b) => b.element().getAttribute('aria-label') ?? b.element().textContent)).toEqual(['Close'])
+    await termsDialog().getByRole('button', { name: 'Close' }).click()
+    await expect.element(termsDialog()).not.toBeInTheDocument()
+
+    await footerLink.click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(termsDialog()).not.toBeInTheDocument()
+
+    await footerLink.click()
+    await expect.element(termsDialog()).toBeVisible()
+    const backdrop = document.querySelector<HTMLElement>('.modal-backdrop')!
+    backdrop.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    backdrop.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await expect.element(termsDialog()).not.toBeInTheDocument()
+  })
+
+  it('goes to a page the terms link to (e.g. Contact) within the site, and makes way', async () => {
+    const api = stubApi()
+    api.terms.get.mockResolvedValue({ ...TERMS, intro: 'Questions? Write through the [Contact](/contact) page.' })
+    const app = await renderApp()
+    await page.getByRole('contentinfo').getByRole('button', { name: 'Terms and Conditions' }).click()
+
+    await termsDialog().getByRole('link', { name: 'Contact' }).click()
+
+    await expect.poll(() => app.location()).toBe('/contact')
     await expect.element(termsDialog()).not.toBeInTheDocument()
   })
 

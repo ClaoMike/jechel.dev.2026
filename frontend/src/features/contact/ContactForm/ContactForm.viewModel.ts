@@ -4,7 +4,8 @@ import { useSendMessageMutation } from '../../../store/api/contactApi'
 import { trackEvent } from '../../analytics'
 import { MESSAGE_MIN_LENGTH, validateContact, type ContactErrors, type ContactField } from '../contactRules'
 
-type Status = 'idle' | 'sent' | 'failed'
+/** tooMany: the API's limit on messages from one address in a short while (429). */
+type Status = 'idle' | 'sent' | 'failed' | 'tooMany'
 
 const EMPTY: SendMessageRequest = { name: '', email: '', message: '' }
 
@@ -53,10 +54,11 @@ export function useContactFormViewModel() {
       setStatus('sent')
       trackEvent('Message sent')
     } catch (error) {
-      const { validationErrors } = failureOf(error)
+      const { status: code, validationErrors } = failureOf(error)
       const apiErrors = validationErrors ? fromApiErrors(validationErrors) : {}
+      trackEvent('Message not sent', { reason: Object.keys(apiErrors).length > 0 ? `invalid ${Object.keys(apiErrors).join(', ')}` : String(code || 'no response') })
       if (Object.keys(apiErrors).length > 0) setErrors(apiErrors)
-      else setStatus('failed')
+      else setStatus(code === 429 ? 'tooMany' : 'failed')
     }
   }
 

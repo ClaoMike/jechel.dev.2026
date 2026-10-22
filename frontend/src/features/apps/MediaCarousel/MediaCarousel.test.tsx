@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { AppMedia } from '../../../services/api'
 import { a11yViolations } from '../../../test/a11y'
@@ -6,6 +6,7 @@ import { renderView, textOf } from '../../../test/render'
 import forest from '../../../test/fixtures/tile-forest.svg?url'
 import sunset from '../../../test/fixtures/tile-sunset.svg?url'
 import { MediaCarousel } from './MediaCarousel'
+import { ARRIVAL_TIMEOUT_MS } from './MediaCarousel.viewModel'
 
 const MEDIA: AppMedia[] = [
   { url: sunset, kind: 'image' },
@@ -84,5 +85,74 @@ describe('the image and video slider', () => {
   it('has no WCAG problems', async () => {
     await renderView(<MediaCarousel media={MEDIA} title="Game" />, { theme: 'light' })
     expect(await a11yViolations()).toEqual([])
+  })
+
+  it('goes back with Previous, and ignores keys other than the arrows', async () => {
+    await renderView(<MediaCarousel media={MEDIA} title="Game" />)
+    await page.getByRole('button', { name: 'Show 3 of 4' }).click()
+    await expect.poll(count).toBe('3 / 4')
+
+    await page.getByRole('button', { name: 'Previous' }).click()
+    await expect.poll(count).toBe('2 / 4')
+
+    ;(document.querySelector('.carousel-track') as HTMLElement).focus()
+    await userEvent.keyboard('{ArrowUp}{Enter}a')
+    expect(count()).toBe('2 / 4')
+  })
+
+  describe('while an arrow\'s smooth scroll is on its way', () => {
+    /** The track, its scrolls taken over by the test: each position is set by hand, as a smooth scroll's frames would. */
+    async function slider() {
+      const real = window.matchMedia.bind(window)
+      vi.spyOn(window, 'matchMedia').mockImplementation((q) => (q.includes('reduced-motion') ? ({ ...real(q), matches: false } as MediaQueryList) : real(q)))
+      const scrollTo = vi.spyOn(HTMLElement.prototype, 'scrollTo').mockImplementation(() => {})
+      await renderView(<MediaCarousel media={MEDIA} title="Game" />)
+      const track = document.querySelector<HTMLElement>('.carousel-track')!
+      track.style.scrollSnapType = 'none'
+      const at = (slides: number) => {
+        track.scrollLeft = slides * track.clientWidth
+        track.dispatchEvent(new Event('scroll'))
+      }
+      return { scrollTo, at }
+    }
+
+    it("shows the new count at once, and doesn't flick back while the slide is still leaving", async () => {
+      const { scrollTo, at } = await slider()
+
+      await page.getByRole('button', { name: 'Next' }).click()
+      expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ behavior: 'smooth' }))
+      await expect.poll(count).toBe('2 / 4')
+
+      // The first frames: still resting (to the pixel) on the slide it leaves.
+      at(0)
+      at(0.004)
+      await new Promise((r) => setTimeout(r, 50))
+      expect(count()).toBe('2 / 4')
+      at(0.5)
+      at(1)
+      expect(count()).toBe('2 / 4')
+    })
+
+    it('counts the track again once the scroll has arrived (a swipe after it)', async () => {
+      const { at } = await slider()
+      await page.getByRole('button', { name: 'Next' }).click()
+      at(1)
+
+      at(2)
+
+      await expect.poll(count).toBe('3 / 4')
+    })
+
+    it("counts where the track is if the scroll never arrives (a swipe took over)", async () => {
+      const { at } = await slider()
+      await page.getByRole('button', { name: 'Show 4 of 4' }).click()
+      await expect.poll(count).toBe('4 / 4')
+
+      // Swiped back to the second slide before getting there.
+      at(1)
+      expect(count()).toBe('4 / 4')
+
+      await expect.poll(count, { timeout: ARRIVAL_TIMEOUT_MS + 1000 }).toBe('2 / 4')
+    })
   })
 })

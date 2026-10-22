@@ -24,6 +24,7 @@ public class TermsEndpointTests(PortfolioApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var terms = await response.Content.ReadFromJsonAsync<TermsDocument>();
         Assert.False(string.IsNullOrEmpty(terms!.Title));
+        Assert.NotNull(terms.UpdatedAt);
     }
 
     [Fact]

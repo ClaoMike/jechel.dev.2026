@@ -21,7 +21,7 @@ export function TabNav() {
       <nav ref={navRef} className="tabs" aria-label="Sections" data-dragging={vm.dragging ? '' : undefined} {...vm.navHandlers}>
         {vm.indicator && <span className="tab-indicator" aria-hidden="true" data-animate={vm.indicator.animate ? '' : undefined} style={vm.indicator.style} />}
         {vm.tabs.map((tab) => (
-          <TabLink key={tab.to} to={tab.to} label={tab.label} hiddenFromVisitors={!!tab.hiddenFromVisitors} />
+          <TabLink key={tab.to} to={tab.to} label={tab.label} hiddenFromVisitors={!!tab.hiddenFromVisitors} adminOnly={!!tab.adminOnly} />
         ))}
       </nav>
       {vm.more.right && (

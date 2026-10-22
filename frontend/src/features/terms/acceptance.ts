@@ -24,3 +24,12 @@ export function rememberAcceptance(version: string) {
     // Accepted for this visit only.
   }
 }
+
+/** Forgets this browser's acceptance: the welcome popup asks again (the development "User" bar's reset). */
+export function forgetAcceptance() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // Nothing was remembered.
+  }
+}

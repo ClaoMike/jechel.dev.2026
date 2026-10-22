@@ -5,7 +5,10 @@ public class Donation
 {
     public int Id { get; set; }
 
-    /// <summary>The service's id for the payment (or a hash of the payload); unique, so a retried webhook is stored once.</summary>
+    /// <summary>
+    /// The event and the service's id for the payment, e.g. "donation.created:58" (or a hash of the payload); unique, so a retried
+    /// webhook is stored once, while a refund or a membership change (same payment id, another event) is stored too.
+    /// </summary>
     public required string TransactionId { get; set; }
 
     /// <summary>The event, e.g. "donation.created".</summary>
@@ -29,4 +32,7 @@ public class Donation
     public string? Payload { get; set; }
 
     public DateTimeOffset ReceivedAt { get; set; }
+
+    /// <summary>Sent with Buy Me a Coffee's "Send test" (live_mode false): no money moved.</summary>
+    public bool IsTest { get; set; }
 }

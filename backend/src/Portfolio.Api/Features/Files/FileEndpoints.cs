@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.HttpResults;
-using SixLabors.ImageSharp;
 
 namespace Portfolio.Api.Features.Files;
 
@@ -41,7 +40,7 @@ public static class FileEndpoints
             await using var stream = file!.OpenReadStream();
             photo = await FileRules.PreparePhotoAsync(stream, cancellationToken);
         }
-        catch (Exception e) when (e is ImageFormatException or NotSupportedException)
+        catch (NotAnImageException)
         {
             return Invalid("That file isn't an image we can read. Try a JPEG, PNG or WebP.");
         }
@@ -85,7 +84,7 @@ public static class FileEndpoints
             await using var stream = file.OpenReadStream();
             image = await FileRules.PreparePhotoAsync(stream, cancellationToken, FileRules.AppImageMaxPixels);
         }
-        catch (Exception e) when (e is ImageFormatException or NotSupportedException)
+        catch (NotAnImageException)
         {
             return Invalid("That file isn't an image or video we can use. Try a JPEG, PNG, WebP, GIF, MP4, MOV or WebM.");
         }
@@ -125,6 +124,8 @@ public static class FileEndpoints
         // Shown in the browser (inline); the page's download link saves it under FileName.
         context.Response.Headers.ContentDisposition = new System.Net.Mime.ContentDisposition { Inline = true, FileName = file.FileName }.ToString();
         context.Response.Headers.XContentTypeOptions = "nosniff";
+        // Each upload gets a new id, so a file never changes: browsers keep it for a year instead of asking again every visit.
+        context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
         // Ranges let a video start playing and skip around before it's all downloaded (Safari needs them).
         return TypedResults.File(file.Content, file.ContentType, enableRangeProcessing: true);
     }

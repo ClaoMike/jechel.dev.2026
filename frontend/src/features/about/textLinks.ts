@@ -48,3 +48,6 @@ function mergePlain(parts: TextPart[]): TextPart[] {
   }
   return merged
 }
+
+/** A page of this site (e.g. "/contact"), not a file the API serves ("/api/files/…") or another site. */
+export const isSitePage = (href: string) => href.startsWith('/') && !href.startsWith('//') && !href.startsWith('/api/')

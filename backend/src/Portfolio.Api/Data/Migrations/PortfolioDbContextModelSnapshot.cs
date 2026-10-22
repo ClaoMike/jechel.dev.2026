@@ -17,10 +17,32 @@ namespace Portfolio.Api.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FriendlyName")
+                        .HasColumnType("text")
+                        .HasColumnName("friendly_name");
+
+                    b.Property<string>("Xml")
+                        .HasColumnType("text")
+                        .HasColumnName("xml");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("data_protection_keys", (string)null);
+                });
 
             modelBuilder.Entity("Portfolio.Api.Data.AboutPage", b =>
                 {
@@ -40,6 +62,84 @@ namespace Portfolio.Api.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("about_page", (string)null);
+                });
+
+            modelBuilder.Entity("Portfolio.Api.Data.AdminSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("country");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("email");
+
+                    b.Property<DateTimeOffset>("EndsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ends_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)")
+                        .HasColumnName("ip_address");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("token_hash");
+
+                    b.Property<string>("UserAgent")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("user_agent");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("admin_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("Portfolio.Api.Data.AlertPreference", b =>
+                {
+                    b.Property<string>("Kind")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("kind");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Kind");
+
+                    b.ToTable("alert_preferences", (string)null);
                 });
 
             modelBuilder.Entity("Portfolio.Api.Data.Announcement", b =>
@@ -201,10 +301,24 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("character varying(254)")
                         .HasColumnName("email");
 
+                    b.Property<string>("EmailId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("email_id");
+
+                    b.Property<string>("EmailMessageId")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("email_message_id");
+
+                    b.Property<DateTimeOffset>("LastActivityAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_activity_at");
+
                     b.Property<string>("Message")
                         .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)")
                         .HasColumnName("message");
 
                     b.Property<string>("Name")
@@ -221,7 +335,19 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("received_at");
 
+                    b.Property<string>("Subject")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("subject");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Email");
+
+                    b.HasIndex("EmailId")
+                        .IsUnique();
+
+                    b.HasIndex("LastActivityAt");
 
                     b.HasIndex("ReceivedAt");
 
@@ -236,6 +362,20 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("EmailId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("email_id");
+
+                    b.Property<string>("EmailMessageId")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("email_message_id");
+
+                    b.Property<bool>("FromVisitor")
+                        .HasColumnType("boolean")
+                        .HasColumnName("from_visitor");
 
                     b.Property<int>("MessageId")
                         .HasColumnType("integer")
@@ -252,6 +392,9 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnName("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EmailId")
+                        .IsUnique();
 
                     b.HasIndex("MessageId");
 
@@ -289,6 +432,10 @@ namespace Portfolio.Api.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("from_name");
+
+                    b.Property<bool>("IsTest")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_test");
 
                     b.Property<string>("Message")
                         .HasMaxLength(2000)
@@ -430,6 +577,57 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("meetings", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.PhoneAlertLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("message");
+
+                    b.Property<string>("Path")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("path");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("Kind", "CreatedAt");
+
+                    b.ToTable("phone_alerts", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.Profile", b =>
                 {
                     b.Property<int>("Id")
@@ -444,15 +642,6 @@ namespace Portfolio.Api.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("first_name");
-
-                    b.Property<DateTimeOffset?>("SessionExpiresAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("session_expires_at");
-
-                    b.Property<string>("SessionTokenHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("session_token_hash");
 
                     b.HasKey("Id");
 
@@ -675,6 +864,26 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("terms_page", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.UpdateEmailsPage", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("update_emails", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.UpdatesState", b =>
                 {
                     b.Property<int>("Id")
@@ -879,6 +1088,27 @@ namespace Portfolio.Api.Data.Migrations
                     b.HasIndex("StartedAt");
 
                     b.ToTable("visit_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("Portfolio.Api.Data.YouTubeSnapshot", b =>
+                {
+                    b.Property<string>("Channel")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("channel");
+
+                    b.Property<DateTimeOffset>("FetchedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fetched_at");
+
+                    b.Property<string>("Videos")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("videos");
+
+                    b.HasKey("Channel");
+
+                    b.ToTable("youtube_videos", (string)null);
                 });
 
             modelBuilder.Entity("Portfolio.Api.Data.ContactReply", b =>

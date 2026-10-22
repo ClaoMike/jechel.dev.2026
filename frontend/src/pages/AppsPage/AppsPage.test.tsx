@@ -108,11 +108,11 @@ describe('Apps page, for a visitor', () => {
     await page.getByRole('button', { name: 'Next' }).click()
     await expect.element(tile('App 12')).toBeVisible()
     await expect.element(page.getByText('Page 2 of 2')).toBeVisible()
-    expect(view.location()).toBe('/apps?page=2')
+    await expect.poll(() => view.location()).toBe('/apps?page=2')
     expect(list).toHaveBeenLastCalledWith(2, 9, expect.anything())
     await page.getByRole('button', { name: 'Previous' }).click()
     await expect.element(tile('App 1')).toBeVisible()
-    expect(view.location()).toBe('/apps')
+    await expect.poll(() => view.location()).toBe('/apps')
   })
 
   it('opens at the page in the URL, and goes to the last page when that one is past the end', async () => {
@@ -120,7 +120,7 @@ describe('Apps page, for a visitor', () => {
     list.mockImplementation(async (pageNumber = 1, pageSize = 9) => pageOf(all.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), { page: pageNumber, pageSize, totalCount: all.length }))
     const view = await renderApps({ path: '/apps?page=7' })
     await expect.element(tile('App 10')).toBeVisible()
-    expect(view.location()).toBe('/apps?page=2')
+    await expect.poll(() => view.location()).toBe('/apps?page=2')
   })
 })
 

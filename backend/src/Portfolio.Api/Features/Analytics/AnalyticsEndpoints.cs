@@ -16,6 +16,9 @@ public static class AnalyticsEndpoints
     public const int MaxPageSize = 50;
     public const int TopListSize = 10;
 
+    /// <summary>Batches per IP (Analytics:LimitPer10Minutes): the tracker drops a refused one, and nothing else notices.</summary>
+    public const string RateLimitPolicy = "analytics";
+
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
 
     public static IEndpointRouteBuilder MapAnalyticsEndpoints(this IEndpointRouteBuilder app)
@@ -23,7 +26,7 @@ public static class AnalyticsEndpoints
         var analytics = app.MapGroup("/analytics");
 
         // Public: every visitor's browser sends its events here.
-        analytics.MapPost("/events", Collect).WithName("CollectAnalyticsEvents");
+        analytics.MapPost("/events", Collect).WithName("CollectAnalyticsEvents").RequireRateLimiting(RateLimitPolicy);
 
         // Admin only: the Engagement tab.
         analytics.MapGet("/summary", GetSummary).WithName("GetAnalyticsSummary").RequireAuthorization();
@@ -78,7 +81,7 @@ public static class AnalyticsEndpoints
                 // Once stored, so a retried batch doesn't ring twice; throttled, so a crash every visitor hits rings once an hour.
                 foreach (var (label, path) in errors)
                 {
-                    alerts.SendThrottled($"web:{label}", new PhoneAlert("Site error", $"{label}\non {path} ({agent.Browser}, {agent.Device})", "/engagement", AlertPriority.Default, "warning"));
+                    alerts.SendThrottled($"web:{label}", new PhoneAlert(AlertKinds.SiteError, "Site error", $"{label}\non {path} ({agent.Browser}, {agent.Device})", "/engagement", AlertPriority.Default, "warning"));
                 }
                 return TypedResults.NoContent();
             }
@@ -179,7 +182,7 @@ public static class AnalyticsEndpoints
                     session.ErrorCount++;
                     errors.Add((AnalyticsRules.Cut(input.Label, AnalyticsRules.LabelMaxLength) ?? "Unknown error", AnalyticsRules.NormalizePath(input.Path)));
                 }
-                if (input.Type is "click" or "key" or "event") session.InteractionCount++;
+                if (AnalyticsRules.InteractionTypes.Contains(input.Type!)) session.InteractionCount++;
                 if (occurredAt > session.LastSeenAt) session.LastSeenAt = occurredAt;
                 if (occurredAt < session.StartedAt) session.StartedAt = occurredAt;
             }
@@ -221,6 +224,7 @@ public static class AnalyticsEndpoints
                 s.Device,
                 s.Browser,
                 s.TimeZone,
+                s.Country,
                 s.Theme,
                 s.LastTheme,
             })
@@ -232,11 +236,12 @@ public static class AnalyticsEndpoints
             .Select(e => new { e.Type, e.Path, e.Label, e.OccurredAt })
             .ToListAsync(cancellationToken);
 
-        var themeChanges = await db.VisitEvents
+        var siteEvents = await db.VisitEvents
             .AsNoTracking()
-            .Where(e => e.OccurredAt >= from && e.Type == "event" && e.Label == AnalyticsRules.ThemeChangedEvent && e.Detail != null)
-            .Select(e => e.Detail!)
+            .Where(e => e.OccurredAt >= from && e.Type == "event")
+            .Select(e => new { e.Label, e.Detail })
             .ToListAsync(cancellationToken);
+        var themeChanges = siteEvents.Where(e => e.Label == AnalyticsRules.ThemeChangedEvent && e.Detail != null).Select(e => e.Detail!);
 
         var sessionsByBucket = sessions.ToLookup(s => period.BucketOf(s.StartedAt));
         var pageViews = events.Where(e => e.Type == "pageview").ToList();
@@ -276,10 +281,13 @@ public static class AnalyticsEndpoints
             Devices: Top(sessions.Select(s => s.Device)),
             Browsers: Top(sessions.Select(s => s.Browser)),
             TimeZones: Top(sessions.Select(s => s.TimeZone ?? "Unknown")),
+            Countries: Top(sessions.Select(s => s.Country ?? "Unknown")),
             TopClicks: Top(events.Where(e => e.Type == "click" && e.Label is not null).Select(e => e.Label!)),
             TopErrors: Top(errors.Select(e => e.Label ?? "Unknown error")),
             Themes: Top(sessions.Select(s => s.LastTheme ?? s.Theme ?? "Unknown")),
-            ThemeSwitches: Top(themeChanges.Select(ThemeSwitch).OfType<string>())));
+            ThemeSwitches: Top(themeChanges.Select(ThemeSwitch).OfType<string>()),
+            // Theme changes have their own list.
+            SiteEvents: Top(siteEvents.Where(e => e.Label is not null && e.Label != AnalyticsRules.ThemeChangedEvent).Select(e => e.Label!))));
     }
 
     /// <summary>"vice → dark" from a theme change's detail, or null when it's missing a side.</summary>

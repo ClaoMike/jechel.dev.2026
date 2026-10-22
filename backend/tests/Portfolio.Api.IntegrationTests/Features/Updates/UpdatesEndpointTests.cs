@@ -84,6 +84,57 @@ public partial class UpdatesEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
+    public async Task A_double_click_on_Subscribe_stores_the_address_once_and_sends_one_email()
+    {
+        var address = $"double-{Guid.NewGuid():N}@example.com";
+        var visitor = factory.CreateBrowserClient();
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => visitor.PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest(address))));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        var statuses = await Task.WhenAll(responses.Select(async r => (await r.Content.ReadFromJsonAsync<SubscribeResult>())!.Status));
+        Assert.Equal(1, statuses.Count(s => s == SubscribeStatus.Sent));
+        Assert.All(statuses.Where(s => s != SubscribeStatus.Sent), s => Assert.Equal(SubscribeStatus.Pending, s));
+        Assert.Single(factory.Emails.To(address));
+        var list = await (await SignedInClientAsync()).GetFromJsonAsync<PagedResponse<SubscriberDto>>("/api/updates/subscribers?pageSize=50");
+        Assert.Single(list!.Items, s => s.Email == address);
+    }
+
+    [Fact]
+    public async Task A_mail_app_that_opens_the_unsubscribe_link_gets_the_sites_page_and_nothing_changes_until_it_asks()
+    {
+        var visitor = factory.CreateBrowserClient();
+        var address = $"opened-{Guid.NewGuid():N}@example.com";
+        await visitor.PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest(address));
+        var token = ConfirmLink().Match(Assert.Single(factory.Emails.To(address)).Text).Groups[1].Value;
+
+        var opened = await visitor.GetAsync($"/api/updates/unsubscribe?token={token}");
+
+        Assert.Equal(HttpStatusCode.Redirect, opened.StatusCode);
+        Assert.Equal($"/updates/unsubscribe?token={token}", opened.Headers.Location!.PathAndQuery);
+        var list = await (await SignedInClientAsync()).GetFromJsonAsync<PagedResponse<SubscriberDto>>("/api/updates/subscribers?pageSize=50");
+        Assert.Contains(list!.Items, s => s.Email == address);
+    }
+
+    [Fact]
+    public async Task Deleting_an_app_whose_email_waits_marks_the_email_not_sent()
+    {
+        var admin = await SignedInClientAsync();
+        var title = $"Gone {Guid.NewGuid():N}";
+        var created = await admin.PostAsJsonAsync("/api/apps", new Portfolio.Api.Features.Apps.AppRequest(title, "About it", []));
+        var location = created.Headers.Location!.ToString();
+        var alert = Assert.Single(factory.Alerts.All, a => a.Title == $"New app: {title}");
+
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync(location)).StatusCode);
+
+        var listed = await admin.GetFromJsonAsync<PagedResponse<AnnouncementDto>>("/api/updates/announcements?pageSize=50");
+        Assert.Equal("ignored", Assert.Single(listed!.Items, a => a.Title == title).Status);
+        // The phone's Send button no longer works for it.
+        var send = new Uri(alert.Actions![0].Url);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().PostAsync(send.PathAndQuery, null)).StatusCode);
+    }
+
+    [Fact]
     public async Task An_invalid_address_gets_a_field_error()
     {
         var response = await factory.CreateBrowserClient().PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest("nope"));
@@ -97,6 +148,87 @@ public partial class UpdatesEndpointTests(PortfolioApiFactory factory)
     public async Task Visitors_cant_see_who_subscribed_or_what_was_sent(string path)
     {
         var response = await factory.CreateBrowserClient().GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_admin_rewords_the_emails_previews_and_tests_them_and_new_subscribers_get_the_new_words()
+    {
+        var admin = await SignedInClientAsync();
+        var defaults = (await admin.GetFromJsonAsync<UpdateEmailsDocument>("/api/updates/emails"))!;
+        Assert.Equal(UpdateEmailDefaults.Wording, defaults.Defaults);
+        var mine = defaults.Defaults with { Confirm = defaults.Defaults.Confirm with { Subject = "One click to jechel.dev updates" } };
+
+        try
+        {
+            var bad = await admin.PutAsJsonAsync("/api/updates/emails", mine with { Video = mine.Video with { Subject = "{name}" } });
+            Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+
+            var saved = await admin.PutAsJsonAsync("/api/updates/emails", mine);
+            Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+            Assert.NotNull((await saved.Content.ReadFromJsonAsync<UpdateEmailsDocument>())!.UpdatedAt);
+
+            var preview = await admin.PostAsJsonAsync("/api/updates/emails/preview", new UpdateEmailPreviewRequest(UpdateEmailKinds.App, mine));
+            Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+            Assert.Contains("jechel</span>", (await preview.Content.ReadFromJsonAsync<UpdateEmailPreview>())!.Html);
+
+            var test = await admin.PostAsJsonAsync("/api/updates/emails/test", new UpdateEmailPreviewRequest(UpdateEmailKinds.Confirm, mine));
+            Assert.True((await test.Content.ReadFromJsonAsync<Portfolio.Api.Features.Settings.TestResult>())!.Ok);
+            Assert.Contains(factory.Emails.To(PortfolioApiFactory.AdminEmail), e => e.Subject == "[Test] One click to jechel.dev updates");
+
+            var address = $"worded-{Guid.NewGuid():N}@example.com";
+            await factory.CreateBrowserClient().PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest(address));
+            var email = Assert.Single(factory.Emails.To(address));
+            Assert.Equal("One click to jechel.dev updates", email.Subject);
+            Assert.True(email.FromUpdates);
+            Assert.Matches(ConfirmLink(), email.Text);
+        }
+        finally
+        {
+            var reset = await admin.DeleteAsync("/api/updates/emails");
+            Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
+        }
+        Assert.Null((await admin.GetFromJsonAsync<UpdateEmailsDocument>("/api/updates/emails"))!.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task A_subscribed_admin_unsubscribes_from_a_test_email_with_the_mail_apps_button_or_the_link()
+    {
+        var admin = await SignedInClientAsync();
+        foreach (var how in new[] { "mail app", "link" })
+        {
+            await admin.PostAsJsonAsync("/api/updates/subscribe", new SubscribeRequest(PortfolioApiFactory.AdminEmail));
+            var token = ConfirmLink().Match(factory.Emails.To(PortfolioApiFactory.AdminEmail).Last().Text).Groups[1].Value;
+            await admin.PostAsync($"/api/updates/confirm?token={token}", null);
+
+            var test = await admin.PostAsJsonAsync("/api/updates/emails/test", new UpdateEmailPreviewRequest(UpdateEmailKinds.Video, UpdateEmailDefaults.Wording));
+            Assert.True((await test.Content.ReadFromJsonAsync<Portfolio.Api.Features.Settings.TestResult>())!.Ok);
+            var email = factory.Emails.To(PortfolioApiFactory.AdminEmail).Last();
+            Assert.Contains($"/updates/unsubscribe?token={token}", email.Text);
+
+            // The mail app's button posts to the email's List-Unsubscribe address; the link opens the page, which calls the API.
+            var unsubscribe = how == "mail app"
+                ? await factory.CreateBrowserClient().PostAsync(new Uri(email.UnsubscribeUrl!).PathAndQuery, new FormUrlEncodedContent([new("List-Unsubscribe", "One-Click")]))
+                : await factory.CreateBrowserClient().PostAsync($"/api/updates/unsubscribe?token={token}", null);
+            Assert.Equal(HttpStatusCode.NoContent, unsubscribe.StatusCode);
+            var list = await admin.GetFromJsonAsync<PagedResponse<SubscriberDto>>("/api/updates/subscribers?pageSize=50");
+            Assert.DoesNotContain(list!.Items, s => s.Email == PortfolioApiFactory.AdminEmail);
+        }
+    }
+
+    [Theory]
+    [InlineData("GET", "/api/updates/emails")]
+    [InlineData("PUT", "/api/updates/emails")]
+    [InlineData("DELETE", "/api/updates/emails")]
+    [InlineData("POST", "/api/updates/emails/preview")]
+    [InlineData("POST", "/api/updates/emails/test")]
+    public async Task Only_the_admin_sees_or_changes_the_emails_wording(string method, string path)
+    {
+        var request = new HttpRequestMessage(new HttpMethod(method), path);
+        if (method is "PUT" or "POST") request.Content = JsonContent.Create(new UpdateEmailPreviewRequest(UpdateEmailKinds.Confirm, UpdateEmailDefaults.Wording));
+
+        var response = await factory.CreateBrowserClient().SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }

@@ -7,7 +7,7 @@ export function SubscribeButton() {
   const vm = useSubscribeButtonViewModel()
   return (
     <>
-      <button type="button" className="button button-secondary header-button" aria-label="Get updates by email" onClick={vm.show}>
+      <button type="button" className="button button-secondary header-button subscribe-button" aria-label="Get updates by email" onClick={vm.show}>
         <BellIcon />
         <span className="header-button-label">Get updates</span>
       </button>

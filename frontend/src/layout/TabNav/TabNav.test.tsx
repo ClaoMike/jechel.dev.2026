@@ -1,0 +1,173 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import { page } from 'vitest/browser'
+import { stubApi } from '../../test/api'
+import { ADMIN, renderApp } from '../../test/render'
+
+// The tab bar: the highlight under the current tab can be dragged across; letting go opens the tab it's over.
+
+const nav = () => page.getByRole('navigation', { name: 'Sections' })
+const tab = (name: string) => nav().getByRole('link', { name, exact: true }).element() as HTMLAnchorElement
+const indicator = () => nav().element().querySelector<HTMLElement>('.tab-indicator')!
+
+/** A pointer event at the middle of `target`, moved by `dx`, as a mouse (pointer 1) or a finger sends it. */
+function pointer(type: string, target: Element, dx = 0, { pointerId = 1, pointerType = 'mouse' } = {}) {
+  const box = target.getBoundingClientRect()
+  target.dispatchEvent(
+    new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      pointerId,
+      pointerType,
+      isPrimary: pointerId === 1,
+      button: 0,
+      clientX: box.left + box.width / 2 + dx,
+      clientY: box.top + box.height / 2,
+    }),
+  )
+}
+
+/** From the current tab's middle to `to`'s middle, without letting go; the highlight is there once it resolves. */
+async function dragTo(from: HTMLElement, to: HTMLElement, options?: { pointerId?: number; pointerType?: string }) {
+  const distance = to.getBoundingClientRect().left + to.offsetWidth / 2 - (from.getBoundingClientRect().left + from.offsetWidth / 2)
+  pointer('pointerdown', from, 0, options)
+  pointer('pointermove', from, distance / 2, options)
+  pointer('pointermove', from, distance, options)
+  await expect.poll(() => indicator().style.width).toBe(`${to.offsetWidth}px`)
+}
+
+async function open(path = '/') {
+  stubApi({ user: ADMIN })
+  const app = await renderApp({ path })
+  await expect.poll(() => indicator()).not.toBeNull()
+  return app
+}
+
+afterEach(() => {
+  document.body.style.width = ''
+})
+
+describe('dragging the highlight', () => {
+  it('follows the pointer, and letting go over a tab opens it', async () => {
+    const app = await open('/')
+    const from = tab("What's new?")
+    const to = tab('About Me')
+
+    await dragTo(from, to)
+    await expect.poll(() => nav().element().hasAttribute('data-dragging')).toBe(true)
+    await expect.poll(() => indicator().style.width).toBe(`${to.offsetWidth}px`)
+    pointer('pointerup', from, to.getBoundingClientRect().left - from.getBoundingClientRect().left)
+
+    await expect.poll(() => app.location()).toBe('/about')
+    expect(nav().element().hasAttribute('data-dragging')).toBe(false)
+  })
+
+  it('a mouse drag ends with a click on whatever is under it: that click opens nothing', async () => {
+    const app = await open('/')
+    const from = tab("What's new?")
+    const to = tab('About Me')
+
+    await dragTo(from, to)
+    pointer('pointerup', from, to.getBoundingClientRect().left - from.getBoundingClientRect().left)
+    tab('Apps').click()
+
+    await expect.poll(() => app.location()).toBe('/about')
+  })
+
+  it('after a finger drag (no click follows), the next tap opens its tab', async () => {
+    const app = await open('/')
+    const from = tab("What's new?")
+    const to = tab('About Me')
+
+    await dragTo(from, to, { pointerType: 'touch' })
+    pointer('pointerup', from, to.getBoundingClientRect().left - from.getBoundingClientRect().left, { pointerType: 'touch' })
+    await expect.poll(() => app.location()).toBe('/about')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    tab('Apps').click()
+    await expect.poll(() => app.location()).toBe('/apps')
+  })
+
+  it('a tap is a tap: moving less than 5 pixels opens nothing new', async () => {
+    const app = await open('/')
+    const from = tab("What's new?")
+
+    pointer('pointerdown', from)
+    pointer('pointermove', from, 3)
+    pointer('pointerup', from, 3)
+
+    expect(nav().element().hasAttribute('data-dragging')).toBe(false)
+    expect(app.location()).toBe('/')
+  })
+
+  it('only the current tab is a handle', async () => {
+    const app = await open('/')
+
+    pointer('pointerdown', tab('Apps'))
+    pointer('pointermove', tab('Apps'), 200)
+    pointer('pointerup', tab('Apps'), 200)
+
+    expect(nav().element().hasAttribute('data-dragging')).toBe(false)
+    expect(app.location()).toBe('/')
+  })
+
+  it('another finger lifting doesn’t end the drag', async () => {
+    const app = await open('/')
+    const from = tab("What's new?")
+    const to = tab('About Me')
+
+    await dragTo(from, tab('Apps'))
+    pointer('pointerup', from, 0, { pointerId: 7, pointerType: 'touch' })
+    pointer('pointermove', from, to.getBoundingClientRect().left + to.offsetWidth / 2 - (from.getBoundingClientRect().left + from.offsetWidth / 2))
+    await expect.poll(() => indicator().style.width).toBe(`${to.offsetWidth}px`)
+    pointer('pointerup', from, to.getBoundingClientRect().left - from.getBoundingClientRect().left)
+
+    await expect.poll(() => app.location()).toBe('/about')
+  })
+
+  it('a cancelled drag puts the highlight back', async () => {
+    const app = await open('/')
+    const from = tab("What's new?")
+    const home = indicator().style.transform
+
+    await dragTo(from, tab('About Me'))
+    pointer('pointercancel', from)
+
+    await expect.poll(() => nav().element().hasAttribute('data-dragging')).toBe(false)
+    await expect.poll(() => indicator().style.transform).toBe(home)
+    expect(app.location()).toBe('/')
+  })
+
+  it('letting go back over the current tab stays there', async () => {
+    const app = await open('/apps')
+    const from = tab('Apps')
+
+    pointer('pointerdown', from)
+    pointer('pointermove', from, 20)
+    pointer('pointermove', from, 0)
+    pointer('pointerup', from, 0)
+
+    expect(app.location()).toBe('/apps')
+  })
+})
+
+describe('more tabs than fit', () => {
+  it('shows an arrow on the side with more, which scrolls the bar that way', async () => {
+    await page.viewport(420, 800)
+    try {
+      await open('/')
+      const bar = nav().element() as HTMLElement
+      await expect.poll(() => document.querySelector('.tabs-arrow-right')).not.toBeNull()
+      expect(document.querySelector('.tabs-arrow-left')).toBeNull()
+
+      ;(document.querySelector('.tabs-arrow-right') as HTMLButtonElement).click()
+      await expect.poll(() => bar.scrollLeft).toBeGreaterThan(0)
+      await expect.poll(() => document.querySelector('.tabs-arrow-left')).not.toBeNull()
+
+      ;(document.querySelector('.tabs-arrow-left') as HTMLButtonElement).click()
+      await expect.poll(() => bar.scrollLeft).toBe(0)
+    } finally {
+      await page.viewport(1280, 900)
+    }
+  })
+})

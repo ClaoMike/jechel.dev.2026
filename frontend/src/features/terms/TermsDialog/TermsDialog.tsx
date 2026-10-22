@@ -4,7 +4,7 @@ import { TermsSkeleton } from '../TermsSkeleton/TermsSkeleton'
 import { useTermsDialogViewModel } from './TermsDialog.viewModel'
 import { TermsDocumentView } from '../TermsDocumentView/TermsDocumentView'
 
-/** The terms in a popup. It sits above every other popup, the welcome one included. */
+/** The terms in a popup, closed with × (or Escape, or a click outside). It sits above every other popup, the welcome one included. */
 export function TermsDialog() {
   const { closeRef, ...vm } = useTermsDialogViewModel()
 
@@ -19,11 +19,6 @@ export function TermsDialog() {
       {vm.state.status === 'loading' && <TermsSkeleton />}
       {vm.state.status === 'error' && <ErrorState message={vm.errorMessage} onRetry={vm.reload} />}
       {vm.state.status === 'loaded' && <TermsDocumentView terms={vm.state.data} hideTitle />}
-      <div className="terms-modal-actions">
-        <button type="button" className="button" onClick={vm.close}>
-          Close
-        </button>
-      </div>
     </Modal>
   )
 }

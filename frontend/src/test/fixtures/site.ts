@@ -5,7 +5,7 @@ import thumbB from './thumb-b.svg?url'
 
 export const SITE: SiteStatus = {
   pages: { whatsNew: true, apps: true, youtube: true, about: true, contact: true },
-  features: { meetings: true, coffee: true, updates: true },
+  features: { coffee: true, updates: true },
   maintenance: false,
   maintenanceMessage: '',
   updatedAt: '2026-10-01T09:00:00Z',

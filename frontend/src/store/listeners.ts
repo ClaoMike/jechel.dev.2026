@@ -1,12 +1,15 @@
-import { createListenerMiddleware } from '@reduxjs/toolkit'
-import { trackEvent } from '../features/analytics/tracker'
+import { createListenerMiddleware, isAnyOf } from '@reduxjs/toolkit'
+import { tellOtherTabs } from '../auth/authChannel'
 import { rememberAcceptance } from '../features/terms/acceptance'
 import { rememberTheme, showTheme } from '../layout/theme'
 import { setRequestPreview } from '../services/api'
+import { checkSession, refreshSession, signOut } from './authSlice'
 import { baseApi } from './baseApi'
 import type { AppDispatch, RootState } from './index'
 import { activePreview, PREVIEW_STORAGE_KEY, previewModeChanged } from './previewSlice'
 import { termsAccepted } from './termsSlice'
+import { settingsApi } from './api/settingsApi'
+import { saveSite } from './siteSlice'
 import { slowSceneSwitched, themeChosen } from './themeSlice'
 
 /**
@@ -24,16 +27,26 @@ startListening({
   },
 })
 
+startListening({ actionCreator: slowSceneSwitched, effect: ({ payload }) => showTheme(payload) })
+
+// The header's Buy me a coffee asks the API whether it's offered (and where it leads): switching it in Settings, or
+// saving its link there, asks again at once, no reload. Saving the Cal.com page asks again for the admin's booking link.
+startListening({ actionCreator: saveSite.fulfilled, effect: (_, { dispatch }) => void dispatch(baseApi.util.invalidateTags(['Support'])) })
+
 startListening({
-  actionCreator: slowSceneSwitched,
-  effect: ({ payload }) => showTheme(payload),
+  matcher: settingsApi.endpoints.saveSetting.matchFulfilled,
+  effect: ({ meta }, { dispatch }) => {
+    const { key } = meta.arg.originalArgs
+    if (key.startsWith('Support:')) dispatch(baseApi.util.invalidateTags(['Support']))
+    if (key.startsWith('Cal:')) dispatch(baseApi.util.invalidateTags(['MeetingsLink']))
+  },
 })
 
 startListening({
   actionCreator: termsAccepted,
   effect: ({ payload }) => {
+    // The tracker records the acceptance itself, once it's allowed to (AnalyticsTracker).
     rememberAcceptance(payload)
-    trackEvent('Terms accepted')
   },
 })
 
@@ -65,4 +78,13 @@ startListening({
   effect: (_, api) => {
     api.dispatch(baseApi.util.resetApiState())
   },
+})
+
+// The admin's other tabs: signed out here, signed out there; signed in here (after Google), they check.
+startListening({ actionCreator: signOut.fulfilled, effect: () => tellOtherTabs('signedOut') })
+
+const sessionAnswered = isAnyOf(checkSession.fulfilled, refreshSession.fulfilled)
+startListening({
+  predicate: (action, state, before) => sessionAnswered(action) && state.auth.status === 'authenticated' && before.auth.status !== 'authenticated',
+  effect: () => tellOtherTabs('signedIn'),
 })

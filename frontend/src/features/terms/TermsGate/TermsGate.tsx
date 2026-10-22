@@ -3,7 +3,7 @@ import { ConsentList } from '../ConsentList/ConsentList'
 import { useTermsGateViewModel } from './TermsGate.viewModel'
 
 /**
- * The welcome popup: visitors tick every box, then continue. It can't be closed any other way
+ * The welcome popup: visitors tick the box (they accept the terms), then continue. It can't be closed any other way
  * (no close button, Escape and clicks outside do nothing), but the terms can be opened above it.
  */
 export function TermsGate() {
@@ -17,11 +17,11 @@ export function TermsGate() {
         <button type="button" className="link-button" onClick={vm.openTerms}>
           Terms and Conditions
         </button>{' '}
-        and confirm the following.
+        and confirm that you accept them.
       </p>
       <ConsentList consents={vm.consents} />
       <div className="terms-gate-actions">
-        {!vm.allTicked && <p className="terms-gate-hint">Tick every box to continue.</p>}
+        {!vm.allTicked && <p className="terms-gate-hint">Tick the box to continue.</p>}
         <button type="button" className="button" disabled={!vm.allTicked} onClick={vm.accept}>
           Continue
         </button>

@@ -76,4 +76,47 @@ public class TermsRulesTests
         Assert.Equal("", blocks[1].Text);
         Assert.Equal(["a", "b"], blocks[1].Items);
     }
+
+    // ---------- A request with holes (JSON nulls): each is a field error, never a crash ----------
+
+    [Fact]
+    public void No_terms_at_all_is_one_error()
+    {
+        Assert.Equal("The terms are required.", TermsRules.Validate(null)[""].Single());
+    }
+
+    [Fact]
+    public void A_missing_section_block_or_list_is_named()
+    {
+        var content = new TermsContent("Terms", null!, [null!, new TermsSection("Use", null!), new TermsSection("More", [null!, new TermsBlock(TermsBlockKinds.Bullets, "", null!)])]);
+
+        var errors = TermsRules.Validate(content);
+
+        Assert.Equal("Section is required.", errors["sections[0]"].Single());
+        Assert.Equal("Required (can be empty).", errors["sections[1].blocks"].Single());
+        Assert.Equal("Required.", errors["sections[2].blocks[0]"].Single());
+        Assert.Equal("Required (can be empty).", errors["sections[2].blocks[1].items"].Single());
+        Assert.DoesNotContain("intro", errors.Keys);
+    }
+
+    [Fact]
+    public void Too_many_sections_or_bullets_are_refused()
+    {
+        var many = new TermsContent("Terms", "", [.. Enumerable.Range(0, TermsRules.MaxSections + 1).Select(i => new TermsSection($"S{i}", [Paragraph("Text")]))]);
+        var bullets = WithBlocks(Bullets([.. Enumerable.Range(0, TermsRules.MaxItems + 1).Select(i => $"Item {i}")]));
+
+        Assert.Equal($"At most {TermsRules.MaxSections} items.", TermsRules.Validate(many)["sections"].Single());
+        Assert.Equal($"At most {TermsRules.MaxItems} items.", TermsRules.Validate(bullets)["sections[0].blocks[0].items"].Single());
+    }
+
+    [Fact]
+    public void Tidying_treats_a_missing_intro_or_bullet_as_empty()
+    {
+        var content = new TermsContent(" Terms ", null!, [new TermsSection("Use", [Bullets(null!, " One ", "")])]);
+
+        var tidy = TermsRules.Normalize(content);
+
+        Assert.Equal(("Terms", ""), (tidy.Title, tidy.Intro));
+        Assert.Equal(["One"], tidy.Sections[0].Blocks[0].Items);
+    }
 }

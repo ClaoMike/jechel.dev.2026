@@ -19,8 +19,7 @@ public class UpdatesAnnouncer(
     IEmailSender emails,
     IOptions<SiteOptions> site,
     IOptionsMonitor<YouTubeOptions> youTubeOptions,
-    IYouTubeClient youTube,
-    RefreshingCache<IReadOnlyList<YouTubeVideo>> videoCache,
+    YouTubeVideoStore videoStore,
     IPhoneAlerts alerts,
     TimeProvider time,
     ILogger<UpdatesAnnouncer> logger)
@@ -34,12 +33,16 @@ public class UpdatesAnnouncer(
     /// <summary>Between two emails, to stay under the email service's rate limit.</summary>
     public static TimeSpan DelayBetweenEmails { get; set; } = TimeSpan.FromMilliseconds(600);
 
-    private record Item(string Title, string Summary, string Url, string? ImageUrl);
+    /// <summary>An address that isn't confirmed this long after it was given (and its last confirmation email) is deleted.</summary>
+    public static readonly TimeSpan UnconfirmedKeptFor = TimeSpan.FromDays(7);
 
     /// <summary>Returns how many items were emailed.</summary>
     public async Task<int> AnnounceNewAsync(CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
+        await ForgetUnconfirmedAsync(now, cancellationToken);
+        // What visitors can see (Settings → Visitor pages): only that is announced.
+        var visible = await Site.SiteEndpoints.VisibleAsync(db, site.Value, cancellationToken);
         var state = await db.UpdatesStates.FindAsync([UpdatesState.SingletonId], cancellationToken);
         if (state is null)
         {
@@ -49,8 +52,13 @@ public class UpdatesAnnouncer(
         }
         else
         {
-            await ApproveNewVideosAsync(state.AnnounceAfter, now, cancellationToken);
+            // While the YouTube page or the updates are off, new videos are seen but not news: switching
+            // them on later doesn't email a backlog.
+            await RecordNewVideosAsync(state.AnnounceAfter, now, visible.Pages["youtube"] && visible.Features["updates"], cancellationToken);
         }
+
+        // Updates switched off: what's approved waits until they're back on.
+        if (!visible.Features["updates"]) return 0;
 
         var approved = await db.Announcements
             .Where(a => a.Status == AnnouncementStatus.Approved)
@@ -66,13 +74,14 @@ public class UpdatesAnnouncer(
             .Select(s => new { s.Email, s.Token })
             .ToListAsync(cancellationToken);
 
+        var wording = await UpdateEmailsEndpoints.LoadAsync(db, cancellationToken);
         var sent = 0;
         foreach (var announcement in approved)
         {
-            var item = await ItemAsync(announcement, cancellationToken);
+            var item = await ItemAsync(announcement, visible, cancellationToken);
             if (item is null)
             {
-                // Deleted (the app) or gone from YouTube since.
+                // Deleted (the app) or gone from YouTube since, or its page is hidden from visitors.
                 announcement.Status = AnnouncementStatus.Ignored;
                 await db.SaveChangesAsync(cancellationToken);
                 continue;
@@ -82,24 +91,49 @@ public class UpdatesAnnouncer(
             announcement.SentAt = now;
             await db.SaveChangesAsync(cancellationToken);
 
-            foreach (var subscriber in subscribers)
+            string? reason = null;
+            try
             {
-                var unsubscribe = site.Value.UrlFor($"/updates/unsubscribe?token={subscriber.Token}");
-                try
+                foreach (var subscriber in subscribers)
                 {
-                    await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item.Title, item.Summary, item.Url, item.ImageUrl, unsubscribe), cancellationToken);
-                    announcement.RecipientCount++;
+                    try
+                    {
+                        await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item, subscriber.Token, wording, site.Value), cancellationToken);
+                        announcement.RecipientCount++;
+                    }
+                    catch (Exception e) when (!cancellationToken.IsCancellationRequested)
+                    {
+                        logger.LogWarning(e, "Couldn't email {Kind} {Key} to a subscriber.", announcement.Kind, announcement.ItemKey);
+                        reason ??= e is Settings.ServiceException ? e.Message : "The email service couldn't be reached.";
+                    }
+                    if (DelayBetweenEmails > TimeSpan.Zero) await Task.Delay(DelayBetweenEmails, time, cancellationToken);
                 }
-                catch (Exception e) when (!cancellationToken.IsCancellationRequested)
-                {
-                    logger.LogWarning(e, "Couldn't email {Kind} {Key} to a subscriber.", announcement.Kind, announcement.ItemKey);
-                }
-                if (DelayBetweenEmails > TimeSpan.Zero) await Task.Delay(DelayBetweenEmails, time, cancellationToken);
             }
-            await db.SaveChangesAsync(CancellationToken.None);
+            finally
+            {
+                // Also when stopped halfway (the app shutting down): who got it is kept.
+                await db.SaveChangesAsync(CancellationToken.None);
+            }
+
+            if (announcement.RecipientCount == 0 && subscribers.Count > 0)
+            {
+                // Not one email went out: the email service is down or refusing. Not lost: tried again next run.
+                announcement.Status = AnnouncementStatus.Approved;
+                announcement.SentAt = null;
+                await db.SaveChangesAsync(CancellationToken.None);
+                alerts.SendThrottled($"email:{reason}", new PhoneAlert(
+                    AlertKinds.EmailFailing,
+                    "Emails aren't going out",
+                    $"\"{item.Title}\" couldn't be emailed to anyone; it's tried again in 10 minutes. {reason}",
+                    "/settings",
+                    AlertPriority.High,
+                    "warning"));
+                continue;
+            }
             sent++;
 
             alerts.Send(new PhoneAlert(
+                AlertKinds.UpdateSent,
                 $"Emailed: {item.Title}",
                 $"The new {announcement.Kind} went to {announcement.RecipientCount} of {subscribers.Count} subscribers.",
                 "/community",
@@ -109,8 +143,24 @@ public class UpdatesAnnouncer(
         return sent;
     }
 
-    /// <summary>Videos published since announcing started, not seen before: approved, so they go out this run.</summary>
-    private async Task ApproveNewVideosAsync(DateTimeOffset after, DateTimeOffset now, CancellationToken cancellationToken)
+    /// <summary>
+    /// Deletes addresses never confirmed: given (and last sent a confirmation) more than <see cref="UnconfirmedKeptFor"/>
+    /// ago. Someone may have typed another person's address: it isn't kept.
+    /// </summary>
+    private async Task ForgetUnconfirmedAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var before = now - UnconfirmedKeptFor;
+        var stale = await db.Subscribers.Where(s => s.ConfirmedAt == null && s.CreatedAt < before && s.ConfirmationSentAt < before).ToListAsync(cancellationToken);
+        if (stale.Count == 0) return;
+        db.Subscribers.RemoveRange(stale);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Videos published since announcing started, not seen before: approved, so they go out this run, or
+    /// (<paramref name="announce"/> false) recorded as ignored, so they never go out.
+    /// </summary>
+    private async Task RecordNewVideosAsync(DateTimeOffset after, DateTimeOffset now, bool announce, CancellationToken cancellationToken)
     {
         var videos = await VideosAsync(cancellationToken);
         if (videos.Count == 0) return;
@@ -123,50 +173,49 @@ public class UpdatesAnnouncer(
                 Kind = VideoKind,
                 ItemKey = video.Id,
                 Title = video.Title.Length <= 200 ? video.Title : video.Title[..200],
-                Status = AnnouncementStatus.Approved,
+                Status = announce ? AnnouncementStatus.Approved : AnnouncementStatus.Ignored,
                 CreatedAt = now,
             });
         }
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>What the email shows, read now (an app may have been edited since); null when it's gone.</summary>
-    private async Task<Item?> ItemAsync(Announcement announcement, CancellationToken cancellationToken)
+    /// <summary>What the email shows, read now (an app may have been edited since); null when it's gone, or its page is hidden.</summary>
+    private async Task<UpdateItem?> ItemAsync(Announcement announcement, Site.SiteStatus visible, CancellationToken cancellationToken)
     {
         if (announcement.Kind == AppKind)
         {
-            if (!int.TryParse(announcement.ItemKey, out var id)) return null;
+            if (!visible.Pages["apps"] || !int.TryParse(announcement.ItemKey, out var id)) return null;
             var app = await db.Apps.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
-            if (app is null) return null;
-
-            var media = JsonSerializer.Deserialize<AppMedia[]>(app.Media, JsonSerializerOptions.Web) ?? [];
-            var image = media.FirstOrDefault(m => m.Kind == AppMediaKinds.Image)?.Url;
-            // "What's new?" shows the newest app in full.
-            return new Item(app.Title, UpdateEmails.Summary(app.Description), site.Value.UrlFor("/"), Absolute(image));
+            return app is null ? null : AppItem(app, site.Value);
         }
 
+        if (!visible.Pages["youtube"]) return null;
         var video = (await VideosAsync(cancellationToken)).FirstOrDefault(v => v.Id == announcement.ItemKey);
-        return video is null ? null : new Item(video.Title, UpdateEmails.Summary(video.Description), video.Url, video.ThumbnailUrl);
+        return video is null ? null : VideoItem(video);
     }
+
+    /// <summary>An app as its email shows it: its first picture, and a button to the Apps page.</summary>
+    public static UpdateItem AppItem(AppEntry app, SiteOptions site)
+    {
+        var media = JsonSerializer.Deserialize<AppMedia[]>(app.Media, JsonSerializerOptions.Web) ?? [];
+        var image = media.FirstOrDefault(m => m.Kind == AppMediaKinds.Image)?.Url;
+        // The Apps page: it always lists the app (What's new? may be hidden, or showing something newer by then).
+        return new UpdateItem(app.Title, UpdateEmails.Summary(app.Description), site.UrlFor("/apps"), Absolute(image, site));
+    }
+
+    public static UpdateItem VideoItem(YouTubeVideo video) => new(video.Title, UpdateEmails.Summary(video.Description), video.Url, video.ThumbnailUrl);
 
     private async Task<IReadOnlyList<YouTubeVideo>> VideosAsync(CancellationToken cancellationToken)
     {
         if (!youTubeOptions.CurrentValue.IsConfigured) return [];
-        try
-        {
-            return await videoCache.GetAsync(youTube.FetchVideosAsync, cancellationToken);
-        }
-        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
-        {
-            logger.LogWarning(e, "Couldn't check YouTube for new videos.");
-            return [];
-        }
+        return await videoStore.GetAsync(cancellationToken) ?? [];
     }
 
-    private string? Absolute(string? url) => url switch
+    private static string? Absolute(string? url, SiteOptions site) => url switch
     {
         null or "" => null,
-        _ when url.StartsWith('/') => site.Value.UrlFor(url),
+        _ when url.StartsWith('/') => site.UrlFor(url),
         _ => url,
     };
 }

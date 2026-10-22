@@ -31,6 +31,12 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
     public const string BuyMeACoffeeSecret = "test-bmc-secret";
     public const string CalSecret = "test-cal-secret";
 
+    /// <summary>The site's address, where emails land in the Contact inbox.</summary>
+    public const string SiteAddress = "hello@jechel.test";
+
+    /// <summary>The Resend receiving webhook's signing secret ("whsec_" + base64).</summary>
+    public static readonly string InboundSecret = "whsec_" + Convert.ToBase64String("test-inbound-secret"u8.ToArray());
+
     private readonly PostgreSqlContainer _db = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
     /// <summary>Clock used by the API (sessions and cookies). Advance it to simulate idle time.</summary>
@@ -53,18 +59,31 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         builder.UseSetting("ConnectionStrings:Redis", "");
         builder.UseSetting("Cal:Link", "claomike/30min");
         builder.UseSetting("Cal:WebhookSecret", CalSecret);
+        builder.UseSetting("Email:From", $"Claudiu <{SiteAddress}>");
+        builder.UseSetting("Email:InboundWebhookSecret", InboundSecret);
         // Every test client comes from the same (unknown) address.
         builder.UseSetting("Updates:SubscribeLimitPer10Minutes", "1000");
+        builder.UseSetting("Contact:LimitPer10Minutes", "1000");
+        builder.UseSetting("Analytics:LimitPer10Minutes", "100000");
 
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<TimeProvider>(Time);
             services.AddSingleton<ILeetCodeClient>(LeetCode);
-            services.AddSingleton<IYouTubeClient>(new FakeYouTubeClient());
+            // Google's token and user-info endpoints answer from FakeGoogle (the browser's redirects are the test's).
+            services.PostConfigure<Microsoft.AspNetCore.Authentication.Google.GoogleOptions>(
+                Microsoft.AspNetCore.Authentication.Google.GoogleDefaults.AuthenticationScheme,
+                options => options.Backchannel = new HttpClient(Google));
+            services.AddSingleton<IYouTubeClient>(YouTube);
+            // Deleting old visits runs on a timer; its test calls AnalyticsRetention.DeleteExpiredAsync.
+            services.Remove(services.Single(s => s.ImplementationType == typeof(Portfolio.Api.Features.Analytics.AnalyticsRetention)));
+            // Refreshing runs on a timer; tests that need it call YouTubeVideoStore.RefreshAsync.
+            services.Remove(services.Single(s => s.ImplementationType == typeof(YouTubeRefreshWorker)));
             services.AddSingleton<IStartupFilter, TestSignInStartupFilter>();
             services.AddSingleton<IEmailSender>(Emails);
             services.AddSingleton<IPhoneAlerts>(Alerts);
             services.AddSingleton<Portfolio.Api.Features.Meetings.ICalClient>(Cal);
+            services.AddSingleton<Portfolio.Api.Features.Contact.IResendInbox>(Inbox);
             // Reminders run on a timer; their own tests call MeetingReminders.
             services.Remove(services.Single(s => s.ImplementationType == typeof(Portfolio.Api.Features.Meetings.MeetingRemindersWorker)));
             // Announcing runs on a timer; tests that need it call UpdatesAnnouncer themselves.
@@ -76,11 +95,20 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
     /// <summary>Stands in for Cal.com's API: records what it was asked to do.</summary>
     public RecordingCalClient Cal { get; } = new();
 
+    /// <summary>Stands in for the emails Resend received: tests put them in, then call the webhook.</summary>
+    public FakeResendInbox Inbox { get; } = new();
+
     /// <summary>Every phone alert the API raised.</summary>
     public RecordingPhoneAlerts Alerts { get; } = new();
 
     /// <summary>Every email the API sent.</summary>
     public RecordingEmailSender Emails { get; } = new();
+
+    /// <summary>Stands in for Google's sign-in servers: who signs in is <see cref="FakeGoogle.User"/>.</summary>
+    public FakeGoogle Google { get; } = new();
+
+    /// <summary>Stands in for YouTube's API, so tests never call it.</summary>
+    public FakeYouTubeClient YouTube { get; } = new();
 
     /// <summary>Stands in for leetcode.com, so tests never call it.</summary>
     public FakeLeetCodeClient LeetCode { get; } = new();
@@ -115,7 +143,7 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
                 var principal = new ClaimsPrincipal(identity);
 
                 var sessions = context.RequestServices.GetRequiredService<AdminSessionService>();
-                await sessions.StartAsync(principal);
+                await sessions.StartAsync(principal, context);
                 await context.SignInAsync(
                     CookieAuthenticationDefaults.AuthenticationScheme,
                     principal,
@@ -135,12 +163,27 @@ public sealed class FakeLeetCodeClient : ILeetCodeClient
         Task.FromResult(username.Equals("neetcode", StringComparison.OrdinalIgnoreCase) ? NeetCode : null);
 }
 
-/// <summary>A channel with 11 videos, v1 the newest.</summary>
+/// <summary>A channel with 11 videos, v1 the newest, unless a test changes <see cref="Videos"/> or makes it fail.</summary>
 public sealed class FakeYouTubeClient : IYouTubeClient
 {
-    public Task<IReadOnlyList<YouTubeVideo>> FetchVideosAsync(CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<YouTubeVideo>>(
-            [.. Enumerable.Range(1, 11).Select(n => new YouTubeVideo($"v{n}", $"Video {n}", "About it", $"https://i.ytimg.com/vi/v{n}/hqdefault.jpg", DateTimeOffset.UnixEpoch.AddDays(100 - n)))]);
+    public static readonly IReadOnlyList<YouTubeVideo> Eleven =
+        [.. Enumerable.Range(1, 11).Select(n => new YouTubeVideo($"v{n}", $"Video {n}", "About it", $"https://i.ytimg.com/vi/v{n}/hqdefault.jpg", DateTimeOffset.UnixEpoch.AddDays(100 - n)))];
+
+    private int _calls;
+
+    public IReadOnlyList<YouTubeVideo> Videos { get; set; } = Eleven;
+
+    /// <summary>When set, YouTube "can't be reached".</summary>
+    public bool Fails { get; set; }
+
+    /// <summary>How many times the API asked YouTube.</summary>
+    public int Calls => _calls;
+
+    public Task<IReadOnlyList<YouTubeVideo>> FetchVideosAsync(CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref _calls);
+        return Fails ? Task.FromException<IReadOnlyList<YouTubeVideo>>(new HttpRequestException("YouTube is down")) : Task.FromResult(Videos);
+    }
 }
 
 /// <summary>Keeps every email instead of sending it. Thread-safe: tests run in parallel against one API.</summary>
@@ -169,6 +212,14 @@ public sealed class RecordingPhoneAlerts : IPhoneAlerts
     public void SendThrottled(string key, PhoneAlert alert) => _sent.Enqueue(alert);
 }
 
+public sealed class FakeResendInbox : Portfolio.Api.Features.Contact.IResendInbox
+{
+    public System.Collections.Concurrent.ConcurrentDictionary<string, Portfolio.Api.Features.Contact.ReceivedEmail> Emails { get; } = new();
+
+    public Task<Portfolio.Api.Features.Contact.ReceivedEmail> GetAsync(string emailId, CancellationToken cancellationToken) =>
+        Emails.TryGetValue(emailId, out var email) ? Task.FromResult(email) : throw new Portfolio.Api.Features.Settings.ServiceException("Resend refused it: not found");
+}
+
 public sealed class RecordingCalClient : Portfolio.Api.Features.Meetings.ICalClient
 {
     public System.Collections.Concurrent.ConcurrentQueue<string> Calls { get; } = new();
@@ -186,4 +237,42 @@ public sealed class RecordingCalClient : Portfolio.Api.Features.Meetings.ICalCli
     }
 
     public Task<string> WhoAmIAsync(CancellationToken cancellationToken) => Task.FromResult("claomike");
+}
+
+/// <summary>
+/// Google's token endpoint (any code gets a token) and user-info endpoint (answers <see cref="User"/>).
+/// Records the token requests, e.g. to check the code and PKCE verifier were sent.
+/// </summary>
+public sealed class FakeGoogle : HttpMessageHandler
+{
+    public const string Subject = "110000000000000000001";
+
+    public static System.Text.Json.Nodes.JsonObject Account(string email = PortfolioApiFactory.AdminEmail, bool verified = true, string subject = Subject) => new()
+    {
+        ["sub"] = subject,
+        ["email"] = email,
+        ["email_verified"] = verified,
+        ["name"] = "The Admin",
+        ["picture"] = "https://lh3.googleusercontent.com/a/admin",
+    };
+
+    /// <summary>Who signs in.</summary>
+    public System.Text.Json.Nodes.JsonObject User { get; set; } = Account();
+
+    public System.Collections.Concurrent.ConcurrentQueue<string> TokenRequests { get; } = new();
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        string json;
+        if (request.RequestUri!.AbsolutePath.EndsWith("/token", StringComparison.Ordinal))
+        {
+            TokenRequests.Enqueue(await request.Content!.ReadAsStringAsync(cancellationToken));
+            json = "{\"access_token\":\"fake-access-token\",\"token_type\":\"Bearer\",\"expires_in\":3600}";
+        }
+        else
+        {
+            json = User.ToJsonString();
+        }
+        return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json") };
+    }
 }

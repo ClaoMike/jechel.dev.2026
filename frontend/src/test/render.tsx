@@ -12,10 +12,11 @@ import App from '../App/App'
 import { showTheme, type Theme } from '../layout/theme'
 import { termsVersion } from '../features/terms/acceptance'
 import { TERMS } from './fixtures/site'
-import type { CurrentUser } from '../services/api'
+import type { CurrentUser, SiteStatus } from '../services/api'
 import { LocationProbe } from './LocationProbe'
 import { makeStore } from '../store'
 import { checkSession } from '../store/authSlice'
+import { fetchSite } from '../store/siteSlice'
 
 export const ADMIN: CurrentUser = { email: 'admin@example.com', name: 'Admin', pictureUrl: null, sessionExpiresInSeconds: 3600 }
 
@@ -25,11 +26,14 @@ export interface RenderViewOptions {
   /** Signed in as this user; none: a visitor. */
   user?: CurrentUser | null
   theme?: Theme
+  /** What visitors may see (/api/site), as already loaded; none: not loaded (as before it answers). */
+  site?: SiteStatus
 }
 
-export async function renderView(ui: ReactNode, { path = '/', user = null, theme = 'dark' }: RenderViewOptions = {}) {
+export async function renderView(ui: ReactNode, { path = '/', user = null, theme = 'dark', site }: RenderViewOptions = {}) {
   const store = makeStore()
   store.dispatch(checkSession.fulfilled(user, 'test'))
+  if (site) store.dispatch(fetchSite.fulfilled(site, 'test'))
   showTheme(theme)
   const screen = await render(
     <Provider store={store}>
@@ -75,6 +79,7 @@ export interface RenderAppOptions {
 export async function renderApp({ path = '/', theme = 'dark', acceptedTerms = termsVersion(TERMS) }: RenderAppOptions = {}) {
   localStorage.setItem('theme', theme)
   if (acceptedTerms !== null) localStorage.setItem('terms.accepted', acceptedTerms)
+  else localStorage.removeItem('terms.accepted')
   const store = makeStore()
   showTheme(store.getState().theme.theme)
   const screen = await render(

@@ -9,3 +9,10 @@ export function placeLabel(place: Pick<Place, 'name' | 'region' | 'country'>): s
 function fold(text: string): string {
   return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 }
+
+const collator = new Intl.Collator('en', { sensitivity: 'base' })
+
+/** For sorting labels alphabetically: "Århus" next to "Aachen", "bath" before "Cardiff". Ties fall back to plain order. */
+export function compareLabels(a: string, b: string): number {
+  return collator.compare(a, b) || (a < b ? -1 : a > b ? 1 : 0)
+}

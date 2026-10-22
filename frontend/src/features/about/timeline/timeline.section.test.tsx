@@ -7,11 +7,20 @@ import { currentMonth } from '../format'
 import { EducationSection } from './EducationSection/EducationSection'
 import { ExperienceSection } from './ExperienceSection/ExperienceSection'
 
-function renderExperience({ value = ABOUT.experience, canEdit = false, onSave = vi.fn(async () => {}) }: { value?: ExperienceItem[]; canEdit?: boolean; onSave?: (v: ExperienceItem[]) => Promise<void> } = {}) {
+function renderExperience({
+  value = ABOUT.experience,
+  canEdit = false,
+  onSave = vi.fn(async () => {}),
+}: { value?: ExperienceItem[]; canEdit?: boolean; onSave?: (v: ExperienceItem[]) => Promise<void> } = {}) {
   return renderView(<ExperienceSection value={value} canEdit={canEdit} onSave={onSave} />)
 }
 
-const items = () => page.getByRole('region', { name: 'Work experience' }).getByRole('listitem').elements().filter((li) => li.classList.contains('timeline-item'))
+const items = () =>
+  page
+    .getByRole('region', { name: 'Work experience' })
+    .getByRole('listitem')
+    .elements()
+    .filter((li) => li.classList.contains('timeline-item'))
 const form = () => page.getByRole('form', { name: 'Edit Work experience' })
 const role = (n: number) => form().getByRole('group', { name: `Role ${n}` })
 
@@ -60,6 +69,15 @@ describe('Work experience, for the admin', () => {
     ])
   })
 
+  it('moves when a role started', async () => {
+    const onSave = vi.fn(async () => {})
+    await renderExperience({ canEdit: true, onSave })
+    await page.getByRole('button', { name: 'Edit Work experience' }).click()
+    await role(2).getByRole('textbox', { name: 'Start year' }).fill('2020')
+    await form().getByRole('button', { name: 'Save' }).click()
+    expect((onSave.mock.calls[0] as unknown as [ExperienceItem[]])[0][1].start).toMatch(/^2020-/)
+  })
+
   it('ends an ongoing role where it started, and makes an ended one ongoing', async () => {
     const onSave = vi.fn(async () => {})
     await renderExperience({ canEdit: true, onSave })
@@ -88,10 +106,7 @@ describe('Work experience, for the admin', () => {
     await form().getByRole('button', { name: 'Remove role 3' }).click()
     await page.getByRole('dialog', { name: 'Remove role 3?' }).getByRole('button', { name: 'Remove', exact: true }).click()
     await form().getByRole('button', { name: 'Save' }).click()
-    expect(onSave).toHaveBeenCalledWith([
-      { title: 'Founder', company: 'Me Ltd', location: '', start: currentMonth(), end: null, bullets: [''] },
-      ABOUT.experience[1],
-    ])
+    expect(onSave).toHaveBeenCalledWith([{ title: 'Founder', company: 'Me Ltd', location: '', start: currentMonth(), end: null, bullets: [''] }, ABOUT.experience[1]])
   })
 
   it('sorts by end date (ongoing first), and says so until the next change', async () => {
@@ -107,7 +122,16 @@ describe('Work experience, for the admin', () => {
   })
 
   it("shows the API's errors on each role's fields and bullets", async () => {
-    const onSave = vi.fn().mockRejectedValue(new ApiError('/api/about', 400, { 'experience[1].company': ['Required.'], 'experience[0].bullets[1]': ['Too long.'], 'experience[0].end': ['Before the start.'], experience: ['Too many.'] }))
+    const onSave = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError('/api/about', 400, {
+          'experience[1].company': ['Required.'],
+          'experience[0].bullets[1]': ['Too long.'],
+          'experience[0].end': ['Before the start.'],
+          experience: ['Too many.'],
+        }),
+      )
     await renderExperience({ canEdit: true, onSave, value: [{ ...ABOUT.experience[0], end: '2020-01-01' }, ABOUT.experience[1]] })
     await page.getByRole('button', { name: 'Edit Work experience' }).click()
     await form().getByRole('button', { name: 'Save' }).click()

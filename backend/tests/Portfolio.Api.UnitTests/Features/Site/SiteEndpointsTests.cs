@@ -59,4 +59,65 @@ public class SiteEndpointsTests
 
         Assert.Equal(["features", "maintenanceMessage", "pages"], Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors.Keys.Order());
     }
+
+    [Fact]
+    public async Task Pages_start_visible_when_the_site_says_so_and_a_feature_too()
+    {
+        using var services = TestSite.Services(visibleByDefault: true);
+
+        var status = await Status(services);
+
+        Assert.All(status.Pages.Values, Assert.True);
+        Assert.All(status.Features.Values, Assert.True);
+    }
+
+    [Fact]
+    public async Task Unknown_features_are_refused_and_nothing_changes()
+    {
+        using var services = TestSite.Services();
+
+        var result = await Save(services, new SaveSiteRequest(null, new Dictionary<string, bool> { ["teleport"] = true }, true, null));
+
+        Assert.IsType<ValidationProblem>(result.Result);
+        Assert.False((await Status(services)).Maintenance);
+    }
+
+    [Fact]
+    public async Task Turns_maintenance_on_and_off_with_a_trimmed_message()
+    {
+        using var services = TestSite.Services();
+
+        await Save(services, new SaveSiteRequest(null, null, true, "  Back by 18:00  "));
+        var on = await Status(services);
+        await Save(services, new SaveSiteRequest(null, null, false, null));
+        var off = await Status(services);
+
+        Assert.Equal((true, "Back by 18:00"), (on.Maintenance, on.MaintenanceMessage));
+        Assert.Equal((false, "Back by 18:00"), (off.Maintenance, off.MaintenanceMessage));
+        Assert.Equal(_time.GetUtcNow(), off.UpdatedAt);
+    }
+
+    [Fact]
+    public void Reads_a_damaged_saved_row_as_the_defaults()
+    {
+        var row = new Portfolio.Api.Data.SiteState { Id = Portfolio.Api.Data.SiteState.SingletonId, Pages = "not json", Features = "", MaintenanceMessage = "" };
+
+        var status = SiteEndpoints.ToStatus(row, visibleByDefault: true);
+
+        Assert.All(status.Pages.Values, Assert.True);
+        Assert.All(status.Features.Values, Assert.True);
+    }
+
+    [Fact]
+    public async Task Reads_what_visitors_see_straight_from_the_database_for_background_work()
+    {
+        using var services = TestSite.Services(visibleByDefault: false);
+        await Save(services, new SaveSiteRequest(new Dictionary<string, bool> { ["youtube"] = true }, null, null, null));
+        using var scope = services.CreateScope();
+
+        var visible = await SiteEndpoints.VisibleAsync(scope.ServiceProvider.GetRequiredService<Portfolio.Api.Data.PortfolioDbContext>(), new Portfolio.Api.Features.Alerts.SiteOptions(), default);
+
+        Assert.True(visible.Pages["youtube"]);
+        Assert.False(visible.Pages["apps"]);
+    }
 }

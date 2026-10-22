@@ -55,6 +55,8 @@ public static class UpdatesEndpoints
         updates.MapPost("/confirm", Confirm).WithName("ConfirmSubscription");
         // Also what mail apps' own "Unsubscribe" button posts to (List-Unsubscribe-Post), hence the token in the query.
         updates.MapPost("/unsubscribe", Unsubscribe).WithName("Unsubscribe");
+        // Mail apps that open the List-Unsubscribe link instead of posting to it: the site's page, which asks first.
+        updates.MapGet("/unsubscribe", OpenUnsubscribePage).WithName("OpenUnsubscribePage");
 
         // Admin only.
         updates.MapGet("/subscribers", ListSubscribers).WithName("ListSubscribers").RequireAuthorization();
@@ -104,24 +106,30 @@ public static class UpdatesEndpoints
         if (subscriber is { ConfirmedAt: not null }) return TypedResults.Ok(new SubscribeResult(SubscribeStatus.AlreadySubscribed));
         if (subscriber is not null && now - subscriber.ConfirmationSentAt < ConfirmationCooldown) return TypedResults.Ok(new SubscribeResult(SubscribeStatus.Pending));
 
-        if (subscriber is null)
-        {
-            subscriber = new Subscriber { Email = email, Token = NewToken(), CreatedAt = now };
-            db.Subscribers.Add(subscriber);
-        }
+        var isNew = subscriber is null;
+        subscriber ??= db.Subscribers.Add(new Subscriber { Email = email, Token = NewToken(), CreatedAt = now }).Entity;
         subscriber.ConfirmationSentAt = now;
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException e) when (isNew && e.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
+        {
+            // The same new address, twice at once (a double click): the other request stored it and sends the email.
+            return TypedResults.Ok(new SubscribeResult(SubscribeStatus.Pending));
+        }
 
         try
         {
-            await emails.SendAsync(UpdateEmails.Confirmation(email, site.Value.UrlFor($"/updates/confirm?token={subscriber.Token}")), cancellationToken);
+            var wording = await UpdateEmailsEndpoints.LoadAsync(db, cancellationToken);
+            await emails.SendAsync(UpdateEmails.Confirmation(email, subscriber.Token, wording, site.Value), cancellationToken);
         }
         catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
             loggers.CreateLogger(typeof(UpdatesEndpoints)).LogError(e, "Couldn't send the confirmation email.");
             // The visitor only hears it didn't work; the admin needs the reason (e.g. the sender's domain isn't verified).
             var reason = e is Settings.ServiceException ? e.Message : "The email service couldn't be reached.";
-            alerts.SendThrottled($"email:{reason}", new PhoneAlert("Emails aren't going out", $"A visitor couldn't subscribe. {reason}", "/settings", AlertPriority.High, "warning"));
+            alerts.SendThrottled($"email:{reason}", new PhoneAlert(AlertKinds.EmailFailing, "Emails aren't going out", $"A visitor couldn't subscribe. {reason}", "/settings", AlertPriority.High, "warning"));
             // Lets them try again at once.
             subscriber.ConfirmationSentAt = default;
             await db.SaveChangesAsync(CancellationToken.None);
@@ -147,7 +155,7 @@ public static class UpdatesEndpoints
             subscriber.ConfirmedAt = time.GetUtcNow();
             await db.SaveChangesAsync(cancellationToken);
             var total = await db.Subscribers.CountAsync(s => s.ConfirmedAt != null, cancellationToken);
-            alerts.Send(new PhoneAlert("New subscriber", $"{subscriber.Email} ({total} in all)", "/community", AlertPriority.Low, "bell"));
+            alerts.Send(new PhoneAlert(AlertKinds.Subscriber, "New subscriber", $"{subscriber.Email} ({total} in all)", "/community", AlertPriority.Low, "bell"));
         }
         return TypedResults.Ok(new ConfirmedSubscription(subscriber.Email));
     }
@@ -170,6 +178,10 @@ public static class UpdatesEndpoints
         }
         return TypedResults.NoContent();
     }
+
+    /// <summary>A GET of the List-Unsubscribe link: sends the browser to the site's page, which unsubscribes (a GET changes nothing).</summary>
+    public static RedirectHttpResult OpenUnsubscribePage(string? token, IOptions<SiteOptions> site) =>
+        TypedResults.Redirect(site.Value.UrlFor($"/updates/unsubscribe?token={Uri.EscapeDataString(token ?? "")}"));
 
     /// <summary>Admin only. Newest first, confirmed or not.</summary>
     public static async Task<Ok<PagedResponse<SubscriberDto>>> ListSubscribers(

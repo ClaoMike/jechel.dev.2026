@@ -36,14 +36,13 @@ export function MessageDialog(props: MessageDialogProps) {
           <SkeletonText lines={4} />
         </Loading>
       )}
-      {state.status === 'error' && (
-        <ErrorState message="This message couldn't be loaded." onRetry={vm.retry} />
-      )}
+      {state.status === 'error' && <ErrorState message="This message couldn't be loaded." onRetry={vm.retry} />}
       {state.status === 'loaded' && (
         <dl className="message-details">
           <DetailRow label="Name" value={state.data.name} />
           <DetailRow label="Email" value={state.data.email} href={`mailto:${state.data.email}`} />
           <DetailRow label="Received" value={formatDateTime(state.data.receivedAt)} />
+          {state.data.subject && <DetailRow label="Subject" value={state.data.subject} />}
           <DetailRow label="Message" value={state.data.message} multiline />
         </dl>
       )}
@@ -62,9 +61,7 @@ export function MessageDialog(props: MessageDialogProps) {
           </ul>
         </section>
       )}
-      {state.status === 'loaded' && (
-        <Replies messageId={messageId} name={state.data.name} replies={state.data.replies} />
-      )}
+      {state.status === 'loaded' && <Replies messageId={messageId} name={state.data.name} replies={state.data.replies} />}
       {state.status === 'loaded' && (
         <div className="message-actions">
           <DeleteButton what={`the message from ${state.data.name}`} onDelete={() => onDelete(messageId)} className="button button-secondary button-small" label="Delete message">
@@ -88,30 +85,32 @@ function DetailRow({ label, value, href, multiline = false }: DetailRowProps) {
   return (
     <div className={multiline ? 'detail-row detail-row-multiline' : 'detail-row'}>
       <dt>{label}</dt>
-      <dd>
-        {href ? <a href={href}>{value}</a> : <span className={multiline ? 'message-body' : undefined}>{value}</span>}
-      </dd>
-      <div className="detail-copy">
+      <dd>{href ? <a href={href}>{value}</a> : <span className={multiline ? 'message-body' : undefined}>{value}</span>}</dd>
+      {/* A second description, not a box of its own: a list of details holds only terms and descriptions (WCAG). */}
+      <dd className="detail-copy">
         <CopyButton value={value} label={label.toLowerCase()} />
-      </div>
+      </dd>
     </div>
   )
 }
 
-/** The answers sent so far, and a box for another: emailed to the sender, with their message quoted. */
+/**
+ * The conversation after their first message, oldest first: your answers (emailed to them, from the site's address)
+ * and what they emailed back. Then a box for the next answer.
+ */
 function Replies({ messageId, name, replies }: { messageId: number; name: string; replies: ContactReply[] }) {
   const vm = useRepliesViewModel(messageId)
   const { id, error } = vm
 
   return (
     <section className="message-replies" aria-labelledby={`${id}-title`}>
-      <h3 id={`${id}-title`}>{replies.length > 0 ? 'Your replies' : 'Reply'}</h3>
+      <h3 id={`${id}-title`}>{replies.length > 0 ? 'Conversation' : 'Reply'}</h3>
       {replies.length > 0 && (
         <ul className="replies-list">
           {replies.map((reply) => (
-            <li key={reply.id} className="reply">
+            <li key={reply.id} className={reply.fromVisitor ? 'reply reply-from-visitor' : 'reply'}>
               <p className="muted">
-                <time dateTime={reply.sentAt}>{formatDateTime(reply.sentAt)}</time>
+                <strong>{reply.fromVisitor ? name : 'You'}</strong> · <time dateTime={reply.sentAt}>{formatDateTime(reply.sentAt)}</time>
               </p>
               <p className="message-body">{reply.text}</p>
             </li>
@@ -136,13 +135,20 @@ function Replies({ messageId, name, replies }: { messageId: number; name: string
             </p>
           ) : (
             <p id={`${id}-hint`} className="field-hint">
-              Emailed to them with their message quoted; their answer comes to your own inbox.
+              Emailed to them: their answer lands here.
             </p>
           )}
         </div>
-        <button type="submit" className="button button-small" disabled={vm.busy}>
-          {vm.busy ? 'Sending…' : 'Send reply'}
-        </button>
+        <div className="reply-actions">
+          <button type="submit" className="button button-small" disabled={vm.busy}>
+            {vm.busy ? 'Sending…' : 'Send reply'}
+          </button>
+          {vm.bookingLink && (
+            <button type="button" className="button button-small button-secondary" onClick={vm.addBookingLink} disabled={!vm.canAddBookingLink}>
+              Add booking link
+            </button>
+          )}
+        </div>
       </form>
     </section>
   )

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { AnalyticsRange } from '../../services/api'
 import { useAppDispatch } from '../../store'
+import { countryName } from '../../features/analytics/format'
 import { useGetSummaryQuery } from '../../store/api/analyticsApi'
 import { baseApi } from '../../store/baseApi'
 import { toLoadable } from '../../store/loadable'
@@ -16,7 +17,7 @@ const RANGES: { value: AnalyticsRange; label: string }[] = [
   { value: 'all', label: 'All time' },
 ]
 
-/** The period picked, its numbers, and Refresh (the numbers and the visits load again). */
+/** The period picked, its numbers (countries by name), and Refresh (the numbers, the visits and an open visit load again). */
 export function useDashboardViewModel() {
   const dispatch = useAppDispatch()
   const [range, setRange] = useState<AnalyticsRange>('30d')
@@ -25,7 +26,8 @@ export function useDashboardViewModel() {
   return {
     ranges: RANGES.map((r) => ({ ...r, pressed: range === r.value, choose: () => setRange(r.value) })),
     state: toLoadable(query),
-    refresh: () => dispatch(baseApi.util.invalidateTags(['Summary', 'Visits'])),
+    countries: (query.data?.countries ?? []).map((c) => ({ name: countryName(c.name), count: c.count })),
+    refresh: () => dispatch(baseApi.util.invalidateTags(['Summary', 'Visits', 'Visit'])),
     retry: () => void query.refetch(),
   }
 }

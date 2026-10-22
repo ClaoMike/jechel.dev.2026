@@ -19,7 +19,7 @@ public static class TermsEndpoints
         return app;
     }
 
-    /// <summary>Public. The default terms (with no date) until the admin first saves them.</summary>
+    /// <summary>Public. The default terms (dated TermsDefaults.UpdatedAt) until the admin first saves them.</summary>
     public static async Task<Ok<TermsDocument>> GetTerms(PortfolioDbContext db, CancellationToken cancellationToken)
     {
         var page = await db.TermsPages
@@ -29,7 +29,7 @@ public static class TermsEndpoints
             .FirstOrDefaultAsync(cancellationToken);
 
         return TypedResults.Ok(page is null
-            ? TermsDocument.From(TermsDefaults.Content, null)
+            ? TermsDocument.From(TermsDefaults.Content, TermsDefaults.UpdatedAt)
             : TermsDocument.From(JsonSerializer.Deserialize<TermsContent>(page.Content, Json)!, page.UpdatedAt));
     }
 

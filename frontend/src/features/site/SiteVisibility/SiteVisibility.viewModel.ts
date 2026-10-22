@@ -5,17 +5,12 @@ import { fetchSite, saveSite } from '../../../store/siteSlice'
 
 const PAGE_LABELS: Record<SitePage, string> = { whatsNew: "What's new?", apps: 'Apps', youtube: 'YouTube', about: 'About Me', contact: 'Contact' }
 
-const FEATURE_LABELS: Record<SiteFeature, { label: string; hint: string }> = {
-  meetings: { label: 'Book a meeting', hint: 'On the Contact page; needs Cal.com (below).' },
-  coffee: { label: 'Buy me a coffee', hint: 'In the header; needs Buy Me a Coffee (below).' },
-  updates: { label: 'Get updates', hint: 'In the header; needs Resend (below) to send the emails.' },
-}
+const FEATURE_LABELS: Record<SiteFeature, string> = { coffee: 'Buy me a coffee', updates: 'Get updates' }
 
 /** One switch as the view shows it. */
 export interface SwitchItem {
   key: string
   label: string
-  hint?: string
   on: boolean
   busy: boolean
   toggle: () => void
@@ -50,10 +45,9 @@ export function useSiteVisibilityViewModel() {
 
   const { site } = state
   const draftMessage = message ?? site.maintenanceMessage
-  const item = (key: string, label: string, on: boolean, changes: (on: boolean) => SaveSiteRequest, hint?: string): SwitchItem => ({
+  const item = (key: string, label: string, on: boolean, changes: (on: boolean) => SaveSiteRequest): SwitchItem => ({
     key,
     label,
-    hint,
     on,
     busy: saving === key,
     toggle: () => void save(key, changes(!on)),
@@ -64,10 +58,8 @@ export function useSiteVisibilityViewModel() {
     status: 'loaded' as const,
     allPagesOff: SITE_PAGES.every((page) => !site.pages[page]),
     pages: SITE_PAGES.map((page) => item(page, PAGE_LABELS[page], site.pages[page], (on) => ({ pages: { [page]: on } }))),
-    features: SITE_FEATURES.map((feature) =>
-      item(feature, FEATURE_LABELS[feature].label, site.features[feature], (on) => ({ features: { [feature]: on } }), FEATURE_LABELS[feature].hint),
-    ),
-    maintenance: item('maintenance', 'Under maintenance', site.maintenance, (on) => ({ maintenance: on }), 'Visitors see a maintenance page instead of the site; you still see everything.'),
+    features: SITE_FEATURES.map((feature) => item(feature, FEATURE_LABELS[feature], site.features[feature], (on) => ({ features: { [feature]: on } }))),
+    maintenance: item('maintenance', 'Under maintenance', site.maintenance, (on) => ({ maintenance: on })),
     draftMessage,
     setMessage,
     canSaveMessage: saving !== 'message' && draftMessage.trim() !== site.maintenanceMessage,

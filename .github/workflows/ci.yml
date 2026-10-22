@@ -1,9 +1,16 @@
 name: CI
 
+# Every pull request runs the whole test suite; `main` (production) only takes pull requests whose
+# Backend and Frontend checks passed (a ruleset on GitHub, see the README's Deployment section).
 on:
-  push:
-    branches: [develop, main]
   pull_request:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
@@ -17,56 +24,38 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: backend/global.json
-      - run: dotnet restore
-      - run: dotnet build --no-restore -c Release
-      # Integration tests use Testcontainers; Docker is available on ubuntu runners.
-      - run: dotnet test --no-build -c Release --collect:"XPlat Code Coverage"
+      # Unit + integration tests with coverage (test.sh). Integration tests use Testcontainers; Docker is available on ubuntu runners.
+      - run: ./test.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/coverage
+          retention-days: 7
 
   frontend:
-    name: Frontend (lint + typecheck + build)
+    name: Frontend (lint + build + tests)
     runs-on: ubuntu-latest
+    # Playwright's image: the Chromium the tests run in, with the fonts the Linux screenshots were taken with.
+    # Keep its version the same as the playwright package in frontend/package-lock.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run build
-
-  repomap:
-    name: Repo map tool (typecheck + unit + browser)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: tools/repomap
-    steps:
-      - uses: actions/checkout@v4
-      # The C# extractor is built and run by the whole-repository pipeline test.
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: backend/global.json
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: tools/repomap/package-lock.json
-      - run: npm ci
-      - run: npm run typecheck
       - run: npm test
-      - run: npx playwright install --with-deps chromium webkit firefox
-      - run: npx playwright test --project=chromium --project=phone
-      # Headless WebGL varies between engines on Linux runners: report, don't block.
-      - run: npx playwright test --project=webkit --project=firefox
-        continue-on-error: true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: repomap-playwright-report
-          path: tools/repomap/playwright-report
+          name: frontend-test-report
+          path: |
+            frontend/coverage
+            frontend/src/**/__screenshots__/**/*-actual-*.png
+            frontend/src/**/__screenshots__/**/*-diff-*.png
           retention-days: 7

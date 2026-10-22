@@ -6,7 +6,11 @@ import { renderView } from '../../../test/render'
 import { currentMonth } from '../format'
 import { QualificationsSection } from './QualificationsSection/QualificationsSection'
 
-function renderQualifications({ value = ABOUT.qualifications, canEdit = false, onSave = vi.fn(async () => {}) }: { value?: Qualification[]; canEdit?: boolean; onSave?: (v: Qualification[]) => Promise<void> } = {}) {
+function renderQualifications({
+  value = ABOUT.qualifications,
+  canEdit = false,
+  onSave = vi.fn(async () => {}),
+}: { value?: Qualification[]; canEdit?: boolean; onSave?: (v: Qualification[]) => Promise<void> } = {}) {
   return renderView(<QualificationsSection value={value} canEdit={canEdit} onSave={onSave} />)
 }
 
@@ -48,12 +52,25 @@ describe('Qualifications', () => {
   })
 
   it("shows the API's errors on each field", async () => {
-    const onSave = vi.fn().mockRejectedValue(new ApiError('/api/about', 400, { 'qualifications[0].title': ['Required.'], 'qualifications[0].grade': ['Too long.'], 'qualifications[1].obtained': ['In the future.'] }))
+    const onSave = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError('/api/about', 400, { 'qualifications[0].title': ['Required.'], 'qualifications[0].grade': ['Too long.'], 'qualifications[1].obtained': ['In the future.'] }),
+      )
     await renderQualifications({ canEdit: true, onSave })
     await page.getByRole('button', { name: 'Edit Qualifications' }).click()
     await form().getByRole('button', { name: 'Save' }).click()
     await expect.element(qualification(1).getByRole('textbox', { name: 'Qualification' })).toHaveAccessibleDescription('Required.')
     await expect.element(qualification(1).getByRole('textbox', { name: 'Grade (optional)' })).toHaveAccessibleDescription('Too long.')
     await expect.element(qualification(2).getByRole('group', { name: 'Obtained' })).toHaveAccessibleDescription('In the future.')
+  })
+
+  it('changes who issued it', async () => {
+    const onSave = vi.fn(async () => {})
+    await renderQualifications({ canEdit: true, onSave })
+    await page.getByRole('button', { name: 'Edit Qualifications' }).click()
+    await qualification(2).getByRole('textbox', { name: 'Issued by (optional)' }).fill('St John Ambulance')
+    await form().getByRole('button', { name: 'Save' }).click()
+    expect(onSave).toHaveBeenCalledWith([ABOUT.qualifications[0], { ...ABOUT.qualifications[1], issuer: 'St John Ambulance' }])
   })
 })
