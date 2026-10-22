@@ -29,8 +29,13 @@ let list: MockInstance<typeof api.apps.list>
 beforeEach(() => {
   list = vi.spyOn(api.apps, 'list').mockResolvedValue(pageOf(APPS))
   vi.spyOn(api.apps, 'listCategories').mockResolvedValue(CATEGORIES)
-  listOrder = vi.spyOn(api.apps, 'listOrder').mockResolvedValue(structuredClone(ORDER))
-  saveOrder = vi.spyOn(api.apps, 'saveOrder').mockImplementation(async (order) => order.map((item) => ({ ...item, title: ORDER.find((o) => o.id === item.id)!.title })))
+  // As the API: what's saved is what loads next (the list loads again after a save).
+  let stored = structuredClone(ORDER)
+  listOrder = vi.spyOn(api.apps, 'listOrder').mockImplementation(async () => structuredClone(stored))
+  saveOrder = vi.spyOn(api.apps, 'saveOrder').mockImplementation(async (order) => {
+    stored = order.map((item) => ({ ...item, title: ORDER.find((o) => o.id === item.id)!.title }))
+    return structuredClone(stored)
+  })
 })
 
 async function openOrganise() {
