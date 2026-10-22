@@ -1408,7 +1408,7 @@ flowchart LR
   images --> ghcr["GitHub container registry<br/>jechel-api, jechel-backup"]
   ghcr -- "deploy hook ?tag=commit" --> sliplane
   subgraph sliplane["Sliplane server (Germany, €9)"]
-    api["api (public)<br/>PORT 8080, health /api/health"] --> db[("db: postgres:16-alpine<br/>volume /var/lib/postgresql/data")]
+    api["api (public)<br/>PORT 8080, health /api/health"] --> db[("db: postgres:16-alpine<br/>db-….internal, a volume")]
     backup["backup (private)<br/>03:00 UTC: pg_dump"] --> db
   end
   backup -- "mon.dump … sun.dump" --> s3[("Sliplane object storage")]
@@ -1464,7 +1464,9 @@ upload, change the data, restore, the data is back; a wrong password rings ntfy 
 1. **Server:** Create server → Germany → **Starter** (€9).
 2. **db:** Deploy service → Registry → `docker.io/library/postgres:16-alpine`, **Expose Service** off, protocol TCP.
    Environment: `POSTGRES_USER=portfolio`, `POSTGRES_DB=portfolio`, `POSTGRES_PASSWORD=` (`openssl rand -hex 24`).
-   Volume: add one, mounted at `/var/lib/postgresql/data`. It's reachable from the other services as `db.internal:5432`.
+   Volume: add one, mounted at `/var/lib/postgresql/data`, and `PGDATA=/var/lib/postgresql/data/pgdata` (Postgres won't start in a
+   folder that isn't empty). The other services reach it at its **Internal endpoint** (e.g. `db-9w4x8w.internal`, port 5432):
+   Sliplane adds a suffix to the name.
 3. **Images:** run **Deploy** once (or the Deploy workflow by hand) so both images exist, then on GitHub → Packages make
    `jechel-api` and `jechel-backup` **public** (the repository is public anyway), or give Sliplane registry credentials.
 4. **api:** Deploy service → Registry → `ghcr.io/claomike/jechel-api:<a commit>`, **Expose Service** on (HTTP), health
@@ -1472,7 +1474,7 @@ upload, change the data, restore, the data is back; a wrong password rings ntfy 
    **Deploy hook** URL.
 5. **Object storage:** create a bucket (region `ger`) and an access key for it.
 6. **backup:** Deploy service → Registry → `ghcr.io/claomike/jechel-backup:<a commit>`, **Expose Service** off, with
-   `POSTGRES_HOST=db.internal`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` (as the db's), `S3_ENDPOINT`,
+   `POSTGRES_HOST=<the db's internal endpoint>`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` (as the db's), `S3_ENDPOINT`,
    `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (from step 5), and `NTFY_URL=https://ntfy.sh/<your topic>`.
    Deploy it once with `RUN_NOW=1` to check a dump lands in the bucket, then remove it. Copy its **Deploy hook** URL.
 7. **GitHub** (Settings → Secrets and variables → Actions): secrets `SLIPLANE_API_DEPLOY_HOOK`,
@@ -1487,7 +1489,7 @@ On the **api** service (`__` separates sections):
 | Variable | Value |
 | -------- | ----- |
 | `PORT` | `8080` |
-| `ConnectionStrings__Default` | `Host=db.internal;Port=5432;Database=portfolio;Username=portfolio;Password=<the db's password>` |
+| `ConnectionStrings__Default` | `Host=<the db's internal endpoint>;Port=5432;Database=portfolio;Username=portfolio;Password=<the db's password>` |
 | `Proxy__Secret` | A long random string (`openssl rand -hex 32`), the same as the Pages project's `PROXY_SECRET` |
 | `Authentication__Google__ClientId` / `__ClientSecret` | The Google OAuth client. Its redirect URI: `https://jechel.dev/api/auth/signin-google` |
 | `Auth__AdminEmails__0` | Your Google email |
