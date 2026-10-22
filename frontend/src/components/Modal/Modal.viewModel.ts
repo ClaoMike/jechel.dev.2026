@@ -2,8 +2,11 @@ import { useEffect, useRef, type KeyboardEvent, type MouseEvent, type RefObject 
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-/** Focus moves into the dialog and stays there (Tab wraps); Escape or the backdrop closes it; focus returns to its opener. */
-export function useModalViewModel({ initialFocus, onClose }: { initialFocus?: RefObject<HTMLElement | null>; onClose: () => void }) {
+/**
+ * Focus moves into the dialog and stays there (Tab wraps); Escape or the backdrop closes it, unless it isn't
+ * `dismissible`; focus returns to its opener.
+ */
+export function useModalViewModel({ initialFocus, onClose, dismissible = true }: { initialFocus?: RefObject<HTMLElement | null>; onClose: () => void; dismissible?: boolean }) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const initialFocusRef = useRef(initialFocus)
 
@@ -27,7 +30,7 @@ export function useModalViewModel({ initialFocus, onClose }: { initialFocus?: Re
     event.stopPropagation()
     if (event.key === 'Escape') {
       event.preventDefault()
-      onClose()
+      if (dismissible) onClose()
       return
     }
     if (event.key !== 'Tab') return
@@ -51,7 +54,7 @@ export function useModalViewModel({ initialFocus, onClose }: { initialFocus?: Re
     // Clicks inside stay inside, e.g. a dialog opened from a table row doesn't also click the row.
     onClick: (event: MouseEvent) => event.stopPropagation(),
     onMouseDown: (event: MouseEvent) => {
-      if (event.target === event.currentTarget) onClose()
+      if (dismissible && event.target === event.currentTarget) onClose()
     },
   }
 }

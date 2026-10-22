@@ -7,7 +7,7 @@ import { Modal } from './Modal'
 
 // The one popup the site uses: focus goes in and stays (Tab wraps both ways), Escape or the backdrop closes it, focus goes back.
 
-function Opener({ empty = false }: { empty?: boolean }) {
+function Opener({ empty = false, dismissible }: { empty?: boolean; dismissible?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -15,7 +15,12 @@ function Opener({ empty = false }: { empty?: boolean }) {
         Open
       </button>
       {open && (
-        <Modal labelledBy="title" onClose={() => setOpen(false)}>
+        <Modal labelledBy="title" onClose={() => setOpen(false)} dismissible={dismissible}>
+          {dismissible === false && (
+            <button type="button" onClick={() => setOpen(false)}>
+              Close
+            </button>
+          )}
           <h2 id="title">Hello</h2>
           {!empty && (
             <>
@@ -93,6 +98,18 @@ describe('the popup', () => {
     await expect.element(dialog()).toBeVisible()
 
     document.querySelector('.modal-backdrop')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await expect.element(dialog()).not.toBeInTheDocument()
+  })
+  it("one that isn't dismissible closes only with its own button: not Escape, not the backdrop", async () => {
+    await renderView(<Opener dismissible={false} />)
+    await page.getByRole('button', { name: 'Open' }).click()
+    await expect.element(dialog()).toBeVisible()
+
+    await userEvent.keyboard('{Escape}')
+    document.querySelector('.modal-backdrop')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await expect.element(dialog()).toBeVisible()
+
+    await dialog().getByRole('button', { name: 'Close' }).click()
     await expect.element(dialog()).not.toBeInTheDocument()
   })
 })

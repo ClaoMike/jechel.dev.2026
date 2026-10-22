@@ -906,6 +906,104 @@ button.media-card {
   margin-right: auto;
 }
 
+/* A field that's a switch (an app's "Show in What's new?"): its name and hint, the switch at the end. */
+.switch-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.switch-field-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Apps → Organise: Save on the left, the title, × on the right. */
+.organise-header {
+  align-items: center;
+}
+
+.organise-header h2 {
+  flex: 1;
+}
+
+.organise-columns {
+  margin: 0 0 6px;
+  padding: 0 12px;
+  font-size: 13px;
+  text-align: right;
+}
+
+.organise-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.organise-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 8px 12px 8px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The app being dragged: it moves through the list as it's dragged over the others. */
+.organise-row[data-dragging] {
+  border-style: dashed;
+  border-color: var(--accent);
+  opacity: 0.6;
+}
+
+.organise-list-dragging,
+.organise-list-dragging .organise-row {
+  cursor: grabbing;
+}
+
+.organise-handle {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  cursor: grab;
+  /* A touch on the handle drags; elsewhere it scrolls the list. */
+  touch-action: none;
+}
+
+.organise-number {
+  flex: none;
+  min-width: 2ch;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.organise-title {
+  flex: 1;
+  min-width: 0;
+  /* Between words; mid-word only for one too long for the line. */
+  overflow-wrap: break-word;
+}
+
+/* Phones: the names get the room the numbers took. */
+@media (max-width: 640px) {
+  .organise-number {
+    display: none;
+  }
+}
+
+.organise-row .on-off-switch {
+  flex: none;
+}
+
 .media-list-editor {
   display: grid;
   gap: 8px;

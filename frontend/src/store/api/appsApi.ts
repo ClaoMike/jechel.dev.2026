@@ -1,4 +1,4 @@
-import { api, type AppCategory, type AppCategoryRequest, type AppDetails, type AppRequest, type Page, type YouTubeVideo } from '../../services/api'
+import { api, type AppCategory, type AppCategoryRequest, type AppDetails, type AppOrderItem, type AppRequest, type Page, type YouTubeVideo } from '../../services/api'
 import { baseApi, run, whenFulfilled } from '../baseApi'
 
 export interface PageArgs {
@@ -15,7 +15,10 @@ export interface LatestSections {
   videos: boolean
 }
 
-/** The newest app (by when it was added) or YouTube video (by when it was published). */
+/**
+ * The app What's new? may show (the first in the admin's order that may), or the newest YouTube video, whichever
+ * came last: the app by when it was added, the video by when it was published.
+ */
 function newest(app: AppDetails | undefined, video: YouTubeVideo | undefined): Latest | null {
   if (app && (!video || new Date(app.createdAt) >= new Date(video.publishedAt))) return { kind: 'app', app }
   return video ? { kind: 'video', video } : null
@@ -38,6 +41,19 @@ export const appsApi = baseApi.injectEndpoints({
     deleteApp: build.mutation<void, number>({
       queryFn: (id) => run(api.apps.delete(id)),
       invalidatesTags: ['Apps'],
+    }),
+
+    /** Admin only: every app, in the order (Organise). Loads again whenever apps change. */
+    getAppOrder: build.query<AppOrderItem[], void>({
+      queryFn: (_, { signal }) => run(api.apps.listOrder(signal)),
+      providesTags: ['Apps'],
+    }),
+
+    /** The Apps page and What's new? follow the new order; Organise shows it at once (no reload in between). */
+    saveAppOrder: build.mutation<AppOrderItem[], AppOrderItem[]>({
+      queryFn: (order) => run(api.apps.saveOrder(order.map(({ id, showInWhatsNew }) => ({ id, showInWhatsNew })))),
+      invalidatesTags: ['Apps'],
+      onQueryStarted: (_, { dispatch, queryFulfilled }) => whenFulfilled(queryFulfilled, (data) => dispatch(appsApi.util.upsertQueryData('getAppOrder', undefined, data))),
     }),
 
     listAppCategories: build.query<AppCategory[], void>({
@@ -64,7 +80,7 @@ export const appsApi = baseApi.injectEndpoints({
     }),
 
     /**
-     * The newest app or video, of the sections given (the others aren't asked for). If one list can't be
+     * The app What's new? may show or the newest video, of the sections given (the others aren't asked for). If one can't be
      * loaded (e.g. YouTube isn't set up), the other is shown; it's an error only when nothing can be
      * shown because something failed.
      */
@@ -73,7 +89,7 @@ export const appsApi = baseApi.injectEndpoints({
         // `null` when that list couldn't be loaded, `undefined` when it's empty or not asked for.
         const first = <T>(load: Promise<{ items: T[] }>) => load.then((page) => page.items[0]).catch(() => null)
         const [app, video] = await Promise.all([
-          sections.apps ? first(api.apps.list(1, 1, signal)) : undefined,
+          sections.apps ? api.apps.whatsNew(signal).then((found) => found ?? undefined, () => null) : undefined,
           sections.videos ? first(api.youtube.listVideos(1, 1, signal)) : undefined,
         ])
         const latest = newest(app ?? undefined, video ?? undefined)
@@ -89,6 +105,8 @@ export const {
   useListAppsQuery,
   useSaveAppMutation,
   useDeleteAppMutation,
+  useGetAppOrderQuery,
+  useSaveAppOrderMutation,
   useListAppCategoriesQuery,
   useSaveAppCategoriesMutation,
   useListVideosQuery,

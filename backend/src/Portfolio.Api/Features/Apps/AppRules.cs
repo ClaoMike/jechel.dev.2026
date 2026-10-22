@@ -16,6 +16,9 @@ public static class AppRules
     public const int LinkLabelMaxLength = 40;
     public const int MaxLinks = 10;
 
+    /// <summary>Why an order can't be saved when apps were added or deleted since it was loaded.</summary>
+    public const string OrderOutOfDate = "Apps were added or deleted meanwhile. Load the list again, then arrange it.";
+
     /// <param name="categoryIds">The ids of the categories that exist; null skips that check.</param>
     public static Dictionary<string, string[]> Validate(AppRequest? request, IReadOnlyCollection<int>? categoryIds = null)
     {
@@ -102,6 +105,27 @@ public static class AppRules
             if (categories[i]?.Id is { } id && !existingIds.Contains(id)) errors[$"[{i}].id"] = ["That category doesn't exist any more. Reload the page."];
         }
         if (categories.Where(c => c?.Id is not null).GroupBy(c => c!.Id).Any(g => g.Count() > 1)) errors[""] = ["A category is listed twice."];
+        return errors;
+    }
+
+    /// <summary>
+    /// The order must name every app there is, each once, with whether What's new? may show it. An app added or
+    /// deleted meanwhile (another tab) makes it out of date: nothing is saved, and the admin opens it again.
+    /// </summary>
+    public static Dictionary<string, string[]> ValidateOrder(IReadOnlyList<AppOrderRequest?>? order, IReadOnlyCollection<int> existingIds)
+    {
+        if (order is null) return new() { [""] = ["The order is required."] };
+        var errors = new Dictionary<string, string[]>();
+        for (var i = 0; i < order.Count; i++)
+        {
+            if (order[i]?.Id is null) errors[$"[{i}].id"] = ["Required."];
+            if (order[i]?.ShowInWhatsNew is null) errors[$"[{i}].showInWhatsNew"] = ["Required."];
+        }
+        if (errors.Count > 0) return errors;
+
+        var ids = order.Select(o => o!.Id!.Value).ToList();
+        if (ids.Distinct().Count() != ids.Count) return new() { [""] = ["An app is listed twice."] };
+        if (!ids.ToHashSet().SetEquals(existingIds)) return new() { [""] = [OrderOutOfDate] };
         return errors;
     }
 }

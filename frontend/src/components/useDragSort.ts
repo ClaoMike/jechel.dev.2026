@@ -42,7 +42,8 @@ export function useDragSort(count: number, onMove: (from: number, to: number) =>
     'data-dragging': drag !== null && position === drag.to ? true : undefined,
     onPointerDown: (event: PointerEvent<HTMLElement>) => {
       const target = event.target as HTMLElement
-      if (event.button !== 0 || target.closest('button:not([data-drag-handle]), a, input, textarea, select')) return
+      // Not from a control in the item (a switch too: its labels, its thumb, the fieldset around them).
+      if (event.button !== 0 || target.closest('button:not([data-drag-handle]), a, input, textarea, select, label, fieldset')) return
       if (event.pointerType === 'touch' && !target.closest('[data-drag-handle]')) return
       pointer.current = { index: position, x: event.clientX, y: event.clientY, id: event.pointerId, moving: false }
       event.currentTarget.setPointerCapture?.(event.pointerId)

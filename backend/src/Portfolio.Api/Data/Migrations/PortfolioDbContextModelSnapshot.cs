@@ -269,6 +269,14 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnName("platforms")
                         .HasDefaultValueSql("'[]'::jsonb");
 
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<bool>("ShowInWhatsNew")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_in_whats_new");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -281,7 +289,7 @@ namespace Portfolio.Api.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt");
+                    b.HasIndex("Position");
 
                     b.ToTable("apps", (string)null);
                 });

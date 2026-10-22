@@ -3,7 +3,7 @@ import { APPS, CATEGORIES, pageOf } from '../test/fixtures/apps'
 import { fakeHttp } from '../test/http'
 import { api, ApiError, type AppRequest } from './api'
 
-const REQUEST: AppRequest = { title: 'Lighthouse', description: 'A game.', categoryIds: [3], platforms: ['iOS'], links: [{ label: 'App Store', url: 'https://apps.apple.com/x' }], media: [] }
+const REQUEST: AppRequest = { title: 'Lighthouse', description: 'A game.', categoryIds: [3], platforms: ['iOS'], links: [{ label: 'App Store', url: 'https://apps.apple.com/x' }], media: [], showInWhatsNew: false }
 
 // The real requests, below them only a fake network (test/http.ts).
 describe('api.apps', () => {
@@ -51,6 +51,31 @@ describe('api.apps', () => {
 
     expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual(['GET /api/apps/categories', 'PUT /api/apps/categories'])
     expect(requests[1].body).toEqual([{ id: 1, name: 'Phone app' }, { id: null, name: 'Desktop app' }])
+  })
+  it("lists the admin's order of the apps, and saves it with which apps What's new? may show", async () => {
+    const order = [
+      { id: 2, title: 'Pocket Planner', showInWhatsNew: false },
+      { id: 1, title: 'LIGHTHOUSE', showInWhatsNew: true },
+    ]
+    const { requests } = fakeHttp(() => ({ status: 200, body: order }))
+
+    expect(await api.apps.listOrder()).toEqual(order)
+    expect(await api.apps.saveOrder(order.map(({ id, showInWhatsNew }) => ({ id, showInWhatsNew })))).toEqual(order)
+
+    expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual(['GET /api/apps/order', 'PUT /api/apps/order'])
+    expect(requests[1].body).toEqual([
+      { id: 2, showInWhatsNew: false },
+      { id: 1, showInWhatsNew: true },
+    ])
+  })
+
+  it("gets the app What's new? may show, or null when there's none", async () => {
+    let answered = 0
+    const { requests } = fakeHttp(() => ({ status: 200, body: { app: answered++ === 0 ? APPS[1] : null } }))
+
+    expect(await api.apps.whatsNew()).toEqual(APPS[1])
+    expect(await api.apps.whatsNew()).toBeNull()
+    expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual(['GET /api/apps/whats-new', 'GET /api/apps/whats-new'])
   })
 })
 

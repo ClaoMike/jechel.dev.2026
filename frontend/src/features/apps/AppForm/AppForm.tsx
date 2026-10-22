@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react'
 import { DeleteButton } from '../../../components/DeleteButton/DeleteButton'
 import { TextField, type FieldErrors } from '../../../components/fields'
+import { OnOffSwitch } from '../../../components/OnOffSwitch/OnOffSwitch'
 import { TrashIcon } from '../../../components/icons/icons'
 import type { AppCategory, AppRequest } from '../../../services/api'
 import { CategoryPicker } from '../CategoryPicker/CategoryPicker'
@@ -26,13 +27,23 @@ export interface AppFormProps {
   submit: (event: FormEvent<HTMLFormElement>) => void
 }
 
-/** An app's fields: title, categories, description, platforms, store links, images and videos; then delete, cancel and save. */
+/**
+ * An app's fields: title, categories, whether What's new? may show it, description, platforms, store links, images
+ * and videos; then delete, cancel and save.
+ */
 export function AppForm({ draft, categories, errors, mediaError, message, saving, saveLabel, deletable, change, updateMedia, cancel, submit }: AppFormProps) {
   return (
     // The API's messages show under the fields, as everywhere else on the site.
     <form className="app-form" noValidate onSubmit={submit}>
       <TextField label="Title" value={draft.title} required onChange={(title) => change({ title })} error={errors.title} />
       <CategoryPicker categories={categories} value={draft.categoryIds} onChange={(categoryIds) => change({ categoryIds })} error={errors.categoryIds} />
+      <div className="switch-field">
+        <span className="switch-field-text">
+          <span className="field-label">Show in What's new?</span>
+          <span className="field-hint">Off: What's new? skips it, for the next app in the order (Organise) that's on.</span>
+        </span>
+        <OnOffSwitch label="Show in What's new?" on={draft.showInWhatsNew} onChange={(showInWhatsNew) => change({ showInWhatsNew })} />
+      </div>
       <TextField label="Description" multiline allowLinks value={draft.description} onChange={(description) => change({ description })} error={errors.description} />
       <PlatformsEditor value={draft.platforms} onChange={(platforms) => change({ platforms })} error={errors.platforms} />
       <LinksEditor value={draft.links} onChange={(links) => change({ links })} errors={errors} />

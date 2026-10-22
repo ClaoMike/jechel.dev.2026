@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Alerts;
+using Portfolio.Api.Features.Apps;
 using Portfolio.Api.Features.Settings;
 using Portfolio.Api.Features.YouTube;
 
@@ -201,8 +202,9 @@ public static class UpdateEmailsEndpoints
         }
         else
         {
-            var newest = await db.Apps.AsNoTracking().OrderByDescending(a => a.CreatedAt).FirstOrDefaultAsync(cancellationToken);
-            item = newest is null ? null : UpdatesAnnouncer.AppItem(newest, site);
+            // The first app in the admin's order (Organise), as a sample.
+            var first = await db.Apps.AsNoTracking().InOrder().FirstOrDefaultAsync(cancellationToken);
+            item = first is null ? null : UpdatesAnnouncer.AppItem(first, site);
             item ??= new UpdateItem("Space Game", "A small arcade game: dodge the asteroids, collect the stars.", site.UrlFor("/apps"), null);
         }
         return UpdateEmails.NewItem(to, kind, item, token, wording, site);

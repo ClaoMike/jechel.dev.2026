@@ -44,6 +44,7 @@ describe('the site, as a visitor gets it', () => {
     await expect.element(page.getByRole('link', { name: /Buy me a coffee/ })).not.toBeInTheDocument()
     await expect.element(page.getByRole('contentinfo')).not.toBeInTheDocument()
     expect(api.apps.list).not.toHaveBeenCalled()
+    expect(api.apps.whatsNew).not.toHaveBeenCalled()
   })
 
   it('has a default maintenance message, and checks again on "Try again"', async () => {

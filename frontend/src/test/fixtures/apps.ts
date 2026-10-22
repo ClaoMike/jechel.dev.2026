@@ -19,6 +19,7 @@ export function makeApp(id: number, overrides: Partial<AppDetails> = {}): AppDet
     links: [{ label: 'App Store', url: 'https://apps.apple.com/app/id1' }],
     media: [{ url: id % 2 ? sunset : forest, kind: 'image' }],
     createdAt: `2026-10-${String(10 + (id % 18)).padStart(2, '0')}T12:00:00Z`,
+    showInWhatsNew: true,
     ...overrides,
   }
 }

@@ -406,7 +406,7 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 
 | Tab | Route | Status |
 | --- | --- | --- |
-| What's new? | `/` | the newest app or video, in full |
+| What's new? | `/` | the latest app (the first in my order that may show there) or the newest video, in full |
 | Apps | `/apps` | my apps in a grid, each with a popup; the admin adds and edits them |
 | YouTube | `/youtube` | my videos, 9 a page |
 | About Me | `/about` | profile, where I've been (map), problem solving (LeetCode, NeetCode), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
@@ -417,22 +417,24 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 | Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](#settings-connections)) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
-**What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later). The signed-in admin sees exactly what visitors see, with a note saying which section is left out and why; the empty and error messages name only what's shown (apps, videos, or both). If one list fails (e.g. YouTube isn't set up), the other is shown.
+**What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): an app or the newest YouTube video, whichever came last, shown in full. The app is the first in the admin's order (Apps → **Organise**) whose **Show in What's new?** is on, compared with the video by when it was added (the video by when it was published). An app switched off is skipped for the next one that's on. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for that one app and the newest video, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later). The signed-in admin sees exactly what visitors see, with a note saying which section is left out and why; the empty and error messages name only what's shown (apps, videos, or both). If one list fails (e.g. YouTube isn't set up), the other is shown.
 
 ```
   Settings → Visitor pages (GET/PUT /api/site; site_state)
      Apps on?        YouTube on?        (the same switches for visitors and the admin)
         │                 │
         ▼                 ▼
-  GET /api/apps?page=1&pageSize=1    GET /api/youtube/videos?page=1&pageSize=1     (only the ones switched on)
-        │ newest app (createdAt)         │ newest video (publishedAt)
+  GET /api/apps/whats-new            GET /api/youtube/videos?page=1&pageSize=1     (only the ones switched on)
+        │ the first app in the order     │ newest video (publishedAt)
+        │ with Show in What's new? on    │
+        │ (compared by createdAt)        │
         └──────────────┬─────────────────┘
                        ▼  getLatest (store/api/appsApi.ts): whichever came last (an app on a tie)
   What's new?   app ──▶ LatestApp (the app's popup view: slider, labels, description, platforms, store links)
                 video ─▶ LatestVideo (YouTube's privacy-enhanced player, description, Watch on YouTube)
                 none ──▶ "Nothing here yet. New apps / videos / apps and videos will show up here."
                 one list failed, the other empty ──▶ "The newest … can't be loaded right now." + Try again
-  It loads again when a switch changes, an app is saved, or the admin refreshes from YouTube.
+  It loads again when a switch changes, an app or the order is saved, or the admin refreshes from YouTube.
 
   Email updates follow the same switches (UpdatesAnnouncer, every 10 minutes or when poked):
      Get updates off ──▶ nothing is emailed (approved apps wait); new videos are recorded as not sent
@@ -461,23 +463,29 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
                                  a new app: the phone asks whether to email the subscribers (AnnouncementDecisions)
   Categories ────────────────▶ PUT /api/apps/categories (rename, reorder, add, remove) ─▶ app_categories
                                  a removed one is taken off every app
+  Organise ──────────────────▶ GET /api/apps/order, PUT /api/apps/order
+                                 every app, each once, top first, with Show in What's new? ──▶ apps.position,
+                                 numbered afresh from 0; refused if apps were added or deleted   apps.show_in_whats_new
+                                 meanwhile (open it again). A new app goes first (before position 0).
 
   Visitor                                   API
   ───────                                   ───
-  Apps page ─────────────────▶ GET /api/apps?page=&pageSize= (newest first; 9, or 8 next to the admin's Add tile)
+  Apps page ─────────────────▶ GET /api/apps?page=&pageSize= (the admin's order; 9, or 8 next to the admin's Add tile)
      grid of tiles (PagedGrid: pages next to it loaded ahead, sliding between pages)
      a tile ──▶ its popup: the slider (MediaCarousel: uploads from /api/files, links from other sites,
                 YouTube in its privacy-enhanced player), labels, description, "Runs on", store links
-  What's new? shows the newest app if it came after the newest video (and Apps is a page visitors may see).
+  What's new? ───────────────▶ GET /api/apps/whats-new: the first app in the order with Show in What's new? on,
+                                 shown if it came after the newest video (and Apps is a page visitors may see).
 ```
 
 
-- The same paged 3 × 3 grid as YouTube, newest first. A tile shows the app's first image (whatever comes before it), its title and the start of its description. Clicking it opens a popup with every image and video in a sideways slider (swipe, arrows, dots or the arrow keys; moving on pauses a video; a YouTube video gets YouTube's privacy-enhanced player on its own slide and a thumbnail elsewhere, so moving on stops it too). The tile uses the first image, or else a YouTube video's thumbnail and the full description, which may hold `[text](url)` links.
+- The same paged 3 × 3 grid as YouTube, in the admin's order (a new app goes first; the apps there before the order existed kept their newest-first order). A tile shows the app's first image (whatever comes before it), its title and the start of its description. Clicking it opens a popup with every image and video in a sideways slider (swipe, arrows, dots or the arrow keys; moving on pauses a video; a YouTube video gets YouTube's privacy-enhanced player on its own slide and a thumbnail elsewhere, so moving on stops it too). The tile uses the first image, or else a YouTube video's thumbnail and the full description, which may hold `[text](url)` links.
 - **The admin** gets an **Add an app** tile first (the first page then holds 8 apps, so it stays 3 × 3), and an **Edit** button in each popup that turns it into the form used for adding: title, description, and the images and videos, which can be uploaded several at once, added from a link (a YouTube video such as a trailer, or an image or video file elsewhere), dragged to reorder and removed. Dragging uses pointer events (`components/useDragSort.ts`): a mouse drags a whole tile, a finger its handle (so the popup still scrolls), and the handle also takes the arrow keys. Closing with unsaved changes asks first. **Delete app** asks too.
+- **Organise** (before **Categories**, above the grid) opens the admin's list of every app, in order: drag one (a mouse anywhere on its row, a finger on its handle, or the arrow keys on the handle) to move it, and switch **In What's new?** on or off for each. **Save**, top left, is on once something changed, and the popup stays open on the saved order. Only **×** closes it (not Escape, not a click beside it: `Modal`'s `dismissible={false}`), asking first if there are changes not saved. The add / edit form has the same **Show in What's new?** switch (on for a new app).
 - **Categories** (e.g. Mobile app, Website, Video game, the three it starts with) are the admin's own list, edited with **Categories** above the grid (the tab bar names the page, so What's new?, Apps and YouTube have no title of their own): rename, reorder, add, remove (which takes it off every app). An app can have several; they show as labels under its title, on the tile and in the popup, in the list's order.
 - **Runs on:** platforms (iOS, Android, … with one click, or typed in), shown in the popup only.
 - **Where to get it:** links shown in the popup as **Check it on {name}** buttons, e.g. App Store, Google Play, Steam (suggested while typing; anything else works).
-- `GET /api/apps` (public), `POST /api/apps`, `PUT /api/apps/{id}`, `DELETE /api/apps/{id}` (admin), stored in the `apps` table (media, category ids, platforms and links as `jsonb`). `GET /api/apps/categories` (public) and `PUT /api/apps/categories` (admin, the whole ordered list) use `app_categories`. `POST /api/files/app-media` takes one file: images (JPEG, PNG, WebP, GIF up to 15 MB) become a WebP of at most 1920 px without metadata; videos (MP4, MOV, WebM up to 200 MB, recognised by their first bytes) are kept as they are. Files are served with range requests, so videos can start before they're fully downloaded (Safari needs this).
+- `GET /api/apps` and `GET /api/apps/whats-new` (public), `POST /api/apps`, `PUT /api/apps/{id}`, `DELETE /api/apps/{id}`, `GET /api/apps/order` and `PUT /api/apps/order` (admin), stored in the `apps` table (media, category ids, platforms and links as `jsonb`). `GET /api/apps/categories` (public) and `PUT /api/apps/categories` (admin, the whole ordered list) use `app_categories`. `POST /api/files/app-media` takes one file: images (JPEG, PNG, WebP, GIF up to 15 MB) become a WebP of at most 1920 px without metadata; videos (MP4, MOV, WebM up to 200 MB, recognised by their first bytes) are kept as they are. Files are served with range requests, so videos can start before they're fully downloaded (Safari needs this).
 - Saving About Me or an app deletes uploads that **nothing** uses any more, once a day old (`FileCleanup.cs`).
 - Videos live in the database like every other upload and are read whole for each request. That's fine for a few short clips; for many or long videos, move `IFileStorage` to object storage (R2, S3) or link YouTube videos instead.
 

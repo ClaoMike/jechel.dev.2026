@@ -15,7 +15,13 @@ export function stubApi({ user = null }: { user?: CurrentUser | null } = {}) {
     site: { status: vi.spyOn(api.site, 'status').mockResolvedValue(structuredClone(SITE)) },
     terms: { get: vi.spyOn(api.terms, 'get').mockResolvedValue(structuredClone(TERMS)) },
     support: { get: vi.spyOn(api.support, 'get').mockResolvedValue({ url: SUPPORT_URL }) },
-    apps: { list: vi.spyOn(api.apps, 'list').mockResolvedValue(pageOf(APPS)), listCategories: vi.spyOn(api.apps, 'listCategories').mockResolvedValue(CATEGORIES) },
+    apps: {
+      list: vi.spyOn(api.apps, 'list').mockResolvedValue(pageOf(APPS)),
+      whatsNew: vi.spyOn(api.apps, 'whatsNew').mockResolvedValue(structuredClone(APPS[0])),
+      listOrder: vi.spyOn(api.apps, 'listOrder').mockResolvedValue(APPS.map(({ id, title, showInWhatsNew }) => ({ id, title, showInWhatsNew }))),
+      saveOrder: vi.spyOn(api.apps, 'saveOrder').mockImplementation(async (order) => order.map((item) => ({ ...item, title: APPS.find((app) => app.id === item.id)?.title ?? '' }))),
+      listCategories: vi.spyOn(api.apps, 'listCategories').mockResolvedValue(CATEGORIES),
+    },
     youtube: {
       listVideos: vi.spyOn(api.youtube, 'listVideos').mockResolvedValue(pageOfVideos()),
       refreshVideos: vi.spyOn(api.youtube, 'refreshVideos').mockResolvedValue(VIDEOS.length),

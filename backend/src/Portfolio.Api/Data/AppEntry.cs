@@ -19,6 +19,12 @@ public class AppEntry
     /// <summary>Where to get it, as a JSON list of AppLink.</summary>
     public string Links { get; set; } = "[]";
 
+    /// <summary>Where it stands in the admin's order (Organise): the Apps page lists them by it, lowest first.</summary>
+    public int Position { get; set; }
+
+    /// <summary>Whether What's new? may show it. When the first app in the order may not, the next one that may is shown.</summary>
+    public bool ShowInWhatsNew { get; set; } = true;
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
