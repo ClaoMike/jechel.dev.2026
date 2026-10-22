@@ -92,10 +92,7 @@ public static class InboundEmail
         var secret = settings.InboundWebhookSecret.Trim();
         if (secret.Length == 0) return TypedResults.Problem("Receiving email isn't set up: set the receiving webhook secret in Settings.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-        using var buffer = new MemoryStream();
-        await request.Body.CopyToAsync(buffer, cancellationToken);
-        if (buffer.Length > 256 * 1024) return TypedResults.BadRequest();
-        var body = Encoding.UTF8.GetString(buffer.ToArray());
+        if (await ReadLimitedAsync(request, MaxBodyBytes, cancellationToken) is not { } body) return TypedResults.BadRequest();
         if (!SignatureValid(request.Headers["svix-id"], request.Headers["svix-timestamp"], request.Headers["svix-signature"], body, secret, time.GetUtcNow())) return TypedResults.Unauthorized();
 
         JsonObject? root;
@@ -114,7 +111,8 @@ public static class InboundEmail
 
         var logger = loggers.CreateLogger(typeof(InboundEmail));
         var ours = settings.FromAddress;
-        string[] recipients = [.. Addresses(data!["to"]), .. Addresses(data["cc"])];
+        // Also when they put the address in Bcc, or it was forwarded here.
+        string[] recipients = [.. Addresses(data!["to"]), .. Addresses(data["cc"]), .. Addresses(data["bcc"]), .. Addresses(data["received_for"])];
         if (ours.Length == 0 || !recipients.Contains(ours, StringComparer.OrdinalIgnoreCase))
         {
             logger.LogInformation("Dropped email {Id}: not to {Address}.", emailId, ours);
@@ -189,6 +187,24 @@ public static class InboundEmail
         return TypedResults.Ok();
     }
 
+    /// <summary>The webhook only names the email: anything this big isn't Resend's.</summary>
+    public const int MaxBodyBytes = 256 * 1024;
+
+    /// <summary>The body as text, reading no more than <paramref name="max"/> bytes; null when it's longer.</summary>
+    private static async Task<string?> ReadLimitedAsync(HttpRequest request, int max, CancellationToken cancellationToken)
+    {
+        if (request.ContentLength > max) return null;
+        using var buffer = new MemoryStream();
+        var chunk = new byte[16 * 1024];
+        int read;
+        while ((read = await request.Body.ReadAsync(chunk, cancellationToken)) > 0)
+        {
+            if (buffer.Length + read > max) return null;
+            buffer.Write(chunk, 0, read);
+        }
+        return Encoding.UTF8.GetString(buffer.ToArray());
+    }
+
     /// <summary>
     /// Svix's scheme: base64 HMAC-SHA256 of "{id}.{timestamp}.{body}", keyed with the secret after "whsec_" (base64);
     /// the header lists one or more "v1,{signature}". Older than 5 minutes (or as far ahead) is refused: no replays.
@@ -225,25 +241,45 @@ public static class InboundEmail
         return text.Length > 0 ? text : "(No text)";
     }
 
-    // "On Thu, 22 Oct 2026 at 10:00, Claudiu <hello@jechel.dev> wrote:" (Gmail can wrap it over two lines), in a few
-    // languages; it has a digit (the date), so a sentence that merely ends with "wrote:" stays.
-    private static readonly Regex QuoteHeader = new(
-        @"^(?=[^\n]*\d|[^\n]*\n[^\n]*\d)[^\n]{0,250}(\n[^\n]{0,250})?\b(wrote|a écrit|schrieb|escribió|ha scritto|a scris|schreef|napisał|escreveu)\s?:\s*$",
-        RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private const string Wrote = @"(wrote|a écrit|schrieb|escribió|ha scritto|a scris|schreef|napisał|escreveu)\s?:\s*$";
 
-    // Outlook's: "-----Original Message-----", or "From: …" then "Sent: …" (after a line of underscores, on the web).
-    private static readonly Regex OutlookHeader = new(
-        @"^(-{2,}\s*Original Message\s*-{2,}|_{10,}\s*$|From:[^\n]*\n(Sent|Date):)",
-        RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    // "On Thu, 22 Oct 2026 at 10:00, Claudiu <hello@jechel.dev> wrote:", in a few languages. It has an address or a year,
+    // so a sentence that merely ends with "wrote:" stays.
+    private static readonly Regex QuoteHeader = new($@"^(?=.*(@|\b(19|20)\d\d\b)).{{0,300}}\b{Wrote}", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-    /// <summary>The text above the quoted email it answers; trailing "&gt;" lines go too.</summary>
+    // Gmail wraps a long one at the address: "On Thu, 22 Oct 2026 at 10:00, Claudiu from jechel.dev <" then "hello@jechel.dev> wrote:".
+    private static readonly Regex WrappedQuoteHeader = new($@"^\S*@\S*>?\s*{Wrote}", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    // A phone's own line under the message.
+    private static readonly Regex SentFrom = new(@"^(Sent from my \w[\w ]*|Get Outlook for (iOS|Android)|Trimis de pe \w[\w ]*)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// The text above the quoted email it answers: up to its header (one line, or two as Gmail wraps it), Outlook's
+    /// ("-----Original Message-----", or "From:" then "Sent:", after a line of underscores on the web), or a signature
+    /// ("-- "). Trailing "&gt;" lines and a "Sent from my iPhone" go too.
+    /// </summary>
     public static string WithoutQuote(string text)
     {
-        text = text.Replace("\r\n", "\n").Replace('\r', '\n');
-        var cut = new[] { QuoteHeader.Match(text), OutlookHeader.Match(text) }.Where(m => m.Success).Select(m => m.Index).DefaultIfEmpty(text.Length).Min();
-        var lines = text[..cut].Split('\n').ToList();
-        while (lines.Count > 0 && (lines[^1].TrimStart().StartsWith('>') || lines[^1].Trim().Length == 0)) lines.RemoveAt(lines.Count - 1);
-        return Regex.Replace(string.Join('\n', lines.Select(l => l.TrimEnd())), @"\n{3,}", "\n\n").Trim();
+        var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n').Select(l => l.TrimEnd()).ToList();
+        string Next(int i) => lines.Skip(i + 1).FirstOrDefault(l => l.Trim().Length > 0)?.Trim() ?? "";
+        var cut = lines.Count;
+        for (var i = 0; i < lines.Count && cut == lines.Count; i++)
+        {
+            var line = lines[i].Trim();
+            if (QuoteHeader.IsMatch(line)
+                || (line.Any(char.IsDigit) && i + 1 < lines.Count && WrappedQuoteHeader.IsMatch(lines[i + 1].Trim()))
+                || Regex.IsMatch(line, @"^-{2,}\s*Original Message\s*-{2,}$", RegexOptions.IgnoreCase)
+                || (Regex.IsMatch(line, "^_{10,}$") && Next(i).StartsWith("From:", StringComparison.OrdinalIgnoreCase))
+                || (line.StartsWith("From:", StringComparison.OrdinalIgnoreCase) && i + 1 < lines.Count && Regex.IsMatch(lines[i + 1].Trim(), "^(Sent|Date):", RegexOptions.IgnoreCase))
+                || lines[i] == "--")
+            {
+                cut = i;
+            }
+        }
+        lines = lines[..cut];
+        bool Trailing(string l) => l.Trim().Length == 0 || l.TrimStart().StartsWith('>') || SentFrom.IsMatch(l.Trim());
+        while (lines.Count > 0 && Trailing(lines[^1])) lines.RemoveAt(lines.Count - 1);
+        return Regex.Replace(string.Join('\n', lines), @"\n{3,}", "\n\n").Trim();
     }
 
     /// <summary>Plain text from an email's HTML, up to the quoted email (Gmail's gmail_quote, or a blockquote).</summary>

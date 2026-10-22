@@ -153,6 +153,29 @@ public class InboundEmailTests
         Assert.Equal(0, _inbox.Reads);
     }
 
+    [Theory]
+    [InlineData("bcc")]
+    [InlineData("received_for")]
+    public async Task An_email_with_the_site_in_Bcc_or_forwarded_to_it_is_received(string field)
+    {
+        var id = Guid.NewGuid().ToString();
+        _inbox.Emails[id] = new ReceivedEmail("ada@example.com", null, "Hi", null, null, "pass", false, 0);
+        var body = $$$"""{"type":"email.received","data":{"email_id":"{{{id}}}","to":["someone@example.com"],"cc":[],"{{{field}}}":["hello@jechel.dev"]}}""";
+
+        Assert.IsType<Ok>((await Receive(Request(body))).Result);
+
+        Assert.Single(_db.ContactMessages);
+    }
+
+    [Fact]
+    public async Task A_body_announced_as_too_big_isn_t_read()
+    {
+        var request = Request(Event("e1"));
+        request.ContentLength = InboundEmail.MaxBodyBytes + 1;
+
+        Assert.IsType<BadRequest>((await Receive(request)).Result);
+    }
+
     [Fact]
     public async Task The_site_s_address_matches_in_any_case_and_with_a_name()
     {
@@ -261,6 +284,18 @@ public class InboundEmailTests
         Assert.False(InboundEmail.SignatureValid("msg_1", stamp, null, "{}", Secret, Now));
     }
 
+    [Fact]
+    public void A_secret_pasted_without_its_prefix_or_not_in_base64_still_checks()
+    {
+        var stamp = Now.ToUnixTimeSeconds();
+        var key = Convert.ToBase64String("inbound-secret"u8.ToArray());
+        var withoutPrefix = Sign("msg_1", stamp, "{}", Secret);
+        var plain = Convert.ToBase64String(HMACSHA256.HashData("not base64!"u8.ToArray(), Encoding.UTF8.GetBytes($"msg_1.{stamp}.{{}}")));
+
+        Assert.True(InboundEmail.SignatureValid("msg_1", stamp.ToString(), $"v1,{withoutPrefix}", "{}", key, Now));
+        Assert.True(InboundEmail.SignatureValid("msg_1", stamp.ToString(), $"v1,{plain}", "{}", "not base64!", Now));
+    }
+
     // ---------- Only what they wrote ----------
 
     [Theory]
@@ -276,6 +311,18 @@ public class InboundEmailTests
     [InlineData("Here is what I wrote:\nthe plan", "Here is what I wrote:\nthe plan")]
     [InlineData("> I said\nAnd I agree", "> I said\nAnd I agree")]
     [InlineData("One\n\n\n\nTwo   \n", "One\n\nTwo")]
+    // A line just above a wrapped header stays; so does a sentence ending in "wrote:" with neither an address nor a year.
+    [InlineData("Thanks for 2 things\nOn Thu, 22 Oct 2026 at 10:00, Claudiu from jechel.dev <\nhello@jechel.dev> wrote:\n> Hi", "Thanks for 2 things")]
+    [InlineData("Thanks for 2 things\nOn Thu, 22 Oct 2026 at 10:00, Claudiu <hello@jechel.dev> wrote:\n> Hi", "Thanks for 2 things")]
+    [InlineData("I sent 2 drafts. This is what I wrote:\nthe plan", "I sent 2 drafts. This is what I wrote:\nthe plan")]
+    [InlineData("On Thursday, Claudiu wrote:\n> Hi", "On Thursday, Claudiu wrote:")]
+    [InlineData("See you then.\n\n-- \nAda Lovelace\nAnalytical Engines Ltd", "See you then.")]
+    [InlineData("See you then.\n\nSent from my iPhone\n\nOn 22 Oct 2026, at 10:00, Claudiu <hello@jechel.dev> wrote:\n> Hi", "See you then.")]
+    [InlineData("See you then.\nGet Outlook for Android", "See you then.")]
+    [InlineData("Sent from my iPhone? No, from my laptop.", "Sent from my iPhone? No, from my laptop.")]
+    [InlineData("Notes\n____________\nthe rest", "Notes\n____________\nthe rest")]
+    [InlineData("Fine.\n\n-----Original Message-----", "Fine.")]
+    [InlineData("", "")]
     public void The_quoted_email_they_answered_is_left_out(string text, string expected) =>
         Assert.Equal(expected, InboundEmail.WithoutQuote(text));
 
@@ -302,6 +349,25 @@ public class InboundEmailTests
         Assert.Equal("(3 attachments, not shown: they're in Resend)", InboundEmail.MessageOf(new ReceivedEmail("a@b.c", null, null, null, null, null, false, 3)));
         Assert.Equal("(No text)", InboundEmail.MessageOf(new ReceivedEmail("a@b.c", null, "  \n> quoted only", null, null, null, false, 0)));
     }
+
+    [Theory]
+    [InlineData("Ada", "Hi Ada,")]
+    [InlineData("  Ada  ", "Hi Ada,")]
+    [InlineData("ada@example.com", "Hi,")]
+    [InlineData("", "Hi,")]
+    public void Someone_known_only_by_their_address_is_greeted_without_it(string name, string expected)
+    {
+        Assert.Equal(expected, PersonalEmails.Greeting(name));
+        Assert.StartsWith(expected + "\n\n", PersonalEmails.Reply("ada@example.com", name, "Thanks", "Hello").Text);
+    }
+
+    [Theory]
+    [InlineData("Claudiu <hello@jechel.dev>", "whsec_x", null)]
+    [InlineData("Claudiu <hello@jechel.dev>", "", "me@example.com")]
+    [InlineData("jechel.dev <onboarding@resend.dev>", "whsec_x", "me@example.com")]
+    [InlineData("", "whsec_x", "me@example.com")]
+    public void Answers_ask_for_replies_to_the_admin_until_the_site_receives_them(string from, string secret, string? expected) =>
+        Assert.Equal(expected, ContactEndpoints.ReplyToFor(new EmailOptions { From = from, InboundWebhookSecret = secret }, new Portfolio.Api.Features.Auth.AdminOptions { AdminEmails = ["me@example.com"] }));
 
     [Theory]
     [InlineData(null, "Re: your message to jechel.dev")]

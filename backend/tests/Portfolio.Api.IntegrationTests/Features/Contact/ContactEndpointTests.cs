@@ -134,9 +134,9 @@ public class ContactEndpointTests(PortfolioApiFactory factory)
     }
 
     /// <summary>Resend's webhook for an email to <paramref name="to"/>, signed as Resend signs it.</summary>
-    private HttpRequestMessage Received(string emailId, string to = PortfolioApiFactory.SiteAddress, string? secret = null)
+    private HttpRequestMessage Received(string emailId, string to = PortfolioApiFactory.SiteAddress, string? secret = null, string type = "email.received")
     {
-        var body = $$$"""{"type":"email.received","created_at":"2026-10-22T10:00:00Z","data":{"email_id":"{{{emailId}}}","to":["{{{to}}}"],"cc":[]}}""";
+        var body = $$$"""{"type":"{{{type}}}","created_at":"2026-10-22T10:00:00Z","data":{"email_id":"{{{emailId}}}","to":["{{{to}}}"],"cc":[]}}""";
         var id = $"msg_{Guid.NewGuid():N}";
         // The API's clock, which other tests move on.
         var timestamp = factory.Time.GetUtcNow().ToUnixTimeSeconds().ToString();
@@ -236,6 +236,33 @@ public class ContactEndpointTests(PortfolioApiFactory factory)
 
         var admin = await SignedInClientAsync();
         Assert.DoesNotContain((await admin.GetFromJsonAsync<PagedResponse<ContactMessageSummary>>("/api/contact/messages?pageSize=50"))!.Items, m => m.Name == address);
+    }
+
+    [Fact]
+    public async Task A_forged_or_automatic_email_is_dropped()
+    {
+        var forged = $"forged-{Guid.NewGuid():N}@example.com";
+        var away = $"away-{Guid.NewGuid():N}@example.com";
+        var forgedId = Guid.NewGuid().ToString();
+        var awayId = Guid.NewGuid().ToString();
+        factory.Inbox.Emails[forgedId] = new ReceivedEmail(forged, null, "Pay this invoice", null, null, "fail", false, 0);
+        factory.Inbox.Emails[awayId] = new ReceivedEmail(away, "Out of office", "I'm away", null, null, "pass", true, 0);
+
+        Assert.Equal(HttpStatusCode.OK, (await factory.CreateClient().SendAsync(Received(forgedId))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await factory.CreateClient().SendAsync(Received(awayId))).StatusCode);
+
+        var admin = await SignedInClientAsync();
+        var names = (await admin.GetFromJsonAsync<PagedResponse<ContactMessageSummary>>("/api/contact/messages?pageSize=50"))!.Items.Select(m => m.Name).ToList();
+        Assert.DoesNotContain(forged, names);
+        Assert.DoesNotContain(away, names);
+    }
+
+    [Fact]
+    public async Task Other_Resend_events_are_fine()
+    {
+        var sent = await factory.CreateClient().SendAsync(Received(Guid.NewGuid().ToString(), type: "email.delivered"));
+
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
     }
 
     [Fact]

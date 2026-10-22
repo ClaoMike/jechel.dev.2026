@@ -17,12 +17,12 @@ public static class PersonalEmails
         to,
         ReplySubject(subject),
         Html($"""
-            <p>Hi {Encode(name)},</p>
+            <p>{Encode(Greeting(name))}</p>
             {Paragraphs(text)}
             <p>Claudiu</p>
             <blockquote style="margin:24px 0 0;padding:8px 14px;border-left:3px solid #ccc;color:#666">{Paragraphs(original)}</blockquote>
             """),
-        $"Hi {name},\n\n{text}\n\nClaudiu\n\n> {original.Replace("\n", "\n> ")}",
+        $"{Greeting(name)}\n\n{text}\n\nClaudiu\n\n> {original.Replace("\n", "\n> ")}",
         ReplyTo: replyTo,
         InReplyTo: inReplyTo);
 
@@ -44,14 +44,17 @@ public static class PersonalEmails
             to,
             subject,
             Html($"""
-                <p>Hi {Encode(name)},</p>
+                <p>{Encode(Greeting(name))}</p>
                 {Paragraphs(text)}
                 <p>Claudiu</p>
                 <p style="color:#888;font-size:13px">{Encode(accepted ? $"The meeting is confirmed for {when}; Cal.com has sent the invitation." : $"The meeting on {when} won't go ahead.")}</p>
                 """),
-            $"Hi {name},\n\n{text}\n\nClaudiu\n\n{(accepted ? $"The meeting is confirmed for {when}; Cal.com has sent the invitation." : $"The meeting on {when} won't go ahead.")}",
+            $"{Greeting(name)}\n\n{text}\n\nClaudiu\n\n{(accepted ? $"The meeting is confirmed for {when}; Cal.com has sent the invitation." : $"The meeting on {when} won't go ahead.")}",
             ReplyTo: replyTo);
     }
+
+    /// <summary>"Hi Ada,", or just "Hi," when all there is of their name is their address (an email from someone new).</summary>
+    public static string Greeting(string name) => name.Trim().Length == 0 || name.Contains('@') ? "Hi," : $"Hi {name.Trim()},";
 
     /// <summary>"Tue 21 Oct, 14:30 (Europe/London)", in the attendee's time zone when it's known.</summary>
     public static string FormatWhen(DateTimeOffset start, string? timeZone)

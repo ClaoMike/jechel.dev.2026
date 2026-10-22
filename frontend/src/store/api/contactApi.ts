@@ -44,8 +44,10 @@ export const contactApi = baseApi.injectEndpoints({
     /** The inbox loads again: the next message moves up, and the total changes. */
     deleteMessage: build.mutation<void, number>({ queryFn: (id) => run(api.contact.deleteMessage(id)), invalidatesTags: ['Messages'] }),
 
+    /** The answer joins the open conversation at once; the inbox loads again, so it moves up with one more message. */
     replyToMessage: build.mutation<ContactReply, { id: number; text: string }>({
       queryFn: ({ id, text }) => run(api.contact.reply(id, text)),
+      invalidatesTags: (_, error) => (error ? [] : ['Messages']),
       onQueryStarted: ({ id }, { dispatch, queryFulfilled }) =>
         whenFulfilled(queryFulfilled, (reply) =>
           dispatch(

@@ -6,10 +6,13 @@ import { usePagedQuery } from '../../../store/usePagedQuery'
 
 export const PAGE_SIZE = 10
 
+/** Emails come in at any time: the inbox looks again every minute while it's open. */
+export const INBOX_REFRESH_MS = 60_000
+
 /** The page of messages (?page=N), the one that's open, and deleting. */
 export function useMessagesInboxViewModel() {
   const [page, goToPage] = usePageParam()
-  const { state, totalPages, retry } = usePagedQuery(useListMessagesQuery, { page, pageSize: PAGE_SIZE }, goToPage)
+  const { state, totalPages, retry } = usePagedQuery(useListMessagesQuery, { page, pageSize: PAGE_SIZE }, goToPage, { pollingInterval: INBOX_REFRESH_MS })
   const [open, setOpen] = useState<ContactMessageSummary | null>(null)
   const [deleteMessage] = useDeleteMessageMutation()
 

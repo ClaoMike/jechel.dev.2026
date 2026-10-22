@@ -850,6 +850,8 @@ someone new; kind *New message* in Notifications). Text only: what they quoted i
   still reach you, in your own inbox.
 - **Limits:** the contact form allows 10 messages every 10 minutes per address (`Contact:LimitPer10Minutes`).
 - **Deleting** a conversation (from the inbox) deletes every message in it.
+- **Live:** the inbox, and a conversation that's open, look again every minute (an email can come in at any time); sending an
+  answer reloads the inbox, so the conversation moves up with one more message.
 
 ```
  Visitor                                   API                                         You (admin)
@@ -869,6 +871,63 @@ someone new; kind *New message* in Notifications). Text only: what they quoted i
                                       unread again, on top                                  inbox: "Ada · 3 messages"
                                                                                               │ answer again
  ✉️ the next answer, same thread ◄───────────────────────────────────────────────────────────┘
+```
+
+How one conversation goes, end to end:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor V as Visitor (their mail app)
+  participant R as Resend (hello@, MX)
+  participant API as API (/api/contact)
+  participant DB as Postgres
+  actor A as You (Contact inbox)
+  participant P as Phone (ntfy)
+
+  alt the contact form
+    V->>API: POST /api/contact (10 per 10 min)
+  else an email to hello@
+    V->>R: email
+    R->>API: POST /inbound (email.received, signed)
+    API->>R: GET /emails/receiving/{id}
+  end
+  API->>DB: new conversation (name, subject, Message-ID)
+  API-)P: New message / New email from Ada
+  A->>API: open it (read), write an answer
+  API->>R: send from hello@: "Re: subject", In-Reply-To, their last words quoted
+  R->>V: the answer, in their thread
+  V->>R: Reply
+  R->>API: POST /inbound (signed)
+  API->>R: GET /emails/receiving/{id}
+  API->>DB: same thread (by their address): only their new text, unread, on top
+  API-)P: New reply from Ada
+  A->>API: the inbox looks again every minute: Ada · 3 messages
+```
+
+What happens to each email Resend reports (`InboundEmail.Receive`):
+
+```mermaid
+flowchart TD
+  hook["POST /api/contact/inbound"] --> secret{"Receiving secret set?"}
+  secret -- no --> e503["503: set it in Settings"]
+  secret -- yes --> sig{"Svix signature valid,<br/>within 5 minutes?"}
+  sig -- no --> e401["401"]
+  sig -- yes --> kind{"email.received,<br/>with an email id?"}
+  kind -- "another event" --> ok1["200, ignored"]
+  kind -- "no id / not JSON / over 256 KB" --> e400["400"]
+  kind -- yes --> to{"To, Cc, Bcc or forwarded<br/>to hello@?"}
+  to -- "no (updates@, others)" --> drop1["200, dropped"]
+  to -- yes --> seen{"This email id<br/>already kept?"}
+  seen -- yes --> ok2["200, kept once"]
+  seen -- no --> fetch["GET /emails/receiving/{id}"]
+  fetch -- "Resend fails" --> e502["502: Resend tries again"]
+  fetch --> person{"A sender, not hello@ itself;<br/>DMARC not failed;<br/>not an auto-reply?"}
+  person -- no --> drop2["200, dropped"]
+  person -- yes --> text["Their text only: quote, signature,<br/>'Sent from my iPhone' left out;<br/>attachments counted"]
+  text --> known{"A conversation with<br/>their address?"}
+  known -- yes --> reply["Reply in their latest one:<br/>unread, on top · 📱 New reply from …"]
+  known -- no --> start["New conversation, with its subject<br/>· 📱 New email from …"]
 ```
 
 ## Notifications (phone alerts, on or off)

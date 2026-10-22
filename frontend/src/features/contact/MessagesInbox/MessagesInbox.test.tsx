@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { page } from 'vitest/browser'
 import { THEMES } from '../../../layout/theme'
 import { api, ApiError, type ContactMessageDetails, type ContactReply } from '../../../services/api'
@@ -8,6 +8,7 @@ import { ADA, INBOX, pageOfMessages } from '../../../test/fixtures/contact'
 import { ADMIN, forever, renderView, textOf } from '../../../test/render'
 import { formatDateTime } from '../../../utils/formatDate'
 import { MessagesInbox } from './MessagesInbox'
+import { INBOX_REFRESH_MS } from './MessagesInbox.viewModel'
 
 // The admin's inbox: conversations, the latest first, and one opened: every message, who wrote it, and the next answer.
 
@@ -188,6 +189,65 @@ describe('a conversation, opened', () => {
     await conversation().getByRole('button', { name: 'Send reply' }).click()
     await expect.element(conversation().getByRole('alert')).toHaveTextContent('Write the reply first.')
     expect(calls.reply).not.toHaveBeenCalled()
+  })
+})
+
+describe('emails that come in while it is open', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('the inbox looks again every minute, so a new email shows up on top', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await show()
+    await expect.element(row('Ada')).toBeVisible()
+    const grace = { id: 3, name: 'Grace', receivedAt: '2026-10-22T09:00:00Z', isRead: false, lastActivityAt: '2026-10-22T09:00:00Z', count: 1 }
+    calls.list.mockResolvedValue(pageOfMessages([grace, ...INBOX]))
+
+    await vi.advanceTimersByTimeAsync(INBOX_REFRESH_MS)
+    vi.useRealTimers()
+
+    await expect.element(row('Grace')).toBeVisible()
+    expect(table().getByRole('row').elements()[1].textContent).toContain('Grace')
+  })
+
+  it('an open conversation shows their answer when it comes, and is marked read again', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await show()
+    await open()
+    const reply: ContactReply = { id: 12, text: 'Or Wednesday?', sentAt: '2026-10-22T09:45:00Z', fromVisitor: true }
+    calls.get.mockResolvedValue({ ...structuredClone(ADA), readAt: null, replies: [...ADA.replies, reply] })
+
+    await vi.advanceTimersByTimeAsync(INBOX_REFRESH_MS)
+    vi.useRealTimers()
+
+    await expect.poll(() => answers().elements().length).toBe(3)
+    expect(textOf(answers().last())).toContain('Or Wednesday?')
+    await expect.poll(() => calls.read.mock.calls.length).toBe(2)
+  })
+
+  it('after an answer is sent, the inbox loads again: the conversation moves up with one more message', async () => {
+    await show()
+    await open()
+    const before = calls.list.mock.calls.length
+
+    await conversation().getByRole('textbox', { name: 'Write to Ada again' }).fill('Tuesday it is.')
+    await conversation().getByRole('button', { name: 'Send reply' }).click()
+
+    await expect.poll(() => calls.list.mock.calls.length).toBeGreaterThan(before)
+  })
+
+  it("doesn't load the inbox again when the answer couldn't be sent", async () => {
+    calls.reply.mockRejectedValueOnce(new ApiError('/api/contact/messages/1/reply', 503))
+    await show()
+    await open()
+    const before = calls.list.mock.calls.length
+
+    await conversation().getByRole('textbox', { name: 'Write to Ada again' }).fill('Hello')
+    await conversation().getByRole('button', { name: 'Send reply' }).click()
+    await expect.element(conversation().getByRole('alert')).toBeVisible()
+
+    expect(calls.list.mock.calls.length).toBe(before)
   })
 })
 

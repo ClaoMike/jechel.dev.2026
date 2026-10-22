@@ -59,7 +59,10 @@ public class MeetingsEndpointTests(PortfolioApiFactory factory)
         var accept = await admin.PostAsJsonAsync($"/api/meetings/{meeting.Id}/accept", new MeetingDecisionRequest("See you then!"));
         Assert.Equal(HttpStatusCode.OK, accept.StatusCode);
         Assert.Contains($"confirm {uid}", factory.Cal.Calls);
-        Assert.Contains("See you then!", Assert.Single(factory.Emails.To(email)).Text);
+        var note = Assert.Single(factory.Emails.To(email));
+        Assert.Contains("See you then!", note.Text);
+        // The site receives email: their answer comes back to its address, into the Contact inbox.
+        Assert.Null(note.ReplyTo);
     }
 
     [Fact]

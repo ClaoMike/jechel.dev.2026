@@ -186,10 +186,11 @@ public static class ContactEndpoints
 
     /// <summary>
     /// Where a visitor's answer to the admin's email goes: to the sender (the site's address, where it joins the
-    /// conversation) once the site receives email; until then, to the admin's own address, so it isn't lost.
+    /// conversation) once the site receives email; until then, to the admin's own address, so it isn't lost. Resend's
+    /// shared onboarding@resend.dev receives nothing, so it never counts.
     /// </summary>
     public static string? ReplyToFor(Updates.EmailOptions email, Auth.AdminOptions admins) =>
-        email.IsReceiving && email.FromAddress.Length > 0 ? null : admins.AdminEmails.FirstOrDefault();
+        email.IsReceiving && email.FromAddress.Length > 0 && !email.FromAddress.EndsWith("@resend.dev", StringComparison.OrdinalIgnoreCase) ? null : admins.AdminEmails.FirstOrDefault();
 
     /// <summary>Idempotent: keeps the time it was first read.</summary>
     public static async Task<Results<NoContent, NotFound>> MarkAsRead(
