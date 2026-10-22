@@ -102,7 +102,12 @@ public static class MeetingsEndpoints
             db.Meetings.Add(meeting);
         }
         meeting.Title = Cut(booking.Title, 300) ?? "Meeting";
-        if (booking.Start is { } start) meeting.StartTime = start;
+        // A meeting moved to another time gets its reminders again.
+        if (booking.Start is { } start && start != meeting.StartTime)
+        {
+            meeting.RemindersSent = 0;
+            meeting.StartTime = start;
+        }
         if (booking.End is { } end) meeting.EndTime = end;
         meeting.AttendeeName = Cut(booking.AttendeeName, 200) ?? meeting.AttendeeName;
         meeting.AttendeeEmail = Cut(booking.AttendeeEmail, 320) ?? meeting.AttendeeEmail;
@@ -186,7 +191,8 @@ public static class MeetingsEndpoints
             "BOOKING_REJECTED" => MeetingStatus.Declined,
             _ => null,
         };
-        var notes = payload["responses"]?["notes"] is JsonObject notesField ? Text(notesField["value"]) : Text(payload["responses"]?["notes"]) ?? Text(payload["additionalNotes"]);
+        var responses = payload["responses"] as JsonObject;
+        var notes = responses?["notes"] is JsonObject notesField ? Text(notesField["value"]) : Text(responses?["notes"]) ?? Text(payload["additionalNotes"]);
 
         return new CalBooking(
             Text(payload["uid"]),
