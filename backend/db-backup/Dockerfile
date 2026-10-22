@@ -5,6 +5,6 @@ FROM postgres:16-alpine
 RUN apk add --no-cache curl
 COPY backup.sh restore.sh /backup/
 RUN chmod +x /backup/*.sh
-USER postgres
+# Root, so it can write to a freshly mounted volume (owned by root); it's alone in its container.
 ENTRYPOINT []
 CMD ["/backup/backup.sh"]

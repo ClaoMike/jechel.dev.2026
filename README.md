@@ -1399,7 +1399,7 @@ after an intended visual change (after `npm run test:update` locally), then re-r
 | `/api/*` on the site | A Pages Function (`frontend/functions/api/[[path]].ts`) | Deployed with the site. Forwards to the API |
 | API | Sliplane (Germany), one €9 server (1 vCPU, 1 GB): the image from `backend/Dockerfile` | Built in `deploy.yml`, pushed to the GitHub container registry, run through Sliplane's deploy hook |
 | Database | PostgreSQL 16 on the same server, on a Sliplane volume | Migrations run when the API starts (`appsettings.Production.json`) |
-| Backups | A third service on the server (`backend/db-backup/`): `pg_dump` every night to Sliplane's object storage | Built and deployed with the API |
+| Backups | A third service on the server (`backend/db-backup/`): `pg_dump` every night to a volume Sliplane copies off the server daily | Built and deployed with the API |
 
 ```mermaid
 flowchart LR
@@ -1411,7 +1411,7 @@ flowchart LR
     api["api (public)<br/>PORT 8080, health /api/health"] --> db[("db: postgres:16-alpine<br/>db-….internal, a volume")]
     backup["backup (private)<br/>03:00 UTC: pg_dump"] --> db
   end
-  backup -- "mon.dump … sun.dump" --> s3[("Sliplane object storage")]
+  backup -- "mon.dump … sun.dump" --> vol[("backups volume<br/>copied off the server daily")]
   backup -. "fails: 📱" .-> ntfy["ntfy"]
   images --> wait["wait until /api/health says<br/>X-App-Version = the commit"] --> pages["Cloudflare Pages: the site"]
   visitor["Visitor"] --> pages -- "/api/* + proxy secret" --> api
@@ -1448,16 +1448,20 @@ sign-in alerts and device list.
 ### Backups
 
 `backend/db-backup/` is a `postgres:16-alpine` image with two scripts. `backup.sh` dumps the database every night at
-`BACKUP_HOUR` (UTC, default 3) with `pg_dump --format=custom` and uploads it with `curl --aws-sigv4` as
-`<prefix><weekday>.dump`: seven files, each night replacing last week's, so the last seven days are always there. A
-failure rings the phone (`NTFY_URL`, `NTFY_TOKEN`), and the service keeps going. `RUN_NOW=1` takes one as it starts.
-Sliplane also backs up the volume daily, but a running database's files can be caught mid-write: the dump is the
-one to restore from.
+`BACKUP_HOUR` (UTC, default 3) with `pg_dump --format=custom` as `<weekday>.dump`: seven files, each night replacing last
+week's, so the last seven days are always there. They go into `BACKUP_DIR`, a volume on the server (written next to the
+old one and moved into place, so a copy of the folder never holds half a dump), which Sliplane copies off the server
+every day and keeps for 7 days. That costs nothing extra; Sliplane's object storage (the `S3_*` settings, uploaded with
+`curl --aws-sigv4`) also works, for €5 a month. Sliplane's daily copy of the database's own volume can catch it
+mid-write; a finished dump can't be. A failure rings the phone (`NTFY_URL`, `NTFY_TOKEN`), and the service keeps going.
+`RUN_NOW=1` takes one as it starts.
 
 **Restoring:** set the backup service's **Override CMD** to `/backup/restore.sh wed` (the day to go back to) and deploy it:
-it downloads `wed.dump` and restores it over the database (`pg_restore --clean --single-transaction`), then waits. Set the
-CMD back to empty and deploy again. Tried end to end with a Postgres 16 container and an S3 stand-in (RustFS): dump,
-upload, change the data, restore, the data is back; a wrong password rings ntfy with the token.
+it restores `wed.dump` over the database (`pg_restore --clean --single-transaction`), then waits. Set the CMD back to
+empty and deploy again. To go back further than a week, restore an older copy of the backups volume in Sliplane first
+(it comes back as a new volume: attach it to the backup service), then run the same. Tried end to end against a
+Postgres 16 container, with a volume and with an S3 stand-in (RustFS): dump, change the data, restore, the data is
+back; a wrong password rings ntfy with the token.
 
 ### Setting up Sliplane (once)
 
@@ -1472,15 +1476,14 @@ upload, change the data, restore, the data is back; a wrong password rings ntfy 
 4. **api:** Deploy service → Registry → `ghcr.io/claomike/jechel-api:<a commit>`, **Expose Service** on (HTTP), health
    check route `/api/health`, and the environment below. Copy its address (`https://….sliplane.app`) and its
    **Deploy hook** URL.
-5. **Object storage:** create a bucket (region `ger`) and an access key for it.
-6. **backup:** Deploy service → Registry → `ghcr.io/claomike/jechel-backup:<a commit>`, **Expose Service** off, with
-   `POSTGRES_HOST=<the db's internal endpoint>`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` (as the db's), `S3_ENDPOINT`,
-   `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (from step 5), and `NTFY_URL=https://ntfy.sh/<your topic>`.
-   Deploy it once with `RUN_NOW=1` to check a dump lands in the bucket, then remove it. Copy its **Deploy hook** URL.
-7. **GitHub** (Settings → Secrets and variables → Actions): secrets `SLIPLANE_API_DEPLOY_HOOK`,
+5. **backup:** Deploy service → Registry → `ghcr.io/claomike/jechel-backup:<a commit>`, **Expose Service** off, a volume
+   mounted at `/backups`, and `BACKUP_DIR=/backups`, `POSTGRES_HOST=<the db's internal endpoint>`, `POSTGRES_DB`,
+   `POSTGRES_USER`, `POSTGRES_PASSWORD` (as the db's), `NTFY_URL=https://ntfy.sh/<your topic>`. Deploy it once with
+   `RUN_NOW=1` to check `Backed up as /backups/<day>.dump` in its logs, then remove it. Copy its **Deploy hook** URL.
+6. **GitHub** (Settings → Secrets and variables → Actions): secrets `SLIPLANE_API_DEPLOY_HOOK`,
    `SLIPLANE_BACKUP_DEPLOY_HOOK`, `CLOUDFLARE_API_TOKEN` (permission: Cloudflare Pages, Edit), `CLOUDFLARE_ACCOUNT_ID`;
    variables `API_URL` (the api service's address from step 4) and `CLOUDFLARE_PAGES_PROJECT`.
-8. **Cloudflare Pages** (Settings → Variables and secrets, Production): `API_ORIGIN` (the same address) and `PROXY_SECRET`.
+7. **Cloudflare Pages** (Settings → Variables and secrets, Production): `API_ORIGIN` (the same address) and `PROXY_SECRET`.
 
 ### Settings in production
 
