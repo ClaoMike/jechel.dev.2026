@@ -1043,6 +1043,8 @@ and each feature that needs setting up once live (Buy me a coffee, Get updates) 
 off**, so going live shows nothing half-finished: switch each part on once it's ready. (The E2E tests and the integration tests
 start with everything on: `Site:PagesVisibleByDefault`.)
 
+**Buy me a coffee** needs its page link too (Settings → Buy Me a Coffee → Page link): switched on without one, visitors get no button, and the switch says so.
+
 - A page that's off is gone from visitors' tabs, and its link leads to the first page that's on, or **Coming soon** when none is.
   You always see every page; hidden ones have an eye-off mark in the tabs.
 - A feature that's off is off for everyone: its button goes, and the API agrees (`/api/support` answers `""`, subscribing answers 404). The page data APIs stay public: hiding a page is about what's ready, not about secrecy.

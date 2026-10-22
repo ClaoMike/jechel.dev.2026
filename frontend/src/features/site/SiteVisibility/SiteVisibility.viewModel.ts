@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { SITE_FEATURES, SITE_PAGES, type SaveSiteRequest, type SiteFeature, type SitePage } from '../../../services/api'
 import { useAppDispatch, useAppSelector } from '../../../store'
+import { useGetSupportQuery } from '../../../store/api/communityApi'
 import { fetchSite, saveSite } from '../../../store/siteSlice'
 
 const PAGE_LABELS: Record<SitePage, string> = { whatsNew: "What's new?", apps: 'Apps', youtube: 'YouTube', about: 'About Me', contact: 'Contact' }
@@ -14,7 +15,12 @@ export interface SwitchItem {
   on: boolean
   busy: boolean
   toggle: () => void
+  /** Why it doesn't show yet although it's on, and what to do. */
+  note?: string
 }
+
+/** Buy me a coffee, on, needs its page link too: until then visitors get no button. */
+const NO_COFFEE_LINK = 'Visitors don\'t see the button yet: it needs a page link (Buy Me a Coffee, below).'
 
 export function useSiteVisibilityViewModel() {
   const id = useId()
@@ -24,6 +30,8 @@ export function useSiteVisibilityViewModel() {
   const [error, setError] = useState('')
   // Null: the saved message, as long as nothing's been typed.
   const [message, setMessage] = useState<string | null>(null)
+  // The same answer the header's button uses (asked again when the switch or the link changes): "" means no button.
+  const support = useGetSupportQuery()
 
   async function save(key: string, changes: SaveSiteRequest) {
     setSaving(key)
@@ -58,7 +66,11 @@ export function useSiteVisibilityViewModel() {
     status: 'loaded' as const,
     allPagesOff: SITE_PAGES.every((page) => !site.pages[page]),
     pages: SITE_PAGES.map((page) => item(page, PAGE_LABELS[page], site.pages[page], (on) => ({ pages: { [page]: on } }))),
-    features: SITE_FEATURES.map((feature) => item(feature, FEATURE_LABELS[feature], site.features[feature], (on) => ({ features: { [feature]: on } }))),
+    features: SITE_FEATURES.map((feature) => {
+      const switched = item(feature, FEATURE_LABELS[feature], site.features[feature], (on) => ({ features: { [feature]: on } }))
+      const noLink = feature === 'coffee' && switched.on && !support.isFetching && support.data?.url === ''
+      return noLink ? { ...switched, note: NO_COFFEE_LINK } : switched
+    }),
     maintenance: item('maintenance', 'Under maintenance', site.maintenance, (on) => ({ maintenance: on })),
     draftMessage,
     setMessage,
