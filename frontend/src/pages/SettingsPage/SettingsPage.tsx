@@ -177,12 +177,27 @@ function Connections() {
           links={[
             ['API keys', 'https://resend.com/api-keys'],
             ['Domains', 'https://resend.com/domains'],
+            ['Webhooks', 'https://resend.com/webhooks'],
           ]}
           test={{ service: 'email', label: 'Send me a test email' }}
         >
           {field('Email:ResendApiKey')}
           {field('Email:From', { placeholder: 'Claudiu from jechel.dev <hello@jechel.dev>' })}
           {field('Email:UpdatesFrom', { placeholder: 'jechel.dev <updates@jechel.dev>' })}
+          <details className="settings-more">
+            <summary>Receiving email</summary>
+            <Steps>
+              <li>
+                In <strong>Domains</strong>, open your domain, turn on <strong>Receiving</strong>, and add its MX record at Porkbun.
+              </li>
+              <li>
+                In <strong>Webhooks</strong>, add this link for <strong>email.received</strong>:
+                <Copyable value={`${data.siteUrl}/api/contact/inbound`} />
+              </li>
+              <li>Paste its signing secret below. Emails to the sender's address then land in Contact.</li>
+            </Steps>
+            {field('Email:InboundWebhookSecret')}
+          </details>
         </ServiceCard>
 
         <ServiceCard

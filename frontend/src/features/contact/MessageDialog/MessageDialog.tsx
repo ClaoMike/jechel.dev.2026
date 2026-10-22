@@ -42,6 +42,7 @@ export function MessageDialog(props: MessageDialogProps) {
           <DetailRow label="Name" value={state.data.name} />
           <DetailRow label="Email" value={state.data.email} href={`mailto:${state.data.email}`} />
           <DetailRow label="Received" value={formatDateTime(state.data.receivedAt)} />
+          {state.data.subject && <DetailRow label="Subject" value={state.data.subject} />}
           <DetailRow label="Message" value={state.data.message} multiline />
         </dl>
       )}
@@ -94,8 +95,8 @@ function DetailRow({ label, value, href, multiline = false }: DetailRowProps) {
 }
 
 /**
- * The conversation after their first message, oldest first: your answers (emailed to them, with a link to write
- * back) and what they wrote back on that page. Then a box for the next answer.
+ * The conversation after their first message, oldest first: your answers (emailed to them, from the site's address)
+ * and what they emailed back. Then a box for the next answer.
  */
 function Replies({ messageId, name, replies }: { messageId: number; name: string; replies: ContactReply[] }) {
   const vm = useRepliesViewModel(messageId)
@@ -134,7 +135,7 @@ function Replies({ messageId, name, replies }: { messageId: number; name: string
             </p>
           ) : (
             <p id={`${id}-hint`} className="field-hint">
-              Emailed to them with a link to write back here.
+              Emailed to them: their answer lands here.
             </p>
           )}
         </div>

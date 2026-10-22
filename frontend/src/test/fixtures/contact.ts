@@ -1,4 +1,4 @@
-import type { ContactMessageDetails, ContactMessageSummary, Conversation, Page } from '../../services/api'
+import type { ContactMessageDetails, ContactMessageSummary, Page } from '../../services/api'
 
 const LONG = 'Hello Claudiu! I played the Space Game and loved the lighthouse level. Could we talk about how you built the beam? Thanks!'
 
@@ -26,15 +26,3 @@ export const ADA: ContactMessageDetails = {
   ],
   meetings: [],
 }
-
-/** The same conversation, as Ada's page shows it. */
-export const ADA_CONVERSATION: Conversation = {
-  name: 'Ada',
-  messages: [
-    { text: LONG, at: '2026-10-20T09:00:00Z', fromVisitor: true },
-    { text: 'Thanks Ada! Happy to. When suits you?', at: '2026-10-21T10:00:00Z', fromVisitor: false },
-    { text: 'Tuesday at 10?', at: '2026-10-22T08:30:00Z', fromVisitor: true },
-  ],
-}
-
-export const CONVERSATION_TOKEN = 'k8Jx2mQp9Rz4Lw7Nv3Bt6Yc1Hd5Fs0Ga8Ue2Io4PqXy'

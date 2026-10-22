@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Contact;
+using Portfolio.Api.Features.Updates;
 using Portfolio.Api.UnitTests.Features.Alerts;
 
 namespace Portfolio.Api.UnitTests.Features.Contact;
@@ -18,8 +19,9 @@ public class ContactEndpointsTests
         .Options);
 
     private static readonly string LongMessage = new('m', ContactRules.MessageMinLength);
-    private static readonly Microsoft.Extensions.Options.IOptions<Portfolio.Api.Features.Alerts.SiteOptions> Site =
-        Microsoft.Extensions.Options.Options.Create(new Portfolio.Api.Features.Alerts.SiteOptions { PublicUrl = "https://jechel.dev" });
+    // Not receiving email yet: answers ask to reply to the admin's own address.
+    private static readonly TestOptions<EmailOptions> NotReceiving = TestOptions.Monitor(new EmailOptions { From = "Claudiu <hello@jechel.dev>" });
+    private static readonly TestOptions<EmailOptions> Receiving = TestOptions.Monitor(new EmailOptions { From = "Claudiu <hello@jechel.dev>", InboundWebhookSecret = "whsec_c2VjcmV0" });
 
     private ContactMessage Seed(string name, DateTimeOffset receivedAt, DateTimeOffset? readAt = null)
     {
@@ -30,7 +32,6 @@ public class ContactEndpointsTests
             Message = LongMessage,
             ReceivedAt = receivedAt,
             ReadAt = readAt,
-            Token = $"token-{name}",
             LastActivityAt = receivedAt,
         };
         _db.ContactMessages.Add(message);
@@ -165,7 +166,7 @@ public class ContactEndpointsTests
         var emails = new Updates.FakeEmailSender();
         var admins = TestOptions.Monitor(new Portfolio.Api.Features.Auth.AdminOptions { AdminEmails = ["me@example.com"] });
 
-        var result = await ContactEndpoints.Reply(seeded.Id, new ReplyRequest("  Thanks, let's talk!  "), _db, emails, admins, Site, _time, CancellationToken.None);
+        var result = await ContactEndpoints.Reply(seeded.Id, new ReplyRequest("  Thanks, let's talk!  "), _db, emails, admins, NotReceiving, _time, CancellationToken.None);
 
         Assert.IsType<Ok<ContactReplyDto>>(result.Result);
         var email = Assert.Single(emails.Sent);
@@ -184,9 +185,9 @@ public class ContactEndpointsTests
         var emails = new Updates.FakeEmailSender();
         var admins = TestOptions.Monitor(new Portfolio.Api.Features.Auth.AdminOptions());
 
-        Assert.IsType<ValidationProblem>((await ContactEndpoints.Reply(seeded.Id, new ReplyRequest(" "), _db, emails, admins, Site, _time, CancellationToken.None)).Result);
+        Assert.IsType<ValidationProblem>((await ContactEndpoints.Reply(seeded.Id, new ReplyRequest(" "), _db, emails, admins, NotReceiving, _time, CancellationToken.None)).Result);
         emails.FailWith = new Portfolio.Api.Features.Settings.ServiceException("Resend refused it: domain not verified");
-        var failed = await ContactEndpoints.Reply(seeded.Id, new ReplyRequest("Hi"), _db, emails, admins, Site, _time, CancellationToken.None);
+        var failed = await ContactEndpoints.Reply(seeded.Id, new ReplyRequest("Hi"), _db, emails, admins, NotReceiving, _time, CancellationToken.None);
 
         var problem = Assert.IsType<ProblemHttpResult>(failed.Result);
         Assert.Equal(503, problem.StatusCode);
@@ -198,29 +199,27 @@ public class ContactEndpointsTests
 
     private static readonly Portfolio.Api.Features.Auth.AdminOptions Admin = new() { AdminEmails = ["me@example.com"] };
 
-    private async Task<ContactReplyDto> Answer(ContactMessage message, string text, Updates.FakeEmailSender? emails = null) =>
-        Assert.IsType<Ok<ContactReplyDto>>((await ContactEndpoints.Reply(message.Id, new ReplyRequest(text), _db, emails ?? new Updates.FakeEmailSender(), TestOptions.Monitor(Admin), Site, _time, default)).Result).Value!;
+    private async Task<ContactReplyDto> Answer(ContactMessage message, string text, Updates.FakeEmailSender? emails = null, TestOptions<EmailOptions>? email = null) =>
+        Assert.IsType<Ok<ContactReplyDto>>((await ContactEndpoints.Reply(message.Id, new ReplyRequest(text), _db, emails ?? new Updates.FakeEmailSender(), TestOptions.Monitor(Admin), email ?? Receiving, _time, default)).Result).Value!;
 
-    private async Task<ConversationDto> WriteBack(string token, string text) =>
-        Assert.IsType<Ok<ConversationDto>>((await ContactEndpoints.WriteBack(token, new ReplyRequest(text), _db, _alerts, _time, default)).Result).Value!;
-
-    private async Task<ConversationDto> Conversation(string token) =>
-        Assert.IsType<Ok<ConversationDto>>((await ContactEndpoints.GetConversation(token, _db, default)).Result).Value!;
-
-    [Fact]
-    public async Task A_new_message_gets_its_own_long_random_link_and_starts_the_conversation()
+    /// <summary>The visitor's emailed answer, as <see cref="InboundEmail"/> keeps it.</summary>
+    private void TheyWrite(ContactMessage message, string text, string? messageId = null)
     {
-        await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "ada@example.com", LongMessage), _db, _time, _alerts, default);
-        await ContactEndpoints.SendMessage(new SendMessageRequest("Bob", "bob@example.com", LongMessage), _db, _time, _alerts, default);
-
-        var stored = _db.ContactMessages.OrderBy(m => m.Id).ToList();
-        Assert.All(stored, m => Assert.Matches("^[A-Za-z0-9_-]{43}$", m.Token));
-        Assert.NotEqual(stored[0].Token, stored[1].Token);
-        Assert.All(stored, m => Assert.Equal(Now, m.LastActivityAt));
+        _db.ContactReplies.Add(new ContactReply { MessageId = message.Id, Text = text, SentAt = _time.GetUtcNow(), FromVisitor = true, EmailMessageId = messageId });
+        _db.SaveChanges();
     }
 
     [Fact]
-    public async Task The_answer_email_has_a_button_to_the_conversation_and_still_reaches_the_admin_if_answered()
+    public async Task A_new_message_starts_a_conversation()
+    {
+        await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "ada@example.com", LongMessage), _db, _time, _alerts, default);
+
+        var stored = _db.ContactMessages.Single();
+        Assert.Equal((Now, (string?)null, (string?)null), (stored.LastActivityAt, stored.Subject, stored.EmailId));
+    }
+
+    [Fact]
+    public async Task Once_the_site_receives_email_the_answer_is_replied_to_at_the_site_s_address_with_no_link()
     {
         var message = Seed("Ada", Now);
         var emails = new Updates.FakeEmailSender();
@@ -228,46 +227,56 @@ public class ContactEndpointsTests
         await Answer(message, "Thanks, let's talk!", emails);
 
         var email = Assert.Single(emails.Sent);
-        Assert.Contains(">Reply on jechel.dev</a>", email.Html);
-        Assert.Contains("href=\"https://jechel.dev/contact/conversation?token=token-Ada\"", email.Html);
-        Assert.Contains("Reply on jechel.dev: https://jechel.dev/contact/conversation?token=token-Ada", email.Text);
-        Assert.Equal("me@example.com", email.ReplyTo);
+        // No Reply-To: their answer goes to the sender, hello@, and lands in the conversation.
+        Assert.Null(email.ReplyTo);
+        Assert.Equal(Portfolio.Api.Features.Meetings.PersonalEmails.DefaultSubject, email.Subject);
+        Assert.DoesNotContain("http", email.Text);
+        Assert.DoesNotContain("<a ", email.Html);
         Assert.False(email.FromUpdates);
     }
 
     [Fact]
-    public async Task The_visitor_reads_the_whole_conversation_with_the_link_their_name_but_not_their_address()
+    public async Task Until_the_site_receives_email_the_answer_asks_them_to_reply_to_the_admin()
     {
         var message = Seed("Ada", Now);
-        _time.Advance(TimeSpan.FromMinutes(5));
-        await Answer(message, "Hi Ada!");
+        var emails = new Updates.FakeEmailSender();
 
-        var conversation = await Conversation("token-Ada");
+        await Answer(message, "Hi", emails, NotReceiving);
+        await Answer(message, "Hi", emails, TestOptions.Monitor(new EmailOptions { InboundWebhookSecret = "whsec_c2VjcmV0", From = "not an address" }));
 
-        Assert.Equal("Ada", conversation.Name);
-        Assert.Equal([(LongMessage, Now, true), ("Hi Ada!", Now.AddMinutes(5), false)], conversation.Messages.Select(m => (m.Text, m.At, m.FromVisitor)));
-        Assert.DoesNotContain("@", System.Text.Json.JsonSerializer.Serialize(conversation));
+        Assert.All(emails.Sent, e => Assert.Equal("me@example.com", e.ReplyTo));
     }
 
     [Fact]
-    public async Task Writing_back_keeps_it_in_the_thread_makes_it_unread_and_newest_and_rings_the_phone()
+    public async Task An_answer_to_a_conversation_started_by_email_keeps_its_subject_and_thread()
     {
-        var older = Seed("Ada", Now, readAt: Now);
-        _time.Advance(TimeSpan.FromHours(1));
-        Seed("Bob", _time.GetUtcNow());
-        _time.Advance(TimeSpan.FromHours(1));
+        var message = Seed("Ada", Now);
+        message.Subject = "Website question";
+        message.EmailMessageId = "<first@mail.example.com>";
+        _db.SaveChanges();
+        var emails = new Updates.FakeEmailSender();
 
-        var conversation = await WriteBack("token-Ada", "  Sounds good, Tuesday?  ");
+        await Answer(message, "Happy to help", emails);
+        TheyWrite(message, "Great, Tuesday?", "<second@mail.example.com>");
+        await Answer(message, "Tuesday it is", emails);
 
-        Assert.Equal(("Sounds good, Tuesday?", true), (conversation.Messages[^1].Text, conversation.Messages[^1].FromVisitor));
-        var stored = _db.ContactMessages.Single(m => m.Id == older.Id);
-        Assert.Null(stored.ReadAt);
-        Assert.Equal(Now.AddHours(2), stored.LastActivityAt);
-        var inbox = (await ContactEndpoints.ListMessages(_db, default)).Value!.Items;
-        Assert.Equal(["Ada", "Bob"], inbox.Select(m => m.Name));
-        Assert.Equal((false, 2), (inbox[0].IsRead, inbox[0].Count));
-        var alert = Assert.Single(_alerts.Sent);
-        Assert.Equal(("New reply from Ada", "Sounds good, Tuesday?", "/contact", Portfolio.Api.Features.Alerts.AlertKinds.Message), (alert.Title, alert.Message, alert.Path, alert.Kind));
+        Assert.Equal(["Re: Website question", "Re: Website question"], emails.Sent.Select(e => e.Subject));
+        Assert.Equal(["<first@mail.example.com>", "<second@mail.example.com>"], emails.Sent.Select(e => e.InReplyTo));
+        Assert.Contains("> Great, Tuesday?", emails.Sent[1].Text);
+        Assert.Equal("Website question", Assert.IsType<Ok<ContactMessageDetails>>((await ContactEndpoints.GetMessage(message.Id, _db, default)).Result).Value!.Subject);
+    }
+
+    [Fact]
+    public async Task An_answer_to_the_form_has_no_thread_until_they_email_back()
+    {
+        var message = Seed("Ada", Now);
+        var emails = new Updates.FakeEmailSender();
+
+        await Answer(message, "First", emails);
+        TheyWrite(message, "Reply without an id");
+        await Answer(message, "Second", emails);
+
+        Assert.All(emails.Sent, e => Assert.Null(e.InReplyTo));
     }
 
     [Fact]
@@ -277,7 +286,7 @@ public class ContactEndpointsTests
         _time.Advance(TimeSpan.FromMinutes(1));
         await Answer(message, "First answer");
         _time.Advance(TimeSpan.FromMinutes(1));
-        await WriteBack("token-Ada", "Their follow-up");
+        TheyWrite(message, "Their follow-up");
         _time.Advance(TimeSpan.FromMinutes(1));
         var emails = new Updates.FakeEmailSender();
         await Answer(message, "Second answer", emails);
@@ -289,74 +298,15 @@ public class ContactEndpointsTests
         Assert.Equal(Now.AddMinutes(3), _db.ContactMessages.Single().LastActivityAt);
     }
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task Writing_back_needs_some_words(string text)
-    {
-        Seed("Ada", Now);
-
-        var result = await ContactEndpoints.WriteBack("token-Ada", new ReplyRequest(text), _db, _alerts, _time, default);
-
-        Assert.Equal("Write your message first.", Assert.Single(Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors["text"]));
-        Assert.Empty(_db.ContactReplies);
-        Assert.Empty(_alerts.Sent);
-    }
-
     [Fact]
-    public async Task Writing_back_is_kept_to_2000_characters()
-    {
-        Seed("Ada", Now);
-
-        var tooLong = await ContactEndpoints.WriteBack("token-Ada", new ReplyRequest(new string('x', ContactEndpoints.WriteBackMaxLength + 1)), _db, _alerts, _time, default);
-        var justRight = await ContactEndpoints.WriteBack("token-Ada", new ReplyRequest(new string('x', ContactEndpoints.WriteBackMaxLength)), _db, _alerts, _time, default);
-
-        Assert.IsType<ValidationProblem>(tooLong.Result);
-        Assert.IsType<Ok<ConversationDto>>(justRight.Result);
-    }
-
-    [Theory]
-    [InlineData("nope")]
-    [InlineData("")]
-    [InlineData("token-Ad")]
-    public async Task A_link_that_matches_no_conversation_finds_nothing_and_writes_nothing(string token)
-    {
-        Seed("Ada", Now);
-
-        Assert.IsType<NotFound>((await ContactEndpoints.GetConversation(token, _db, default)).Result);
-        Assert.IsType<NotFound>((await ContactEndpoints.WriteBack(token, new ReplyRequest("Hello"), _db, _alerts, _time, default)).Result);
-        Assert.Empty(_db.ContactReplies);
-    }
-
-    [Fact]
-    public async Task A_link_longer_than_any_real_one_isnt_looked_up_and_spaces_around_one_are_fine()
-    {
-        Seed("Ada", Now);
-
-        Assert.IsType<NotFound>((await ContactEndpoints.GetConversation("token-Ada" + new string('x', 100), _db, default)).Result);
-        Assert.IsType<Ok<ConversationDto>>((await ContactEndpoints.GetConversation(" token-Ada ", _db, default)).Result);
-    }
-
-    [Fact]
-    public async Task Once_the_admin_deletes_it_the_link_finds_nothing()
+    public async Task Deleting_a_conversation_deletes_every_message_in_it()
     {
         var message = Seed("Ada", Now);
-        await WriteBack("token-Ada", "Still there?");
+        await Answer(message, "Hi");
+        TheyWrite(message, "Hello");
 
         await ContactEndpoints.DeleteMessage(message.Id, _db, default);
 
-        Assert.IsType<NotFound>((await ContactEndpoints.GetConversation("token-Ada", _db, default)).Result);
-    }
-
-    [Fact]
-    public async Task One_conversations_link_never_shows_or_writes_in_another()
-    {
-        Seed("Ada", Now);
-        Seed("Bob", Now);
-
-        await WriteBack("token-Bob", "Bob here");
-
-        Assert.Single((await Conversation("token-Ada")).Messages);
-        Assert.Equal(["Bob here"], (await Conversation("token-Bob")).Messages.Skip(1).Select(m => m.Text));
+        Assert.Empty(_db.ContactReplies);
     }
 }

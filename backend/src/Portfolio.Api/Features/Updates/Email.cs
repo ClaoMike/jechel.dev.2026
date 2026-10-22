@@ -7,10 +7,11 @@ using Portfolio.Api.Features.Settings;
 namespace Portfolio.Api.Features.Updates;
 
 /// <param name="UnsubscribeUrl">Sent as List-Unsubscribe (one click, RFC 8058), which Gmail and Yahoo require for bulk mail. Optional.</param>
-/// <param name="ReplyTo">Where answers go, e.g. the admin's own address for a reply to a contact message. Optional.</param>
+/// <param name="ReplyTo">Where answers go, when not to the sender. Optional.</param>
 /// <param name="FromUpdates">An email to subscribers: sent from <see cref="EmailOptions.UpdatesFrom"/> (when set), an address that takes no replies.</param>
 /// <param name="Images">Pictures sent inside the email, shown by the HTML as <c>cid:</c> + their id: they show without the mail app fetching anything.</param>
-public record EmailMessage(string To, string Subject, string Html, string Text, string? UnsubscribeUrl = null, string? ReplyTo = null, bool FromUpdates = false, IReadOnlyList<InlineImage>? Images = null);
+/// <param name="InReplyTo">The Message-ID of the email this answers: their mail app shows both in one thread. Optional.</param>
+public record EmailMessage(string To, string Subject, string Html, string Text, string? UnsubscribeUrl = null, string? ReplyTo = null, bool FromUpdates = false, IReadOnlyList<InlineImage>? Images = null, string? InReplyTo = null);
 
 /// <summary>A picture inside an email: the HTML shows it as <c>cid:{ContentId}</c>.</summary>
 public record InlineImage(string ContentId, string FileName, string ContentType, byte[] Content);
@@ -40,6 +41,17 @@ public class EmailOptions
     /// an address with no mailbox, so replies go nowhere, while <see cref="From"/> can be one people answer. Empty: <see cref="From"/>.
     /// </summary>
     public string UpdatesFrom { get; set; } = "";
+
+    /// <summary>
+    /// The signing secret ("whsec_…") of the Resend webhook that reports emails received at <see cref="From"/>'s
+    /// address. Until it's set, nothing is received, and answers to visitors ask them to reply to the admin's own address.
+    /// </summary>
+    public string InboundWebhookSecret { get; set; } = "";
+
+    public bool IsReceiving => InboundWebhookSecret.Trim().Length > 0;
+
+    /// <summary>The address in <see cref="From"/>, e.g. "hello@jechel.dev": emails to it land in the Contact inbox.</summary>
+    public string FromAddress => System.Net.Mail.MailAddress.TryCreate(From.Trim(), out var address) ? address.Address : "";
 
     /// <summary>Who <paramref name="message"/> is from.</summary>
     public string SenderOf(EmailMessage message) => message.FromUpdates && UpdatesFrom.Trim() is { Length: > 0 } updates ? updates : From;
@@ -73,9 +85,18 @@ public class ResendEmailSender(HttpClient http, IOptionsMonitor<EmailOptions> op
                 ["content_id"] = i.ContentId,
             }).ToArray();
         }
-        // A new id for every email, so Gmail never stacks it in one conversation with an earlier one of the same subject
-        // (a test confirmation and the real one, say), where the older message's button is easy to press by mistake.
-        var headers = new Dictionary<string, string> { ["X-Entity-Ref-ID"] = Guid.NewGuid().ToString("N") };
+        var headers = new Dictionary<string, string>();
+        if (message.InReplyTo is { Length: > 0 } inReplyTo)
+        {
+            headers["In-Reply-To"] = inReplyTo;
+            headers["References"] = inReplyTo;
+        }
+        else
+        {
+            // A new id for every other email, so Gmail never stacks it in one conversation with an earlier one of the same subject
+            // (a test confirmation and the real one, say), where the older message's button is easy to press by mistake.
+            headers["X-Entity-Ref-ID"] = Guid.NewGuid().ToString("N");
+        }
         if (message.UnsubscribeUrl is { } unsubscribe)
         {
             headers["List-Unsubscribe"] = $"<{unsubscribe}>";

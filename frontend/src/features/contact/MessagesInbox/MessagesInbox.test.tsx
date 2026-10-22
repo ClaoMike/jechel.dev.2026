@@ -123,6 +123,20 @@ describe('a conversation, opened', () => {
     expect(textOf(answers().nth(1))).toContain(formatDateTime('2026-10-22T08:30:00Z'))
   })
 
+  it("shows the email's subject when the conversation started by email, and none for the form", async () => {
+    calls.get.mockResolvedValueOnce({ ...structuredClone(ADA), subject: 'A question about the beam' })
+    const first = await show()
+    await open()
+    const subject = dialog().getByRole('term').filter({ hasText: 'Subject' })
+    await expect.element(subject).toBeVisible()
+    expect(textOf(dialog())).toContain('A question about the beam')
+    await first.unmount()
+
+    await show()
+    await open()
+    expect(dialog().getByRole('term').filter({ hasText: 'Subject' }).query()).toBeNull()
+  })
+
   it('marks it read once it is open', async () => {
     await show()
     await open()
@@ -133,7 +147,7 @@ describe('a conversation, opened', () => {
     await show()
     await open()
     const box = conversation().getByRole('textbox', { name: 'Write to Ada again' })
-    await expect.element(box).toHaveAccessibleDescription('Emailed to them with a link to write back here.')
+    await expect.element(box).toHaveAccessibleDescription('Emailed to them: their answer lands here.')
 
     await box.fill('  Tuesday it is.  ')
     await conversation().getByRole('button', { name: 'Send reply' }).click()

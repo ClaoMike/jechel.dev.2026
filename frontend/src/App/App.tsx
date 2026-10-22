@@ -11,7 +11,6 @@ import { AdminPage } from '../pages/AdminPage/AdminPage'
 import { CommunityPage } from '../pages/CommunityPage/CommunityPage'
 import { ContactPage } from '../pages/ContactPage/ContactPage'
 import { EngagementPage } from '../pages/EngagementPage/EngagementPage'
-import { ConversationPage } from '../pages/ConversationPage/ConversationPage'
 import { NotificationsPage } from '../pages/NotificationsPage/NotificationsPage'
 import { SettingsPage } from '../pages/SettingsPage/SettingsPage'
 import { TermsPage } from '../pages/TermsPage/TermsPage'
@@ -76,7 +75,6 @@ function App() {
           <Route path="terms" element={<TermsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           {/* The link in an answer's email: works while the Contact page is hidden, and during maintenance. */}
-          <Route path="contact/conversation" element={<ConversationPage />} />
           <Route path="updates/confirm" element={<ConfirmSubscriptionPage />} />
           <Route path="updates/unsubscribe" element={<UnsubscribePage />} />
         </Route>

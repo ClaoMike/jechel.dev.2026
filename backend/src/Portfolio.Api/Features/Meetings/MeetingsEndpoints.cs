@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Alerts;
 using Portfolio.Api.Features.Auth;
+using Portfolio.Api.Features.Contact;
 using Portfolio.Api.Features.Settings;
 using Portfolio.Api.Features.Updates;
 
@@ -50,10 +51,10 @@ public static class MeetingsEndpoints
 
         meetings.MapGet("/", ListMeetings).WithName("ListMeetings").RequireAuthorization();
         // The admin (signed in, with an optional message), or the phone alert's buttons (with the meeting's token).
-        meetings.MapPost("/{id:int}/accept", (int id, string? token, MeetingDecisionRequest? request, HttpContext http, PortfolioDbContext db, ICalClient cal, IEmailSender emails, IOptionsMonitor<AdminOptions> admins, TimeProvider time, ILoggerFactory loggers, CancellationToken ct) =>
-            Decide(id, token, true, request, http, db, cal, emails, admins, time, loggers, ct)).WithName("AcceptMeeting");
-        meetings.MapPost("/{id:int}/decline", (int id, string? token, MeetingDecisionRequest? request, HttpContext http, PortfolioDbContext db, ICalClient cal, IEmailSender emails, IOptionsMonitor<AdminOptions> admins, TimeProvider time, ILoggerFactory loggers, CancellationToken ct) =>
-            Decide(id, token, false, request, http, db, cal, emails, admins, time, loggers, ct)).WithName("DeclineMeeting");
+        meetings.MapPost("/{id:int}/accept", (int id, string? token, MeetingDecisionRequest? request, HttpContext http, PortfolioDbContext db, ICalClient cal, IEmailSender emails, IOptionsMonitor<AdminOptions> admins, IOptionsMonitor<EmailOptions> emailOptions, TimeProvider time, ILoggerFactory loggers, CancellationToken ct) =>
+            Decide(id, token, true, request, http, db, cal, emails, admins, emailOptions, time, loggers, ct)).WithName("AcceptMeeting");
+        meetings.MapPost("/{id:int}/decline", (int id, string? token, MeetingDecisionRequest? request, HttpContext http, PortfolioDbContext db, ICalClient cal, IEmailSender emails, IOptionsMonitor<AdminOptions> admins, IOptionsMonitor<EmailOptions> emailOptions, TimeProvider time, ILoggerFactory loggers, CancellationToken ct) =>
+            Decide(id, token, false, request, http, db, cal, emails, admins, emailOptions, time, loggers, ct)).WithName("DeclineMeeting");
 
         return app;
     }
@@ -244,6 +245,7 @@ public static class MeetingsEndpoints
         ICalClient cal,
         IEmailSender emails,
         IOptionsMonitor<AdminOptions> admins,
+        IOptionsMonitor<EmailOptions> emailOptions,
         TimeProvider time,
         ILoggerFactory loggers,
         CancellationToken cancellationToken)
@@ -279,7 +281,7 @@ public static class MeetingsEndpoints
         {
             try
             {
-                await emails.SendAsync(PersonalEmails.MeetingNote(meeting.AttendeeEmail, meeting.AttendeeName, accept, meeting.StartTime, meeting.AttendeeTimeZone, message, admins.CurrentValue.AdminEmails.FirstOrDefault() ?? ""), cancellationToken);
+                await emails.SendAsync(PersonalEmails.MeetingNote(meeting.AttendeeEmail, meeting.AttendeeName, accept, meeting.StartTime, meeting.AttendeeTimeZone, message, ContactEndpoints.ReplyToFor(emailOptions.CurrentValue, admins.CurrentValue)), cancellationToken);
                 emailSent = true;
             }
             catch (Exception e) when (!cancellationToken.IsCancellationRequested)

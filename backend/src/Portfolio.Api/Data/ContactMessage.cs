@@ -1,9 +1,9 @@
 namespace Portfolio.Api.Data;
 
 /// <summary>
-/// A message sent through the public contact form: the start of a conversation. The admin answers by email,
-/// with a link to it (<see cref="Token"/>), where the visitor can write back; every message after the first
-/// is a <see cref="ContactReply"/>.
+/// The start of a conversation: a message sent through the public contact form, or an email to the site's
+/// address (hello@…) from someone it hasn't heard from. The admin answers by email, from that address; their
+/// answers, and everything the visitor emails back, are <see cref="ContactReply"/>s.
 /// </summary>
 public class ContactMessage
 {
@@ -16,9 +16,15 @@ public class ContactMessage
     /// <summary>When the admin first opened it; null while unread, and again after the visitor writes back.</summary>
     public DateTimeOffset? ReadAt { get; set; }
 
-    /// <summary>Random and unique: in the link to the conversation, so only whoever got the email can read and write in it.</summary>
-    public required string Token { get; set; }
-
     /// <summary>When anyone last wrote in it: the inbox lists conversations by this, newest first.</summary>
     public DateTimeOffset LastActivityAt { get; set; }
+
+    /// <summary>The email's subject, for a conversation that started by email; the answers keep it ("Re: …").</summary>
+    public string? Subject { get; set; }
+
+    /// <summary>Resend's id of the email it came in, when it did: an email is only taken once.</summary>
+    public string? EmailId { get; set; }
+
+    /// <summary>The email's Message-ID header: the answer refers to it, so their mail app puts both in one thread.</summary>
+    public string? EmailMessageId { get; set; }
 }

@@ -12,6 +12,7 @@ using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.Meetings;
 using Portfolio.Api.Features.Settings;
 using Portfolio.Api.UnitTests.Features.Alerts;
+using Portfolio.Api.Features.Updates;
 using Portfolio.Api.UnitTests.Features.Updates;
 
 namespace Portfolio.Api.UnitTests.Features.Meetings;
@@ -42,6 +43,7 @@ public class MeetingsTests
     private readonly FakePhoneAlerts _alerts = new();
     private readonly FakeCalClient _cal = new();
     private readonly FakeEmailSender _emails = new();
+    private readonly EmailOptions _emailOptions = new() { From = "Claudiu <hello@jechel.dev>" };
     private readonly PortfolioDbContext _db = new(new DbContextOptionsBuilder<PortfolioDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
         .Options);
@@ -64,7 +66,7 @@ public class MeetingsTests
         MeetingsEndpoints.CalWebhook(Request(body, secret), _db, TestOptions.Monitor(new CalOptions { WebhookSecret = Secret }), Options.Create(new SiteOptions { PublicUrl = "https://jechel.dev" }), _alerts, _time, default);
 
     private Task<Results<Ok<MeetingDecisionResult>, NotFound, UnauthorizedHttpResult, ValidationProblem, ProblemHttpResult>> Decide(int id, bool accept, string? message = null, string? token = null, bool admin = true) =>
-        MeetingsEndpoints.Decide(id, token, accept, new MeetingDecisionRequest(message), Http(admin), _db, _cal, _emails, TestOptions.Monitor(new AdminOptions { AdminEmails = ["me@example.com"] }), _time, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, default);
+        MeetingsEndpoints.Decide(id, token, accept, new MeetingDecisionRequest(message), Http(admin), _db, _cal, _emails, TestOptions.Monitor(new AdminOptions { AdminEmails = ["me@example.com"] }), TestOptions.Monitor(_emailOptions), _time, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, default);
 
     private static HttpContext Http(bool admin)
     {

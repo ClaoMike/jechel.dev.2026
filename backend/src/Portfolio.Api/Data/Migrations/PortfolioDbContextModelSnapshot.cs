@@ -301,14 +301,24 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("character varying(254)")
                         .HasColumnName("email");
 
+                    b.Property<string>("EmailId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("email_id");
+
+                    b.Property<string>("EmailMessageId")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("email_message_id");
+
                     b.Property<DateTimeOffset>("LastActivityAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_activity_at");
 
                     b.Property<string>("Message")
                         .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)")
                         .HasColumnName("message");
 
                     b.Property<string>("Name")
@@ -325,20 +335,21 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("received_at");
 
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("token");
+                    b.Property<string>("Subject")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("subject");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Email");
+
+                    b.HasIndex("EmailId")
+                        .IsUnique();
 
                     b.HasIndex("LastActivityAt");
 
                     b.HasIndex("ReceivedAt");
-
-                    b.HasIndex("Token")
-                        .IsUnique();
 
                     b.ToTable("contact_messages", (string)null);
                 });
@@ -351,6 +362,16 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("EmailId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("email_id");
+
+                    b.Property<string>("EmailMessageId")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("email_message_id");
 
                     b.Property<bool>("FromVisitor")
                         .HasColumnType("boolean")
@@ -371,6 +392,9 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnName("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EmailId")
+                        .IsUnique();
 
                     b.HasIndex("MessageId");
 

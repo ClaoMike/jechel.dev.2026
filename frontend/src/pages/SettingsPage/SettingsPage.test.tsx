@@ -72,6 +72,30 @@ describe('Settings: who emails come from', () => {
   })
 })
 
+describe('Settings: receiving email', () => {
+  it('shows where Resend sends the emails it receives, and saves its signing secret', async () => {
+    const stubs = stub({ 'Email:ResendApiKey': 're_123456789abcd', 'Email:From': 'Claudiu <hello@jechel.dev>' })
+    await renderView(<SettingsPage />, { user: ADMIN })
+    await openResend()
+
+    const receiving = resend().getByRole('group').filter({ hasText: 'Receiving email' })
+    await resend().getByText('Receiving email').click()
+    await expect.poll(() => textOf(receiving)).toContain('https://jechel.dev/api/contact/inbound')
+    expect(
+      resend()
+        .getByRole('link', { name: /Webhooks/ })
+        .element()
+        .getAttribute('href'),
+    ).toBe('https://resend.com/webhooks')
+
+    const secret = resend().getByLabelText(/^Receiving webhook secret/)
+    await secret.fill('whsec_abc123')
+    saveNextTo(secret).click()
+
+    await expect.poll(() => stubs.save.mock.calls).toEqual([['Email:InboundWebhookSecret', 'whsec_abc123']])
+  })
+})
+
 describe('Settings: quick links', () => {
   const card = (name: RegExp) => page.getByRole('region', { name })
 

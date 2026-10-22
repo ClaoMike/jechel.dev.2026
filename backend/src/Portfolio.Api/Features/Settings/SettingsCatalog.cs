@@ -18,6 +18,7 @@ public static class SettingsCatalog
         new("Email:ResendApiKey", "API key", IsSecret: true),
         new("Email:From", "Sender", IsSecret: false, Kind: "email-sender", MaxLength: 200),
         new("Email:UpdatesFrom", "Updates sender (no replies)", IsSecret: false, Kind: "email-sender", MaxLength: 200),
+        new("Email:InboundWebhookSecret", "Receiving webhook secret", IsSecret: true),
         // Shown to the admin, who types it into the ntfy app; it never reaches visitors.
         new("Alerts:NtfyTopic", "Topic", IsSecret: false, Kind: "topic", MaxLength: 64),
         new("Alerts:NtfyServer", "Server", IsSecret: false, Kind: "url"),

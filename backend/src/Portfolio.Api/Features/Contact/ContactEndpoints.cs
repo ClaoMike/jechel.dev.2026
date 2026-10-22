@@ -14,17 +14,11 @@ public record ContactMessageSummary(int Id, string Name, DateTimeOffset Received
 
 /// <param name="Replies">Every message after the first, oldest first: the admin's answers and the visitor's.</param>
 /// <param name="Meetings">Meetings the same address booked with Cal.com (not cancelled), soonest first: to accept or decline from the message.</param>
-public record ContactMessageDetails(int Id, string Name, string Email, string Message, DateTimeOffset ReceivedAt, DateTimeOffset? ReadAt, IReadOnlyList<ContactReplyDto> Replies, IReadOnlyList<Meetings.MeetingDto> Meetings);
+/// <param name="Subject">The email's subject, for a conversation that started by email.</param>
+public record ContactMessageDetails(int Id, string Name, string Email, string Message, DateTimeOffset ReceivedAt, DateTimeOffset? ReadAt, IReadOnlyList<ContactReplyDto> Replies, IReadOnlyList<Meetings.MeetingDto> Meetings, string? Subject = null);
 
-/// <param name="FromVisitor">Written by the visitor on the conversation's page; false for the admin's answers.</param>
+/// <param name="FromVisitor">Emailed by the visitor; false for the admin's answers.</param>
 public record ContactReplyDto(int Id, string Text, DateTimeOffset SentAt, bool FromVisitor);
-
-/// <summary>A message in a conversation, as the visitor's page shows it.</summary>
-/// <param name="FromVisitor">Theirs; false for the admin's.</param>
-public record ConversationMessage(string Text, DateTimeOffset At, bool FromVisitor);
-
-/// <summary>A conversation, for the visitor with its link: their name (not their address) and every message, oldest first.</summary>
-public record ConversationDto(string Name, IReadOnlyList<ConversationMessage> Messages);
 
 public record ReplyRequest(string? Text);
 
@@ -33,7 +27,7 @@ public static class ContactEndpoints
     public const int DefaultPageSize = 10;
     public const int MaxPageSize = 50;
 
-    /// <summary>The contact form and the visitor's replies, per IP (Contact:LimitPer10Minutes): nobody floods the inbox and the phone.</summary>
+    /// <summary>The contact form, per IP (Contact:LimitPer10Minutes): nobody floods the inbox and the phone.</summary>
     public const string RateLimitPolicy = "contact";
 
     public static IEndpointRouteBuilder MapContactEndpoints(this IEndpointRouteBuilder app)
@@ -43,10 +37,8 @@ public static class ContactEndpoints
         // Public: anyone can send a message.
         contact.MapPost("/", SendMessage).WithName("SendContactMessage").RequireRateLimiting(RateLimitPolicy);
 
-        // Public, with the conversation's link (emailed with each answer): read it, and write back.
-        var conversations = contact.MapGroup("/conversations/{token}");
-        conversations.MapGet("/", GetConversation).WithName("GetConversation");
-        conversations.MapPost("/messages", WriteBack).WithName("WriteInConversation").RequireRateLimiting(RateLimitPolicy);
+        // Called by Resend for each email received, checked with the webhook's signature.
+        contact.MapPost("/inbound", InboundEmail.Receive).WithName("ReceiveContactEmail");
 
         // Admin only: the inbox.
         var messages = contact.MapGroup("/messages").RequireAuthorization();
@@ -78,7 +70,6 @@ public static class ContactEndpoints
             Email = request.Email!.Trim(),
             Message = request.Message!.Trim(),
             ReceivedAt = time.GetUtcNow(),
-            Token = Updates.UpdatesEndpoints.NewToken(),
         };
         message.LastActivityAt = message.ReceivedAt;
         db.ContactMessages.Add(message);
@@ -134,15 +125,15 @@ public static class ContactEndpoints
             .Select(m => new Meetings.MeetingDto(m.Id, m.Title, m.StartTime, m.EndTime, m.AttendeeName, m.AttendeeEmail, m.AttendeeTimeZone, m.Notes, m.Status))
             .ToListAsync(cancellationToken);
 
-        return TypedResults.Ok(new ContactMessageDetails(message.Id, message.Name, message.Email, message.Message, message.ReceivedAt, message.ReadAt, replies, meetings));
+        return TypedResults.Ok(new ContactMessageDetails(message.Id, message.Name, message.Email, message.Message, message.ReceivedAt, message.ReadAt, replies, meetings, message.Subject));
     }
 
     public const int ReplyMaxLength = 5000;
 
     /// <summary>
-    /// Admin only. Emails an answer to whoever sent the message (Resend), with a button to the conversation's page
-    /// (where they write back), their last message quoted under it, and the admin's own address to reply to by
-    /// email as well; keeps it with the conversation. 503 when it can't be sent.
+    /// Admin only. Emails an answer to whoever sent the message (Resend), from the site's address, with their last
+    /// message quoted under it and in its thread; keeps it with the conversation. Their answer, emailed back, joins the
+    /// conversation (<see cref="InboundEmail"/>). 503 when it can't be sent.
     /// </summary>
     public static async Task<Results<Ok<ContactReplyDto>, NotFound, ValidationProblem, ProblemHttpResult>> Reply(
         int id,
@@ -150,7 +141,7 @@ public static class ContactEndpoints
         PortfolioDbContext db,
         Updates.IEmailSender emails,
         Microsoft.Extensions.Options.IOptionsMonitor<Auth.AdminOptions> admins,
-        Microsoft.Extensions.Options.IOptions<SiteOptions> site,
+        Microsoft.Extensions.Options.IOptionsMonitor<Updates.EmailOptions> emailOptions,
         TimeProvider time,
         CancellationToken cancellationToken)
     {
@@ -163,16 +154,18 @@ public static class ContactEndpoints
         var message = await db.ContactMessages.FindAsync([id], cancellationToken);
         if (message is null) return TypedResults.NotFound();
 
-        // What they last wrote, quoted under the answer: their first message, or their latest reply.
+        // What they last wrote, quoted under the answer (and the thread it joins): their first message, or their latest reply.
         var lastFromThem = await db.ContactReplies.AsNoTracking()
             .Where(r => r.MessageId == id && r.FromVisitor)
             .OrderByDescending(r => r.SentAt).ThenByDescending(r => r.Id)
-            .Select(r => r.Text)
-            .FirstOrDefaultAsync(cancellationToken) ?? message.Message;
-        var conversation = site.Value.UrlFor($"/contact/conversation?token={Uri.EscapeDataString(message.Token)}");
+            .Select(r => new { r.Text, r.EmailMessageId })
+            .FirstOrDefaultAsync(cancellationToken);
+        var quoted = lastFromThem?.Text ?? message.Message;
+        var thread = lastFromThem is null ? message.EmailMessageId : lastFromThem.EmailMessageId ?? message.EmailMessageId;
         try
         {
-            await emails.SendAsync(Meetings.PersonalEmails.Reply(message.Email, message.Name, text, lastFromThem, admins.CurrentValue.AdminEmails.FirstOrDefault() ?? "", conversation), cancellationToken);
+            var email = Meetings.PersonalEmails.Reply(message.Email, message.Name, text, quoted, message.Subject, ReplyToFor(emailOptions.CurrentValue, admins.CurrentValue), thread);
+            await emails.SendAsync(email, cancellationToken);
         }
         catch (Settings.ServiceException e)
         {
@@ -191,63 +184,12 @@ public static class ContactEndpoints
         return TypedResults.Ok(new ContactReplyDto(reply.Id, reply.Text, reply.SentAt, false));
     }
 
-    /// <summary>Public, with the link. 404 for a link that matches no conversation (deleted since, or mistyped).</summary>
-    public static async Task<Results<Ok<ConversationDto>, NotFound>> GetConversation(string token, PortfolioDbContext db, CancellationToken cancellationToken)
-    {
-        var message = await FindConversationAsync(db, token, tracked: false, cancellationToken);
-        if (message is null) return TypedResults.NotFound();
-        return TypedResults.Ok(await ConversationOfAsync(db, message, cancellationToken));
-    }
-
-    public const int WriteBackMaxLength = 2000;
-
     /// <summary>
-    /// Public, with the link: the visitor writes back. Kept with the conversation, which turns unread and goes to the top
-    /// of the inbox, and the admin's phone hears it. Answers with the whole conversation, as it now is.
+    /// Where a visitor's answer to the admin's email goes: to the sender (the site's address, where it joins the
+    /// conversation) once the site receives email; until then, to the admin's own address, so it isn't lost.
     /// </summary>
-    public static async Task<Results<Ok<ConversationDto>, NotFound, ValidationProblem>> WriteBack(
-        string token,
-        ReplyRequest request,
-        PortfolioDbContext db,
-        IPhoneAlerts alerts,
-        TimeProvider time,
-        CancellationToken cancellationToken)
-    {
-        var text = request?.Text?.Trim() ?? "";
-        if (text.Length == 0 || text.Length > WriteBackMaxLength)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["text"] = [text.Length == 0 ? "Write your message first." : $"At most {WriteBackMaxLength} characters."] });
-        }
-
-        var message = await FindConversationAsync(db, token, tracked: true, cancellationToken);
-        if (message is null) return TypedResults.NotFound();
-
-        var now = time.GetUtcNow();
-        db.ContactReplies.Add(new ContactReply { MessageId = message.Id, Text = text, SentAt = now, FromVisitor = true });
-        message.ReadAt = null;
-        message.LastActivityAt = now;
-        await db.SaveChangesAsync(cancellationToken);
-
-        alerts.Send(new PhoneAlert(AlertKinds.Message, $"New reply from {message.Name}", text, "/contact", AlertPriority.High, "envelope"));
-        return TypedResults.Ok(await ConversationOfAsync(db, message, cancellationToken));
-    }
-
-    private static async Task<ContactMessage?> FindConversationAsync(PortfolioDbContext db, string? token, bool tracked, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(token) || token.Length > 100) return null;
-        var messages = tracked ? db.ContactMessages : db.ContactMessages.AsNoTracking();
-        return await messages.FirstOrDefaultAsync(m => m.Token == token.Trim(), cancellationToken);
-    }
-
-    private static async Task<ConversationDto> ConversationOfAsync(PortfolioDbContext db, ContactMessage message, CancellationToken cancellationToken)
-    {
-        var replies = await db.ContactReplies.AsNoTracking()
-            .Where(r => r.MessageId == message.Id)
-            .OrderBy(r => r.SentAt).ThenBy(r => r.Id)
-            .Select(r => new ConversationMessage(r.Text, r.SentAt, r.FromVisitor))
-            .ToListAsync(cancellationToken);
-        return new ConversationDto(message.Name, [new ConversationMessage(message.Message, message.ReceivedAt, true), .. replies]);
-    }
+    public static string? ReplyToFor(Updates.EmailOptions email, Auth.AdminOptions admins) =>
+        email.IsReceiving && email.FromAddress.Length > 0 ? null : admins.AdminEmails.FirstOrDefault();
 
     /// <summary>Idempotent: keeps the time it was first read.</summary>
     public static async Task<Results<NoContent, NotFound>> MarkAsRead(

@@ -133,8 +133,32 @@ public class ContactEndpointTests(PortfolioApiFactory factory)
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync($"/api/contact/messages/{summary.Id}")).StatusCode);
     }
 
+    /// <summary>Resend's webhook for an email to <paramref name="to"/>, signed as Resend signs it.</summary>
+    private HttpRequestMessage Received(string emailId, string to = PortfolioApiFactory.SiteAddress, string? secret = null)
+    {
+        var body = $$$"""{"type":"email.received","created_at":"2026-10-22T10:00:00Z","data":{"email_id":"{{{emailId}}}","to":["{{{to}}}"],"cc":[]}}""";
+        var id = $"msg_{Guid.NewGuid():N}";
+        // The API's clock, which other tests move on.
+        var timestamp = factory.Time.GetUtcNow().ToUnixTimeSeconds().ToString();
+        var key = Convert.FromBase64String((secret ?? PortfolioApiFactory.InboundSecret)["whsec_".Length..]);
+        var signature = Convert.ToBase64String(System.Security.Cryptography.HMACSHA256.HashData(key, System.Text.Encoding.UTF8.GetBytes($"{id}.{timestamp}.{body}")));
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/contact/inbound") { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
+        request.Headers.Add("svix-id", id);
+        request.Headers.Add("svix-timestamp", timestamp);
+        request.Headers.Add("svix-signature", $"v1,{signature}");
+        return request;
+    }
+
+    /// <summary>Someone emails the site: Resend keeps it and calls the webhook.</summary>
+    private async Task<HttpResponseMessage> EmailTheSiteAsync(string from, string text, string? subject = null, string to = PortfolioApiFactory.SiteAddress)
+    {
+        var emailId = Guid.NewGuid().ToString();
+        factory.Inbox.Emails[emailId] = new ReceivedEmail(from, subject, text, null, $"<{emailId}@mail.example.com>", "pass", false, 0);
+        return await factory.CreateClient().SendAsync(Received(emailId, to));
+    }
+
     [Fact]
-    public async Task A_visitor_and_the_admin_keep_writing_to_each_other_through_the_conversations_page()
+    public async Task A_visitor_and_the_admin_keep_writing_to_each_other_by_email()
     {
         var name = $"Ada {Guid.NewGuid():N}"[..20];
         var address = $"ada-{Guid.NewGuid():N}@example.com";
@@ -146,17 +170,14 @@ public class ContactEndpointTests(PortfolioApiFactory factory)
         var id = Assert.Single(inbox!.Items, m => m.Name == name).Id;
         Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync($"/api/contact/messages/{id}/reply", new ReplyRequest("Thanks! When suits you?"))).StatusCode);
 
-        // The answer's email carries the conversation's link.
+        // The answer goes from the site's address, which their reply goes back to: no link, no Reply-To.
         var email = Assert.Single(factory.Emails.To(address));
-        var token = System.Text.RegularExpressions.Regex.Match(email.Text, @"/contact/conversation\?token=([A-Za-z0-9_-]+)").Groups[1].Value;
-        Assert.NotEmpty(token);
+        Assert.Null(email.ReplyTo);
+        Assert.DoesNotContain("http", email.Text);
 
-        var conversation = await visitor.GetFromJsonAsync<ConversationDto>($"/api/contact/conversations/{token}");
-        Assert.Equal([true, false], conversation!.Messages.Select(m => m.FromVisitor));
-
-        var written = await visitor.PostAsJsonAsync($"/api/contact/conversations/{token}/messages", new ReplyRequest("Tuesday at 10?"));
-        Assert.Equal(HttpStatusCode.OK, written.StatusCode);
-        Assert.Equal("Tuesday at 10?", (await written.Content.ReadFromJsonAsync<ConversationDto>())!.Messages[^1].Text);
+        // They answer from their mail app, quoting the email as mail apps do.
+        var answer = await EmailTheSiteAsync($"Ada <{address.ToUpperInvariant()}>", $"Tuesday at 10?\n\nOn Thu, 22 Oct 2026 at 10:00, Claudiu <{PortfolioApiFactory.SiteAddress}> wrote:\n> Thanks! When suits you?");
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
         Assert.Contains(factory.Alerts.All, a => a.Title == $"New reply from {name}" && a.Message == "Tuesday at 10?");
 
         // In the admin's inbox: on top, unread again, in the same thread.
@@ -167,40 +188,72 @@ public class ContactEndpointTests(PortfolioApiFactory factory)
         var details = await admin.GetFromJsonAsync<ContactMessageDetails>($"/api/contact/messages/{id}");
         Assert.Equal([("Thanks! When suits you?", false), ("Tuesday at 10?", true)], details!.Replies.Select(r => (r.Text, r.FromVisitor)));
 
-        // The next answer quotes what they wrote last, with the same link.
+        // The next answer quotes what they wrote last, in their email's thread.
         await admin.PostAsJsonAsync($"/api/contact/messages/{id}/reply", new ReplyRequest("Tuesday it is."));
         var second = factory.Emails.To(address).Last();
         Assert.Contains("> Tuesday at 10?", second.Text);
-        Assert.Contains($"token={token}", second.Text);
-    }
-
-    [Theory]
-    [InlineData("GET")]
-    [InlineData("POST")]
-    public async Task A_made_up_link_finds_no_conversation(string method)
-    {
-        var request = new HttpRequestMessage(new HttpMethod(method), method == "GET" ? "/api/contact/conversations/made-up" : "/api/contact/conversations/made-up/messages");
-        if (method == "POST") request.Content = JsonContent.Create(new ReplyRequest("Hello?"));
-
-        var response = await factory.CreateBrowserClient().SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.EndsWith("@mail.example.com>", second.InReplyTo);
     }
 
     [Fact]
-    public async Task An_empty_reply_from_the_visitor_is_refused_with_a_field_error()
+    public async Task An_email_from_someone_new_starts_a_conversation_with_its_subject()
     {
-        var visitor = factory.CreateBrowserClient();
-        var address = $"bo-{Guid.NewGuid():N}@example.com";
-        await visitor.PostAsJsonAsync("/api/contact", new SendMessageRequest("Bo", address, new string('m', ContactRules.MessageMinLength)));
+        var address = $"grace-{Guid.NewGuid():N}@example.com";
+
+        Assert.Equal(HttpStatusCode.OK, (await EmailTheSiteAsync($"Grace Hopper <{address}>", "Hello there", "A question")).StatusCode);
+
         var admin = await SignedInClientAsync();
-        var id = (await admin.GetFromJsonAsync<PagedResponse<ContactMessageSummary>>("/api/contact/messages?pageSize=50"))!.Items.First(m => m.Name == "Bo").Id;
-        await admin.PostAsJsonAsync($"/api/contact/messages/{id}/reply", new ReplyRequest("Hi Bo"));
-        var token = System.Text.RegularExpressions.Regex.Match(factory.Emails.To(address).Single().Text, @"token=([A-Za-z0-9_-]+)").Groups[1].Value;
+        var summary = (await admin.GetFromJsonAsync<PagedResponse<ContactMessageSummary>>("/api/contact/messages?pageSize=50"))!.Items.First(m => m.Name == "Grace Hopper");
+        var details = await admin.GetFromJsonAsync<ContactMessageDetails>($"/api/contact/messages/{summary.Id}");
+        Assert.Equal((address, "Hello there", "A question"), (details!.Email, details.Message, details.Subject));
+        Assert.Contains(factory.Alerts.All, a => a.Title == "New email from Grace Hopper");
 
-        var response = await visitor.PostAsJsonAsync($"/api/contact/conversations/{token}/messages", new ReplyRequest("   "));
+        await admin.PostAsJsonAsync($"/api/contact/messages/{summary.Id}/reply", new ReplyRequest("Hi Grace"));
+        Assert.Equal("Re: A question", factory.Emails.To(address).Single().Subject);
+    }
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("\"text\"", await response.Content.ReadAsStringAsync());
+    [Fact]
+    public async Task The_same_email_reported_twice_is_kept_once()
+    {
+        var address = $"twice-{Guid.NewGuid():N}@example.com";
+        var emailId = Guid.NewGuid().ToString();
+        factory.Inbox.Emails[emailId] = new ReceivedEmail(address, null, "Just once", null, null, "pass", false, 0);
+
+        Assert.Equal(HttpStatusCode.OK, (await factory.CreateClient().SendAsync(Received(emailId))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await factory.CreateClient().SendAsync(Received(emailId))).StatusCode);
+
+        var admin = await SignedInClientAsync();
+        var items = (await admin.GetFromJsonAsync<PagedResponse<ContactMessageSummary>>("/api/contact/messages?pageSize=50"))!.Items.Where(m => m.Name == address).ToList();
+        Assert.Equal(1, Assert.Single(items).Count);
+    }
+
+    [Fact]
+    public async Task Emails_to_other_addresses_are_dropped()
+    {
+        var address = $"updates-reply-{Guid.NewGuid():N}@example.com";
+
+        Assert.Equal(HttpStatusCode.OK, (await EmailTheSiteAsync(address, "Replying to an update", to: "updates@jechel.test")).StatusCode);
+
+        var admin = await SignedInClientAsync();
+        Assert.DoesNotContain((await admin.GetFromJsonAsync<PagedResponse<ContactMessageSummary>>("/api/contact/messages?pageSize=50"))!.Items, m => m.Name == address);
+    }
+
+    [Fact]
+    public async Task A_webhook_not_signed_by_Resend_is_refused()
+    {
+        var emailId = Guid.NewGuid().ToString();
+        factory.Inbox.Emails[emailId] = new ReceivedEmail("eve@example.com", null, "Fake", null, null, "pass", false, 0);
+
+        var response = await factory.CreateClient().SendAsync(Received(emailId, secret: "whsec_" + Convert.ToBase64String("guess"u8.ToArray())));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task When_Resend_can_t_give_the_email_it_s_asked_to_try_again()
+    {
+        var response = await factory.CreateClient().SendAsync(Received(Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
     }
 }

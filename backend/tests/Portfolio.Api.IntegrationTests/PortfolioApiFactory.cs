@@ -31,6 +31,12 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
     public const string BuyMeACoffeeSecret = "test-bmc-secret";
     public const string CalSecret = "test-cal-secret";
 
+    /// <summary>The site's address, where emails land in the Contact inbox.</summary>
+    public const string SiteAddress = "hello@jechel.test";
+
+    /// <summary>The Resend receiving webhook's signing secret ("whsec_" + base64).</summary>
+    public static readonly string InboundSecret = "whsec_" + Convert.ToBase64String("test-inbound-secret"u8.ToArray());
+
     private readonly PostgreSqlContainer _db = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
     /// <summary>Clock used by the API (sessions and cookies). Advance it to simulate idle time.</summary>
@@ -53,6 +59,8 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         builder.UseSetting("ConnectionStrings:Redis", "");
         builder.UseSetting("Cal:Link", "claomike/30min");
         builder.UseSetting("Cal:WebhookSecret", CalSecret);
+        builder.UseSetting("Email:From", $"Claudiu <{SiteAddress}>");
+        builder.UseSetting("Email:InboundWebhookSecret", InboundSecret);
         // Every test client comes from the same (unknown) address.
         builder.UseSetting("Updates:SubscribeLimitPer10Minutes", "1000");
         builder.UseSetting("Contact:LimitPer10Minutes", "1000");
@@ -74,6 +82,7 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
             services.AddSingleton<IEmailSender>(Emails);
             services.AddSingleton<IPhoneAlerts>(Alerts);
             services.AddSingleton<Portfolio.Api.Features.Meetings.ICalClient>(Cal);
+            services.AddSingleton<Portfolio.Api.Features.Contact.IResendInbox>(Inbox);
             // Reminders run on a timer; their own tests call MeetingReminders.
             services.Remove(services.Single(s => s.ImplementationType == typeof(Portfolio.Api.Features.Meetings.MeetingRemindersWorker)));
             // Announcing runs on a timer; tests that need it call UpdatesAnnouncer themselves.
@@ -84,6 +93,9 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
 
     /// <summary>Stands in for Cal.com's API: records what it was asked to do.</summary>
     public RecordingCalClient Cal { get; } = new();
+
+    /// <summary>Stands in for the emails Resend received: tests put them in, then call the webhook.</summary>
+    public FakeResendInbox Inbox { get; } = new();
 
     /// <summary>Every phone alert the API raised.</summary>
     public RecordingPhoneAlerts Alerts { get; } = new();
@@ -197,6 +209,14 @@ public sealed class RecordingPhoneAlerts : IPhoneAlerts
     public void Send(PhoneAlert alert) => _sent.Enqueue(alert);
 
     public void SendThrottled(string key, PhoneAlert alert) => _sent.Enqueue(alert);
+}
+
+public sealed class FakeResendInbox : Portfolio.Api.Features.Contact.IResendInbox
+{
+    public System.Collections.Concurrent.ConcurrentDictionary<string, Portfolio.Api.Features.Contact.ReceivedEmail> Emails { get; } = new();
+
+    public Task<Portfolio.Api.Features.Contact.ReceivedEmail> GetAsync(string emailId, CancellationToken cancellationToken) =>
+        Emails.TryGetValue(emailId, out var email) ? Task.FromResult(email) : throw new Portfolio.Api.Features.Settings.ServiceException("Resend refused it: not found");
 }
 
 public sealed class RecordingCalClient : Portfolio.Api.Features.Meetings.ICalClient

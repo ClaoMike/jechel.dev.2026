@@ -150,9 +150,8 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/meetings?from=&to=`   | cookie  | Meetings overlapping the range (a calendar month), soonest first |
 | POST   | `/api/meetings/{id}/accept` | cookie or token | `{ message? }`: confirms a requested meeting with Cal.com and emails the message: **200** `{ status, emailSent }`, **502** when Cal.com refuses |
 | POST   | `/api/meetings/{id}/decline` | cookie or token | The same, declining (the message is also Cal.com's reason) |
-| POST   | `/api/contact/messages/{id}/reply` | cookie | `{ text }`: emails the answer to the sender, with a **Reply on jechel.dev** button to their conversation and what they last wrote quoted (your address to reply to by email too): **200**, **400**, **503** when it can't be sent |
-| GET    | `/api/contact/conversations/{token}` | the link | The visitor's conversation: `{ name, messages: [{ text, at, fromVisitor }] }`, oldest first: **200**, **404** |
-| POST   | `/api/contact/conversations/{token}/messages` | the link | `{ text }` (1 to 2,000 characters): the visitor writes back; unread again, on top of the inbox, phone alert: **200** the conversation, **400**, **404**, **429** |
+| POST   | `/api/contact/messages/{id}/reply` | cookie | `{ text }`: emails the answer to the sender from the site's address (hello@), in their email's thread, with what they last wrote quoted: **200**, **400**, **503** when it can't be sent |
+| POST   | `/api/contact/inbound`      | Resend's signature | Resend's `email.received` webhook: an email to the site's address joins the sender's latest conversation, or starts one: **200**, **400**, **401**, **502** (Resend tries again), **503** until its secret is set |
 | GET    | `/api/site`                 | public  | What visitors see: `{ pages, features, maintenance, maintenanceMessage }` (cached: memory, then Redis) |
 | PUT    | `/api/site`                 | cookie  | Changes what's given (pages, features, maintenance, its message): **200**, or **400** for unknown ids |
 | GET    | `/api/settings`             | cookie  | The connection settings (secrets only as set/not set and their last 4 characters), how Google sign-in is set up, and the site's address |
@@ -416,7 +415,6 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 | Terms | `/terms` | admin only: the terms and conditions, editable (see [Terms and conditions](#terms-and-conditions)) |
 | Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](#settings-connections)) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
-| (no tab) | `/contact/conversation?token=…` | a visitor's conversation, from **Reply on jechel.dev** in an answer's email (see [Conversations](#conversations-contact)) |
 
 **What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later). The signed-in admin sees exactly what visitors see, with a note saying which section is left out and why; the empty and error messages name only what's shown (apps, videos, or both). If one list fails (e.g. YouTube isn't set up), the other is shown.
 
@@ -541,7 +539,7 @@ drag is swallowed). On phones the bar still scrolls sideways when dragged anywhe
 **Contact** (`src/pages/ContactPage/ContactPage.tsx`, `src/features/contact/`):
 
 - **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. Errors appear after the first submit and then update as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields.
-- **The admin** (`<SignedIn>`) gets the inbox: a table of name and date received, 10 per page (the page is in the URL, `?page=2`). Unread messages are bold, with a blue dot. Clicking a row opens a popup with every field and a **Copy** button for each, and marks the message as read.
+- **The admin** (`<SignedIn>`) gets the inbox: a table of conversations (name, last message, how many), 10 per page (the page is in the URL, `?page=2`). Unread messages are bold, with a blue dot. Clicking a row opens a popup with every field and a **Copy** button for each, and marks the message as read.
 - Each detail has a copy-to-clipboard icon button (`src/components/CopyButton/CopyButton.tsx`); the icons are in `src/components/icons/icons.tsx`.
 - **Deleting:** each row has a trash button, and the popup a **Delete** button (`DELETE /api/contact/messages/{id}`, admin only). Both ask first.
 - The popup is `src/components/Modal/Modal.tsx`: it keeps focus inside (Tab wraps), closes with Escape, the × button or a click on the backdrop, and returns focus to the row's button. Keys and clicks inside a dialog stay inside it, so a dialog opened from another (or from a table row) behaves: Escape closes only the top one.
@@ -712,13 +710,16 @@ require of bulk senders).
   `Email:ResendApiKey`); otherwise emails are written to the API's log, confirm links included. A sending-only key is enough.
 - **Two senders** (Settings → Resend): **Sender** (`Email:From`) for everything, and **Updates sender** (`Email:UpdatesFrom`) for
   subscribers, the confirmations and the updates. Make the updates sender an address with no mailbox (e.g.
-  `jechel.dev <updates@jechel.dev>`, with Resend's **Receiving** off and no Cloudflare Email Routing rule for it, or a catch-all
-  set to **Drop**): replies to it bounce or vanish, and never reach you. Your replies to contact messages and the meeting notes
-  keep the main sender and set `Reply-To` to your own address, so people's answers to *those* come to you. Without an updates
-  sender, subscribers get emails from the main one.
+  `jechel.dev <updates@jechel.dev>`, with no Cloudflare Email Routing rule for it, or a catch-all
+  set to **Drop**): replies to it vanish (the receiving webhook only keeps emails to the main sender's address), and never
+  reach you. Your replies to contact messages and the meeting notes go from the main sender, and people's answers to *those*
+  come back into the Contact inbox (see [Conversations](#conversations-contact)). Without an updates sender, subscribers get
+  emails from the main one.
 - **Setting up Resend:** add and verify your domain in Resend (Domains: a DKIM `TXT` record, two `CNAME`s for sending, set to
   **DNS only** in Cloudflare, and optionally `_dmarc`), then set the senders in Settings and press **Send me a test email**. Until
   then the sender is `jechel.dev <onboarding@resend.dev>`, which Resend only delivers to the Resend account's own address.
+- **Receiving** (Settings → Resend → Receiving email): in Resend's Domains turn on **Receiving** and add its `MX` record at
+  Porkbun; in Webhooks add `/api/contact/inbound` for `email.received`, and paste its signing secret in Settings.
 - **The wording** (Community → **Preview update emails**, `features/updates/UpdateEmailsEditor/`, API in
   `UpdateEmailsEndpoints.cs`): the same four fields for each email (the confirmation, a new video, a new app): **Subject**,
   **Message**, **Button** and **Note** (optional, in grey under the button), plus the footer (why they get it; that replies aren't
@@ -780,7 +781,7 @@ flowchart LR
   inbox -. "reply" .-> nowhere["updates@ has no mailbox:<br/>bounced or dropped"]
   inbox -- "Gmail's Unsubscribe (POST)" --> unsub["/api/updates/unsubscribe"]
   inbox -- "footer link" --> unsubPage["/updates/unsubscribe page"] --> unsub
-  replies["Your reply to a message"] -- "from the main sender,<br/>Reply-To: you" --> resend2["Resend"] --> them["Visitor"] -. "reply" .-> you["Your inbox"]
+  replies["Your reply to a message"] -- "from hello@" --> resend2["Resend"] --> them["Visitor"] -. "reply to hello@" .-> inboundHook["/api/contact/inbound"] --> you["Contact inbox, same thread"]
 ```
 
 - **Privacy:** the default terms say what's stored (the address, its code, when it was confirmed) and that unsubscribing deletes it.
@@ -828,40 +829,46 @@ Optionally reserve the topic with an ntfy account (access token), or use your ow
 
 ## Conversations (contact)
 
-A message sent through the contact form starts a **conversation**. You answer from the inbox (Contact, signed in); the email
-carries a **Reply on jechel.dev** button to the conversation's page, where the visitor reads everything and writes back
-(text only, up to 2,000 characters). Their reply lands in the same thread in your inbox, unread again and on top, and your
-phone hears it (**New reply from …**, kind *New message* in Notifications). Your next answer emails them again with the same
-link, quoting what they wrote last. Replying to the email itself still reaches your own inbox (it's sent with your address
-to reply to), so nothing is lost.
+Everything happens by email, through the site's address (the **Sender** in Settings → Resend, e.g. `hello@jechel.dev`), never your
+own. A message sent through the contact form, or an email to that address, starts a **conversation** in the inbox (Contact, signed
+in). You answer from there; the answer goes from hello@, so when they reply from their mail app, Resend receives it and the
+site puts it in the same thread, unread again and on top, and your phone hears it (**New reply from …**; **New email from …** for
+someone new; kind *New message* in Notifications). Text only: what they quoted is left out, attachments are only counted
+("1 attachment, not shown: it's in Resend").
 
-- **The link** (`contact_messages.token`): 256 random bits, made when the message arrives (messages from before conversations
-  got one in the migration). It's all the page needs: no account, no cookie. It works while the Contact page is hidden and
-  during maintenance (like the email links for updates). The page shows the visitor's name, never their address.
-- **The thread** (`contact_replies.from_visitor`): every message after the first, yours and theirs, oldest first. The inbox
-  lists conversations by their last message (`last_activity_at`), with how many messages each has.
-- **Limits:** the contact form and the visitor's replies share one limit per address: 10 every 10 minutes
-  (`Contact:LimitPer10Minutes`), so nobody floods the inbox or the phone. The form and the page say to wait (429).
-- **Deleting** a conversation (from the inbox) deletes every message in it; its link then says it isn't valid any more.
+- **Receiving** (`InboundEmail.cs`): Resend's **Receiving** on the domain (an `MX` record; jechel.dev has no other mail), and a
+  webhook for `email.received` to `/api/contact/inbound`, signed the Svix way (`svix-id`, `svix-timestamp`, `svix-signature`;
+  older than 5 minutes is refused). The webhook only says which email came; the site reads it from Resend
+  (`GET /emails/receiving/{id}`, `ResendInbox`).
+- **Which conversation:** the sender's latest one, by address (any case); someone new starts one, named after the email's
+  display name, with its subject. Each email is taken once (`email_id`, unique), however often Resend reports it.
+- **Dropped:** emails to any other address (replies to updates@ go nowhere), failing DMARC, sent by a program (`Auto-Submitted`,
+  `Precedence: bulk`: out-of-office answers, bounces), from the site's own address, or with no sender.
+- **Threads in their mail app:** your answer is "Re: " their subject (or "Re: your message to jechel.dev"), with `In-Reply-To`
+  their latest email's `Message-ID`, and quotes what they wrote last.
+- **Before receiving is set up** (no signing secret in Settings), answers carry your own address as `Reply-To`, so replies
+  still reach you, in your own inbox.
+- **Limits:** the contact form allows 10 messages every 10 minutes per address (`Contact:LimitPer10Minutes`).
+- **Deleting** a conversation (from the inbox) deletes every message in it.
 
 ```
  Visitor                                   API                                         You (admin)
  ───────                                   ───                                         ───────────
- Contact form ── POST /api/contact ───────► conversation: first message, random token ──► 📱 New message from Ada
+ Contact form ── POST /api/contact ───────► conversation: first message                ──► 📱 New message from Ada
    (10 per 10 min, per address)              unread, on top of the inbox                    Contact → inbox
+ or ✉️ to hello@ ─► Resend ─► webhook ─────► (someone new: their name and subject)   ──► 📱 New email from Ada
                                                                                               │ open: read; answer
- ✉️ "Re: your message to jechel.dev" ◄────── email (Resend, hello@): your answer,  ◄── POST …/messages/{id}/reply
-    [Reply on jechel.dev]                    what they wrote last, quoted;
-    (answering the email itself ─────────────► your Gmail: reply-to is your address)
-          │
+ ✉️ "Re: …" from hello@ ◄─────────────────── email (Resend): your answer, what they  ◄── POST …/messages/{id}/reply
+    (in their thread)                         wrote last quoted, In-Reply-To
+          │ they press Reply in their mail app
           ▼
- /contact/conversation?token=… ── GET /api/contact/conversations/{token} ── every message, oldest first
-   (works while Contact is hidden,            (their name, never their address; 404 for an unknown link)
-    and during maintenance)
- "Write back" ── POST …/{token}/messages ──► reply from the visitor: the thread gets it,  ──► 📱 New reply from Ada
-   (1–2,000 characters; 429 when too many)    unread again, on top of the inbox                inbox: "Ada · 3 messages"
+ ✉️ to hello@ ──► Resend (MX) ──► POST /api/contact/inbound (signed)
+                                  GET /emails/receiving/{id}
+                                  to hello@? DMARC ok? a person? new?
+                                  ──► the same thread, their text only,  ──────────────► 📱 New reply from Ada
+                                      unread again, on top                                  inbox: "Ada · 3 messages"
                                                                                               │ answer again
- ✉️ the next answer, same link ◄─────────────────────────────────────────────────────────────┘
+ ✉️ the next answer, same thread ◄───────────────────────────────────────────────────────────┘
 ```
 
 ## Notifications (phone alerts, on or off)
@@ -1032,8 +1039,8 @@ set in Settings). Booking shows Cal.com's own calendar inline (`features/meeting
 - a message from someone who also booked shows that meeting in its popup, with the same buttons
 
 Accepting or declining goes through Cal.com's API (`/v2/bookings/{uid}/confirm` or `/decline`, `cal-api-version: 2026-02-25`),
-so Cal.com sends its usual emails and calendar invites; your message, if any, is emailed too (Resend, with your address to reply
-to; for a decline it's also Cal.com's reason). Cal.com's webhook (`/api/meetings/cal`) keeps each booking up to date: requested,
+so Cal.com sends its usual emails and calendar invites; your message, if any, is emailed too (Resend, from the site's address,
+so their answer lands in the Contact inbox; for a decline it's also Cal.com's reason). Cal.com's webhook (`/api/meetings/cal`) keeps each booking up to date: requested,
 created, rescheduled (the old one is marked cancelled), cancelled, rejected.
 
 **Reminders** for accepted meetings go to your phone a day before, 2 hours before, 5 minutes before and when it starts
@@ -1041,8 +1048,9 @@ created, rescheduled (the old one is marked cancelled), cancelled, rejected.
 time passed while a later one is due (a meeting accepted an hour before), only the latest goes out. Times in alerts use
 `Site:TimeZone` (default Europe/London).
 
-**Replies:** a message's popup has a reply box: the answer is emailed to the sender with their message quoted and your own
-address to reply to, and kept with the message. Until a domain is verified in Resend, it only reaches your own address.
+**Replies:** a message's popup has a reply box: the answer is emailed to the sender with their message quoted, and kept with the
+message; their answer comes back into the same thread (see [Conversations](#conversations-contact)). Until a domain is verified
+in Resend, it only reaches your own address.
 
 **Setting up Cal.com** (Settings → Cal.com has the links and the URL to paste):
 1. An event type (e.g. 30 minutes) with your availability, and **Advanced → Requires confirmation** on. Its link goes in Settings.
@@ -1179,7 +1187,8 @@ Backend settings live in `backend/src/Portfolio.Api/appsettings*.json` and can b
 | `Support:Url`                 | The **Buy me a coffee** page, e.g. `https://buymeacoffee.com/claomike`. Empty hides the button |
 | `Support:BuyMeACoffeeWebhookSecret` | Buy Me a Coffee's webhook secret. The webhook answers 503 until it's set |
 | `Email:ResendApiKey`          | Resend API key (secret). Empty: emails are written to the log |
-| `Email:From`                  | The sender, on a domain verified in Resend (default `jechel.dev <onboarding@resend.dev>`, which only reaches the Resend account's own address) |
+| `Email:From`                  | The sender, on a domain verified in Resend (default `jechel.dev <onboarding@resend.dev>`, which only reaches the Resend account's own address). Emails to its address land in the Contact inbox |
+| `Email:InboundWebhookSecret`  | The signing secret (`whsec_…`) of Resend's `email.received` webhook (secret). Empty: nothing is received, and answers ask for replies to your own address |
 | `Updates:SubscribeLimitPer10Minutes` | Subscribe attempts per IP per 10 minutes (default 5) |
 | `Alerts:NtfyTopic`            | The ntfy topic phone alerts go to (secret). Empty: alerts are written to the log |
 | `Alerts:NtfyToken` / `Alerts:NtfyServer` | Optional ntfy access token, and server (default `https://ntfy.sh`) |

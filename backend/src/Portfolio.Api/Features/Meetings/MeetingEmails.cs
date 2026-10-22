@@ -7,23 +7,36 @@ namespace Portfolio.Api.Features.Meetings;
 /// <summary>The admin's own words, by email: an answer to a contact message, or a note with a meeting decision.</summary>
 public static class PersonalEmails
 {
+    public const string DefaultSubject = "Re: your message to jechel.dev";
+
     /// <param name="original">What they last wrote: quoted under the answer.</param>
-    /// <param name="conversationUrl">Their conversation's page, where they write back (the button). Replying to the email reaches the admin's own inbox too.</param>
-    public static EmailMessage Reply(string to, string name, string text, string original, string replyTo, string conversationUrl) => new(
+    /// <param name="subject">The subject of the email that started the conversation, if one did: the answer is "Re: " it.</param>
+    /// <param name="replyTo">Where their answer goes when not to the sender (while the site doesn't receive email). Optional.</param>
+    /// <param name="inReplyTo">The Message-ID of their latest email, so the answer joins its thread. Optional.</param>
+    public static EmailMessage Reply(string to, string name, string text, string original, string? subject = null, string? replyTo = null, string? inReplyTo = null) => new(
         to,
-        "Re: your message to jechel.dev",
+        ReplySubject(subject),
         Html($"""
             <p>Hi {Encode(name)},</p>
             {Paragraphs(text)}
             <p>Claudiu</p>
-            <p style="margin:24px 0"><a href="{Encode(conversationUrl)}" style="display:inline-block;background-color:#d91289;background-image:linear-gradient(90deg,#d91289,#9942f0);color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">Reply on jechel.dev</a></p>
             <blockquote style="margin:24px 0 0;padding:8px 14px;border-left:3px solid #ccc;color:#666">{Paragraphs(original)}</blockquote>
             """),
-        $"Hi {name},\n\n{text}\n\nClaudiu\n\nReply on jechel.dev: {conversationUrl}\n\n> {original.Replace("\n", "\n> ")}",
-        ReplyTo: replyTo);
+        $"Hi {name},\n\n{text}\n\nClaudiu\n\n> {original.Replace("\n", "\n> ")}",
+        ReplyTo: replyTo,
+        InReplyTo: inReplyTo);
+
+    /// <summary>"Re: " their subject (once), or <see cref="DefaultSubject"/>.</summary>
+    public static string ReplySubject(string? subject)
+    {
+        var trimmed = subject?.Trim() ?? "";
+        if (trimmed.Length == 0) return DefaultSubject;
+        return trimmed.StartsWith("re:", StringComparison.OrdinalIgnoreCase) ? trimmed : $"Re: {trimmed}";
+    }
 
     /// <param name="accepted">True for an accepted meeting, false for a declined one.</param>
-    public static EmailMessage MeetingNote(string to, string name, bool accepted, DateTimeOffset start, string? timeZone, string text, string replyTo)
+    /// <param name="replyTo">Where their answer goes when not to the sender (while the site doesn't receive email). Optional.</param>
+    public static EmailMessage MeetingNote(string to, string name, bool accepted, DateTimeOffset start, string? timeZone, string text, string? replyTo = null)
     {
         var when = FormatWhen(start, timeZone);
         var subject = accepted ? $"Our meeting on {when}" : $"About the meeting you asked for on {when}";

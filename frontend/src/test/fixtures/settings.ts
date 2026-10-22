@@ -21,6 +21,7 @@ const KEYS: [string, string][] = [
   ['Email:ResendApiKey', 'API key'],
   ['Email:From', 'Sender'],
   ['Email:UpdatesFrom', 'Updates sender (no replies)'],
+  ['Email:InboundWebhookSecret', 'Receiving webhook secret'],
   ['Alerts:NtfyTopic', 'Topic'],
   ['Alerts:NtfyServer', 'Server'],
   ['Alerts:NtfyToken', 'Access token (optional)'],

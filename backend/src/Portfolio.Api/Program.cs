@@ -108,6 +108,12 @@ builder.Services.AddHttpClient<ResendEmailSender>(http =>
     http.BaseAddress = ResendEmailSender.BaseAddress;
     http.Timeout = TimeSpan.FromSeconds(15);
 });
+// Emails to the site's address, received by Resend: the Contact inbox's conversations.
+builder.Services.AddHttpClient<IResendInbox, ResendInbox>(http =>
+{
+    http.BaseAddress = ResendEmailSender.BaseAddress;
+    http.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddSingleton<LogEmailSender>();
 builder.Services.AddTransient<IEmailSender, SwitchingEmailSender>();
 builder.Services.AddSingleton<UpdatesTrigger>();

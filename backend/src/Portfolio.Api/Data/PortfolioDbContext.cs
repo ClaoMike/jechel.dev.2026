@@ -75,16 +75,21 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(m => m.Id).HasColumnName("id");
             entity.Property(m => m.Name).HasColumnName("name").HasMaxLength(ContactRules.NameMaxLength).IsRequired();
             entity.Property(m => m.Email).HasColumnName("email").HasMaxLength(ContactRules.EmailMaxLength).IsRequired();
-            entity.Property(m => m.Message).HasColumnName("message").HasMaxLength(ContactRules.MessageMaxLength).IsRequired();
+            // Longer than the form allows: a conversation can start with an email.
+            entity.Property(m => m.Message).HasColumnName("message").HasMaxLength(Features.Contact.ContactEndpoints.ReplyMaxLength).IsRequired();
             entity.Property(m => m.ReceivedAt).HasColumnName("received_at");
             entity.Property(m => m.ReadAt).HasColumnName("read_at");
-            entity.Property(m => m.Token).HasColumnName("token").HasMaxLength(100).IsRequired();
             entity.Property(m => m.LastActivityAt).HasColumnName("last_activity_at");
+            entity.Property(m => m.Subject).HasColumnName("subject").HasMaxLength(300);
+            entity.Property(m => m.EmailId).HasColumnName("email_id").HasMaxLength(100);
+            entity.Property(m => m.EmailMessageId).HasColumnName("email_message_id").HasMaxLength(500);
 
             // The inbox lists the latest conversations first.
             entity.HasIndex(m => m.ReceivedAt);
             entity.HasIndex(m => m.LastActivityAt);
-            entity.HasIndex(m => m.Token).IsUnique();
+            entity.HasIndex(m => m.EmailId).IsUnique();
+            // An email from someone joins their latest conversation.
+            entity.HasIndex(m => m.Email);
         });
 
         modelBuilder.Entity<AboutPage>(entity =>
@@ -370,10 +375,13 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(r => r.Text).HasColumnName("text").HasMaxLength(Features.Contact.ContactEndpoints.ReplyMaxLength).IsRequired();
             entity.Property(r => r.SentAt).HasColumnName("sent_at");
             entity.Property(r => r.FromVisitor).HasColumnName("from_visitor");
+            entity.Property(r => r.EmailId).HasColumnName("email_id").HasMaxLength(100);
+            entity.Property(r => r.EmailMessageId).HasColumnName("email_message_id").HasMaxLength(500);
 
             // Deleting a message deletes its replies.
             entity.HasOne<ContactMessage>().WithMany().HasForeignKey(r => r.MessageId).OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(r => r.MessageId);
+            entity.HasIndex(r => r.EmailId).IsUnique();
         });
 
         modelBuilder.Entity<SiteState>(entity =>
