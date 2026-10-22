@@ -260,9 +260,15 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
     }
   }
 
-  /** Script errors (an ErrorEvent on window) and files that didn't load (an error event on the element; caught on the way down). */
+  /**
+   * Script errors (an ErrorEvent on window) and files that didn't load (an error event on the element; caught on the way down).
+   * Left out: a bare "Script error." with no file. The browser hides an error's details only when it comes from a
+   * script of another origin, and the site runs none (the Content-Security-Policy allows only its own), so it's a
+   * script the browser or an extension put in the page (Firefox on iPhone does, on taps). Nothing to learn or fix.
+   */
   function onError(event: Event) {
     if (event instanceof ErrorEvent) {
+      if (!event.filename && (!event.message || event.message === 'Script error.')) return
       error(event.message || 'Script error', { kind: 'script', source: event.filename ? `${event.filename}:${event.lineno}:${event.colno}` : '', stack: stackOf(event.error) })
       return
     }
