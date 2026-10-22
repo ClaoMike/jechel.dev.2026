@@ -20,9 +20,14 @@ if ! gh pr view develop --json state -q .state 2>/dev/null | grep -q OPEN; then
   gh pr create --base main --head develop --title "Deploy $(date '+%Y-%m-%d %H:%M')" \
     --body "$(git log --format='- %s' origin/main..develop --no-merges)"
 fi
-gh pr merge develop --auto --merge
+pr=$(gh pr view develop --json number -q .number)
+# Auto-merge waits for the tests; GitHub refuses it when they've already passed ("clean"): then it merges now.
+if ! gh pr merge "$pr" --auto --merge 2>/dev/null; then
+  gh pr merge "$pr" --merge || fail "the pull request can't be merged; see it: $(gh pr view "$pr" --json url -q .url)"
+fi
 echo
 echo "Waiting for the tests (merged and deployed automatically when they pass)..."
-gh pr checks develop --watch --required || fail "a required check failed; see the pull request."
+# By number: once it's merged, "develop" no longer names an open pull request.
+gh pr checks "$pr" --watch --required || fail "a required check failed; see the pull request."
 echo
 echo "Tests passed: merging and deploying. Follow it here: $(gh repo view --json url -q .url)/actions/workflows/deploy.yml"
