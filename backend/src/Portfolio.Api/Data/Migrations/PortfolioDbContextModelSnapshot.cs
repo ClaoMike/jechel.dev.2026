@@ -301,6 +301,10 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("character varying(254)")
                         .HasColumnName("email");
 
+                    b.Property<DateTimeOffset>("LastActivityAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_activity_at");
+
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -321,9 +325,20 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("received_at");
 
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("token");
+
                     b.HasKey("Id");
 
+                    b.HasIndex("LastActivityAt");
+
                     b.HasIndex("ReceivedAt");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
 
                     b.ToTable("contact_messages", (string)null);
                 });
@@ -336,6 +351,10 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("FromVisitor")
+                        .HasColumnType("boolean")
+                        .HasColumnName("from_visitor");
 
                     b.Property<int>("MessageId")
                         .HasColumnType("integer")

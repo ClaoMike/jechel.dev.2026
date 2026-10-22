@@ -1,13 +1,11 @@
-import { api, type ContactMessageDetails, type ContactMessageSummary, type ContactReply, type Page, type SendMessageRequest } from '../../services/api'
+import { api, type ContactMessageDetails, type ContactMessageSummary, type ContactReply, type Page, type SendMessageRequest, type Conversation } from '../../services/api'
 import { baseApi, run, whenFulfilled } from '../baseApi'
 import type { PageArgs } from './appsApi'
 
 /** The contact form, and the admin's inbox. */
 export const contactApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
-    sendMessage: build.mutation<void, SendMessageRequest>({
-      queryFn: (message) => run(api.contact.send(message)),
-    }),
+    sendMessage: build.mutation<void, SendMessageRequest>({ queryFn: (message) => run(api.contact.send(message)) }),
 
     listMessages: build.query<Page<ContactMessageSummary>, PageArgs>({
       queryFn: ({ page, pageSize }, { signal }) => run(api.contact.listMessages(page, pageSize, signal)),
@@ -44,9 +42,16 @@ export const contactApi = baseApi.injectEndpoints({
     }),
 
     /** The inbox loads again: the next message moves up, and the total changes. */
-    deleteMessage: build.mutation<void, number>({
-      queryFn: (id) => run(api.contact.deleteMessage(id)),
-      invalidatesTags: ['Messages'],
+    deleteMessage: build.mutation<void, number>({ queryFn: (id) => run(api.contact.deleteMessage(id)), invalidatesTags: ['Messages'] }),
+
+    /** The visitor's conversation, by its link. */
+    getConversation: build.query<Conversation, string>({ queryFn: (token, { signal }) => run(api.contact.getConversation(token, signal)) }),
+
+    /** The visitor writes back: the conversation shows it as the API now has it. */
+    writeBack: build.mutation<Conversation, { token: string; text: string }>({
+      queryFn: ({ token, text }) => run(api.contact.writeBack(token, text)),
+      onQueryStarted: ({ token }, { dispatch, queryFulfilled }) =>
+        whenFulfilled(queryFulfilled, (conversation) => dispatch(contactApi.util.upsertQueryData('getConversation', token, conversation))),
     }),
 
     replyToMessage: build.mutation<ContactReply, { id: number; text: string }>({
@@ -64,6 +69,8 @@ export const contactApi = baseApi.injectEndpoints({
 })
 
 export const {
+  useGetConversationQuery,
+  useWriteBackMutation,
   useSendMessageMutation,
   useListMessagesQuery,
   useGetMessageQuery,

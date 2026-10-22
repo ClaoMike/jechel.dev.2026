@@ -5,12 +5,12 @@ import type { Downtime } from '../layout/AppLayout/AppLayout'
 import { useAppSelector } from '../store'
 
 /** Pages that work during maintenance too. */
-const ALWAYS_OPEN = ['/admin', '/updates/confirm', '/updates/unsubscribe']
+const ALWAYS_OPEN = ['/admin', '/updates/confirm', '/updates/unsubscribe', '/contact/conversation']
 
 /**
  * Keeps the session and what visitors may see up to date, and decides whether visitors get the site
  * or the maintenance screen: when it's on, or when the API can't be reached. The admin always gets
- * the site; signing in (/admin) and the links in emails (confirm, unsubscribe) always work.
+ * the site; signing in (/admin) and the links in emails (confirm, unsubscribe, a conversation) always work.
  */
 export function useAppViewModel(): { downtime: Downtime | null } {
   useSessionKeeper()

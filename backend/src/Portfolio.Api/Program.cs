@@ -126,9 +126,14 @@ builder.Services.AddHostedService<UpdatesWorker>();
 
 // Subscribing sends an email, so each address (IP) gets a few tries per 10 minutes.
 var subscribeLimit = builder.Configuration.GetValue("Updates:SubscribeLimitPer10Minutes", 5);
+// The contact form and visitors' replies in a conversation, together.
+var contactLimit = builder.Configuration.GetValue("Contact:LimitPer10Minutes", 10);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(Portfolio.Api.Features.Contact.ContactEndpoints.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
+        http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = contactLimit, Window = TimeSpan.FromMinutes(10) }));
     options.AddPolicy(UpdatesEndpoints.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
         http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = subscribeLimit, Window = TimeSpan.FromMinutes(10) }));

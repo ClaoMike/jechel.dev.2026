@@ -7,17 +7,19 @@ namespace Portfolio.Api.Features.Meetings;
 /// <summary>The admin's own words, by email: an answer to a contact message, or a note with a meeting decision.</summary>
 public static class PersonalEmails
 {
-    /// <param name="original">Quoted under the answer.</param>
-    public static EmailMessage Reply(string to, string name, string text, string original, string replyTo) => new(
+    /// <param name="original">What they last wrote: quoted under the answer.</param>
+    /// <param name="conversationUrl">Their conversation's page, where they write back (the button). Replying to the email reaches the admin's own inbox too.</param>
+    public static EmailMessage Reply(string to, string name, string text, string original, string replyTo, string conversationUrl) => new(
         to,
         "Re: your message to jechel.dev",
         Html($"""
             <p>Hi {Encode(name)},</p>
             {Paragraphs(text)}
             <p>Claudiu</p>
+            <p style="margin:24px 0"><a href="{Encode(conversationUrl)}" style="display:inline-block;background-color:#d91289;background-image:linear-gradient(90deg,#d91289,#9942f0);color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700">Reply on jechel.dev</a></p>
             <blockquote style="margin:24px 0 0;padding:8px 14px;border-left:3px solid #ccc;color:#666">{Paragraphs(original)}</blockquote>
             """),
-        $"Hi {name},\n\n{text}\n\nClaudiu\n\n> {original.Replace("\n", "\n> ")}",
+        $"Hi {name},\n\n{text}\n\nClaudiu\n\nReply on jechel.dev: {conversationUrl}\n\n> {original.Replace("\n", "\n> ")}",
         ReplyTo: replyTo);
 
     /// <param name="accepted">True for an accepted meeting, false for a declined one.</param>

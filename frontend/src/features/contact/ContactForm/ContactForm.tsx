@@ -55,6 +55,11 @@ export function ContactForm() {
             Your message couldn't be sent. Please try again in a moment.
           </p>
         )}
+        {vm.status === 'tooMany' && (
+          <p role="alert" className="form-error">
+            Several messages in a short while: please try again in a few minutes.
+          </p>
+        )}
 
         <button type="submit" className="button" disabled={vm.sending}>
           {vm.sending ? 'Sending…' : 'Send message'}

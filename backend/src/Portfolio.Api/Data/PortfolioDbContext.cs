@@ -78,9 +78,13 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(m => m.Message).HasColumnName("message").HasMaxLength(ContactRules.MessageMaxLength).IsRequired();
             entity.Property(m => m.ReceivedAt).HasColumnName("received_at");
             entity.Property(m => m.ReadAt).HasColumnName("read_at");
+            entity.Property(m => m.Token).HasColumnName("token").HasMaxLength(100).IsRequired();
+            entity.Property(m => m.LastActivityAt).HasColumnName("last_activity_at");
 
-            // The inbox lists newest first.
+            // The inbox lists the latest conversations first.
             entity.HasIndex(m => m.ReceivedAt);
+            entity.HasIndex(m => m.LastActivityAt);
+            entity.HasIndex(m => m.Token).IsUnique();
         });
 
         modelBuilder.Entity<AboutPage>(entity =>
@@ -365,6 +369,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(r => r.MessageId).HasColumnName("message_id");
             entity.Property(r => r.Text).HasColumnName("text").HasMaxLength(Features.Contact.ContactEndpoints.ReplyMaxLength).IsRequired();
             entity.Property(r => r.SentAt).HasColumnName("sent_at");
+            entity.Property(r => r.FromVisitor).HasColumnName("from_visitor");
 
             // Deleting a message deletes its replies.
             entity.HasOne<ContactMessage>().WithMany().HasForeignKey(r => r.MessageId).OnDelete(DeleteBehavior.Cascade);

@@ -1130,7 +1130,7 @@ button.media-card {
   grid-template-columns: 1fr auto;
 }
 
-.detail-row-multiline dd {
+.detail-row-multiline dd:not(.detail-copy) {
   grid-column: 1 / -1;
   grid-row: 2;
 }
@@ -1179,7 +1179,7 @@ button.media-card {
     grid-template-columns: 1fr auto;
   }
 
-  .detail-row dd {
+  .detail-row dd:not(.detail-copy) {
     grid-column: 1 / -1;
     grid-row: 2;
   }
@@ -3189,6 +3189,84 @@ button.media-card {
   justify-content: flex-end;
 }
 
+/* ---------- A visitor's conversation (the link in an answer's email) ---------- */
+
+.conversation {
+  display: grid;
+  gap: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.conversation h2 {
+  margin: 0;
+}
+
+.conversation-messages {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Theirs on the right, Claudiu's on the left, as in a messaging app. */
+.conversation-message {
+  display: grid;
+  gap: 4px;
+  max-width: 85%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  min-width: 0;
+}
+
+.conversation-message[data-from='visitor'] {
+  justify-self: end;
+  background: var(--raised);
+}
+
+.conversation-message[data-from='admin'] {
+  justify-self: start;
+}
+
+.conversation-who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin: 0;
+  font-size: 13px;
+}
+
+.conversation-message .message-body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.conversation-form {
+  display: grid;
+  gap: 8px;
+}
+
+.conversation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.conversation-actions p {
+  margin: 0;
+}
+
+@media (max-width: 520px) {
+  .conversation-message {
+    max-width: 100%;
+  }
+}
+
 .updates-page {
   display: grid;
   justify-items: start;
@@ -4246,6 +4324,12 @@ button.media-card {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* What the visitor wrote back, set apart from your answers. */
+.reply.reply-from-visitor {
+  border-left: 3px solid var(--accent);
+  background: var(--raised);
 }
 
 .meeting,

@@ -1,4 +1,4 @@
-/** Contact: the contact form, and the admin's inbox and replies. */
+/** Contact: the contact form, the admin's inbox and replies, and the visitor's conversation (by its link). */
 
 import { type Page, get, http, post } from '../http'
 import type { Meeting } from './meetings'
@@ -15,6 +15,10 @@ export interface ContactMessageSummary {
   /** ISO 8601 timestamp. */
   receivedAt: string
   isRead: boolean
+  /** ISO 8601 timestamp: when anyone last wrote in the conversation (the inbox is ordered by it). */
+  lastActivityAt: string
+  /** Messages in the conversation, the first included. */
+  count: number
 }
 
 export interface ContactMessageDetails {
@@ -26,7 +30,7 @@ export interface ContactMessageDetails {
   receivedAt: string
   /** ISO 8601 timestamp, or null while unread. */
   readAt: string | null
-  /** What the admin answered, oldest first. */
+  /** Every message after the first, oldest first: the admin's answers and the visitor's. */
   replies: ContactReply[]
   /** Meetings the same address booked (not cancelled), soonest first. */
   meetings: Meeting[]
@@ -37,6 +41,23 @@ export interface ContactReply {
   text: string
   /** ISO 8601 timestamp. */
   sentAt: string
+  /** Written by the visitor on the conversation's page; false for the admin's answers. */
+  fromVisitor: boolean
+}
+
+/** A message in a conversation, as the visitor's page shows it. */
+export interface ConversationMessage {
+  text: string
+  /** ISO 8601 timestamp. */
+  at: string
+  /** Theirs; false for the admin's. */
+  fromVisitor: boolean
+}
+
+/** A conversation, for the visitor with its link: their name and every message, oldest first. */
+export interface Conversation {
+  name: string
+  messages: ConversationMessage[]
 }
 
 export const contactEndpoints = {
@@ -65,8 +86,18 @@ export const contactEndpoints = {
     await http.delete(`/api/contact/messages/${id}`)
   },
 
-  /** Admin only. Emails the answer to the sender (with the message quoted); rejects with a 503 ApiError when it can't be sent. */
+  /** Admin only. Emails the answer to the sender (with a link to write back, and what they last wrote quoted); rejects with a 503 ApiError when it can't be sent. */
   reply(id: number, text: string): Promise<ContactReply> {
     return post<ContactReply>(`/api/contact/messages/${id}/reply`, { text })
+  },
+
+  /** Public, with the link from an answer's email. Rejects with a 404 when it matches no conversation. */
+  getConversation(token: string, signal?: AbortSignal): Promise<Conversation> {
+    return get<Conversation>(`/api/contact/conversations/${encodeURIComponent(token)}`, { signal })
+  },
+
+  /** Public, with the link: the visitor writes back. Resolves with the whole conversation as it now is; rejects with validationErrors.text, a 404 or a 429. */
+  writeBack(token: string, text: string): Promise<Conversation> {
+    return post<Conversation>(`/api/contact/conversations/${encodeURIComponent(token)}/messages`, { text })
   },
 }

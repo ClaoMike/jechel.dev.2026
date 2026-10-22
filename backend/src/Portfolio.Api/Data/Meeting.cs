@@ -43,4 +43,7 @@ public class ContactReply
     public int MessageId { get; set; }
     public required string Text { get; set; }
     public DateTimeOffset SentAt { get; set; }
+
+    /// <summary>Written by the visitor, on the conversation's page; false for the admin's answers (emailed to them).</summary>
+    public bool FromVisitor { get; set; }
 }

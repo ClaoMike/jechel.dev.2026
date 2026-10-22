@@ -150,7 +150,9 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 | GET    | `/api/meetings?from=&to=`   | cookie  | Meetings overlapping the range (a calendar month), soonest first |
 | POST   | `/api/meetings/{id}/accept` | cookie or token | `{ message? }`: confirms a requested meeting with Cal.com and emails the message: **200** `{ status, emailSent }`, **502** when Cal.com refuses |
 | POST   | `/api/meetings/{id}/decline` | cookie or token | The same, declining (the message is also Cal.com's reason) |
-| POST   | `/api/contact/messages/{id}/reply` | cookie | `{ text }`: emails the answer to the sender (their message quoted, your address to reply to): **200**, **400**, **503** when it can't be sent |
+| POST   | `/api/contact/messages/{id}/reply` | cookie | `{ text }`: emails the answer to the sender, with a **Reply on jechel.dev** button to their conversation and what they last wrote quoted (your address to reply to by email too): **200**, **400**, **503** when it can't be sent |
+| GET    | `/api/contact/conversations/{token}` | the link | The visitor's conversation: `{ name, messages: [{ text, at, fromVisitor }] }`, oldest first: **200**, **404** |
+| POST   | `/api/contact/conversations/{token}/messages` | the link | `{ text }` (1 to 2,000 characters): the visitor writes back; unread again, on top of the inbox, phone alert: **200** the conversation, **400**, **404**, **429** |
 | GET    | `/api/site`                 | public  | What visitors see: `{ pages, features, maintenance, maintenanceMessage }` (cached: memory, then Redis) |
 | PUT    | `/api/site`                 | cookie  | Changes what's given (pages, features, maintenance, its message): **200**, or **400** for unknown ids |
 | GET    | `/api/settings`             | cookie  | The connection settings (secrets only as set/not set and their last 4 characters), how Google sign-in is set up, and the site's address |
@@ -414,6 +416,7 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 | Terms | `/terms` | admin only: the terms and conditions, editable (see [Terms and conditions](#terms-and-conditions)) |
 | Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](#settings-connections)) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
+| (no tab) | `/contact/conversation?token=…` | a visitor's conversation, from **Reply on jechel.dev** in an answer's email (see [Conversations](#conversations-contact)) |
 
 **What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): the newest app (by when it was added) or YouTube video (by when it was published), whichever came last, shown in full. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for the first item of each list, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later). The signed-in admin sees exactly what visitors see, with a note saying which section is left out and why; the empty and error messages name only what's shown (apps, videos, or both). If one list fails (e.g. YouTube isn't set up), the other is shown.
 
@@ -822,6 +825,44 @@ to the log. Setting it up (Settings tab, ntfy card):
 3. Press **Send a test alert**.
 
 Optionally reserve the topic with an ntfy account (access token), or use your own server, under "Your own ntfy server".
+
+## Conversations (contact)
+
+A message sent through the contact form starts a **conversation**. You answer from the inbox (Contact, signed in); the email
+carries a **Reply on jechel.dev** button to the conversation's page, where the visitor reads everything and writes back
+(text only, up to 2,000 characters). Their reply lands in the same thread in your inbox, unread again and on top, and your
+phone hears it (**New reply from …**, kind *New message* in Notifications). Your next answer emails them again with the same
+link, quoting what they wrote last. Replying to the email itself still reaches your own inbox (it's sent with your address
+to reply to), so nothing is lost.
+
+- **The link** (`contact_messages.token`): 256 random bits, made when the message arrives (messages from before conversations
+  got one in the migration). It's all the page needs: no account, no cookie. It works while the Contact page is hidden and
+  during maintenance (like the email links for updates). The page shows the visitor's name, never their address.
+- **The thread** (`contact_replies.from_visitor`): every message after the first, yours and theirs, oldest first. The inbox
+  lists conversations by their last message (`last_activity_at`), with how many messages each has.
+- **Limits:** the contact form and the visitor's replies share one limit per address: 10 every 10 minutes
+  (`Contact:LimitPer10Minutes`), so nobody floods the inbox or the phone. The form and the page say to wait (429).
+- **Deleting** a conversation (from the inbox) deletes every message in it; its link then says it isn't valid any more.
+
+```
+ Visitor                                   API                                         You (admin)
+ ───────                                   ───                                         ───────────
+ Contact form ── POST /api/contact ───────► conversation: first message, random token ──► 📱 New message from Ada
+   (10 per 10 min, per address)              unread, on top of the inbox                    Contact → inbox
+                                                                                              │ open: read; answer
+ ✉️ "Re: your message to jechel.dev" ◄────── email (Resend, hello@): your answer,  ◄── POST …/messages/{id}/reply
+    [Reply on jechel.dev]                    what they wrote last, quoted;
+    (answering the email itself ─────────────► your Gmail: reply-to is your address)
+          │
+          ▼
+ /contact/conversation?token=… ── GET /api/contact/conversations/{token} ── every message, oldest first
+   (works while Contact is hidden,            (their name, never their address; 404 for an unknown link)
+    and during maintenance)
+ "Write back" ── POST …/{token}/messages ──► reply from the visitor: the thread gets it,  ──► 📱 New reply from Ada
+   (1–2,000 characters; 429 when too many)    unread again, on top of the inbox                inbox: "Ada · 3 messages"
+                                                                                              │ answer again
+ ✉️ the next answer, same link ◄─────────────────────────────────────────────────────────────┘
+```
 
 ## Notifications (phone alerts, on or off)
 

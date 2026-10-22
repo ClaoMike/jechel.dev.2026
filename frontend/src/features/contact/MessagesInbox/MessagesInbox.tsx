@@ -27,9 +27,7 @@ export function MessagesInbox() {
           <SkeletonTable rows={5} columns={3} />
         </Loading>
       )}
-      {state.status === 'error' && (
-        <ErrorState message="Messages couldn't be loaded." onRetry={vm.retry} />
-      )}
+      {state.status === 'error' && <ErrorState message="Messages couldn't be loaded." onRetry={vm.retry} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">No messages yet.</p>}
 
       {state.status === 'loaded' && state.data.items.length > 0 && (
@@ -43,7 +41,7 @@ export function MessagesInbox() {
                     <span className="visually-hidden">Status</span>
                   </th>
                   <th scope="col">Name</th>
-                  <th scope="col">Date received</th>
+                  <th scope="col">Last message</th>
                   <th scope="col" className="col-actions">
                     <span className="visually-hidden">Actions</span>
                   </th>
@@ -51,11 +49,7 @@ export function MessagesInbox() {
               </thead>
               <tbody>
                 {state.data.items.map((message) => (
-                  <tr
-                    key={message.id}
-                    className={message.isRead ? 'message-row' : 'message-row message-row-unread'}
-                    onClick={(event) => vm.rowClicked(event, message)}
-                  >
+                  <tr key={message.id} className={message.isRead ? 'message-row' : 'message-row message-row-unread'} onClick={(event) => vm.rowClicked(event, message)}>
                     <td className="col-status">
                       {!message.isRead && (
                         <span className="unread-dot" title="Unread">
@@ -69,7 +63,8 @@ export function MessagesInbox() {
                       </button>
                     </td>
                     <td>
-                      <time dateTime={message.receivedAt}>{formatDateTime(message.receivedAt)}</time>
+                      <time dateTime={message.lastActivityAt}>{formatDateTime(message.lastActivityAt)}</time>
+                      {message.count > 1 && <span className="muted"> · {message.count} messages</span>}
                     </td>
                     <td className="col-actions">
                       <DeleteButton what={`the message from ${message.name}`} onDelete={() => vm.deleteMessage(message.id)} />
