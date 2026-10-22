@@ -1161,6 +1161,10 @@ in Resend, it only reaches your own address.
 - **When the scene can't be drawn** (`riviera.ts`, `onFail`): a picture that won't load, a texture the GPU refused (the first frame
   is read back once, and a black one counts), or a lost WebGL context. The still picture shows instead of a black screen; a lost
   context the browser gives back starts the scene again.
+- **Scrolling on phones** slides the browser's bars in and out, which changes the visible height. The scene is as tall as the
+  screen with the bars hidden (`100lvh`, `glass.css`), so it doesn't follow them; and since resizing a WebGL canvas clears it, any
+  resize that's left (turning the phone) draws it again at once (`riviera.ts`), animating or holding still. Before, the black behind it
+  flashed between frames while scrolling.
 - **The black behind the scene is on `<html>`, not `<body>`** (`glass.css`). The scene sits under the page (`z-index: -1`): above the
   root's background, below body's. Body's background only moves to the root while `<html>` has none, and Firefox on iPhone gives
   `<html>` one, so body's black covered the scene there. In Vice, body is transparent.

@@ -155,9 +155,17 @@ a {
 
 /* ---------- The Vice backdrop (layout/background) ---------- */
 
+/*
+ * As tall as the screen with the browser's bars hidden (lvh), not the visible area (inset: 0): on phones, those bars
+ * slide in and out while scrolling, and a scene that followed them would resize (and redraw) on every slide.
+ */
 .scene-background {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 100vh;
+  height: 100lvh;
   z-index: -1;
   background: #000;
 }
