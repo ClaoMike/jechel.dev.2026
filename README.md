@@ -640,7 +640,7 @@ Only one refresh runs at a time (`RefreshLock`), so visitors arriving together c
 
 ## Buy me a coffee (donations)
 
-The header's amber **Buy me a coffee** button links to the page in `Support:Url` (Settings tab), hidden while it's empty. The site
+The header's amber **Buy me a coffee** button links to the page in `Support:Url` (Settings tab), hidden while it's empty; steam always rises from its cup, and on hover the cup fills with coffee, bottom to top (`.coffee-steam`, `.coffee-fill` in `glass.css`). The site
 uses **[Buy Me a Coffee](https://buymeacoffee.com/claomike)** (it keeps 5% of each coffee, plus the payment processor's fee).
 
 **Coffee alerts** come from its webhook (`Features/Support/SupportEndpoints.cs`): in the Buy Me a Coffee dashboard add a webhook to

@@ -1,5 +1,5 @@
 import type { ReactNode, SVGProps } from 'react'
-import { useInstagramIconViewModel } from './icons.viewModel'
+import { useCoffeeIconViewModel, useInstagramIconViewModel } from './icons.viewModel'
 
 /** 24×24 line icons in the current text color. Decorative: label the button or link that holds them. */
 function Icon({ children, size = 18, ...props }: SVGProps<SVGSVGElement> & { size?: number; children: ReactNode }) {
@@ -315,21 +315,29 @@ export const EyeOffIcon = (p: IconProps) => (
 )
 
 /**
- * A cup with three lines of steam over it. On the Buy me a coffee button's hover the lines become waves
- * that rise and fade, one after another (glass.css: .coffee-steam).
+ * A cup with three waves of steam over it, always rising and fading one after another. On the Buy me a
+ * coffee button's hover the cup fills with coffee, bottom to top (glass.css: .coffee-steam, .coffee-fill).
  */
-export const CoffeeIcon = (p: IconProps) => (
-  <Icon {...p} className="coffee-icon">
-    <path d="M17 8h1a4 4 0 0 1 0 8h-1" />
-    <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
-    <path className="coffee-steam-still" d="M6 2v2M10 2v2M14 2v2" />
-    <g className="coffee-steam">
-      <path d="M6 6c-1-.75-1-1.25 0-2s1-1.25 0-2" />
-      <path d="M10 6c-1-.75-1-1.25 0-2s1-1.25 0-2" />
-      <path d="M14 6c-1-.75-1-1.25 0-2s1-1.25 0-2" />
-    </g>
-  </Icon>
-)
+export function CoffeeIcon(p: IconProps) {
+  const { inside } = useCoffeeIconViewModel()
+  return (
+    <Icon {...p} className="coffee-icon">
+      <defs>
+        <clipPath id={inside}>
+          <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
+        </clipPath>
+      </defs>
+      <rect className="coffee-fill" x="3" y="8" width="14" height="13" clipPath={`url(#${inside})`} />
+      <path d="M17 8h1a4 4 0 0 1 0 8h-1" />
+      <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
+      <g className="coffee-steam">
+        <path d="M6 6c-1-.75-1-1.25 0-2s1-1.25 0-2" />
+        <path d="M10 6c-1-.75-1-1.25 0-2s1-1.25 0-2" />
+        <path d="M14 6c-1-.75-1-1.25 0-2s1-1.25 0-2" />
+      </g>
+    </Icon>
+  )
+}
 
 export const InboxIcon = (p: IconProps) => (
   <Icon {...p}>
