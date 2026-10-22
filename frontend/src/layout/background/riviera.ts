@@ -40,6 +40,12 @@ export interface RivieraOptions {
   /** Called once the picture is on screen. */
   onReady?: () => void
   /**
+   * Called once if the scene can't be drawn after all: a picture that won't load, a texture the GPU
+   * refused, a first frame that came out black, or the WebGL context lost. The caller shows the still
+   * picture instead (a lost context may come back: `webglcontextrestored` on the canvas).
+   */
+  onFail?: () => void
+  /**
    * Called once if the scene can't keep up: after a warm-up, it drew under SLOW_FPS frames a second
    * (it aims for ~30) while the tab was visible and focused. The device is too weak for it.
    */
@@ -52,11 +58,21 @@ export interface Riviera {
   destroy(): void
 }
 
+/**
+ * Loaded, then decoded ahead of the upload where the browser can. decode() alone isn't relied on: in
+ * some WebKit browsers it fails (or never settles) for a picture that has loaded fine.
+ */
 function loadImage(src: string) {
-  const image = new Image()
-  image.decoding = 'async'
-  image.src = src
-  return image.decode().then(() => image)
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.decoding = 'async'
+    image.onload = () => {
+      const decoded = typeof image.decode === 'function' ? image.decode().catch(() => undefined) : Promise.resolve()
+      void Promise.race([decoded, new Promise((wait) => setTimeout(wait, 1000))]).then(() => resolve(image))
+    }
+    image.onerror = () => reject(new Error(`couldn't load ${src}`))
+    image.src = src
+  })
 }
 
 /** The plane sprite with the banner text painted on, following the banner's slant. */
@@ -131,6 +147,14 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
 
   let destroyed = false
   let ready = false
+  let failed = false
+  const fail = (error: unknown) => {
+    if (destroyed || failed) return
+    failed = true
+    cancelAnimationFrame(frame)
+    console.error('Riviera background:', error)
+    options.onFail?.()
+  }
   let frame = 0
   const clock = idleClock(performance.now(), options.idleMs ?? IDLE_MS)
 
@@ -217,6 +241,14 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
     if (options.still) draw()
   })
 
+  // Did the frame just drawn come out as the picture? Checked once, at the start.
+  const drewPicture = () => {
+    if (gl.isContextLost() || gl.getError() !== gl.NO_ERROR) return false
+    const pixel = new Uint8Array(4)
+    gl.readPixels(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel)
+    return pixel[0] + pixel[1] + pixel[2] > 0
+  }
+
   const big = Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) > 2200
   const fits4k = (gl.getParameter(gl.MAX_TEXTURE_SIZE) as number) >= 3840
   const plateUrl = big && fits4k ? plate3840Url : plate1920Url
@@ -231,16 +263,19 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
       texture(gl, 4, paintBanner(plane, options.bannerText), { premultiply: true })
       ;['uPlate', 'uMasksA', 'uMasksB', 'uMasksC', 'uPlane'].forEach((name, unit) => gl.uniform1i(uniform(name), unit))
       resize()
+      draw()
+      // Drawn straight away, so the frame can be checked before it's shown: a texture the GPU refused
+      // (too big, out of memory) samples as black, and a black screen is worse than the still picture.
+      if (!drewPicture()) throw new Error(`the first frame came out black (GL error ${gl.getError()})`)
       observer.observe(canvas)
-      if (options.still) draw()
-      else frame = requestAnimationFrame(loop)
+      if (!options.still) frame = requestAnimationFrame(loop)
       ready = true
       options.onReady?.()
     })
-    .catch((error: unknown) => console.error('Riviera background:', error))
+    .catch(fail)
 
   const wake = () => {
-    if (!clock.input(performance.now()) || destroyed || !ready || options.still) return
+    if (!clock.input(performance.now()) || destroyed || !ready || failed || options.still) return
     // Held still until now: the next frame draws at once.
     last = -Infinity
     frame = requestAnimationFrame(loop)
@@ -249,8 +284,9 @@ export function startRiviera(canvas: HTMLCanvasElement, options: RivieraOptions)
   window.addEventListener('focus', wake)
 
   const onLost = (event: Event) => {
+    // Kept restorable (preventDefault): the caller starts the scene again on webglcontextrestored.
     event.preventDefault()
-    cancelAnimationFrame(frame)
+    fail(new Error('WebGL context lost'))
   }
   canvas.addEventListener('webglcontextlost', onLost)
 

@@ -93,7 +93,7 @@ describe('the scene', () => {
   })
 
   /** A canvas whose WebGL draws are counted, inside a header with the neon site name, as on the page. */
-  function stage() {
+  function stage(adjust?: (gl: WebGL2RenderingContext) => void) {
     const header = document.createElement('header')
     header.className = 'site-header'
     const name = document.createElement('span')
@@ -118,11 +118,19 @@ describe('the scene', () => {
           draws++
           drawArrays(...args)
         }
+        adjust?.(gl)
       }
       return gl
     }) as typeof canvas.getContext
     return { header, name, other, canvas, draws: () => draws }
   }
+
+  /** Starts the scene and waits for it to be ready or to fail: which one it was. */
+  const settle = (canvas: HTMLCanvasElement) =>
+    new Promise<'ready' | 'failed' | 'no webgl'>((resolve) => {
+      scene = startRiviera(canvas, { bannerText: ['JECHEL.DEV', 'Hi'], still: false, onReady: () => resolve('ready'), onFail: () => resolve('failed') })
+      if (!scene) resolve('no webgl')
+    })
 
   const start = async (canvas: HTMLCanvasElement, idleMs: number) => {
     let ready!: () => void
@@ -195,5 +203,30 @@ describe('the scene', () => {
     window.dispatchEvent(new Event('keydown'))
     await new Promise((resolve) => setTimeout(resolve, 200))
     expect(draws()).toBe(before)
+  })
+
+  it('gives up, for the still picture, when the first frame comes out black (a texture the GPU refused)', async (context) => {
+    const { canvas, draws } = stage((gl) => {
+      gl.readPixels = () => {} // the pixel read stays black
+    })
+    const outcome = await settle(canvas)
+    if (outcome === 'no webgl') context.skip()
+    expect(outcome).toBe('failed')
+    // And it doesn't go on drawing.
+    const before = draws()
+    window.dispatchEvent(new Event('pointermove'))
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(draws()).toBe(before)
+  })
+
+  it('gives up, for the still picture, when the WebGL context is lost', async (context) => {
+    const { canvas } = stage()
+    if (!(await start(canvas, 60_000))) context.skip()
+    let failed!: () => void
+    const lost = new Promise<void>((resolve) => (failed = resolve))
+    scene!.destroy()
+    scene = startRiviera(canvas, { bannerText: ['JECHEL.DEV', 'Hi'], still: false, onFail: () => failed() })
+    canvas.getContext('webgl2')!.getExtension('WEBGL_lose_context')!.loseContext()
+    await lost
   })
 })

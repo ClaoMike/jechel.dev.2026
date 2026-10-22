@@ -37,7 +37,7 @@ export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
         <div className="site-header-top">
           <Brand />
           <div className="header-actions">
-            {vm.vice && <span ref={toggleSlotRef} className="content-toggle-slot" aria-hidden="true" />}
+            {vm.vice && <span ref={toggleSlotRef} className="content-toggle-slot" />}
             {!downtime && <SupportButton key={vm.preview} />}
             {!downtime && vm.showUpdates && <SubscribeButton />}
             <ThemeSwitch />
@@ -49,7 +49,7 @@ export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
         {downtime ? <MaintenanceScreen reason={downtime.reason} message={downtime.message} /> : <PageTransition key={vm.preview} />}
       </main>
       {!downtime && <SiteFooter inert={vm.contentHidden} />}
-      {vm.vice && <ContentToggle hidden={vm.contentHidden} onToggle={vm.toggleContent} anchor={toggleSlotRef} />}
+      {vm.vice && <ContentToggle hidden={vm.contentHidden} onToggle={vm.toggleContent} slot={vm.toggleSlot} />}
       <SlowSceneNotice />
     </div>
   )

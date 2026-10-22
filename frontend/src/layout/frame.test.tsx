@@ -151,6 +151,46 @@ describe('Vice: hiding the page to see the scene', () => {
     await expect.element(page.getByRole('button', { name: 'Hide page' })).toBeVisible()
   })
 
+  it("on phones, sits in the header's row while the page shows (moving with it), and in the corner while it's hidden", async () => {
+    await page.viewport(390, 844)
+    try {
+      stubApi()
+      await renderApp({ theme: 'vice' })
+      const header = document.querySelector('header.site-header')!
+      const hide = page.getByRole('button', { name: 'Hide page' })
+      await expect.element(hide).toBeVisible()
+      expect(header.contains(hide.element())).toBe(true)
+      expect(getComputedStyle(hide.element()).position).toBe('static')
+
+      await hide.click()
+      const show = page.getByRole('button', { name: 'Show page' })
+      expect(header.contains(show.element())).toBe(false)
+      expect(getComputedStyle(show.element()).position).toBe('fixed')
+      // The button moved: it keeps the focus.
+      expect(document.activeElement).toBe(show.element())
+
+      await show.click()
+      await expect.poll(() => header.contains(document.activeElement)).toBe(true)
+    } finally {
+      await page.viewport(1280, 900)
+    }
+  })
+
+  it("keeps the scene in view when the browser gives <html> a background of its own (Firefox on iPhone)", async () => {
+    stubApi()
+    await renderApp({ theme: 'vice' })
+    const injected = document.createElement('style')
+    injected.textContent = 'html { background-color: #222 }'
+    document.head.append(injected)
+    try {
+      // Body's black would then stay on body, over the scene (z-index: -1): in Vice, body has none.
+      expect(getComputedStyle(document.body).backgroundColor).toBe('rgba(0, 0, 0, 0)')
+    } finally {
+      injected.remove()
+    }
+    expect(getComputedStyle(document.documentElement).backgroundColor).toBe('rgb(0, 0, 0)')
+  })
+
   it('is only there in Vice; leaving Vice always brings the page back', async () => {
     stubApi()
     await renderApp({ theme: 'dark' })
