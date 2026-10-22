@@ -49,11 +49,17 @@ export const appsApi = baseApi.injectEndpoints({
       providesTags: ['Apps'],
     }),
 
-    /** The Apps page and What's new? follow the new order; Organise shows it at once (no reload in between). */
+    /**
+     * The Apps page and What's new? follow the new order. Organise's cached order is the saved one before the
+     * save resolves (not after, as onQueryStarted would): it shows it at once, without a frame of the old one.
+     */
     saveAppOrder: build.mutation<AppOrderItem[], AppOrderItem[]>({
-      queryFn: (order) => run(api.apps.saveOrder(order.map(({ id, showInWhatsNew }) => ({ id, showInWhatsNew })))),
+      queryFn: async (order, { dispatch }) => {
+        const result = await run(api.apps.saveOrder(order.map(({ id, showInWhatsNew }) => ({ id, showInWhatsNew }))))
+        if ('data' in result) dispatch(appsApi.util.updateQueryData('getAppOrder', undefined, () => result.data))
+        return result
+      },
       invalidatesTags: ['Apps'],
-      onQueryStarted: (_, { dispatch, queryFulfilled }) => whenFulfilled(queryFulfilled, (data) => dispatch(appsApi.util.upsertQueryData('getAppOrder', undefined, data))),
     }),
 
     listAppCategories: build.query<AppCategory[], void>({

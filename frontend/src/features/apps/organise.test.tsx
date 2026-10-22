@@ -104,6 +104,8 @@ describe('Apps → Organise', () => {
     await expect.poll(titles).toEqual(['No Picture', 'LIGHTHOUSE', 'Pocket Planner'])
     await expect.element(save()).toBeEnabled()
 
+    // The list loads again after a save: held back, so the saved order shows by itself first (no frame of the old one).
+    listOrder.mockReturnValue(forever())
     await save().click()
 
     expect(saveOrder).toHaveBeenCalledWith([
