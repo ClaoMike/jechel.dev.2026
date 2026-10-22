@@ -39,7 +39,7 @@ Personal portfolio website of Claudiu Mihai Jechel.
 │   │   ├── features/<feature>/            # a feature's components and rules (e.g. contact form + inbox)
 │   │   └── components/                    # shared UI: Modal, CopyButton, icons
 ├── backend/Dockerfile                    # the API's production image (built by deploy.yml, run on Sliplane)
-├── backend/db-backup/                    # the nightly database backup's image (pg_dump to object storage)
+├── backend/db-backup/                    # the nightly database backup's image (pg_dump to a volume)
 ├── scripts/dev_launcher.py                # GUI launcher for common dev tasks (macOS)
 ├── scripts/deploy.sh                      # deploy: pull request develop → main, merged when CI passes
 ├── scripts/build_brand_j.py               # draws the "j": the Vice title's first letter and the tab icon
@@ -611,7 +611,7 @@ How About Me is put together, and who sees what:
 - Photos (JPEG, PNG, WebP or GIF, up to 15 MB) are turned upright, scaled to fit 800×800 and stored as WebP **without metadata**, so a phone photo's GPS position never reaches the site. Papers (up to 200 MB) must be PDFs and keep their file name.
 - Each upload endpoint reads its own form and raises the server's request limit (Kestrel's default is 30 MB) for that request only. The editor checks the size before sending and shows the upload's progress. Limits are in `FileRules.cs` and `uploadLimits.ts`.
 - Files are served publicly from `GET /api/files/{id}/{name}`. Saving the page or an app deletes uploads nothing uses any more once they're a day old (a replaced photo, or one uploaded and never saved).
-- Storage is behind `IFileStorage`. `DatabaseFileStorage` keeps files in the `stored_files` table, which suits a photo and a PDF. Moving to object storage (Cloudflare R2, S3) means a new implementation and one line in `Program.cs`. There's no HTTP caching yet; adding a CDN later only needs cache headers, since a file's URL never changes.
+- Storage is behind `IFileStorage`. `DatabaseFileStorage` keeps files in the `stored_files` table, which suits a photo and a PDF. Moving to object storage (Cloudflare R2, S3) means a new implementation and one line in `Program.cs`. Files are served with `Cache-Control: public, max-age=31536000, immutable`, since a file's URL never changes.
 - Image processing uses SkiaSharp (MIT; `FileRules.PreparePhotoAsync`): JPEG, PNG, WebP or GIF (its first frame) only, at
   most 100 million pixels (checked before decoding), turned upright by its EXIF orientation, scaled to fit, re-encoded
   as WebP at quality 85 with nothing but the pixels (no EXIF, GPS or XMP). Replaced ImageSharp in October 2026, whose
