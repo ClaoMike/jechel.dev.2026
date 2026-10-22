@@ -6,11 +6,11 @@ export function CategoriesButton() {
   const vm = useCategoriesButtonViewModel()
 
   return (
-    <div className="page-actions">
+    <>
       <button type="button" className="button button-secondary button-small" onClick={vm.edit}>
         Categories
       </button>
       {vm.editing && <CategoriesDialog categories={vm.categories} onClose={vm.stopEditing} onSaved={vm.stopEditing} />}
-    </div>
+    </>
   )
 }

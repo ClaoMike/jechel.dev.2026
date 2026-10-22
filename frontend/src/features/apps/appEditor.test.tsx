@@ -144,6 +144,30 @@ describe("the app form's images and videos", () => {
   })
 })
 
+describe("the app form's What's new? switch", () => {
+  const whatsNew = () => page.getByRole('group', { name: "Show in What's new?" })
+
+  it('is on for a new app, and saves it off when switched off', async () => {
+    const create = stubCreate()
+    await renderNewApp()
+    await dialog().getByRole('textbox', { name: 'Title' }).fill('X')
+    await expect.element(whatsNew().getByRole('radio', { name: 'On' })).toBeChecked()
+    await whatsNew().getByText('Off').click()
+    await dialog().getByRole('button', { name: 'Add app' }).click()
+    expect(saved(create)).toMatchObject({ showInWhatsNew: false })
+  })
+
+  it("shows an app's own setting when editing it, and saves the change", async () => {
+    const update = vi.spyOn(api.apps, 'update').mockImplementation(async (_, app) => ({ ...APPS[0], ...app, categories: [] }))
+    await renderView(<AppDialog app={{ ...APPS[0], showInWhatsNew: false }} categories={CATEGORIES} canEdit onClose={vi.fn()} onSaved={vi.fn()} onDeleted={vi.fn()} />, { user: ADMIN })
+    await page.getByRole('button', { name: 'Edit' }).click()
+    await expect.element(whatsNew().getByRole('radio', { name: 'Off' })).toBeChecked()
+    await whatsNew().getByText('On').click()
+    await page.getByRole('dialog', { name: 'Edit LIGHTHOUSE' }).getByRole('button', { name: 'Save', exact: true }).click()
+    expect((update.mock.calls[0] as unknown[])[1]).toMatchObject({ showInWhatsNew: true })
+  })
+})
+
 describe('the app popup, closing', () => {
   it('closes a new, untouched app at once, and asks first once something is typed', async () => {
     const onClose = vi.fn()

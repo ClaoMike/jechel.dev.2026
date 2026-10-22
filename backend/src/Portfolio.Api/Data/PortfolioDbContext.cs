@@ -150,11 +150,14 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(a => a.CategoryIds).HasColumnName("category_ids").HasColumnType("jsonb").IsRequired().HasDefaultValueSql("'[]'::jsonb");
             entity.Property(a => a.Platforms).HasColumnName("platforms").HasColumnType("jsonb").IsRequired().HasDefaultValueSql("'[]'::jsonb");
             entity.Property(a => a.Links).HasColumnName("links").HasColumnType("jsonb").IsRequired().HasDefaultValueSql("'[]'::jsonb");
+            entity.Property(a => a.Position).HasColumnName("position");
+            // No database default: with one, EF Core would leave out a false (the CLR default) and the database's true would win.
+            entity.Property(a => a.ShowInWhatsNew).HasColumnName("show_in_whats_new");
             entity.Property(a => a.CreatedAt).HasColumnName("created_at");
             entity.Property(a => a.UpdatedAt).HasColumnName("updated_at");
 
-            // The grid lists newest first.
-            entity.HasIndex(a => a.CreatedAt);
+            // The grid lists them in the admin's order.
+            entity.HasIndex(a => a.Position);
         });
 
         modelBuilder.Entity<AppCategory>(entity =>

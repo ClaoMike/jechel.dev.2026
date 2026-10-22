@@ -1200,6 +1200,7 @@ html {
 .editor-item,
 .upload,
 .media-list-item,
+.organise-row,
 .city-search-results {
   border-color: var(--glass-edge);
   border-radius: 16px;

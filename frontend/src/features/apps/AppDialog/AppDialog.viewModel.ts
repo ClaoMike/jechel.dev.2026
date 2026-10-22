@@ -14,14 +14,15 @@ export interface AppDialogProps {
   onDeleted: (id: number) => void
 }
 
-const EMPTY: AppRequest = { title: '', description: '', categoryIds: [], platforms: [], links: [], media: [] }
-const toRequest = ({ title, description, categories, platforms, links, media }: AppDetails): AppRequest => ({
+const EMPTY: AppRequest = { title: '', description: '', categoryIds: [], platforms: [], links: [], media: [], showInWhatsNew: true }
+const toRequest = ({ title, description, categories, platforms, links, media, showInWhatsNew }: AppDetails): AppRequest => ({
   title,
   description,
   categoryIds: categories.map((c) => c.id),
   platforms,
   links,
   media,
+  showInWhatsNew,
 })
 
 /** Showing the app, or a draft of it being edited (a new app starts as one), saving it, deleting it. */

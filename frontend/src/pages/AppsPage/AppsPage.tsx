@@ -3,19 +3,26 @@ import { AddAppTile } from '../../features/apps/AddAppTile/AddAppTile'
 import { AppDialog } from '../../features/apps/AppDialog/AppDialog'
 import { AppTile } from '../../features/apps/AppTile/AppTile'
 import { CategoriesButton } from '../../features/apps/CategoriesButton/CategoriesButton'
+import { OrganiseButton } from '../../features/apps/OrganiseButton/OrganiseButton'
 import { useListAppsQuery, usePrefetchApps } from '../../store/api/appsApi'
 import { useAppsPageViewModel } from './AppsPage.viewModel'
 
 /**
- * My apps in a grid, newest first. A tile opens the app's details in a popup. The admin's
- * first tile adds an app, each app's popup has an Edit button, and Categories edits the list.
+ * My apps in a grid, in the order I set (Organise). A tile opens the app's details in a popup. The admin's
+ * first tile adds an app, each app's popup has an Edit button, Organise orders the apps (and picks which
+ * What's new? may show), and Categories edits the list of categories.
  */
 export function AppsPage() {
   const vm = useAppsPageViewModel()
 
   return (
     <section className="apps" aria-label="Apps">
-      {vm.canEdit && <CategoriesButton />}
+      {vm.canEdit && (
+        <div className="page-actions">
+          <OrganiseButton />
+          <CategoriesButton />
+        </div>
+      )}
       <PagedGrid
         useItems={useListAppsQuery} usePrefetchItems={usePrefetchApps}
         pageSize={vm.pageSize}

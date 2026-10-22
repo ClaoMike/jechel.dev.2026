@@ -10,15 +10,17 @@ interface ModalProps {
   onClose: () => void
   /** Extra class on the dialog, e.g. "modal-wide". */
   className?: string
+  /** False: only its own close button closes it (not Escape, not a click on the backdrop). */
+  dismissible?: boolean
   children: ReactNode
 }
 
 /**
  * An accessible modal dialog: focus moves into it and stays there (Tab wraps), Escape or a click
- * on the backdrop closes it, and focus returns to whatever opened it.
+ * on the backdrop closes it (unless it isn't `dismissible`), and focus returns to whatever opened it.
  */
-export function Modal({ labelledBy, initialFocus, onClose, className, children }: ModalProps) {
-  const { dialogRef, ...vm } = useModalViewModel({ initialFocus, onClose })
+export function Modal({ labelledBy, initialFocus, onClose, className, dismissible = true, children }: ModalProps) {
+  const { dialogRef, ...vm } = useModalViewModel({ initialFocus, onClose, dismissible })
 
   return createPortal(
     <div className="modal-backdrop" onKeyDown={vm.onKeyDown} onClick={vm.onClick} onMouseDown={vm.onMouseDown}>

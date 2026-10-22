@@ -41,6 +41,8 @@ public class AppEndpointTests(PortfolioApiFactory factory)
     [InlineData("PUT", "/api/apps/1")]
     [InlineData("DELETE", "/api/apps/1")]
     [InlineData("POST", "/api/files/app-media")]
+    [InlineData("GET", "/api/apps/order")]
+    [InlineData("PUT", "/api/apps/order")]
     public async Task Only_the_admin_can_change_apps(string method, string url)
     {
         var request = new HttpRequestMessage(new HttpMethod(method), url) { Content = JsonContent.Create(new AppRequest("x", "", [])) };
@@ -126,5 +128,33 @@ public class AppEndpointTests(PortfolioApiFactory factory)
         Assert.Equal(["Windows", "Steam Deck"], app.Platforms);
         Assert.Equal("Steam", app.Links[0].Label);
         Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"/api/apps/{app.Id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_admin_organises_the_apps_and_whats_new_shows_the_first_one_it_may()
+    {
+        var admin = await SignedInClientAsync();
+        // Other tests add apps too: this one works with whatever is there, plus its own two.
+        var older = (await (await admin.PostAsJsonAsync("/api/apps", new AppRequest("Organised older", "", []))).Content.ReadFromJsonAsync<AppDetails>())!;
+        // Off from the start: stored as false (a database default of true would win over a false the API leaves out).
+        var newer = (await (await admin.PostAsJsonAsync("/api/apps", new AppRequest("Organised newer", "", [], ShowInWhatsNew: false))).Content.ReadFromJsonAsync<AppDetails>())!;
+        Assert.False(newer.ShowInWhatsNew);
+
+        var order = (await admin.GetFromJsonAsync<List<AppOrderItem>>("/api/apps/order"))!;
+        Assert.Equal([newer.Id, older.Id], order.Take(2).Select(o => o.Id));
+        Assert.False(order[0].ShowInWhatsNew);
+
+        // The older one last, and the only one What's new? may show.
+        var reordered = order.Where(o => o.Id != older.Id).Select(o => new AppOrderRequest(o.Id, false)).Append(new AppOrderRequest(older.Id, true)).ToList();
+        var saved = await admin.PutAsJsonAsync("/api/apps/order", reordered);
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+
+        var visitor = factory.CreateBrowserClient();
+        var listed = (await visitor.GetFromJsonAsync<PagedResponse<AppDetails>>($"/api/apps?pageSize={AppEndpoints.MaxPageSize}"))!;
+        Assert.Equal(older.Id, listed.Items[^1].Id);
+        Assert.Equal(older.Id, (await visitor.GetFromJsonAsync<WhatsNewApp>("/api/apps/whats-new"))!.App!.Id);
+
+        var stale = await admin.PutAsJsonAsync("/api/apps/order", reordered.Skip(1));
+        Assert.Equal(HttpStatusCode.BadRequest, stale.StatusCode);
     }
 }
