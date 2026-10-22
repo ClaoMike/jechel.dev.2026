@@ -19,6 +19,8 @@ export interface TextFieldProps {
   allowLinks?: boolean
   /** Offered while typing; anything else can still be typed. */
   suggestions?: string[]
+  /** For the label, e.g. "label-admin" (coloured as only the admin sees it). */
+  labelClassName?: string
 }
 
 /** A field's ids and ARIA wiring, and where its cursor last was (for "Add link": the field has lost focus by the time it's clicked). */

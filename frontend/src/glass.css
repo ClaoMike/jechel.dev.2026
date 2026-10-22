@@ -755,11 +755,13 @@ html {
 
 /*
  * The admin's own tabs (Engagement, Community, Terms, Settings): the jechel.dev pink to violet, the
- * same in every theme so they're easy to spot. Mid-tones, about 4.4:1 on black, Vice and light alike.
+ * same in every theme so they're easy to spot (and the labels of fields only the admin sees: the résumé's
+ * email and phone). Mid-tones, about 4.4:1 on black, Vice and light alike.
  */
 .tabs .tab-admin,
 .tabs .tab-admin:hover,
-.tabs .tab-admin[aria-current='page'] {
+.tabs .tab-admin[aria-current='page'],
+.label-admin {
   background: linear-gradient(90deg, #d91289, #9942f0);
   -webkit-background-clip: text;
   background-clip: text;
@@ -771,7 +773,8 @@ html {
 @media (forced-colors: active) {
   .tabs .tab-admin,
   .tabs .tab-admin:hover,
-  .tabs .tab-admin[aria-current='page'] {
+  .tabs .tab-admin[aria-current='page'],
+  .label-admin {
     background: none;
     color: LinkText;
   }

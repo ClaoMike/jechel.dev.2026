@@ -25,7 +25,6 @@ export function useSkillsEditorViewModel({ value, onChange, errors }: EditorProp
 
   return {
     header: {
-      note: 'Shown in this order. Move skills with the arrows, or sort them by experience. Click a skill to edit it.',
       sortLabel: 'Sort by experience',
       sortedMessage: 'Sorted by experience, most first. Save to keep this order, or Cancel to undo.',
       canSort: skills.length >= 2,

@@ -157,6 +157,14 @@ describe('Photo and links, for the admin', () => {
     })
   })
 
+  it("colours the email and phone fields' labels like the admin's tabs (only the admin sees them); the headline keeps the theme's", async () => {
+    await renderProfile({ canEdit: true, value: { ...PROFILE, contact: CONTACT } })
+    await page.getByRole('button', { name: 'Edit Photo and links' }).click()
+    const label = (name: string) => form().getByText(name, { exact: true }).element()
+    for (const name of ['Email', 'Phone']) expect(getComputedStyle(label(name)).backgroundImage).toBe('linear-gradient(90deg, rgb(217, 18, 137), rgb(153, 66, 240))')
+    expect(getComputedStyle(label('Headline')).backgroundImage).toBe('none')
+  })
+
   it('has no private details to edit when there are none (they failed to load)', async () => {
     await renderProfile({ canEdit: true })
     await page.getByRole('button', { name: 'Edit Photo and links' }).click()

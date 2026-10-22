@@ -7,7 +7,7 @@ import { useResumePanelViewModel } from './ResumePanel.viewModel'
 /**
  * The admin's résumé generator on About Me: which sections and skills go in. The header (headline,
  * email, phone) is edited with "Photo and links" below. Generating makes two PDFs: visitors'
- * "Download résumé" gets the public one; the private one, with the phone number, is only for the admin.
+ * "Download résumé" gets the public one; the private one, with the email and phone number, is only for the admin.
  */
 export function ResumePanel({ skills }: { skills: string[] }) {
   const vm = useResumePanelViewModel(skills)
@@ -30,9 +30,6 @@ export function ResumePanel({ skills }: { skills: string[] }) {
             vm.generate()
           }}
         >
-          <p className="muted editor-note">
-            Made from this page as it is now. The headline, email and phone at the top are edited with Photo and links below; the phone is only in your private copy.
-          </p>
           <CheckboxGroup label="Sections to include" options={vm.sectionOptions} value={draft.sections} onChange={vm.setSections} labelFor={vm.sectionLabel} />
           {vm.showSkills && <CheckboxGroup label="Skills to show" options={skills} value={vm.shownSkills} onChange={vm.setShownSkills} labelFor={vm.skillLabel} />}
 

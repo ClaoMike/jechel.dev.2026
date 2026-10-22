@@ -1,6 +1,6 @@
 import { DownloadIcon, PhoneIcon } from '../../../components/icons/icons'
 
-/** When the résumés were last made, and both to download: the private one (with the phone) and the public one. */
+/** When the résumés were last made, and both to download: the private one (with the email and phone) and the public one. */
 export function ResumeDownloads({ generated, privateUrl, publicUrl }: { generated: string | null; privateUrl: string; publicUrl: string }) {
   if (!generated) return <p className="muted">Not generated yet.</p>
   return (

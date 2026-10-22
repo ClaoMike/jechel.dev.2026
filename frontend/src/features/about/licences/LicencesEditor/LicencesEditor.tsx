@@ -10,7 +10,6 @@ export function LicencesEditor(props: EditorProps<Licence[]>) {
   const vm = useLicencesEditorViewModel(props)
   return (
     <div className="editor-list">
-      <p className="muted editor-note">Click the ones you have.</p>
       {vm.offered.map((group) => (
         <OfferedLicences key={group.category} {...group} />
       ))}
