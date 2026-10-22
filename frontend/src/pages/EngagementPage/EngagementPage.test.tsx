@@ -5,6 +5,7 @@ import { a11yViolations } from '../../test/a11y'
 import { stubApi } from '../../test/api'
 import { EMPTY_SUMMARY, pageOfVisits, SUMMARY, VISIT, VISIT_ID, VISIT_SUMMARY } from '../../test/fixtures/analytics'
 import { ADMIN, forever, renderApp, renderView, textOf } from '../../test/render'
+import { formatBucket } from '../../features/analytics/format'
 import { EngagementPage } from './EngagementPage'
 
 // The admin's Engagement tab over the real store, its API calls stubbed.
@@ -130,6 +131,21 @@ describe('the numbers', () => {
     await expect.element(chart.getByRole('img')).toHaveAccessibleName('Page views per day: 112 in total')
     await chart.getByRole('button', { name: 'Errors' }).click()
     await expect.element(chart.getByRole('img')).toHaveAccessibleName('Errors per day: 3 in total')
+  })
+
+  it('shows a column’s numbers when hovered or tapped', async () => {
+    await renderEngagement()
+    const chart = page.getByRole('region', { name: /per day/ })
+    await expect.poll(() => chart.element().querySelectorAll('.chart-hit').length).toBe(SUMMARY.series.length)
+    const columns = chart.element().querySelectorAll('.chart-hit')
+    const tooltipTitle = () => chart.element().querySelector('.chart-tooltip strong')?.textContent
+
+    columns[columns.length - 1].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    await expect.poll(tooltipTitle).toBe(formatBucket(SUMMARY.series.at(-1)!.start, 'day', 'full'))
+    expect(chart.element().querySelector('.chart-hover-band')).not.toBeNull()
+
+    columns[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    await expect.poll(tooltipTitle).toBe(formatBucket(SUMMARY.series[0].start, 'day', 'full'))
   })
 
   it("keeps the chart's numbers for screen readers out of sight: no stray title under the chart", async () => {

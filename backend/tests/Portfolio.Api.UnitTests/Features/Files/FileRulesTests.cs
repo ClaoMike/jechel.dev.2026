@@ -60,4 +60,30 @@ public class FileRulesTests
     {
         Assert.Equal(contentType, FileRules.VideoContentType(start));
     }
+
+    // Photos from phones (HEIC, AVIF) are "ftyp" files too, but not videos: they're refused here, then read as images (or not).
+    [Theory]
+    [InlineData("heic")]
+    [InlineData("heix")]
+    [InlineData("heim")]
+    [InlineData("heis")]
+    [InlineData("hevc")]
+    [InlineData("hevx")]
+    [InlineData("mif1")]
+    [InlineData("msf1")]
+    [InlineData("avif")]
+    [InlineData("avis")]
+    public void Pictures_in_a_video_container_arent_videos(string brand)
+    {
+        byte[] start = [0, 0, 0, 0x18, .. "ftyp"u8, .. System.Text.Encoding.ASCII.GetBytes(brand)];
+
+        Assert.Null(FileRules.VideoContentType(start));
+    }
+
+    [Theory]
+    [InlineData("video/mp4", ".mp4")]
+    [InlineData("video/quicktime", ".mov")]
+    [InlineData("video/webm", ".webm")]
+    public void A_video_keeps_the_extension_of_its_kind(string contentType, string extension) =>
+        Assert.Equal(extension, FileRules.VideoExtension(contentType));
 }

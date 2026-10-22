@@ -115,6 +115,10 @@ public class EmailSendingTests
     [InlineData("<html>Bad gateway</html>")]
     [InlineData("""{"error":"no message here"}""")]
     [InlineData("")]
+    // Shapes it isn't known to send: still a clear refusal (the admin's reply says "check Resend"), never a crash.
+    [InlineData("""[{"message":"odd"}]""")]
+    [InlineData("""{"message":{"text":"nested"}}""")]
+    [InlineData("""{"message":42}""")]
     public async Task Says_the_status_when_Resend_gives_no_reason(string body)
     {
         var error = await Assert.ThrowsAsync<ServiceException>(() => Resend(new FakeResend(HttpStatusCode.BadGateway, body)).SendAsync(Update, default));

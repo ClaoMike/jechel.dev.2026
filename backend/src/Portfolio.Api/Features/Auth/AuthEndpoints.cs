@@ -90,12 +90,16 @@ public static class AuthEndpoints
     public static async Task<Ok<EndedSessions>> EndOtherSessions(AdminSessionService sessions, CancellationToken cancellationToken) =>
         TypedResults.Ok(new EndedSessions(await sessions.EndOthersAsync(cancellationToken)));
 
-    /// <summary>Only allow same-site relative paths, to prevent open redirects.</summary>
+    /// <summary>
+    /// Only allow same-site relative paths, to prevent open redirects. Browsers drop tabs and line breaks from a
+    /// URL and read "\\" as "/", so "/\t/evil.example" would become "//evil.example": no control characters, spaces
+    /// or backslashes anywhere.
+    /// </summary>
     public static string ToSafeReturnUrl(string? returnUrl) =>
         !string.IsNullOrEmpty(returnUrl) &&
         returnUrl.StartsWith('/') &&
         !returnUrl.StartsWith("//") &&
-        !returnUrl.StartsWith("/\\")
+        !returnUrl.Any(c => char.IsControl(c) || char.IsWhiteSpace(c) || c == '\\')
             ? returnUrl
             : "/";
 }

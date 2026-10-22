@@ -1,3 +1,4 @@
+using System.Net;
 using Portfolio.Api.Features.LeetCode;
 
 namespace Portfolio.Api.UnitTests.Features.LeetCode;
@@ -35,8 +36,46 @@ public class LeetCodeClientTests
     [InlineData("""{"errors":[{"message":"rate limited"}]}""")]
     [InlineData("""{"data":{"allQuestionsCount":null,"matchedUser":null}}""")]
     [InlineData("""{"data":{"allQuestionsCount":[{"difficulty":"Easy","count":1}],"matchedUser":null}}""")]
+    [InlineData("null")]
+    [InlineData("""{"data":{"allQuestionsCount":[{"difficulty":"Easy","count":1},{"difficulty":"Medium","count":1},{"difficulty":"Hard","count":1}],"matchedUser":{"submitStatsGlobal":null}}}""")]
+    [InlineData("""{"data":{"allQuestionsCount":[{"difficulty":"Easy","count":1},{"difficulty":"Medium","count":1},{"difficulty":"Hard","count":1}],"matchedUser":{"username":"x","submitStatsGlobal":null}}}""")]
     public void An_unexpected_answer_throws(string json)
     {
         Assert.Throws<InvalidDataException>(() => LeetCodeClient.Parse(json, Now));
+    }
+
+    private sealed class FakeLeetCode(HttpStatusCode status, string body) : HttpMessageHandler
+    {
+        public HttpRequestMessage? Request { get; private set; }
+        public string? Sent { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Request = request;
+            Sent = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(status) { Content = new StringContent(body) };
+        }
+    }
+
+    [Fact]
+    public async Task Asks_LeetCode_s_GraphQL_for_the_user_and_reads_the_answer()
+    {
+        var leetCode = new FakeLeetCode(HttpStatusCode.OK, Found);
+        var client = new LeetCodeClient(new HttpClient(leetCode) { BaseAddress = LeetCodeClient.BaseAddress }, new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Now));
+
+        var stats = await client.FetchAsync("NeetCode", default);
+
+        Assert.Equal("NeetCode", stats!.Username);
+        Assert.Equal((HttpMethod.Post, "https://leetcode.com/graphql"), (leetCode.Request!.Method, leetCode.Request.RequestUri!.ToString()));
+        Assert.Equal("NeetCode", System.Text.Json.Nodes.JsonNode.Parse(leetCode.Sent!)!["variables"]!["username"]!.GetValue<string>());
+        Assert.Equal(Now, stats.FetchedAt);
+    }
+
+    [Fact]
+    public async Task A_refusal_from_LeetCode_throws()
+    {
+        var client = new LeetCodeClient(new HttpClient(new FakeLeetCode(HttpStatusCode.TooManyRequests, "")) { BaseAddress = LeetCodeClient.BaseAddress }, TimeProvider.System);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.FetchAsync("NeetCode", default));
     }
 }

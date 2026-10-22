@@ -345,4 +345,117 @@ public class AboutRulesTests
         Assert.Equal("neetcode", normalized.LeetCodeUsername);
         Assert.Equal([NeetCodeListIds.Blind75, NeetCodeListIds.NeetCode250], normalized.NeetCodeLists);
     }
+
+    // ---------- A request with holes (JSON nulls): each is a field error, never a crash ----------
+
+    [Fact]
+    public void Missing_sections_are_each_named()
+    {
+        var content = Valid with { Links = null!, Colors = null!, ProblemSolving = null!, Statuses = null!, Places = null! };
+
+        var errors = AboutRules.Validate(content);
+
+        Assert.Equal("Links are required.", errors["links"].Single());
+        Assert.Equal("Colours are required.", errors["colors"].Single());
+        Assert.Equal("Required.", errors["problemSolving"].Single());
+        Assert.Contains("statuses", errors.Keys);
+        Assert.Contains("places", errors.Keys);
+    }
+
+    [Fact]
+    public void A_missing_item_in_any_list_is_named_by_its_place()
+    {
+        var content = Valid with
+        {
+            Statuses = [null!],
+            Places = [null!],
+            Skills = [null!],
+            Experience = [null!],
+            Education = [null!],
+            Papers = [null!],
+            Qualifications = [null!],
+            Languages = [null!],
+            Licences = [null!],
+            Hackathons = [null!],
+        };
+
+        var errors = AboutRules.Validate(content);
+
+        Assert.Equal("Label is required.", errors["statuses[0]"].Single());
+        Assert.Equal("Place is required.", errors["places[0]"].Single());
+        Assert.Equal("Skill is required.", errors["skills[0]"].Single());
+        Assert.Equal("Experience is required.", errors["experience[0]"].Single());
+        Assert.Equal("Education is required.", errors["education[0]"].Single());
+        Assert.Equal("Paper is required.", errors["papers[0]"].Single());
+        Assert.Equal("Qualification is required.", errors["qualifications[0]"].Single());
+        Assert.Equal("Language is required.", errors["languages[0]"].Single());
+        Assert.Equal("Licence is required.", errors["licences[0]"].Single());
+        Assert.Equal("Hackathon is required.", errors["hackathons[0]"].Single());
+    }
+
+    [Fact]
+    public void Missing_parts_inside_items_are_named_too()
+    {
+        var content = Valid with
+        {
+            Statuses = [new Status("Citizenship", null!)],
+            ProblemSolving = new ProblemSolving(null!, null!),
+            Skills =
+            [
+                new Skill("C#", null!),
+                new Skill("Go", [null!]),
+                new Skill("Rust", [new SkillPeriod(new DateOnly(2020, 1, 1), null, null!)]),
+                new Skill("Zig", [.. Enumerable.Range(0, AboutRules.MaxSkillPeriods + 1).Select(_ => new SkillPeriod(new DateOnly(2020, 1, 1), null, [SkillUses.Work]))]),
+            ],
+            Places = [City(null!), City(new PlaceVisit(PlaceVisitKinds.Visited, "")) with { Visits = [null!] }],
+            Qualifications = [new Qualification("Cert", "", default(DateOnly), "")],
+            Languages = [new Language("Romanian", null!)],
+            Licences = [new Licence(null!, "B", "Car")],
+        };
+
+        var errors = AboutRules.Validate(content);
+
+        Assert.Contains("statuses[0].flag", errors.Keys);
+        Assert.Contains("problemSolving.leetCodeUsername", errors.Keys);
+        Assert.Equal("Required (can be empty).", errors["problemSolving.neetCodeLists"].Single());
+        Assert.Equal("Required (can be empty).", errors["skills[0].periods"].Single());
+        Assert.Equal("Period is required.", errors["skills[1].periods[0]"].Single());
+        Assert.Contains("skills[2].periods[0].uses", errors.Keys);
+        Assert.Equal($"At most {AboutRules.MaxSkillPeriods} periods.", errors["skills[3].periods"].Single());
+        Assert.Contains("places[0].visits", errors.Keys);
+        Assert.Contains("qualifications[0].obtained", errors.Keys);
+        Assert.Contains("languages[0].level", errors.Keys);
+        Assert.Contains("licences[0].category", errors.Keys);
+    }
+
+    [Fact]
+    public void A_place_with_no_position_is_refused()
+    {
+        var content = Valid with { Places = [City(new PlaceVisit(PlaceVisitKinds.Visited, "")) with { Latitude = double.NaN }, City(new PlaceVisit(PlaceVisitKinds.Visited, "")) with { Longitude = double.NaN }] };
+
+        var errors = AboutRules.Validate(content);
+
+        Assert.Contains("places[0]", errors.Keys.Select(k => k.Split('.')[0]));
+        Assert.Contains("places[1]", errors.Keys.Select(k => k.Split('.')[0]));
+    }
+
+    [Fact]
+    public void A_link_longer_than_allowed_is_refused_and_missing_text_counts_as_empty()
+    {
+        var content = Valid with
+        {
+            Links = Valid.Links with { GitHubUrl = "https://github.com/" + new string('a', AboutRules.UrlMaxLength) },
+            Experience = [new ExperienceItem(null!, "Acme", null!, new DateOnly(2020, 1, 1), null, [null!, "  "])],
+        };
+
+        var errors = AboutRules.Validate(content);
+
+        Assert.Contains("links.gitHubUrl", errors.Keys);
+        Assert.Contains("experience[0].title", errors.Keys);
+        Assert.DoesNotContain("experience[0].location", errors.Keys);
+        // Tidied once valid: missing and blank bullets go.
+        var valid = Valid with { Experience = [new ExperienceItem("Dev", "Acme", null!, new DateOnly(2020, 1, 1), null, [null!, "  ", " Built it "])] };
+        Assert.Equal(["Built it"], AboutRules.Normalize(valid).Experience[0].Bullets);
+        Assert.Equal("", AboutRules.Normalize(valid).Experience[0].Location);
+    }
 }

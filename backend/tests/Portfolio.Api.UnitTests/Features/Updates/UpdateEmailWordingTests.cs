@@ -255,4 +255,15 @@ public class UpdateEmailWordingTests
         Assert.Equal("https://jechel.dev/api/updates/unsubscribe?token=a%2Bb%2Fc", email.UnsubscribeUrl);
         Assert.Contains("https://jechel.dev/updates/unsubscribe?token=a%2Bb%2Fc", email.Text);
     }
+
+    [Fact]
+    public void Missing_text_counts_as_empty()
+    {
+        var wording = UpdateEmailDefaults.Wording with { Confirm = UpdateEmailDefaults.Wording.Confirm with { Subject = null!, Note = null! } };
+
+        var errors = UpdateEmailRules.Validate(wording);
+
+        Assert.Equal("Required.", errors["confirm.subject"].Single());
+        Assert.DoesNotContain("confirm.note", errors.Keys);
+    }
 }

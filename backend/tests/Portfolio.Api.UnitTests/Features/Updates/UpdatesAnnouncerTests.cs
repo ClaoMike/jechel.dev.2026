@@ -388,4 +388,19 @@ public class UpdatesAnnouncerTests
         Assert.Equal(["Send email", "Ignore"], alert.Actions!.Select(a => a.Label));
         Assert.Equal(AnnouncementStatus.Pending, (await _db.Announcements.SingleAsync()).Status);
     }
+
+    [Theory]
+    [InlineData("""[{"url":"/api/files/1/image.webp","kind":"image"}]""", "https://jechel.dev/api/files/1/image.webp")]
+    [InlineData("""[{"url":"https://cdn.example.com/shot.png","kind":"image"}]""", "https://cdn.example.com/shot.png")]
+    [InlineData("""[{"url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ","kind":"youtube"}]""", null)]
+    [InlineData("[]", null)]
+    public void An_app_s_email_shows_its_first_picture_at_a_full_address(string media, string? image)
+    {
+        var app = new AppEntry { Title = "Space Game", Description = "A game.", Media = media, CreatedAt = default, UpdatedAt = default };
+
+        var item = UpdatesAnnouncer.AppItem(app, new SiteOptions { PublicUrl = "https://jechel.dev" });
+
+        Assert.Equal(image, item.ImageUrl);
+        Assert.Equal("https://jechel.dev/apps", item.Url);
+    }
 }

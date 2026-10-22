@@ -129,6 +129,9 @@ public class UpdatesEndpointsTests
     {
         Assert.Equal("Made with Unity.", UpdateEmails.Summary("Made with [Unity](https://unity.com)."));
         Assert.Equal("one two…", UpdateEmails.Summary("one two three", 10));
+        // One long word: cut where it must, mid-word.
+        Assert.Equal("abcdefghij…", UpdateEmails.Summary("abcdefghijklmnop", 10));
+        Assert.Equal("ab cdefghi…", UpdateEmails.Summary("ab cdefghijklmnop", 10));
     }
 
     [Fact]

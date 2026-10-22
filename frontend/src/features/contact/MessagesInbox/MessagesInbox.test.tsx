@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { THEMES } from '../../../layout/theme'
 import { api, ApiError, type ContactMessageDetails, type ContactReply } from '../../../services/api'
 import { a11yViolations } from '../../../test/a11y'
 import { stubApi } from '../../../test/api'
 import { ADA, INBOX, pageOfMessages } from '../../../test/fixtures/contact'
-import { BOOKING_LINK } from '../../../test/fixtures/meetings'
+import { BOOKING_LINK, todaysMeetings } from '../../../test/fixtures/meetings'
 import { ADMIN, forever, renderView, textOf } from '../../../test/render'
 import { formatDateTime } from '../../../utils/formatDate'
 import { MessagesInbox } from './MessagesInbox'
@@ -305,6 +305,52 @@ describe('emails that come in while it is open', () => {
     await expect.element(conversation().getByRole('alert')).toBeVisible()
 
     expect(calls.list.mock.calls.length).toBe(before)
+  })
+})
+
+describe('the popup', () => {
+  it('opens from anywhere on the row, and closes with Escape', async () => {
+    await show()
+    const cell = row('Bob').getByRole('cell').nth(2)
+    ;(cell.element() as HTMLElement).click()
+    await expect.element(page.getByRole('dialog', { name: /^Message from Bob/ })).toBeVisible()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('deletes the message after asking, and closes', async () => {
+    await show()
+    await open()
+    await dialog().getByRole('button', { name: 'Delete message' }).click()
+    await page.getByRole('button', { name: 'Delete', exact: true }).click()
+
+    await expect.poll(() => calls.remove.mock.calls).toEqual([[1]])
+    await expect.element(dialog()).not.toBeInTheDocument()
+  })
+
+  it('says when the message couldn’t be loaded, and tries again', async () => {
+    calls.get.mockRejectedValueOnce(new ApiError('/api/contact/messages/1', 500))
+    await show()
+    await row('Ada').getByRole('button', { name: 'Ada' }).click()
+    await expect.element(dialog().getByText("This message couldn't be loaded.")).toBeVisible()
+
+    await dialog().getByRole('button', { name: 'Try again' }).click()
+    await expect.element(dialog().getByText(ADA.message)).toBeVisible()
+  })
+
+  it('shows a meeting they booked, to accept from the message', async () => {
+    const meeting = { ...todaysMeetings()[1] }
+    calls.get.mockImplementation(async () => ({ ...structuredClone(ADA), meetings: [meeting] }))
+    const decide = vi.spyOn(api.meetings, 'decide').mockResolvedValue({ status: 'accepted', emailSent: false })
+    await show()
+    await open()
+    const booked = dialog().getByRole('region', { name: 'Meetings they booked' })
+    expect(textOf(booked)).toContain('“About a website”')
+
+    await booked.getByRole('button', { name: 'Accept' }).click()
+    expect(decide).toHaveBeenCalledWith(meeting.id, true, '')
+    await expect.element(booked.getByText('Accepted')).toBeVisible()
   })
 })
 

@@ -1,9 +1,28 @@
 import { describe, expect, it } from 'vitest'
 import type { VisitEvent } from '../../services/api'
 import { VISIT } from '../../test/fixtures/analytics'
-import { axisScale, countryName, describeDevice, describeEvent, describeTheme, formatBucket, formatCount, formatDuration, formatOffset, formatPercent, reproductionSteps } from './format'
+import {
+  axisScale,
+  countryName,
+  describeDevice,
+  describeEvent,
+  describeTheme,
+  formatBucket,
+  formatCount,
+  formatDuration,
+  formatOffset,
+  formatPercent,
+  reproductionSteps,
+} from './format'
 
-const event = (type: VisitEvent['type'], label: string | null = null, detail: Record<string, string> | null = null): VisitEvent => ({ seq: 1, occurredAt: '2026-10-21T09:30:00Z', type, path: '/apps', label, detail })
+const event = (type: VisitEvent['type'], label: string | null = null, detail: Record<string, string> | null = null): VisitEvent => ({
+  seq: 1,
+  occurredAt: '2026-10-21T09:30:00Z',
+  type,
+  path: '/apps',
+  label,
+  detail,
+})
 
 describe('numbers', () => {
   it('counts in full up to 10,000, then short', () => {
@@ -33,6 +52,11 @@ describe('numbers', () => {
     expect(formatBucket('2026-10-01T00:00:00Z', 'month', 'full')).toMatch(/October.*2026/)
     expect(formatBucket('2026-01-01T00:00:00Z', 'year', 'axis')).toBe('2026')
     expect(formatBucket('2026-10-21T14:05:00Z', '5m', 'full')).toMatch(/–/)
+    // Minutes and hours on the axis: just the time (the viewer's, here London's BST).
+    expect(formatBucket('2026-10-21T14:05:00Z', '5m', 'axis')).toBe('15:05')
+    expect(formatBucket('2026-10-21T14:00:00Z', 'hour', 'axis')).toBe('15:00')
+    // An hour in full names its day too.
+    expect(formatBucket('2026-10-21T14:00:00Z', 'hour', 'full')).toMatch(/^Wed.*21.*Oct.*15:00–16:00$/)
   })
 })
 

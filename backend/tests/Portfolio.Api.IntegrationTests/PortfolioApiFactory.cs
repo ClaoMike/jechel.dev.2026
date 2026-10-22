@@ -64,6 +64,7 @@ public class PortfolioApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
         // Every test client comes from the same (unknown) address.
         builder.UseSetting("Updates:SubscribeLimitPer10Minutes", "1000");
         builder.UseSetting("Contact:LimitPer10Minutes", "1000");
+        builder.UseSetting("Analytics:LimitPer10Minutes", "100000");
 
         builder.ConfigureTestServices(services =>
         {

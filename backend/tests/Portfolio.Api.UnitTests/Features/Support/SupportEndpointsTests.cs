@@ -309,4 +309,41 @@ public class SupportEndpointsTests
         Assert.Equal(["S3"], all.Items.Where(d => d.IsTest).Select(d => d.FromName));
         Assert.Equal((1, SupportEndpoints.MaxPageSize), (clamped.Page, clamped.PageSize));
     }
+
+    private static Data.Donation Of(string type, string amount = "", string? message = null) =>
+        new() { TransactionId = "t", Type = type, FromName = "Jo", Amount = amount, Currency = "", Message = message, Payload = "{}" };
+
+    [Theory]
+    [InlineData("membership.updated", "", "Membership changed: Jo", "A membership changed.")]
+    [InlineData("membership.updated", "10", "Membership changed: Jo", "Now 10.")]
+    [InlineData("extra_purchase.created", "", "🛍️ Jo", "Someone bought an extra.")]
+    [InlineData("donation.refunded", "", "Refunded: Jo", "A coffee was refunded on Buy Me a Coffee.")]
+    [InlineData("membership.started", "", "⭐ New member: Jo", "A membership started.")]
+    [InlineData("coffee-purchase", "", "☕ Jo bought you a coffee", "No message.")]
+    [InlineData("payout.sent", "", "Buy Me a Coffee: Jo", "New event: payout.sent.")]
+    [InlineData("payout.sent", "50", "Buy Me a Coffee: Jo", "New event: payout.sent, 50.")]
+    public void Every_kind_of_event_reads_well_with_or_without_an_amount(string type, string amount, string title, string message)
+    {
+        var alert = SupportEndpoints.AlertFor(Of(type, amount));
+
+        Assert.Equal((title, message), (alert.Title, alert.Message));
+    }
+
+    [Fact]
+    public void Numbers_count_as_text_and_anything_else_is_ignored()
+    {
+        var parsed = SupportEndpoints.ParseBuyMeACoffee("""{"type":"donation.created","data":{"id":12,"amount":4.5,"supporter_name":{"first":"Jo"},"currency":true}}""")!;
+
+        Assert.Equal(("12", "4.5"), (parsed.Id, parsed.Amount));
+        Assert.Null(parsed.FromName);
+        Assert.Null(parsed.Currency);
+    }
+
+    [Fact]
+    public void A_flat_body_is_read_from_its_top()
+    {
+        var parsed = SupportEndpoints.ParseBuyMeACoffee("""{"type":"donation.created","id":"9","supporter_name":"Jo"}""")!;
+
+        Assert.Equal(("9", "Jo"), (parsed.Id, parsed.FromName));
+    }
 }

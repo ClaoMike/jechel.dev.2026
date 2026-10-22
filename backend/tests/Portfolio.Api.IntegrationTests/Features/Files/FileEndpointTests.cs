@@ -60,6 +60,8 @@ public class FileEndpointTests(PortfolioApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, served.StatusCode);
         Assert.Equal("image/webp", served.Content.Headers.ContentType!.MediaType);
         Assert.Equal("nosniff", served.Headers.GetValues("X-Content-Type-Options").Single());
+        // A file never changes (a new upload gets a new id): browsers keep it.
+        Assert.Equal("public, max-age=31536000, immutable", served.Headers.CacheControl!.ToString());
         using var image = SKBitmap.Decode(await served.Content.ReadAsByteArrayAsync());
         Assert.Equal((800, 800), (image.Width, image.Height));
     }

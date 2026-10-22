@@ -25,6 +25,8 @@ public class YouTubeLinksTests
     [InlineData("https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ", null)]
     [InlineData("www.youtube.com/watch?v=dQw4w9WgXcQ", null)]
     [InlineData(null, null)]
+    [InlineData("https://www.youtube.com/@claomike", null)]
+    [InlineData("https://www.youtube.com/playlist?list=PL123", null)]
     [InlineData("https://www.youtube.com/watch?v=short", null)]
     [InlineData("https://www.youtube.com/@CiresariiStudio", null)]
     [InlineData("https://evil.example/watch?v=dQw4w9WgXcQ", null)]

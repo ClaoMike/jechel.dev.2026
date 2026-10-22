@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { api, type VisitBatch, type VisitEventInput } from '../../services/api'
+import { api, ApiError, type VisitBatch, type VisitEventInput } from '../../services/api'
 import { fakeHttp } from '../../test/http'
 import { createTracker, describe as describeElement, FLUSH_DELAY_MS, type Tracker } from './tracker'
 
@@ -177,7 +177,11 @@ describe('fields and forms', () => {
     form.requestSubmit()
     expect(last()).toEqual(expect.objectContaining({ type: 'submit', label: 'Get updates', detail: { via: 'Enter' } }))
     form.querySelector('button')!.click()
-    expect(queued().slice(-2).map((e) => `${e.type} ${e.label}`)).toEqual(['click Subscribe', 'submit Get updates'])
+    expect(
+      queued()
+        .slice(-2)
+        .map((e) => `${e.type} ${e.label}`),
+    ).toEqual(['click Subscribe', 'submit Get updates'])
     expect(last().detail).toEqual({ via: 'button' })
   })
 
@@ -254,7 +258,11 @@ describe('scrolling, the tab and leaving', () => {
     await scrollTo(0.6)
     await scrollTo(0.2)
     tracker.pageview('/about')
-    expect(queued().slice(-2).map((e) => `${e.type} ${e.label ?? ''} ${e.path}`)).toEqual(['scroll 50% /apps', 'pageview  /about'])
+    expect(
+      queued()
+        .slice(-2)
+        .map((e) => `${e.type} ${e.label ?? ''} ${e.path}`),
+    ).toEqual(['scroll 50% /apps', 'pageview  /about'])
   })
 
   it('records nothing for a page that was barely scrolled', async () => {
@@ -310,7 +318,15 @@ describe('scrolling, the tab and leaving', () => {
 
 describe('errors', () => {
   it('records a failed request (no answer or 5xx) with its address, but not expected 4xx answers or its own', async () => {
-    fakeHttp((request) => (request.url.includes('missing') ? { status: 404 } : request.url.startsWith('/api/analytics') ? { status: 500 } : request.url.includes('down') ? 'network-error' : { status: 503 }))
+    fakeHttp((request) =>
+      request.url.includes('missing')
+        ? { status: 404 }
+        : request.url.startsWith('/api/analytics')
+          ? { status: 500 }
+          : request.url.includes('down')
+            ? 'network-error'
+            : { status: 503 },
+    )
     await api.about.get().catch(() => {})
     await api.leetcode.get().catch(() => {})
     await api.analytics.send({ sessionId: 'x', session: {} as VisitBatch['session'], events: [] }).catch(() => {})
@@ -410,5 +426,97 @@ describe('who is recorded', () => {
     tracker.setMode('on')
     await tracker.flush()
     expect(transport.send.mock.calls.flatMap(([batch]) => batch.events).filter((e) => e.type === 'pageview')).toHaveLength(1)
+  })
+})
+
+describe('errors nobody caught', () => {
+  it('records a script error with where it happened, and one without a message as "Script error"', () => {
+    window.dispatchEvent(
+      new ErrorEvent('error', { message: 'x is not a function', filename: 'https://jechel.dev/assets/app.js', lineno: 12, colno: 4, error: new TypeError('x is not a function') }),
+    )
+    expect(last()).toMatchObject({ type: 'error', label: 'x is not a function', detail: { kind: 'script', source: 'https://jechel.dev/assets/app.js:12:4' } })
+
+    window.dispatchEvent(new ErrorEvent('error', { message: '' }))
+    expect(last()).toMatchObject({ label: 'Script error', detail: { kind: 'script' } })
+    expect(last().detail!.source).toBeUndefined()
+  })
+
+  it('records a promise nobody waited for, whatever it failed with', () => {
+    const reject = (reason: unknown) => window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason }))
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+
+    reject(new RangeError('too far'))
+    reject('plain words')
+    reject({ code: 7 })
+    reject(circular)
+    reject(undefined)
+
+    expect(
+      queued()
+        .filter((e) => e.type === 'error')
+        .map((e) => e.label),
+    ).toEqual(['RangeError: too far', 'plain words', '{"code":7}', '[object Object]', 'undefined'])
+    expect(last().detail).toMatchObject({ kind: 'unhandled-rejection' })
+  })
+
+  it('leaves out a request cancelled on purpose, and one that failed (it was recorded as it failed)', () => {
+    const reject = (reason: unknown) => window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason }))
+
+    reject(new DOMException('The user aborted a request.', 'AbortError'))
+    reject(new ApiError('/api/about', 503))
+    reject(new ApiError('/api/about', 0))
+    expect(queued().filter((e) => e.type === 'error')).toEqual([])
+
+    reject(new ApiError('/api/about', 404))
+    expect(last().type).toBe('error')
+  })
+})
+
+describe('odd events', () => {
+  it('ignores a submit or a media event from something that isn’t a form or a media element', () => {
+    const before = queued().length
+    add('<div></div>').dispatchEvent(new Event('submit', { bubbles: true }))
+    add('<div></div>').dispatchEvent(new Event('play', { bubbles: true }))
+    expect(queued()).toHaveLength(before)
+  })
+
+  it('names a form by what labels it, and a sound as a sound; a pause at the end is part of the end', () => {
+    host.innerHTML = '<h4 id="f-title">Subscribe</h4><form aria-labelledby="f-title"><button>Go</button></form>'
+    const form = host.querySelector('form')!
+    form.addEventListener('submit', (e) => e.preventDefault())
+    form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }))
+    expect(last()).toMatchObject({ type: 'submit', label: 'Subscribe', detail: { via: 'Enter' } })
+
+    const sound = add<HTMLAudioElement>('<audio src="/jingle.mp3"></audio>')
+    sound.dispatchEvent(new Event('play'))
+    expect(last()).toMatchObject({ label: 'Played a sound', detail: { src: '/jingle.mp3' } })
+    Object.defineProperty(sound, 'ended', { value: true })
+    const count = queued().length
+    sound.dispatchEvent(new Event('pause'))
+    expect(queued()).toHaveLength(count)
+  })
+
+  it('a page too short to scroll records no depth', async () => {
+    window.dispatchEvent(new Event('scroll'))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    tracker.pageview('/about')
+    expect(types()).not.toContain('scroll')
+  })
+})
+
+describe('the visit id', () => {
+  it('is a UUID even where randomUUID isn’t there (plain http)', () => {
+    uninstall()
+    sessionStorage.removeItem('analytics.session')
+    const randomUUID = crypto.randomUUID
+    Object.defineProperty(crypto, 'randomUUID', { value: undefined, configurable: true })
+    try {
+      tracker = createTracker(transport)
+      uninstall = tracker.install()
+      expect(tracker.state.sessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    } finally {
+      Object.defineProperty(crypto, 'randomUUID', { value: randomUUID, configurable: true })
+    }
   })
 })

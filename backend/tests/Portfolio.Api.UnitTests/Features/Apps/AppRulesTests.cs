@@ -76,4 +76,14 @@ public class AppRulesTests
 
         Assert.Equal(["media[3].url", "media[4].url"], AppRules.Validate(request).Keys.Order());
     }
+
+    [Fact]
+    public void Missing_links_and_categories_in_a_request_are_named()
+    {
+        var request = new AppRequest("Portfolio", null, [], Links: [null, new AppLink(null!, null!)]);
+
+        Assert.Equal(["links[0].label", "links[0].url", "links[1].label", "links[1].url"], AppRules.Validate(request).Keys.Order());
+        Assert.Equal(["[0].name"], AppRules.ValidateCategories([null], []).Keys);
+        Assert.Equal(["[0].name"], AppRules.ValidateCategories([new(null, null)], []).Keys);
+    }
 }

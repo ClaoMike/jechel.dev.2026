@@ -128,9 +128,15 @@ export function useTabNavViewModel() {
 
   function onPointerUp(event: PointerEvent<HTMLElement>) {
     const current = drag.current
+    // Another finger lifting doesn't end this drag.
+    if (!current || event.pointerId !== current.pointerId) return
     drag.current = null
-    if (!current?.moved || event.pointerId !== current.pointerId) return
+    if (!current.moved) return
+    // A mouse drag ends with a click (handled just after this), a finger's doesn't: either way the next one counts again.
     suppressClick.current = true
+    setTimeout(() => {
+      suppressClick.current = false
+    }, 0)
     const target = dragBox && nearestTab(dragBox.left + dragBox.width / 2)
     setDragBox(null)
     const to = target?.getAttribute('href')

@@ -208,3 +208,114 @@ describe('Settings: no descriptions', () => {
       expect(text).not.toContain(gone)
   })
 })
+
+describe('Settings: a setting', () => {
+  const card = (name: RegExp) => page.getByRole('region', { name })
+  const openCard = async (name: RegExp) => {
+    inCard = name
+    await page.getByRole('button', { name }).click()
+    await expect.element(page.getByRole('button', { name })).toHaveAttribute('aria-expanded', 'true')
+  }
+  let inCard = /./
+  const fieldOf = (label: RegExp) => card(inCard).getByLabelText(label)
+  const saveOf = (label: RegExp) => fieldOf(label).element().closest('.settings-field')!.querySelector<HTMLButtonElement>('button.button:not(.button-secondary)')!
+  const removeOf = (label: RegExp) => fieldOf(label).element().closest('.settings-field')!.querySelector<HTMLButtonElement>('button.button-secondary:last-of-type')!
+
+  it('generates a long random ntfy topic, saves it, and says so', async () => {
+    const stubs = stub()
+    await renderView(<SettingsPage />, { user: ADMIN })
+    await openCard(/^ntfy/)
+
+    await card(/^ntfy/).getByRole('button', { name: 'Generate' }).click()
+    const topic = (fieldOf(/^Topic/).element() as HTMLInputElement).value
+    expect(topic).toMatch(/^jechel-[0-9a-f]{24}$/)
+    saveOf(/^Topic/).click()
+
+    await expect.poll(() => stubs.save.mock.calls).toEqual([['Alerts:NtfyTopic', topic]])
+    await expect.element(card(/^ntfy/).getByText('Saved.')).toBeVisible()
+  })
+
+  it('a secret shows only its last characters and where it comes from, takes a new one, and can be removed', async () => {
+    const stubs = stub({ 'YouTube:ApiKey': 'AIzaSyExample1234' })
+    await renderView(<SettingsPage />, { user: ADMIN })
+    await openCard(/^YouTube Data API/)
+    const key = fieldOf(/^API key/)
+
+    expect(textOf(card(/^YouTube Data API/))).toContain('API key · set, ends in 1234, saved here')
+    await expect.element(key).toHaveValue('')
+    expect(key.element().getAttribute('placeholder')).toBe('Paste a new value to replace it')
+    expect(saveOf(/^API key/).disabled).toBe(true)
+
+    await key.fill('  AIzaSyNewKey9876  ')
+    saveOf(/^API key/).click()
+    await expect.poll(() => stubs.save.mock.calls[0]).toEqual(['YouTube:ApiKey', 'AIzaSyNewKey9876'])
+    await expect.element(key).toHaveValue('')
+
+    removeOf(/^API key/).click()
+    await expect.poll(() => stubs.save.mock.calls[1]).toEqual(['YouTube:ApiKey', ''])
+    await expect.element(card(/^YouTube Data API/).getByText('Removed.')).toBeVisible()
+  })
+
+  it('says when a value comes from the server, or couldn’t be saved', async () => {
+    const stubs = stub()
+    const fromServer = settings({ 'YouTube:Channel': '@claomike' })
+    fromServer.settings = fromServer.settings.map((s) => (s.key === 'YouTube:Channel' ? { ...s, source: 'configuration' } : s))
+    stubs.get.mockResolvedValue(fromServer)
+    stubs.save.mockRejectedValueOnce(new ApiError('/api/settings/YouTube%3AChannel', 500))
+    await renderView(<SettingsPage />, { user: ADMIN })
+    await openCard(/^YouTube Data API/)
+
+    expect(textOf(card(/^YouTube Data API/))).toContain('Channel (@handle or UC… id) · set, from the server configuration')
+    expect(
+      card(/^YouTube Data API/)
+        .getByRole('button', { name: 'Remove' })
+        .query(),
+    ).toBeNull()
+    await fieldOf(/^Channel/).fill('@someone')
+    saveOf(/^Channel/).click()
+    await expect.element(card(/^YouTube Data API/).getByText("That couldn't be saved. Please try again.")).toBeVisible()
+    await expect.element(fieldOf(/^Channel/)).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('a test button says how it went: worked, refused, or couldn’t run', async () => {
+    stub()
+    const test = vi
+      .spyOn(api.settings, 'test')
+      .mockResolvedValueOnce({ ok: true, message: 'Sent. It should be on your phone now.' })
+      .mockResolvedValueOnce({ ok: false, message: 'Set the topic first.' })
+      .mockRejectedValueOnce(new ApiError('/api/settings/test/ntfy', 500))
+    await renderView(<SettingsPage />, { user: ADMIN })
+    await openCard(/^ntfy/)
+    const button = card(/^ntfy/).getByRole('button', { name: 'Send a test alert' })
+
+    await button.click()
+    await expect.element(card(/^ntfy/).getByRole('status')).toHaveTextContent('✓ Sent. It should be on your phone now.')
+    await button.click()
+    await expect.element(card(/^ntfy/).getByRole('status')).toHaveTextContent('Set the topic first.')
+    expect(card(/^ntfy/).getByRole('status').element().className).toBe('field-error')
+    await button.click()
+    await expect.element(card(/^ntfy/).getByRole('status')).toHaveTextContent("The test couldn't run. Please try again.")
+    expect(test).toHaveBeenCalledWith('ntfy')
+  })
+
+  it('Google sign-in says whether it’s set up and how many may sign in', async () => {
+    stub()
+    await renderView(<SettingsPage />, { user: ADMIN })
+    await openCard(/^Google sign-in/)
+    expect(textOf(card(/^Google sign-in/))).toContain('Set up · client 1234abcd…')
+    expect(textOf(card(/^Google sign-in/))).toContain('1 email allowed')
+    expect(textOf(card(/^Google sign-in/))).toContain('https://jechel.dev/api/auth/signin-google')
+  })
+
+  it('…or that it isn’t', async () => {
+    const stubs = stub()
+    stubs.get.mockResolvedValue({
+      ...settings(),
+      google: { isConfigured: false, clientIdHint: null, adminEmailCount: 2, redirectUri: 'https://jechel.dev/api/auth/signin-google' },
+    })
+    await renderView(<SettingsPage />, { user: ADMIN })
+    await openCard(/^Google sign-in/)
+    expect(textOf(card(/^Google sign-in/))).toContain('Not set up')
+    expect(textOf(card(/^Google sign-in/))).toContain('2 emails allowed')
+  })
+})

@@ -221,7 +221,7 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
   }
 
   /**
-   * A click into embedded content (the YouTube player, a booking widget) isn't seen by the page: the
+   * A click into embedded content (the YouTube player) isn't seen by the page: the
    * window loses focus to the frame instead. Once per focus.
    */
   function onWindowBlur() {
@@ -263,11 +263,7 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
   /** Script errors (an ErrorEvent on window) and files that didn't load (an error event on the element; caught on the way down). */
   function onError(event: Event) {
     if (event instanceof ErrorEvent) {
-      error(event.message || 'Script error', {
-        kind: 'script',
-        source: event.filename ? `${event.filename}:${event.lineno}:${event.colno}` : '',
-        stack: stackOf(event.error),
-      })
+      error(event.message || 'Script error', { kind: 'script', source: event.filename ? `${event.filename}:${event.lineno}:${event.colno}` : '', stack: stackOf(event.error) })
       return
     }
     const element = event.target
@@ -387,11 +383,7 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
 
     /** A React render crash (from createRoot's error callbacks), with the component stack. */
     reactError(reactError: unknown, componentStack: string | undefined, caught: boolean) {
-      error(messageOf(reactError), {
-        kind: caught ? 'react-caught' : 'react-crash',
-        stack: stackOf(reactError),
-        componentStack: cut((componentStack ?? '').trim(), STACK_MAX),
-      })
+      error(messageOf(reactError), { kind: caught ? 'react-caught' : 'react-crash', stack: stackOf(reactError), componentStack: cut((componentStack ?? '').trim(), STACK_MAX) })
     },
 
     /** Sends now instead of waiting for the timer. */
@@ -507,7 +499,13 @@ export function describe(element: Element): string {
 
 /** A form's name: its label, else its heading, else its name. Never its fields' text. */
 function formName(form: HTMLFormElement): string {
-  const named = form.getAttribute('aria-label') ?? form.getAttribute('aria-labelledby')?.split(/\s+/).map((id) => document.getElementById(id)?.textContent).join(' ')
+  const named =
+    form.getAttribute('aria-label') ??
+    form
+      .getAttribute('aria-labelledby')
+      ?.split(/\s+/)
+      .map((id) => document.getElementById(id)?.textContent)
+      .join(' ')
   const heading = form.querySelector('h1, h2, h3, legend')?.textContent
   return squash(named) || squash(heading) || form.getAttribute('name') || '(form)'
 }

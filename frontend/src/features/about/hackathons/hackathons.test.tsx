@@ -5,7 +5,11 @@ import { ABOUT } from '../../../test/fixtures/about'
 import { renderView } from '../../../test/render'
 import { HackathonsSection } from './HackathonsSection/HackathonsSection'
 
-function renderHackathons({ value = ABOUT.hackathons, canEdit = false, onSave = vi.fn(async () => {}) }: { value?: Hackathon[]; canEdit?: boolean; onSave?: (v: Hackathon[]) => Promise<void> } = {}) {
+function renderHackathons({
+  value = ABOUT.hackathons,
+  canEdit = false,
+  onSave = vi.fn(async () => {}),
+}: { value?: Hackathon[]; canEdit?: boolean; onSave?: (v: Hackathon[]) => Promise<void> } = {}) {
   return renderView(<HackathonsSection value={value} canEdit={canEdit} onSave={onSave} />)
 }
 
@@ -56,7 +60,16 @@ describe('Hackathons', () => {
   })
 
   it("shows the API's errors on the year, the name and the bullets", async () => {
-    const onSave = vi.fn().mockRejectedValue(new ApiError('/api/about', 400, { 'hackathons[0].year': ['Too early.'], 'hackathons[0].name': ['Required.'], 'hackathons[0].bullets[0]': ['Too long.'], 'hackathons[0].bullets': ['Too many.'] }))
+    const onSave = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError('/api/about', 400, {
+          'hackathons[0].year': ['Too early.'],
+          'hackathons[0].name': ['Required.'],
+          'hackathons[0].bullets[0]': ['Too long.'],
+          'hackathons[0].bullets': ['Too many.'],
+        }),
+      )
     await renderHackathons({ canEdit: true, onSave })
     await page.getByRole('button', { name: 'Edit Hackathons' }).click()
     await form().getByRole('button', { name: 'Save' }).click()
@@ -65,5 +78,21 @@ describe('Hackathons', () => {
     await expect.element(hackathon(1).getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('Required.')
     await expect.element(hackathon(1).getByRole('textbox', { name: 'Bullet point 1' })).toHaveAccessibleDescription('Too long.')
     await expect.element(hackathon(1).getByText('Too many.')).toBeVisible()
+  })
+
+  it('moves hackathons, and removes one and a bullet after asking', async () => {
+    const onSave = vi.fn(async () => {})
+    const two: Hackathon[] = [ABOUT.hackathons[0], { name: 'Junction', year: 2021, bullets: ['First.', 'Second.'] }]
+    await renderHackathons({ value: two, canEdit: true, onSave })
+    await page.getByRole('button', { name: 'Edit Hackathons' }).click()
+
+    await form().getByRole('button', { name: 'Move hackathon 2 up' }).click()
+    await hackathon(1).getByRole('button', { name: 'Remove bullet point 1' }).click()
+    await page.getByRole('button', { name: 'Remove', exact: true }).click()
+    await form().getByRole('button', { name: 'Remove hackathon 2' }).click()
+    await page.getByRole('button', { name: 'Remove', exact: true }).click()
+    await form().getByRole('button', { name: 'Save' }).click()
+
+    expect(onSave).toHaveBeenCalledWith([{ name: 'Junction', year: 2021, bullets: ['Second.'] }])
   })
 })

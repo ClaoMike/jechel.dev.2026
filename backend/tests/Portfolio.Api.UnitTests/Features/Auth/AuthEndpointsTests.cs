@@ -21,6 +21,13 @@ public class AuthEndpointsTests
     [InlineData("/\\evil.example.com", "/")]
     [InlineData("admin", "/")]
     [InlineData("javascript:alert(1)", "/")]
+    // Browsers drop tabs and line breaks from URLs, and read a backslash as a slash: each would become "//evil.example.com".
+    [InlineData("/\t/evil.example.com", "/")]
+    [InlineData("/\n/evil.example.com", "/")]
+    [InlineData("/\r\n/evil.example.com", "/")]
+    [InlineData("/x\\..\\/evil.example.com", "/")]
+    [InlineData("/ /evil.example.com", "/")]
+    [InlineData("/about?tab=1#top", "/about?tab=1#top")]
     public void Only_lets_sign_in_return_to_a_path_on_this_site(string? input, string expected) =>
         Assert.Equal(expected, AuthEndpoints.ToSafeReturnUrl(input));
 

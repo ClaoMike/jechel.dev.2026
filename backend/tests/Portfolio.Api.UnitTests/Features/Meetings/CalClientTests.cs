@@ -60,6 +60,10 @@ public class CalClientTests
     [InlineData("""{"message":"Invalid API key"}""", "Cal.com refused it: Invalid API key")]
     [InlineData("<html>Bad gateway</html>", "Cal.com refused it: 400 BadRequest")]
     [InlineData("", "Cal.com refused it: 400 BadRequest")]
+    // Shapes it isn't known to send: still a clear refusal, never a crash.
+    [InlineData("""[{"message":"odd"}]""", "Cal.com refused it: 400 BadRequest")]
+    [InlineData("""{"error":"just text","message":{"code":42}}""", "Cal.com refused it: 400 BadRequest")]
+    [InlineData("""{"error":{"message":7}}""", "Cal.com refused it: 400 BadRequest")]
     public async Task A_refusal_gives_Cal_com_s_reason(string body, string expected)
     {
         _cal.Status = HttpStatusCode.BadRequest;
@@ -74,6 +78,9 @@ public class CalClientTests
     [InlineData("""{"data":{"username":"claomike","email":"me@example.com"}}""", "claomike")]
     [InlineData("""{"data":{"email":"me@example.com"}}""", "me@example.com")]
     [InlineData("""{"data":{}}""", "your account")]
+    [InlineData("""{"data":{"username":7,"email":"me@example.com"}}""", "me@example.com")]
+    [InlineData("""{"data":"me"}""", "your account")]
+    [InlineData("[]", "your account")]
     public async Task Who_am_I_names_the_account(string body, string expected)
     {
         _cal.Body = body;

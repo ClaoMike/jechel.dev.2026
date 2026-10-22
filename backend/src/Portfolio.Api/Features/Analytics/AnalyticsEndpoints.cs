@@ -16,6 +16,9 @@ public static class AnalyticsEndpoints
     public const int MaxPageSize = 50;
     public const int TopListSize = 10;
 
+    /// <summary>Batches per IP (Analytics:LimitPer10Minutes): the tracker drops a refused one, and nothing else notices.</summary>
+    public const string RateLimitPolicy = "analytics";
+
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
 
     public static IEndpointRouteBuilder MapAnalyticsEndpoints(this IEndpointRouteBuilder app)
@@ -23,7 +26,7 @@ public static class AnalyticsEndpoints
         var analytics = app.MapGroup("/analytics");
 
         // Public: every visitor's browser sends its events here.
-        analytics.MapPost("/events", Collect).WithName("CollectAnalyticsEvents");
+        analytics.MapPost("/events", Collect).WithName("CollectAnalyticsEvents").RequireRateLimiting(RateLimitPolicy);
 
         // Admin only: the Engagement tab.
         analytics.MapGet("/summary", GetSummary).WithName("GetAnalyticsSummary").RequireAuthorization();

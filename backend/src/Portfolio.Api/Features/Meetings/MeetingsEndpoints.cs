@@ -46,6 +46,9 @@ public static class MeetingsEndpoints
 {
     public const int MessageMaxLength = 2000;
 
+    /// <summary>A booking's webhook is a few kilobytes: anything this big isn't Cal.com's.</summary>
+    public const int MaxWebhookBytes = 256 * 1024;
+
     public static IEndpointRouteBuilder MapMeetingsEndpoints(this IEndpointRouteBuilder app)
     {
         var meetings = app.MapGroup("/meetings");
@@ -84,10 +87,7 @@ public static class MeetingsEndpoints
         var secret = options.CurrentValue.WebhookSecret.Trim();
         if (secret.Length == 0) return TypedResults.Problem("Cal.com isn't set up: set its webhook secret in Settings.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-        using var buffer = new MemoryStream();
-        await request.Body.CopyToAsync(buffer, cancellationToken);
-        if (buffer.Length > 256 * 1024) return TypedResults.BadRequest();
-        var body = buffer.ToArray();
+        if (await RequestBodies.ReadLimitedAsync(request, MaxWebhookBytes, cancellationToken) is not { } body) return TypedResults.BadRequest();
         if (!Support.SupportEndpoints.SignatureMatches(body, request.Headers["x-cal-signature-256"].FirstOrDefault(), secret)) return TypedResults.Unauthorized();
 
         var booking = ParseCal(Encoding.UTF8.GetString(body));

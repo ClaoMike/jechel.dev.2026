@@ -125,4 +125,13 @@ public class KeyRingEncryptionTests
         var error = Assert.Throws<InvalidOperationException>(() => new KeyRingDecryptor(services).Decrypt(encrypted.EncryptedElement));
         Assert.Contains(KeyRingEncryption.ConfigurationKey, error.Message);
     }
+
+    [Fact]
+    public void An_encrypted_key_without_its_value_cant_be_opened()
+    {
+        var key = RandomNumberGenerator.GetBytes(32);
+        var services = new ServiceCollection().AddSingleton(Settings(Convert.ToBase64String(key))).BuildServiceProvider();
+
+        Assert.ThrowsAny<Exception>(() => new KeyRingDecryptor(services).Decrypt(new XElement("encryptedKey")));
+    }
 }

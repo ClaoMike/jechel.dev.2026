@@ -353,4 +353,20 @@ public class PhoneAlertsTests
         await handler.TryHandleAsync(Request("GET", "/api/apps"), new OperationCanceledException(), default);
         Assert.Single(alerts.Throttled);
     }
+
+    [Fact]
+    public void A_long_running_server_forgets_old_throttle_keys()
+    {
+        var alerts = new PhoneAlerts(_time);
+        // Ten new errors an hour (the most that ring) for over 100 hours: past 1,000 keys, the old ones go.
+        for (var hour = 0; hour < 101; hour++)
+        {
+            for (var i = 0; i < PhoneAlerts.MaxThrottledPerWindow; i++) alerts.SendThrottled($"web:{hour}:{i}", new PhoneAlert(AlertKinds.SiteError, "Site error", $"{hour}"));
+            _time.Advance(PhoneAlerts.ThrottleWindow);
+        }
+        alerts.SendThrottled("web:last", new PhoneAlert(AlertKinds.SiteError, "Site error", "last"));
+
+        var remembered = (System.Collections.IDictionary)typeof(PhoneAlerts).GetField("_lastSent", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(alerts)!;
+        Assert.True(remembered.Count <= PhoneAlerts.MaxThrottledPerWindow + 1, $"{remembered.Count} keys");
+    }
 }

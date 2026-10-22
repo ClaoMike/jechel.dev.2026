@@ -262,4 +262,14 @@ public class AdminSessionServiceTests
     [InlineData("Other", "Other", "A browser")]
     public void Names_a_device_by_its_browser_and_system(string browser, string os, string expected) =>
         Assert.Equal(expected, AdminSessionService.Describe(new AnalyticsRules.UserAgentInfo("desktop", browser, os, false)));
+
+    [Fact]
+    public async Task Signing_out_with_no_session_this_request_does_nothing()
+    {
+        await SignInAsync();
+
+        await Service().EndCurrentAsync();
+
+        Assert.Single(Db().AdminSessions);
+    }
 }

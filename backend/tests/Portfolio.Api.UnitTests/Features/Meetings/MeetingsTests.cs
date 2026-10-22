@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Portfolio.Api.Data;
@@ -410,6 +411,24 @@ public class MeetingsTests
         Assert.Equal(["long ago"], september.Select(m => m.Title));
     }
 
+    [Theory]
+    [InlineData("ACCEPTED", MeetingStatus.Accepted)]
+    [InlineData("accepted", MeetingStatus.Accepted)]
+    [InlineData("PENDING", MeetingStatus.Requested)]
+    [InlineData("CANCELLED", MeetingStatus.Cancelled)]
+    [InlineData("REJECTED", MeetingStatus.Declined)]
+    [InlineData("AWAITING_HOST", MeetingStatus.Accepted)]
+    public void A_created_booking_takes_Cal_com_s_own_status(string calStatus, string expected) =>
+        Assert.Equal(expected, MeetingsEndpoints.ParseCal($$$"""{"triggerEvent":"BOOKING_CREATED","payload":{"uid":"b1","status":"{{{calStatus}}}"}}""")!.Status);
+
+    [Fact]
+    public void A_body_with_no_payload_is_read_from_its_top()
+    {
+        var booking = MeetingsEndpoints.ParseCal("""{"triggerEvent":"BOOKING_CANCELLED","uid":"b9","title":"Flat"}""")!;
+
+        Assert.Equal(("b9", MeetingStatus.Cancelled, "Flat"), (booking.Uid, booking.Status, booking.Title));
+    }
+
     // ---------- By invitation ----------
 
     [Fact]
@@ -568,3 +587,79 @@ public class MeetingRemindersTests
         Assert.Empty(_alerts.Sent);
     }
 }
+
+public class MeetingRemindersWorkerTests
+{
+    private sealed class ThrowingAlerts : IPhoneAlerts
+    {
+        public void Send(PhoneAlert alert) => throw new InvalidOperationException("ntfy is down");
+        public void SendThrottled(string key, PhoneAlert alert) => Send(alert);
+    }
+
+    private sealed class Errors : Microsoft.Extensions.Logging.ILogger<MeetingRemindersWorker>
+    {
+        public List<string> Logged { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (Logged) Logged.Add($"{logLevel}: {formatter(state, exception)}");
+        }
+    }
+
+    /// <summary>The site's services, with a meeting that starts now.</summary>
+    private static ServiceProvider Services(IPhoneAlerts alerts)
+    {
+        var name = Guid.NewGuid().ToString();
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+            .AddDbContext<PortfolioDbContext>(o => o.UseInMemoryDatabase(name))
+            .AddSingleton(alerts)
+            .AddSingleton<TimeProvider>(TimeProvider.System)
+            .AddSingleton(Options.Create(new SiteOptions()))
+            .AddScoped<MeetingReminders>()
+            .BuildServiceProvider();
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PortfolioDbContext>();
+        var start = DateTimeOffset.UtcNow;
+        db.Meetings.Add(new Meeting { Uid = "b1", Title = "30 min", AttendeeName = "Ada", AttendeeEmail = "ada@example.com", Status = MeetingStatus.Accepted, StartTime = start, EndTime = start.AddMinutes(30) });
+        db.SaveChanges();
+        return services;
+    }
+
+    private static async Task Until(Func<bool> done)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!done() && DateTime.UtcNow < deadline) await Task.Delay(10);
+    }
+
+    [Fact]
+    public async Task Checks_at_once_on_start_then_keeps_going()
+    {
+        var alerts = new FakePhoneAlerts();
+        await using var services = Services(alerts);
+        var worker = new MeetingRemindersWorker(services.GetRequiredService<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<MeetingRemindersWorker>.Instance);
+
+        await worker.StartAsync(default);
+        await Until(() => alerts.Sent.Count > 0);
+        await worker.StopAsync(default);
+
+        Assert.Equal("Now: meeting with Ada", Assert.Single(alerts.Sent).Title);
+        Assert.Equal(TimeSpan.FromSeconds(30), MeetingRemindersWorker.Interval);
+    }
+
+    [Fact]
+    public async Task A_failed_round_is_logged_and_doesnt_stop_the_worker()
+    {
+        var logger = new Errors();
+        await using var services = Services(new ThrowingAlerts());
+        var worker = new MeetingRemindersWorker(services.GetRequiredService<IServiceScopeFactory>(), logger);
+
+        await worker.StartAsync(default);
+        await Until(() => logger.Logged.Count > 0);
+        Assert.False(worker.ExecuteTask!.IsCompleted);
+        await worker.StopAsync(default);
+
+        Assert.Equal("Error: Sending meeting reminders failed.", Assert.Single(logger.Logged));
+    }
+}
+

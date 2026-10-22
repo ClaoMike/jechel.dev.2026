@@ -178,4 +178,49 @@ public class ResumeDocumentTests
         Assert.All(positions, position => Assert.True(position >= 0));
         Assert.Equal(positions.Order(), positions);
     }
+
+    private static List<string> LinksIn(byte[] pdf)
+    {
+        using var document = PdfDocument.Open(pdf);
+        return [.. document.GetPages().SelectMany(p => p.GetHyperlinks()).Select(h => h.Uri)];
+    }
+
+    [Fact]
+    public void A_paper_with_its_file_links_to_it_on_the_site_and_one_without_is_plain()
+    {
+        var input = Input(Settings(), includePhone: false) with
+        {
+            About = About with { Papers = [new Paper("Lighthouse beams", "/api/files/0b9e3c1a-6f5d-4b8e-9a1c-2d3e4f5a6b7c/beams.pdf"), new Paper("Unpublished", "")] },
+        };
+
+        var pdf = ResumeDocument.Build(input);
+
+        Assert.Contains("https://jechel.dev/api/files/0b9e3c1a-6f5d-4b8e-9a1c-2d3e4f5a6b7c/beams.pdf", LinksIn(pdf));
+        Assert.Contains("Lighthouse beams", TextOf(pdf));
+        Assert.Contains("Unpublished", TextOf(pdf));
+    }
+
+    [Fact]
+    public void A_link_in_text_that_isnt_safe_shows_as_plain_words()
+    {
+        var input = Input(Settings(), includePhone: false) with
+        {
+            About = About with { Experience = [new ExperienceItem("Engineer", "Acme", "", new DateOnly(2023, 1, 1), null, ["Built [the tool](javascript:alert(1)) and [the site](/apps)."])] },
+        };
+
+        var pdf = ResumeDocument.Build(input);
+
+        Assert.Contains("Built the tool and the site.", TextOf(pdf).Replace("\n", " "));
+        Assert.DoesNotContain(LinksIn(pdf), l => l.StartsWith("javascript", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("https://jechel.dev/apps", LinksIn(pdf));
+    }
+
+    [Fact]
+    public void Choices_without_a_skills_list_hide_none_and_a_www_site_is_named_without_it()
+    {
+        var input = Input(new ResumeChoices(ResumeSections.All, null!), includePhone: false) with { SiteUrl = "https://www.jechel.dev" };
+
+        Assert.NotEmpty(ResumeDocument.Build(input));
+        Assert.Equal("jechel.dev", ResumeDocument.Links(input).First().Label);
+    }
 }

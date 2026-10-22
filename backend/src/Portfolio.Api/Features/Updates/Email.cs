@@ -120,7 +120,8 @@ public class ResendEmailSender(HttpClient http, IOptionsMonitor<EmailOptions> op
     {
         try
         {
-            return JsonNode.Parse(body)?["message"]?.GetValue<string>();
+            // Only a text "message" in an object: anything else (an array, a number) isn't a reason to show.
+            return JsonNode.Parse(body) is JsonObject answer && answer["message"] is JsonValue message && message.TryGetValue<string>(out var reason) ? reason : null;
         }
         catch (System.Text.Json.JsonException)
         {

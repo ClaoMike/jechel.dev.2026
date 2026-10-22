@@ -24,12 +24,13 @@ export function useTermsPageViewModel() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!editing || saving) return
-    setEditing({ ...editing, message: null })
+    setEditing((current) => current && { ...current, message: null })
     try {
       await updateTerms(editing.draft).unwrap()
       setEditing(null)
     } catch (error) {
-      setEditing({ ...editing, ...describeError(error) })
+      // Onto the draft as it is now: anything typed while it was saving stays.
+      setEditing((current) => current && { ...current, ...describeError(error) })
     }
   }
 

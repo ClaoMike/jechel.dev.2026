@@ -77,13 +77,13 @@ public sealed record AnalyticsRange(string Name, string BucketSize, IReadOnlyLis
         _ => t.AddYears(1),
     };
 
+    /// <summary>One column back. Only the named periods go back, and none of them by years ("all" counts forward).</summary>
     private static DateTimeOffset Previous(DateTimeOffset t, string size) => size switch
     {
         FiveMinutes => t.AddMinutes(-5),
         Hour => t.AddHours(-1),
         Day => t.AddDays(-1),
-        Month => t.AddMonths(-1),
-        _ => t.AddYears(-1),
+        _ => t.AddMonths(-1),
     };
 
     private static List<DateTimeOffset> Series(DateTimeOffset first, DateTimeOffset last, string size)

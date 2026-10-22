@@ -92,7 +92,8 @@ public static class InboundEmail
         var secret = settings.InboundWebhookSecret.Trim();
         if (secret.Length == 0) return TypedResults.Problem("Receiving email isn't set up: set the receiving webhook secret in Settings.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-        if (await ReadLimitedAsync(request, MaxBodyBytes, cancellationToken) is not { } body) return TypedResults.BadRequest();
+        if (await RequestBodies.ReadLimitedAsync(request, MaxBodyBytes, cancellationToken) is not { } bytes) return TypedResults.BadRequest();
+        var body = Encoding.UTF8.GetString(bytes);
         if (!SignatureValid(request.Headers["svix-id"], request.Headers["svix-timestamp"], request.Headers["svix-signature"], body, secret, time.GetUtcNow())) return TypedResults.Unauthorized();
 
         JsonObject? root;
@@ -189,21 +190,6 @@ public static class InboundEmail
 
     /// <summary>The webhook only names the email: anything this big isn't Resend's.</summary>
     public const int MaxBodyBytes = 256 * 1024;
-
-    /// <summary>The body as text, reading no more than <paramref name="max"/> bytes; null when it's longer.</summary>
-    private static async Task<string?> ReadLimitedAsync(HttpRequest request, int max, CancellationToken cancellationToken)
-    {
-        if (request.ContentLength > max) return null;
-        using var buffer = new MemoryStream();
-        var chunk = new byte[16 * 1024];
-        int read;
-        while ((read = await request.Body.ReadAsync(chunk, cancellationToken)) > 0)
-        {
-            if (buffer.Length + read > max) return null;
-            buffer.Write(chunk, 0, read);
-        }
-        return Encoding.UTF8.GetString(buffer.ToArray());
-    }
 
     /// <summary>
     /// Svix's scheme: base64 HMAC-SHA256 of "{id}.{timestamp}.{body}", keyed with the secret after "whsec_" (base64);

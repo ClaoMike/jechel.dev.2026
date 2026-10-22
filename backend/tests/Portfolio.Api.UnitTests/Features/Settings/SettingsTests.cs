@@ -24,6 +24,9 @@ public class SettingsTests
     [InlineData("Email:From", "nobody", "Enter an address, or a name and address like: jechel.dev <updates@jechel.dev>")]
     [InlineData("Alerts:NtfyTopic", "jechel-1f3a_x", null)]
     [InlineData("Alerts:NtfyTopic", "has spaces", "Use letters, digits, - and _ only.")]
+    [InlineData("Cal:Link", "https://cal.com/claomike/30min", null)]
+    [InlineData("Cal:Link", "https://calendly.com/claomike", "Enter your Cal.com link, e.g. https://cal.com/you/30min or you/30min.")]
+    [InlineData("Alerts:NtfyTopic", "a-very-long-topic-name-that-goes-on-and-on-past-sixty-four-characters", "At most 64 characters.")]
     [InlineData("YouTube:ApiKey", "", null)]
     public void Values_are_checked_by_kind(string key, string value, string? error) =>
         Assert.Equal(error, SettingsCatalog.Validate(SettingsCatalog.Find(key)!, value));

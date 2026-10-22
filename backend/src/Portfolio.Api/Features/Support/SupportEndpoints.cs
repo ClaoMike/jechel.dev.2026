@@ -81,12 +81,7 @@ public static class SupportEndpoints
     {
         var secret = options.CurrentValue.BuyMeACoffeeWebhookSecret.Trim();
         if (secret.Length == 0) return TypedResults.Problem("Buy Me a Coffee isn't set up: set its webhook secret in Settings.", statusCode: StatusCodes.Status503ServiceUnavailable);
-        if (request.ContentLength > MaxPayloadBytes) return TypedResults.BadRequest();
-
-        using var buffer = new MemoryStream();
-        await request.Body.CopyToAsync(buffer, cancellationToken);
-        if (buffer.Length > MaxPayloadBytes) return TypedResults.BadRequest();
-        var body = buffer.ToArray();
+        if (await RequestBodies.ReadLimitedAsync(request, MaxPayloadBytes, cancellationToken) is not { } body) return TypedResults.BadRequest();
 
         var signature = request.Headers["X-Signature-Sha256"].FirstOrDefault() ?? request.Headers["X-Bmc-Signature"].FirstOrDefault();
         if (!SignatureMatches(body, signature, secret)) return TypedResults.Unauthorized();
