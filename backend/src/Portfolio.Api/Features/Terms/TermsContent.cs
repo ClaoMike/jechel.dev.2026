@@ -37,7 +37,7 @@ public static class TermsDefaults
     /// When these defaults last changed: shown as "Last updated", and the version visitors accept. Move it
     /// whenever the text below changes, so everyone is asked to accept the new terms.
     /// </summary>
-    public static readonly DateTimeOffset UpdatedAt = new(2026, 10, 22, 9, 0, 0, TimeSpan.Zero);
+    public static readonly DateTimeOffset UpdatedAt = new(2026, 10, 22, 13, 0, 0, TimeSpan.Zero);
 
     /// <summary>How long a visit's record is kept (AnalyticsRetention deletes older ones).</summary>
     public const int VisitRetentionMonths = 12;
@@ -74,12 +74,12 @@ public static class TermsDefaults
                 Paragraph("Once you've accepted these terms, the website records how it is used, so that I can see which parts are read and find and fix errors. Nothing is recorded before you accept, and nothing is recorded for the site owner's own visits. This is what a visit's record holds:"),
                 Bullets(
                     "the pages you open, and when;",
-                    "what you click: the words on the button or link (never what you type into a form), the address of a link, and whether a box is ticked; clicking into a YouTube video or the meeting calendar is recorded too, but not what you do inside them;",
+                    "what you click: the words on the button or link (never what you type into a form), the address of a link, and whether a box is ticked; clicking into a YouTube video is recorded too, but not what you do inside it;",
                     "the fields you change: for a list, the option you pick; for a text box, only that you edited it, never what you typed; and when you send a form;",
                     "pressing Escape, which closes popups, and copying text from a page (not what you copied);",
                     "how far down each page you scroll, when you switch to another tab and come back, and when you leave;",
                     "playing, pausing and finishing a video in an app's gallery, swiping between its images and videos, and zooming, moving or looking at places on the map;",
-                    "what you do with the forms: whether a message was sent, a subscription made, confirmed or cancelled, a meeting booked, and why it didn't work if it didn't (for example a missing field, never its content);",
+                    "what you do with the forms: whether a message was sent, a subscription made, confirmed or cancelled, and why it didn't work if it didn't (for example a missing field, never its content);",
                     "errors on the page: what went wrong, where, and the technical details needed to fix it, such as a file that didn't load;",
                     "the theme you use, and when you switch themes;",
                     "the address of the page that brought you here (the referrer), and any campaign tags in the link you followed (utm_source, utm_medium, utm_campaign);",
@@ -103,17 +103,17 @@ public static class TermsDefaults
             ]),
             new TermsSection("Messages you send",
             [
-                Paragraph("When you send a message through the contact form, the name, email address and message you enter are stored, with the time it arrived, so that I can read and answer it."),
+                Paragraph("When you send a message through the contact form, the name, email address and message you enter are stored, with the time it arrived, so that I can read and answer it. The same goes for an email you send to the website's address: your name and address as your email gives them, its subject and its text (attachments aren't kept)."),
                 Bullets(
                     "I'm notified on my phone with your name and message.",
-                    "If I reply, the reply is emailed to you with your message quoted.",
+                    "If I reply, the reply is emailed to you with your message quoted. If you answer it, your answer is stored with the conversation in the same way.",
                     "Your details are used only to answer you. They are not sold or shared with anyone else, apart from the services below that deliver them.",
                     "Messages are kept until I delete them. You can ask for yours to be deleted at any time."),
                 Paragraph("Why: to answer you, which is what you asked for, and my legitimate interest in keeping a record of the conversation."),
             ]),
             new TermsSection("Booking a meeting",
             [
-                Paragraph("The Contact page can show a booking form from Cal.com. What you enter there goes to Cal.com, under its own terms and privacy policy. Cal.com then tells this website the meeting's time and your name, email address, time zone and any notes you added, so that I can accept or decline it, email you about it and be reminded of it on my phone."),
+                Paragraph("Meetings are by invitation: if I invite you, my reply includes a link to book a time on Cal.com. What you enter there goes to Cal.com, under its own terms and privacy policy. Cal.com then tells this website the meeting's time and your name, email address, time zone and any notes you added, so that I can accept or decline it, email you about it and be reminded of it on my phone."),
                 Paragraph("Meeting records are kept until I delete them. You can ask for yours to be deleted at any time."),
             ]),
             new TermsSection("Email updates",
@@ -130,7 +130,7 @@ public static class TermsDefaults
                 Paragraph("Some of the information above passes through these services, which handle it for me under their own terms:"),
                 Bullets(
                     "Cloudflare, which delivers the website: your IP address passes through it so that the pages reach you, and it tells the website which country you are in;",
-                    "Railway, which runs the website's server and database;",
+                    "Sliplane, which runs the website's server, database and its backups, in Germany;",
                     "Resend, which sends the website's emails;",
                     "ntfy.sh, which sends notifications to my phone (they can include a sender's name and message, a subscriber's email address or a meeting's details);",
                     "YouTube: videos play in YouTube's privacy-enhanced player (youtube-nocookie.com), which may store information in your browser once you play a video, and thumbnails come from YouTube's servers, which see your IP address;",

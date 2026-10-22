@@ -70,7 +70,9 @@ public class TermsEndpointsTests
     [InlineData("analytics.session")]
     // Every service a visitor's data passes through.
     [InlineData("Cloudflare")]
-    [InlineData("Railway")]
+    [InlineData("Sliplane")]
+    [InlineData("Meetings are by invitation")]
+    [InlineData("an email you send to the website's address")]
     [InlineData("Resend")]
     [InlineData("ntfy.sh")]
     [InlineData("youtube-nocookie.com")]

@@ -7,7 +7,7 @@ Personal portfolio website of Claudiu Mihai Jechel.
 | Frontend | React 19 + Vite 8 + TypeScript (`frontend/`)                    |
 | Backend  | .NET 10 minimal API + EF Core 10 + Npgsql (`backend/`)          |
 | Database | PostgreSQL 16 (Docker Compose for local dev)                    |
-| Hosting  | Cloudflare Pages (site + `/api` proxy), Railway (API + PostgreSQL)  |
+| Hosting  | Cloudflare Pages (site + `/api` proxy), Sliplane in Germany (API + PostgreSQL + backups) |
 | State    | Redux Toolkit + RTK Query; views in MVVM (View + `*.viewModel.ts`) |
 | Tests    | Backend: xUnit, Testcontainers. Frontend: Vitest in headless Chromium (coverage, screenshots) |
 | CI       | GitHub Actions (`.github/workflows/ci.yml`)                     |
@@ -27,7 +27,7 @@ Personal portfolio website of Claudiu Mihai Jechel.
 │       ├── Portfolio.Api.UnitTests/       # fast tests, no external dependencies
 │       └── Portfolio.Api.IntegrationTests/# real HTTP pipeline + real PostgreSQL (Testcontainers)
 ├── frontend/
-│   ├── functions/api/[[path]].ts          # Cloudflare Pages Function: the site's /api proxy to Railway (production)
+│   ├── functions/api/[[path]].ts          # Cloudflare Pages Function: the site's /api proxy to the API on Sliplane (production)
 │   ├── src/
 │   │   ├── services/api.ts                # the single API service: every backend call goes through `api`
 │   │   ├── services/endpoints/<feature>.ts # each feature's endpoints and types (put together by api.ts)
@@ -38,7 +38,8 @@ Personal portfolio website of Claudiu Mihai Jechel.
 │   │   ├── pages/                         # one folder per route: X/X.tsx + X/X.viewModel.ts
 │   │   ├── features/<feature>/            # a feature's components and rules (e.g. contact form + inbox)
 │   │   └── components/                    # shared UI: Modal, CopyButton, icons
-├── backend/Dockerfile + railway.json      # the API's production image and its Railway settings
+├── backend/Dockerfile                    # the API's production image (built by deploy.yml, run on Sliplane)
+├── backend/db-backup/                    # the nightly database backup's image (pg_dump to object storage)
 ├── scripts/dev_launcher.py                # GUI launcher for common dev tasks (macOS)
 ├── scripts/deploy.sh                      # deploy: pull request develop → main, merged when CI passes
 ├── scripts/build_brand_j.py               # draws the "j": the Vice title's first letter and the tab icon
@@ -998,7 +999,7 @@ The admin's **Settings** tab (`pages/SettingsPage/SettingsPage.tsx`, API in `Fea
 **Signed-in devices** and **Connections**. Connections lists every service the site connects to, **A to Z**, each a folded row (an
 accordion, as the skills are in the About Me editor) with links to its dashboard, its keys, the URLs to paste into it (webhook, OAuth
 callback), and a test button: Buy Me a Coffee, Cal.com, Google sign-in, ntfy, Resend, YouTube Data API, plus quick links: Hosting
-(Cloudflare, Railway) and Porkbun (the domain).
+(Cloudflare, Sliplane) and Porkbun (the domain).
 
 **What a change reaches, without a reload:**
 
@@ -1396,24 +1397,47 @@ after an intended visual change (after `npm run test:update` locally), then re-r
 | ---- | ----- | ----------------- |
 | Site (`frontend/dist`) | Cloudflare Pages, on https://jechel.dev | `wrangler pages deploy` in `deploy.yml` |
 | `/api/*` on the site | A Pages Function (`frontend/functions/api/[[path]].ts`) | Deployed with the site. Forwards to the API |
-| API | Railway, built from `backend/Dockerfile` (`railway.json`) | `railway up` in `deploy.yml` |
-| Database | Railway PostgreSQL | Migrations run when the API starts (`appsettings.Production.json`) |
+| API | Sliplane (Germany), one €9 server (1 vCPU, 1 GB): the image from `backend/Dockerfile` | Built in `deploy.yml`, pushed to the GitHub container registry, run through Sliplane's deploy hook |
+| Database | PostgreSQL 16 on the same server, on a Sliplane volume | Migrations run when the API starts (`appsettings.Production.json`) |
+| Backups | A third service on the server (`backend/db-backup/`): `pg_dump` every night to Sliplane's object storage | Built and deployed with the API |
+
+```mermaid
+flowchart LR
+  dev["develop"] -- "Deploy (launcher): PR, tests pass, merge" --> main["main"]
+  main --> images["deploy.yml: build both images<br/>tag = the commit"]
+  images --> ghcr["GitHub container registry<br/>jechel-api, jechel-backup"]
+  ghcr -- "deploy hook ?tag=commit" --> sliplane
+  subgraph sliplane["Sliplane server (Germany, €9)"]
+    api["api (public)<br/>PORT 8080, health /api/health"] --> db[("db: postgres:16-alpine<br/>volume /var/lib/postgresql/data")]
+    backup["backup (private)<br/>03:00 UTC: pg_dump"] --> db
+  end
+  backup -- "mon.dump … sun.dump" --> s3[("Sliplane object storage")]
+  backup -. "fails: 📱" .-> ntfy["ntfy"]
+  images --> wait["wait until /api/health says<br/>X-App-Version = the commit"] --> pages["Cloudflare Pages: the site"]
+  visitor["Visitor"] --> pages -- "/api/* + proxy secret" --> api
+```
 
 **Branches.** Work happens on `develop`. `main` is production: whatever is on `main` is live. `main` only changes
 through pull requests whose **Backend** and **Frontend** checks passed (a GitHub ruleset,
 `.github/rulesets/main.json`: Settings → Rules → Rulesets → New ruleset → Import a ruleset), and every change to it runs
-`.github/workflows/deploy.yml`: the API first, then the site.
+`.github/workflows/deploy.yml`: the images, then the API (it waits until the new one answers), then the site.
 
 **Deploying:** the launcher's **Deploy to production** (only on `develop`, with everything committed), or
 `scripts/deploy.sh`. It pushes `develop`, opens the pull request `develop → main` (or reuses the open one) with
 auto-merge on, and waits for the tests; when they pass, GitHub merges and deploys. Needs the GitHub CLI:
 `brew install gh && gh auth login`.
 
-**One origin.** The browser only talks to https://jechel.dev. The Pages Function forwards `/api/*` to Railway with
+**Built on GitHub, run on Sliplane.** The server is small, so it never builds: GitHub Actions builds the images, tags them
+with the commit, and calls each service's deploy hook with that tag. The API says which build it is on `/api/health`
+(`X-App-Version`, from `APP_VERSION`), and the site is only deployed once the new API answers, so the two never get out of
+step. The API runs with one compact garbage-collected heap (`DOTNET_gcServer=0`, `DOTNET_GCConserveMemory`): about
+85 MB idle.
+
+**One origin.** The browser only talks to https://jechel.dev. The Pages Function forwards `/api/*` to the API with
 three headers: `X-Proxy-Secret` (shared with the API as `Proxy:Secret`), `X-Site-Host` and `X-Client-IP`. With a
-secret set, the API answers 404 to anything without it (except `/api/health`, Railway's health check), and takes
-the host (Google's callback URL) and the visitor's IP (rate limits, analytics) from the proxy (`ProxyHeaders.cs`).
-So the auth cookie stays first-party and there's no CORS, as with the Vite proxy locally.
+secret set, the API answers 404 to anything without it (except `/api/health`, for Sliplane's health check and the deploy),
+and takes the host (Google's callback URL) and the visitor's IP (rate limits, analytics) from the proxy
+(`ProxyHeaders.cs`). So the auth cookie stays first-party and there's no CORS, as with the Vite proxy locally.
 
 **Data Protection keys** (they encrypt the sign-in cookie and the secrets saved in Settings) are kept in the
 database (`data_protection_keys`), so they survive redeploys, encrypted with `DataProtection:KeyEncryptionKey`.
@@ -1421,25 +1445,54 @@ database (`data_protection_keys`), so they survive redeploys, encrypted with `Da
 **The proxy also forwards the visitor's country** (`X-Client-Country`, from Cloudflare's `CF-IPCountry`), for analytics and the
 sign-in alerts and device list.
 
+### Backups
+
+`backend/db-backup/` is a `postgres:16-alpine` image with two scripts. `backup.sh` dumps the database every night at
+`BACKUP_HOUR` (UTC, default 3) with `pg_dump --format=custom` and uploads it with `curl --aws-sigv4` as
+`<prefix><weekday>.dump`: seven files, each night replacing last week's, so the last seven days are always there. A
+failure rings the phone (`NTFY_URL`, `NTFY_TOKEN`), and the service keeps going. `RUN_NOW=1` takes one as it starts.
+Sliplane also backs up the volume daily, but a running database's files can be caught mid-write: the dump is the
+one to restore from.
+
+**Restoring:** set the backup service's **Override CMD** to `/backup/restore.sh wed` (the day to go back to) and deploy it:
+it downloads `wed.dump` and restores it over the database (`pg_restore --clean --single-transaction`), then waits. Set the
+CMD back to empty and deploy again. Tried end to end with a Postgres 16 container and an S3 stand-in (RustFS): dump,
+upload, change the data, restore, the data is back; a wrong password rings ntfy with the token.
+
+### Setting up Sliplane (once)
+
+1. **Server:** Create server → Germany → **Starter** (€9).
+2. **db:** Deploy service → Registry → `docker.io/library/postgres:16-alpine`, **Expose Service** off, protocol TCP.
+   Environment: `POSTGRES_USER=portfolio`, `POSTGRES_DB=portfolio`, `POSTGRES_PASSWORD=` (`openssl rand -hex 24`).
+   Volume: add one, mounted at `/var/lib/postgresql/data`. It's reachable from the other services as `db.internal:5432`.
+3. **Images:** run **Deploy** once (or the Deploy workflow by hand) so both images exist, then on GitHub → Packages make
+   `jechel-api` and `jechel-backup` **public** (the repository is public anyway), or give Sliplane registry credentials.
+4. **api:** Deploy service → Registry → `ghcr.io/claomike/jechel-api:<a commit>`, **Expose Service** on (HTTP), health
+   check route `/api/health`, and the environment below. Copy its address (`https://….sliplane.app`) and its
+   **Deploy hook** URL.
+5. **Object storage:** create a bucket (region `ger`) and an access key for it.
+6. **backup:** Deploy service → Registry → `ghcr.io/claomike/jechel-backup:<a commit>`, **Expose Service** off, with
+   `POSTGRES_HOST=db.internal`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` (as the db's), `S3_ENDPOINT`,
+   `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (from step 5), and `NTFY_URL=https://ntfy.sh/<your topic>`.
+   Deploy it once with `RUN_NOW=1` to check a dump lands in the bucket, then remove it. Copy its **Deploy hook** URL.
+7. **GitHub** (Settings → Secrets and variables → Actions): secrets `SLIPLANE_API_DEPLOY_HOOK`,
+   `SLIPLANE_BACKUP_DEPLOY_HOOK`, `CLOUDFLARE_API_TOKEN` (permission: Cloudflare Pages, Edit), `CLOUDFLARE_ACCOUNT_ID`;
+   variables `API_URL` (the api service's address from step 4) and `CLOUDFLARE_PAGES_PROJECT`.
+8. **Cloudflare Pages** (Settings → Variables and secrets, Production): `API_ORIGIN` (the same address) and `PROXY_SECRET`.
+
 ### Settings in production
 
-Railway, on the API service (`__` separates sections):
+On the **api** service (`__` separates sections):
 
 | Variable | Value |
 | -------- | ----- |
-| `ConnectionStrings__Default` | `Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}}` |
+| `PORT` | `8080` |
+| `ConnectionStrings__Default` | `Host=db.internal;Port=5432;Database=portfolio;Username=portfolio;Password=<the db's password>` |
 | `Proxy__Secret` | A long random string (`openssl rand -hex 32`), the same as the Pages project's `PROXY_SECRET` |
 | `Authentication__Google__ClientId` / `__ClientSecret` | The Google OAuth client. Its redirect URI: `https://jechel.dev/api/auth/signin-google` |
 | `Auth__AdminEmails__0` | Your Google email |
 | `DataProtection__KeyEncryptionKey` | `openssl rand -base64 32`. Keep a copy somewhere safe: without it the stored keys can't be read |
 | Anything else from [Configuration](#configuration) | Or set it in the Settings tab |
-
-Cloudflare Pages project (Settings → Variables and secrets, Production): `API_ORIGIN` (the API's Railway address,
-e.g. `https://api-production-1234.up.railway.app`) and `PROXY_SECRET` (secret).
-
-GitHub (Settings → Secrets and variables → Actions): secrets `RAILWAY_TOKEN` (a Railway project token for the
-production environment), `CLOUDFLARE_API_TOKEN` (permission: Cloudflare Pages, Edit), `CLOUDFLARE_ACCOUNT_ID`;
-variables `RAILWAY_SERVICE` (the API service's name) and `CLOUDFLARE_PAGES_PROJECT`.
 
 **Try the production build locally:** `docker build -f backend/Dockerfile -t jechel-api .` from the repo root, then
 `npx wrangler pages dev dist --binding API_ORIGIN=… --binding PROXY_SECRET=…` in `frontend` after `npm run build`.

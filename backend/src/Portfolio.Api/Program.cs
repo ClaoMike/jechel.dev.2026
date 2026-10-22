@@ -197,7 +197,17 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 var api = app.MapGroup("/api");
-api.MapHealthChecks("/health");
+// Says which build is running (the commit it was built from), so a deploy can wait until the new one answers.
+var appVersion = app.Configuration["APP_VERSION"] ?? "dev";
+api.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = (context, report) =>
+    {
+        context.Response.Headers["X-App-Version"] = appVersion;
+        context.Response.ContentType = "text/plain";
+        return context.Response.WriteAsync(report.Status.ToString());
+    },
+});
 api.MapProfileEndpoints();
 api.MapAuthEndpoints();
 api.MapContactEndpoints();

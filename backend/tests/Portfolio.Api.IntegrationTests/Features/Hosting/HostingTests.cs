@@ -44,6 +44,26 @@ public class HostingTests(PortfolioApiFactory factory)
     }
 
     [Fact]
+    public async Task Health_says_which_build_is_running_so_a_deploy_can_wait_for_it()
+    {
+        await using var api = factory.WithWebHostBuilder(builder => builder.UseSetting("APP_VERSION", "abc1234"));
+
+        var response = await api.CreateClient().GetAsync("/api/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("abc1234", response.Headers.GetValues("X-App-Version").Single());
+        Assert.Equal("Healthy", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Health_says_dev_when_no_build_is_named()
+    {
+        var response = await factory.CreateClient().GetAsync("/api/health");
+
+        Assert.Equal("dev", response.Headers.GetValues("X-App-Version").Single());
+    }
+
+    [Fact]
     public async Task Requests_through_the_proxy_are_served()
     {
         await using var api = BehindProxy();

@@ -137,7 +137,7 @@ function Connections() {
           title="Hosting"
           links={[
             ['Cloudflare', 'https://dash.cloudflare.com'],
-            ['Railway', 'https://railway.com/dashboard'],
+            ['Sliplane', 'https://sliplane.io'],
           ]}
         />
 

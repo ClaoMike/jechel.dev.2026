@@ -1,7 +1,7 @@
-// Cloudflare Pages Function: every /api/* request on the site is forwarded to the API on Railway, so the
+// Cloudflare Pages Function: every /api/* request on the site is forwarded to the API on Sliplane, so the
 // browser only talks to one origin (the auth cookie stays first-party, no CORS), as the Vite proxy does locally.
 // The API trusts what this says (host, visitor IP and country) because of the shared secret (backend ProxyHeaders.cs).
-// Set in the Pages project: API_ORIGIN (e.g. https://api-production-1234.up.railway.app) and PROXY_SECRET.
+// Set in the Pages project: API_ORIGIN (the API service's address, e.g. https://jechel-api.sliplane.app) and PROXY_SECRET.
 
 interface Env {
   API_ORIGIN: string

@@ -99,7 +99,7 @@ describe('Settings: receiving email', () => {
 describe('Settings: quick links', () => {
   const card = (name: RegExp) => page.getByRole('region', { name })
 
-  it('Hosting opens Cloudflare and Railway, and Porkbun has its own card: links only, no status, no text', async () => {
+  it('Hosting opens Cloudflare and Sliplane, and Porkbun has its own card: links only, no status, no text', async () => {
     stub()
     await renderView(<SettingsPage />, { user: ADMIN })
     for (const [title, links] of [
@@ -107,7 +107,7 @@ describe('Settings: quick links', () => {
         /^Hosting/,
         [
           ['Cloudflare', 'https://dash.cloudflare.com'],
-          ['Railway', 'https://railway.com/dashboard'],
+          ['Sliplane', 'https://sliplane.io'],
         ],
       ],
       [/^Porkbun \(domain\)/, [['Porkbun', 'https://porkbun.com/account/domainsSpeedy']]],
