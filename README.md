@@ -839,6 +839,33 @@ time, of every kind or one, with what became of it.
   A new app with its kind off has no Send / Ignore buttons on the phone: decide in the Community tab.
 - **History** (`phone_alerts`): written by `AlertWorker` after it sends (or holds back) each alert: **Sent**, **Off: not sent**,
   **ntfy not set up**, or **Failed**. Kept for 90 days.
+- **A switch moves at once**, before the API answers, and is never locked while saving (locking it dropped the keyboard's
+  focus, so an arrow key threw you out of it). Each answer settles **its own kind only**, and only if it answers the latest click
+  on it: taking the whole list from every answer let one arriving late put back a switch saved since. A failed save puts the
+  switch back and says so. A save that doesn't say `true` or `false` is refused (400), never read as off.
+- **Refresh** (History) loads the history and the kinds' counts again: what came while the page was open. Titles link only to
+  pages on this site.
+
+**Switching a kind, step by step:**
+
+```
+ You click Off (or press an arrow key)          Store (RTK Query)                                 API
+ ─────────────────────────────────────          ─────────────────                                 ───
+ switch shows Off at once ◄──── kinds cache: this kind = off (optimistic)
+ still focused, still clickable                 latestSave[kind] = this request ─── PUT /api/notifications/kinds/{kind}
+                                                                                     {"enabled": false}
+                                                                                       │ no true/false ─► 400
+                                                                                       │ unknown kind  ─► 404
+                                                                                       ▼
+                                                                          alert_preferences row, AlertPreferences reloaded
+                                                                          (the next alert of that kind isn't sent)
+                                                                                       │ every kind, as it now is
+                                                ◄──────────────────────────────────────┘
+                                                answer to the latest click on this kind?
+                                                  yes ─► this kind = the answer's (the other kinds left alone)
+                                                  no  ─► ignored (you clicked it again since)
+                                                failed (and still the latest) ─► switch back + "That couldn't be saved"
+```
 
 ```
  Something happens on the site                 AlertWorker (one at a time)                    You

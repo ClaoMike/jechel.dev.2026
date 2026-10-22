@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import type { NotificationKind, NotificationStatus } from '../../services/api'
+import { useAppDispatch } from '../../store'
+import { baseApi } from '../../store/baseApi'
 import { useListNotificationKindsQuery, useListNotificationsQuery, useSaveNotificationKindMutation } from '../../store/api/notificationsApi'
 import { toLoadable } from '../../store/loadable'
 import { usePagedQuery } from '../../store/usePagedQuery'
@@ -13,7 +15,6 @@ export function useNotificationKindsViewModel() {
   const query = useListNotificationKindsQuery()
   const state = toLoadable(query)
   const [save] = useSaveNotificationKindMutation()
-  const [saving, setSaving] = useState<string | null>(null)
   const [failed, setFailed] = useState('')
 
   const kinds = state.status === 'loaded' ? state.data : []
@@ -23,25 +24,25 @@ export function useNotificationKindsViewModel() {
     group.kinds.push(kind)
   }
 
+  // The switch moves at once (store/api/notificationsApi.ts), and is never locked while saving: locking it
+  // would drop the keyboard's focus, and it can be clicked again before the first answer comes.
   async function toggle(kind: string, enabled: boolean) {
-    setSaving(kind)
     setFailed('')
     try {
       await save({ kind, enabled }).unwrap()
     } catch {
       setFailed("That couldn't be saved. Please try again.")
-    } finally {
-      setSaving(null)
     }
   }
 
-  return { state, retry: () => void query.refetch(), groups, saving, failed, toggle: (kind: string, enabled: boolean) => void toggle(kind, enabled) }
+  return { state, retry: () => void query.refetch(), groups, failed, toggle: (kind: string, enabled: boolean) => void toggle(kind, enabled) }
 }
 
 /** What was raised, newest first, a page at a time, of every kind or the one picked. */
 export function useNotificationHistoryViewModel() {
   const [page, setPage] = useState(1)
   const [kind, setKind] = useState<string | null>(null)
+  const dispatch = useAppDispatch()
   const { data: kinds = [] } = useListNotificationKindsQuery()
   const paged = usePagedQuery(useListNotificationsQuery, { page, pageSize: NOTIFICATIONS_PAGE_SIZE, kind }, setPage)
 
@@ -52,6 +53,10 @@ export function useNotificationHistoryViewModel() {
     kind,
     kinds,
     labelOf: (key: string) => kinds.find((k) => k.kind === key)?.label ?? key,
+    /** A page on this site, to link the title to; null for anything else (only the API's own paths are links). */
+    linkOf: (path: string | null) => (path?.startsWith('/') && !path.startsWith('//') && !path.startsWith('/\\') ? path : null),
+    /** What came while the page was open: the history, and the kinds' counts. */
+    refresh: () => void dispatch(baseApi.util.invalidateTags(['Notifications', 'NotificationKinds'])),
     chooseKind: (next: string) => {
       setKind(next || null)
       setPage(1)

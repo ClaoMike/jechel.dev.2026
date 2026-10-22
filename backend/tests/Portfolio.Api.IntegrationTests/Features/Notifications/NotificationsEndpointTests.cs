@@ -49,6 +49,20 @@ public class NotificationsEndpointTests(PortfolioApiFactory factory)
         Assert.True(preferences.IsEnabled(AlertKinds.UpdateSent));
     }
 
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"enabled\":null}")]
+    [InlineData("{\"enabled\":\"no\"}")]
+    public async Task A_save_without_a_clear_on_or_off_is_refused_and_changes_nothing(string body)
+    {
+        var admin = await SignedInClientAsync();
+
+        var response = await admin.PutAsync($"/api/notifications/kinds/{AlertKinds.Message}", new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True(factory.Services.GetRequiredService<AlertPreferences>().IsEnabled(AlertKinds.Message));
+    }
+
     [Fact]
     public async Task An_unknown_kind_is_not_found()
     {

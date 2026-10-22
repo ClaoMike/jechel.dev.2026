@@ -3409,6 +3409,12 @@ button.media-card {
   font-size: 13px;
 }
 
+.notification-history-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .notification-filter {
   max-width: 320px;
 }

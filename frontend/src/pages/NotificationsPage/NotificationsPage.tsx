@@ -52,7 +52,7 @@ function Kinds() {
                 <span className="notification-kind-label">{kind.label}</span>
                 <span className="muted notification-kind-meta">{kind.lastAt ? `${kind.last30Days} in 30 days · last ${formatDateTime(kind.lastAt)}` : 'None yet'}</span>
               </span>
-              <OnOffSwitch label={kind.label} on={kind.enabled} disabled={vm.saving === kind.kind} onChange={(on) => vm.toggle(kind.kind, on)} />
+              <OnOffSwitch label={kind.label} on={kind.enabled} onChange={(on) => vm.toggle(kind.kind, on)} />
             </div>
           ))}
         </fieldset>
@@ -69,7 +69,12 @@ function History() {
     <section className="card notifications-card" aria-labelledby="notification-history-title">
       <div className="inbox-header">
         <h3 id="notification-history-title">History</h3>
-        {state.status === 'loaded' && <span className="muted">{state.data.totalCount} in all</span>}
+        <span className="notification-history-actions">
+          {state.status === 'loaded' && <span className="muted">{state.data.totalCount} in all</span>}
+          <button type="button" className="button button-secondary button-small" onClick={vm.refresh}>
+            Refresh
+          </button>
+        </span>
       </div>
       <div className="field notification-filter">
         <label htmlFor="notification-kind">Kind</label>
@@ -95,7 +100,7 @@ function History() {
             <li key={notification.id} className="notification-item" data-status={notification.status}>
               <div className="notification-item-head">
                 <span className="chip">{vm.labelOf(notification.kind)}</span>
-                <strong>{notification.path ? <Link to={notification.path}>{notification.title}</Link> : notification.title}</strong>
+                <strong>{vm.linkOf(notification.path) ? <Link to={vm.linkOf(notification.path)!}>{notification.title}</Link> : notification.title}</strong>
                 <span className={notification.status === 'sent' ? 'chip chip-muted' : 'chip notification-status-held'}>{STATUS_TEXT[notification.status]}</span>
               </div>
               <p className="notification-message">{notification.message}</p>

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { THEMES } from '../../layout/theme'
 import { api, ApiError, type NotificationKind } from '../../services/api'
 import { a11yViolations } from '../../test/a11y'
@@ -94,18 +94,84 @@ describe('the kinds', () => {
     expect(calls.save).toHaveBeenCalledTimes(2)
   })
 
-  it('holds the switch while saving, then lets go', async () => {
+  it('moves the switch at once, before the API answers, and keeps it there once it does', async () => {
     let finish!: (kinds: NotificationKind[]) => void
     calls.save.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)))
     await show()
     await switchFor('Signed in').getByText('Off').click()
-    await expect.element(radio('Signed in', 'Off')).toBeDisabled()
-    // Other switches stay free.
+    await expect.element(radio('Signed in', 'Off')).toBeChecked()
+    // Not locked while saving: it can be changed again, and the others too.
+    await expect.element(radio('Signed in', 'On')).toBeEnabled()
     await expect.element(radio('New message', 'Off')).toBeEnabled()
 
     finish(KINDS.map((k) => (k.kind === 'sign-in' ? { ...k, enabled: false } : k)))
-    await expect.element(radio('Signed in', 'Off')).toBeEnabled()
+    await new Promise((resolve) => setTimeout(resolve, 50))
     await expect.element(radio('Signed in', 'Off')).toBeChecked()
+  })
+
+  it('keeps every switch as clicked when the answers come back in another order', async () => {
+    const answers: ((kinds: NotificationKind[]) => void)[] = []
+    calls.save.mockImplementation(() => new Promise((resolve) => answers.push(resolve)))
+    await show()
+    await switchFor('Buy Me a Coffee').getByText('Off').click()
+    await switchFor('New subscriber').getByText('Off').click()
+    await expect.poll(() => answers.length).toBe(2)
+
+    // The second save is answered first (with both off), then the first (from before the second was saved: subscriber still on).
+    answers[1](KINDS.map((k) => (k.kind === 'coffee' || k.kind === 'subscriber' ? { ...k, enabled: false } : k)))
+    answers[0](KINDS.map((k) => (k.kind === 'coffee' ? { ...k, enabled: false } : k)))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    await expect.element(radio('Buy Me a Coffee', 'Off')).toBeChecked()
+    await expect.element(radio('New subscriber', 'Off')).toBeChecked()
+  })
+
+  it('ends where it was last clicked when the same switch is answered out of order', async () => {
+    const answers: ((kinds: NotificationKind[]) => void)[] = []
+    calls.save.mockImplementation(() => new Promise((resolve) => answers.push(resolve)))
+    await show()
+    await switchFor('Meeting reminder').getByText('Off').click()
+    await switchFor('Meeting reminder').getByText('On').click()
+    await expect.poll(() => answers.length).toBe(2)
+
+    answers[1](KINDS)
+    answers[0](KINDS.map((k) => (k.kind === 'meeting-reminder' ? { ...k, enabled: false } : k)))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    await expect.element(radio('Meeting reminder', 'On')).toBeChecked()
+  })
+
+  it("doesn't let an older save that failed undo a newer click", async () => {
+    const answers: { resolve: (kinds: NotificationKind[]) => void; reject: (e: unknown) => void }[] = []
+    calls.save.mockImplementation(() => new Promise((resolve, reject) => answers.push({ resolve, reject })))
+    await show()
+    await switchFor('Site error').getByText('On').click()
+    await switchFor('Site error').getByText('Off').click()
+    await expect.poll(() => answers.length).toBe(2)
+
+    answers[1].resolve(KINDS)
+    answers[0].reject(new ApiError('/api/notifications/kinds/site-error', 500))
+    await expect.element(kinds().getByRole('alert')).toBeVisible()
+
+    await expect.element(radio('Site error', 'Off')).toBeChecked()
+  })
+
+  it('keeps the keyboard on the switch while it saves: the arrow keys switch it back and forth', async () => {
+    calls.save.mockReturnValue(new Promise(() => {}))
+    await show()
+    const on = radio('Site error', 'Off')
+    await expect.element(on).toBeChecked()
+    ;(on.element() as HTMLElement).focus()
+    await userEvent.keyboard('{ArrowLeft}')
+    await expect.element(radio('Site error', 'On')).toBeChecked()
+    expect(switchFor('Site error').element().contains(document.activeElement)).toBe(true)
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(radio('Site error', 'Off')).toBeChecked()
+    expect(switchFor('Site error').element().contains(document.activeElement)).toBe(true)
+    expect(calls.save.mock.calls).toEqual([
+      ['site-error', true],
+      ['site-error', false],
+    ])
   })
 
   it("says when a switch couldn't be saved, and keeps it as it was", async () => {
@@ -113,6 +179,7 @@ describe('the kinds', () => {
     await show()
     await switchFor('New message').getByText('Off').click()
     await expect.element(kinds().getByRole('alert')).toHaveTextContent("That couldn't be saved. Please try again.")
+    // It moved at once, then went back.
     await expect.element(radio('New message', 'On')).toBeChecked()
 
     await switchFor('New message').getByText('Off').click()
@@ -210,6 +277,37 @@ describe('the history', () => {
     await expect.element(history().getByText("The history couldn't be loaded.")).toBeVisible()
     await history().getByRole('button', { name: 'Try again' }).click()
     await expect.poll(() => items().elements().length).toBe(3)
+  })
+
+  it('loads the kinds and the history again with Refresh: what came while the page was open', async () => {
+    await show()
+    await expect.poll(() => items().elements().length).toBe(3)
+    const before = [calls.kinds.mock.calls.length, calls.list.mock.calls.length]
+    calls.list.mockResolvedValue(pageOfNotifications([{ ...NOTIFICATIONS[0], id: 9, title: 'New message from Bo' }, ...NOTIFICATIONS], 4))
+
+    await history().getByRole('button', { name: 'Refresh' }).click()
+
+    await expect.poll(() => items().elements().length).toBe(4)
+    expect(textOf(items().first())).toContain('New message from Bo')
+    expect(calls.kinds.mock.calls.length).toBeGreaterThan(before[0])
+    expect(calls.list.mock.calls.length).toBeGreaterThan(before[1])
+  })
+
+  it('links a title only to a page on this site', async () => {
+    calls.list.mockResolvedValueOnce(
+      pageOfNotifications([
+        { ...NOTIFICATIONS[0], id: 11, title: 'Elsewhere', path: 'https://example.com/x' },
+        { ...NOTIFICATIONS[0], id: 12, title: 'Protocol-relative', path: '//example.com/x' },
+        { ...NOTIFICATIONS[0], id: 13, title: 'Here', path: '/community' },
+      ]),
+    )
+    await show()
+    await expect.poll(() => items().elements().length).toBe(3)
+    const links = history()
+      .getByRole('link')
+      .elements()
+      .map((a) => [a.textContent, a.getAttribute('href')])
+    expect(links).toEqual([['Here', '/community']])
   })
 
   it('names a kind it no longer knows by its key', async () => {

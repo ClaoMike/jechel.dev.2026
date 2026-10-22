@@ -109,6 +109,29 @@ public class NotificationsTests
         Assert.True(afterRestart.IsEnabled(AlertKinds.Message));
     }
 
+    [Fact]
+    public async Task A_save_that_doesnt_say_on_or_off_is_refused_never_read_as_off()
+    {
+        var missing = await NotificationsEndpoints.SaveKind(AlertKinds.Message, new SaveNotificationKindRequest(null), _db, _preferences, _time, default);
+        var noBody = await NotificationsEndpoints.SaveKind(AlertKinds.Message, null!, _db, _preferences, _time, default);
+
+        Assert.Equal(["enabled"], Assert.IsType<ValidationProblem>(missing.Result).ProblemDetails.Errors.Keys);
+        Assert.IsType<ValidationProblem>(noBody.Result);
+        Assert.Empty(_db.AlertPreferences);
+        Assert.True(_preferences.IsEnabled(AlertKinds.Message));
+    }
+
+    [Fact]
+    public async Task Saving_the_same_again_keeps_one_row_per_kind()
+    {
+        await Save(AlertKinds.Coffee, false);
+        await Save(AlertKinds.Coffee, false);
+        await Save(AlertKinds.Coffee, true);
+
+        var row = Assert.Single(_db.AlertPreferences);
+        Assert.Equal((AlertKinds.Coffee, true), (row.Kind, row.Enabled));
+    }
+
     [Theory]
     [InlineData("nope")]
     [InlineData("test")]

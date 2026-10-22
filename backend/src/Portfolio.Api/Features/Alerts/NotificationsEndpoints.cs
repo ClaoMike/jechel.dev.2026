@@ -9,7 +9,8 @@ namespace Portfolio.Api.Features.Alerts;
 /// <param name="LastAt">When the last one was raised; null when none has been.</param>
 public record NotificationKindDto(string Kind, string Label, string Group, bool Enabled, int Last30Days, DateTimeOffset? LastAt);
 
-public record SaveNotificationKindRequest(bool Enabled);
+/// <param name="Enabled">Required: a body without it is refused, never read as "off".</param>
+public record SaveNotificationKindRequest(bool? Enabled);
 
 /// <param name="Status">One of <see cref="AlertStatus"/>.</param>
 public record NotificationDto(long Id, string Kind, string Title, string Message, string? Path, string Status, DateTimeOffset CreatedAt);
@@ -59,7 +60,7 @@ public static class NotificationsEndpoints
     }
 
     /// <summary>Switches one kind on or off; it applies to the next alert. Every kind, as it now is.</summary>
-    public static async Task<Results<Ok<IReadOnlyList<NotificationKindDto>>, NotFound>> SaveKind(
+    public static async Task<Results<Ok<IReadOnlyList<NotificationKindDto>>, NotFound, ValidationProblem>> SaveKind(
         string kind,
         SaveNotificationKindRequest request,
         PortfolioDbContext db,
@@ -68,6 +69,7 @@ public static class NotificationsEndpoints
         CancellationToken cancellationToken)
     {
         if (AlertKinds.Find(kind) is null) return TypedResults.NotFound();
+        if (request?.Enabled is not { } enabled) return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["enabled"] = ["Say whether it's on: true or false."] });
 
         var row = await db.AlertPreferences.FindAsync([kind], cancellationToken);
         if (row is null)
@@ -75,7 +77,7 @@ public static class NotificationsEndpoints
             row = new AlertPreference { Kind = kind };
             db.AlertPreferences.Add(row);
         }
-        row.Enabled = request.Enabled;
+        row.Enabled = enabled;
         row.UpdatedAt = time.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
         await preferences.ReloadAsync(db, cancellationToken);
