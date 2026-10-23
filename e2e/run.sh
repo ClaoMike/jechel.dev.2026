@@ -19,12 +19,15 @@ until docker exec "$DB_CONTAINER" pg_isready -U portfolio -d portfolio >/dev/nul
 echo "▸ The latest Playwright, and its Firefox and WebKit (Safari's engine)"
 npm install --no-save --no-package-lock --no-audit --no-fund @playwright/test@latest @axe-core/playwright@latest >/dev/null
 npx playwright --version
+# (Not Playwright's own Chromium: the tests use the real Chrome and Edge.)
 if [ -n "${CI:-}" ]; then
-  npx playwright install --with-deps chromium firefox webkit
+  # A download can stall (one hung for half an hour at 100%): each try gets 10 minutes, three tries.
+  retry() { for attempt in 1 2 3; do timeout 600 "$@" && return 0; echo "Try $attempt failed or stalled: again."; done; return 1; }
+  retry npx playwright install --with-deps firefox webkit
   # The real Chrome and Edge, their current stable versions (the runner's own may be older).
-  npx playwright install --force chrome msedge
+  retry npx playwright install --force chrome msedge
 else
-  npx playwright install chromium webkit
+  npx playwright install webkit
   # Chrome and Edge as installed on this computer (they update themselves); installed only if missing.
   for browser in chrome msedge; do npx playwright install "$browser" 2>/dev/null || true; done
 fi
