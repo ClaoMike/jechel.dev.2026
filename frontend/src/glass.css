@@ -531,6 +531,32 @@ html {
   }
 }
 
+/* The eye on the button blinks every 15 seconds, in both modes (the slash over it stays still). */
+.content-toggle .eye-shape {
+  transform-box: view-box;
+  /* Closing onto the eye's middle line. */
+  transform-origin: 12px 12px;
+  animation: eye-blink 15s ease-in-out 15s infinite;
+}
+
+/* Nobody using the page (layout/idle.ts): the eye waits, and goes on blinking at the next input. */
+:root[data-idle] .content-toggle .eye-shape {
+  animation-play-state: paused;
+}
+
+/* One blink of about a third of a second at the start of every 15 seconds, then open. */
+@keyframes eye-blink {
+  0%,
+  2.4%,
+  100% {
+    transform: scaleY(1);
+  }
+
+  1.2% {
+    transform: scaleY(0.1);
+  }
+}
+
 .content-toggle-idle {
   opacity: 0;
   pointer-events: none;
@@ -1248,6 +1274,7 @@ html {
   .coffee-steam path,
   .subscribe-button .bell-body,
   .subscribe-button .bell-clapper,
+  .content-toggle .eye-shape,
   .theme-switch-option .sun-rays,
   .theme-switch-option svg,
   .theme-switch-option .vice-mark {

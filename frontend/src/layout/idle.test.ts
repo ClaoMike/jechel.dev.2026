@@ -70,10 +70,10 @@ describe('watchIdle', () => {
     expect(idle()).toBe(false)
   })
 
-  it('pauses the neon colours while idle (the stylesheet; tests run with reduced motion, where they never move)', () => {
+  it('pauses the neon colours and the eye blinking while idle (the stylesheet; tests run with reduced motion, where they never move)', () => {
     const rules = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]).filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
     const paused = rules.filter((rule) => rule.selectorText.includes(':root[data-idle]') && rule.style.animationPlayState === 'paused')
     const selectors = paused.flatMap((rule) => rule.selectorText.split(',').map((s) => s.trim()))
-    expect(selectors).toEqual(expect.arrayContaining([':root[data-idle] .neon-text', ':root[data-idle] .neon-fill']))
+    expect(selectors).toEqual(expect.arrayContaining([':root[data-idle] .neon-text', ':root[data-idle] .neon-fill', ':root[data-idle] .content-toggle .eye-shape']))
   })
 })
