@@ -20,6 +20,12 @@ public static class AuthSetup
     public const string DevelopmentCookieName = "portfolio.auth";
 
     /// <summary>
+    /// The end-to-end tests' environment (e2e/): like Development (plain cookies over http://localhost), but without
+    /// the developer's user secrets, so nothing real is sent (emails, YouTube), and signed in through a stand-in for Google.
+    /// </summary>
+    public const string EndToEndEnvironment = "E2E";
+
+    /// <summary>
     /// Cookie sessions backed by <see cref="AdminSessionService"/> (one per device: token hash + expiry in
     /// the database) + Google as the external login provider (<see cref="GoogleSignIn"/>).
     /// Google is only registered when a ClientId/ClientSecret are configured, so the API
@@ -37,8 +43,9 @@ public static class AuthSetup
             .AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
             .Configure<IOptions<AdminOptions>>((cookie, admin) => cookie.ExpireTimeSpan = admin.Value.SessionIdleTimeout);
 
-        // http://localhost in development; always Secure everywhere else.
-        var cookieSecurePolicy = builder.Environment.IsDevelopment()
+        // http://localhost in development (and the end-to-end tests); always Secure everywhere else.
+        var local = builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment(EndToEndEnvironment);
+        var cookieSecurePolicy = local
             ? CookieSecurePolicy.SameAsRequest
             : CookieSecurePolicy.Always;
 
@@ -46,7 +53,7 @@ public static class AuthSetup
             .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
             {
-                options.Cookie.Name = builder.Environment.IsDevelopment() ? DevelopmentCookieName : CookieName;
+                options.Cookie.Name = local ? DevelopmentCookieName : CookieName;
                 options.Cookie.Path = "/";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
@@ -105,6 +112,16 @@ public static class AuthSetup
                 options.CallbackPath = CallbackPath;
                 options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 GoogleSignIn.MapClaims(options);
+
+                // The end-to-end tests sign in through a stand-in for Google (E2E:Services, e2e/fakeServices.ts).
+                // Only in that environment: everywhere else this is ignored and it's always Google.
+                if (builder.Environment.IsEnvironment(EndToEndEnvironment) && builder.Configuration["E2E:Services"] is { Length: > 0 } fakes)
+                {
+                    var fake = fakes.TrimEnd('/');
+                    options.AuthorizationEndpoint = $"{fake}/google/auth";
+                    options.TokenEndpoint = $"{fake}/google/token";
+                    options.UserInformationEndpoint = $"{fake}/google/userinfo";
+                }
 
                 // Google redirects back with a top-level GET, so Lax is enough and also works on http://localhost.
                 options.CorrelationCookie.SameSite = SameSiteMode.Lax;

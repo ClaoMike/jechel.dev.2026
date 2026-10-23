@@ -27,6 +27,12 @@ export default defineConfig({
           '/api': { target: apiUrl, xfwd: true },
         },
   },
+  // The production build served locally (`vite preview`, what the end-to-end tests in e2e/ run against), the API behind it the same way.
+  preview: {
+    port: webPort,
+    strictPort: true,
+    proxy: { '/api': { target: apiUrl, xfwd: true } },
+  },
   // Tests run in a real browser (headless Chromium), so views get the site's own CSS: layout, themes
   // and screenshots are the real thing. The API is never called: tests stub `api` (src/test/).
   test: {

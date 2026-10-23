@@ -1,8 +1,12 @@
 using System.Net;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Portfolio.Api.Data;
+using Portfolio.Api.Features.Auth;
+using Portfolio.Api.Features.Updates;
+using Portfolio.Api.Features.YouTube;
 
 namespace Portfolio.Api.IntegrationTests.Features.Hosting;
 
@@ -23,6 +27,39 @@ public class HostingTests(PortfolioApiFactory factory)
         request.Headers.Add(ProxyHeaders.ClientIpHeader, "203.0.113.7");
         request.Headers.Add(ProxyHeaders.ClientCountryHeader, "GB");
         return request;
+    }
+
+    // The end-to-end tests (e2e/) point Google, YouTube, Resend, Cal.com and LeetCode at their stand-ins (E2E:Services),
+    // but only in their own environment: set anywhere else, the setting changes nothing.
+    private WebApplicationFactory<Program> WithStandIns(string environment) =>
+        factory.WithWebHostBuilder(builder => builder.UseEnvironment(environment).UseSetting("E2E:Services", "http://localhost:5299/"));
+
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Production")]
+    public async Task The_end_to_end_stand_ins_are_ignored_outside_their_environment(string environment)
+    {
+        await using var api = WithStandIns(environment);
+
+        var login = await api.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }).GetAsync("/api/auth/login?returnUrl=%2F");
+
+        Assert.Equal("accounts.google.com", login.Headers.Location!.Host);
+        var http = api.Services.GetRequiredService<IHttpClientFactory>();
+        Assert.Equal(ResendEmailSender.BaseAddress, http.CreateClient(nameof(ResendEmailSender)).BaseAddress);
+        Assert.Equal(YouTubeClient.BaseAddress, http.CreateClient(nameof(IYouTubeClient)).BaseAddress);
+    }
+
+    [Fact]
+    public async Task In_the_end_to_end_environment_the_outside_services_are_the_stand_ins()
+    {
+        await using var api = WithStandIns(AuthSetup.EndToEndEnvironment);
+
+        var login = await api.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }).GetAsync("/api/auth/login?returnUrl=%2F");
+
+        Assert.StartsWith("http://localhost:5299/google/auth?", login.Headers.Location!.OriginalString);
+        var http = api.Services.GetRequiredService<IHttpClientFactory>();
+        Assert.Equal(new Uri("http://localhost:5299/resend/"), http.CreateClient(nameof(ResendEmailSender)).BaseAddress);
+        Assert.Equal(new Uri("http://localhost:5299/youtube/"), http.CreateClient(nameof(IYouTubeClient)).BaseAddress);
     }
 
     [Fact]

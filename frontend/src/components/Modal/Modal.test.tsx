@@ -113,6 +113,34 @@ describe('the popup', () => {
     await expect.element(dialog()).not.toBeInTheDocument()
   })
 
+  it('keeps the focus when what had it goes (a form swapped for what it saved): Escape still closes it', async () => {
+    function Swapping() {
+      const [open, setOpen] = useState(true)
+      const [saved, setSaved] = useState(false)
+      return open ? (
+        <Modal labelledBy="title" onClose={() => setOpen(false)}>
+          <h2 id="title">Hello</h2>
+          {saved ? (
+            <p>Saved</p>
+          ) : (
+            <button type="button" onClick={() => setSaved(true)}>
+              Save
+            </button>
+          )}
+        </Modal>
+      ) : (
+        <p>Closed</p>
+      )
+    }
+    await renderView(<Swapping />)
+    await dialog().getByRole('button', { name: 'Save' }).click()
+    await expect.element(dialog().getByText('Saved')).toBeVisible()
+
+    await expect.poll(() => document.activeElement).toBe(dialog().element())
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByText('Closed')).toBeVisible()
+  })
+
   it('taller than a phone screen, scrolls inside its frame: the frame and its glass rim stay put', async () => {
     await page.viewport(390, 600)
     try {

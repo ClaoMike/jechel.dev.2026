@@ -1082,6 +1082,11 @@ html {
   animation-delay: 1s;
 }
 
+/* Nobody using the page (layout/idle.ts): the steam holds still, the bell too (below), until someone does. */
+:root[data-idle] .coffee-steam path {
+  animation-play-state: paused;
+}
+
 /* The coffee: empty at rest; on hover (or keyboard focus) it pours in, filling the cup bottom to top. */
 .coffee-fill {
   fill: currentColor;
@@ -1153,6 +1158,11 @@ html {
 
 .subscribe-button:is(:hover, :focus-visible) .bell-clapper {
   animation: bell-clapper 1.2s ease-in-out infinite;
+}
+
+:root[data-idle] .bell-body,
+:root[data-idle] .bell-clapper {
+  animation-play-state: paused;
 }
 
 @keyframes bell-ring {

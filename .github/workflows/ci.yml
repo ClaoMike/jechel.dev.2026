@@ -1,7 +1,7 @@
 name: CI
 
 # Every pull request runs the whole test suite; `main` (production) only takes pull requests whose
-# Backend and Frontend checks passed (a ruleset on GitHub, see the README's Deployment section).
+# Backend and Frontend checks passed (a ruleset on GitHub, see docs/deployment.md).
 on:
   pull_request:
   push:
@@ -40,7 +40,7 @@ jobs:
     # Playwright's image: the Chromium the tests run in, with the fonts the Linux screenshots were taken with.
     # Keep its version the same as the playwright package in frontend/package-lock.json.
     container:
-      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
     defaults:
       run:
@@ -59,4 +59,32 @@ jobs:
             frontend/coverage
             frontend/src/**/__screenshots__/**/*-actual-*.png
             frontend/src/**/__screenshots__/**/*-diff-*.png
+          retention-days: 7
+
+  e2e:
+    name: End to end (Chrome, Edge, Firefox, Safari)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: backend/global.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # The whole site on a fresh database, in the latest Playwright and the latest of each browser (run.sh installs them
+      # every time: Chrome and Edge from their stable channels, Firefox and WebKit from the newest Playwright).
+      - run: ./e2e/run.sh
+        env:
+          CI: true
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
           retention-days: 7
