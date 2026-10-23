@@ -33,15 +33,17 @@ function useSettled<T>(value: T, delay: number): T {
 }
 
 /**
- * The admin's wording of the emails subscribers get: a draft of all three, one shown at a time with a
- * live preview from the API (the same code that sends them, under glass: only to look at), saved as a whole,
- * and a test of the draft sent to the admin. Saving the defaults unchanged goes back to them, so later defaults apply too.
+ * The admin's wording of the emails subscribers get: the preview of each of the three from the API (the same code
+ * that sends them, under glass: only to look at); Edit brings up the fields, and the preview follows the draft of all
+ * three, saved as a whole with Save or thrown away with Cancel. A test of the draft is sent to the admin. Saving the
+ * defaults unchanged goes back to them, so later defaults apply too.
  */
 export function useUpdateEmailsEditorViewModel() {
   const query = useGetUpdateEmailsQuery()
   const state = toLoadable(query)
   const document = state.status === 'loaded' ? state.data : null
 
+  const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<UpdateEmailWording | null>(null)
   const [kind, setKind] = useState<UpdateEmailKind>('confirm')
   const [saveErrors, setSaveErrors] = useState<FieldErrors>({})
@@ -80,6 +82,7 @@ export function useUpdateEmailsEditorViewModel() {
       await (isDefault ? reset() : save(wording)).unwrap()
       setDraft(null)
       setSaveErrors({})
+      setEditing(false)
       setMessage('Saved. New emails use this wording.')
     } catch (error) {
       const fields = fieldErrorsOf(error)
@@ -100,7 +103,11 @@ export function useUpdateEmailsEditorViewModel() {
       setTestResult(await test({ kind, wording }).unwrap())
     } catch (error) {
       const fields = fieldErrorsOf(error)
-      if (fields) setSaveErrors(fields)
+      if (fields) {
+        setSaveErrors(fields)
+        // The fields to fix, even when it was the saved wording that was turned down.
+        setEditing(true)
+      }
       setTestResult({ ok: false, message: fields ? 'Fix the fields marked first.' : "The test couldn't be sent. Please try again." })
     }
   }
@@ -114,6 +121,11 @@ export function useUpdateEmailsEditorViewModel() {
       setKind(next)
       setTestResult(null)
     },
+    editing,
+    edit: () => {
+      setEditing(true)
+      setMessage('')
+    },
     change,
     errors,
     changed,
@@ -122,7 +134,14 @@ export function useUpdateEmailsEditorViewModel() {
     message,
     failed,
     save: () => void saveDraft(),
-    discard: () => change(document!.wording),
+    /** Back to the saved wording, and out of editing. */
+    cancel: () => {
+      setDraft(null)
+      setSaveErrors({})
+      setMessage('')
+      setFailed('')
+      setEditing(false)
+    },
     preview: {
       data: preview.data ?? null,
       /** The draft has changed since: the preview catches up after a pause. */

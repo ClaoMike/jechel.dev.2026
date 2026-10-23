@@ -33,4 +33,24 @@ describe('the Contact page', () => {
     expect(meetings.element().compareDocumentPosition(page.getByRole('region', { name: 'Messages table' }).element()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(page.getByRole('heading', { name: 'Contact me' }).query()).toBeNull()
   })
+
+  it("keeps the admin's calendar and messages on a phone's screen: the table scrolls sideways inside its card", async () => {
+    const stubs = stubApi({ user: ADMIN })
+    stubs.meetings.list.mockResolvedValue(todaysMeetings())
+    vi.spyOn(api.contact, 'listMessages').mockResolvedValue(pageOfMessages())
+    await page.viewport(360, 800)
+    try {
+      await renderApp({ path: '/contact' })
+      const table = page.getByRole('region', { name: 'Messages table' })
+      await expect.element(table).toBeVisible()
+
+      for (const card of [page.getByRole('region', { name: 'Meetings' }), page.getByRole('region', { name: 'Messages' })]) {
+        expect(card.element().getBoundingClientRect().right).toBeLessThanOrEqual(360)
+      }
+      const scroller = table.element()
+      expect(scroller.scrollWidth).toBeGreaterThan(scroller.clientWidth)
+    } finally {
+      await page.viewport(1280, 900)
+    }
+  })
 })

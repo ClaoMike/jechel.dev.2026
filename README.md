@@ -403,7 +403,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
 ## Site sections and the contact feature
 
-The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch) above five tabs (nine for the signed-in admin, whose own four are written in the jechel.dev pink to violet, the same in every theme: `.tab-admin` in `glass.css`), each a route rendered inside `src/layout/AppLayout/AppLayout.tsx`:
+The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch, whose icon turns once when picked: the sun's rays go round it, the moon flips over the X axis, the Vice mark over the Y axis; not on load, nor with reduced motion) above five tabs (nine for the signed-in admin, whose own four are written in the jechel.dev pink to violet, the same in every theme: `.tab-admin` in `glass.css`), each a route rendered inside `src/layout/AppLayout/AppLayout.tsx`:
 
 | Tab | Route | Status |
 | --- | --- | --- |
@@ -552,7 +552,7 @@ drag is swallowed). On phones the bar still scrolls sideways when dragged anywhe
 - **The admin** (`<SignedIn>`) gets the inbox: a table of conversations (name, last message, how many), 10 per page (the page is in the URL, `?page=2`). Unread messages are bold, with a blue dot. Clicking a row opens a popup with every field and a **Copy** button for each, and marks the message as read.
 - Each detail has a copy-to-clipboard icon button (`src/components/CopyButton/CopyButton.tsx`); the icons are in `src/components/icons/icons.tsx`.
 - **Deleting:** each row has a trash button, and the popup a **Delete** button (`DELETE /api/contact/messages/{id}`, admin only). Both ask first.
-- The popup is `src/components/Modal/Modal.tsx`: it keeps focus inside (Tab wraps), closes with Escape, the × button or a click on the backdrop, and returns focus to the row's button. Keys and clicks inside a dialog stay inside it, so a dialog opened from another (or from a table row) behaves: Escape closes only the top one.
+- The popup is `src/components/Modal/Modal.tsx`: it keeps focus inside (Tab wraps), closes with Escape, the × button or a click on the backdrop, and returns focus to the row's button. Keys and clicks inside a dialog stay inside it, so a dialog opened from another (or from a table row) behaves: Escape closes only the top one. Taller than the screen, only what's inside it scrolls (`.modal-body`): the frame and its glass rim stay put, and it fits the screen a phone's browser bar leaves (`100dvh`).
 - **Confirming:** `src/components/DeleteButton/DeleteButton.tsx` is the one delete button for the whole site: it opens `ConfirmDialog` ("Delete …?" with Cancel focused) and only then runs `onDelete`. If that is async, the popup waits and says so when it fails. About Me uses it with `action="Remove"` for every remove button, explaining that nothing is lost until the section is saved.
 
 **About Me** (`src/pages/AboutPage/AboutPage.tsx`, `src/features/about/`, API in `backend/.../Features/About/`):
@@ -743,8 +743,10 @@ focus) it turns yellow and keeps ringing (`.bell-body`, `.bell-clapper` in `glas
   `UpdateEmailsEndpoints.cs`): the same four fields for each email (the confirmation, a new video, a new app): **Subject**,
   **Message**, **Button** and **Note** (optional, in grey under the button), plus the footer (why they get it; that replies aren't
   read, with a link to the contact page). A new item's subject and message can hold `{title}`; the longer texts take paragraphs
-  and `[text](url)` links (http(s), or a path on the site). Beside the fields is a live preview, made by the API with the same
-  code that sends the emails, about your newest app or video. It sits under glass: the frame is `inert` and as tall as the email,
+  and `[text](url)` links (http(s), or a path on the site). The card opens on the preview alone, made by the API with the same
+  code that sends the emails, about your newest app or video; **Edit** brings up the fields beside it, and the preview follows
+  them as you type. **Save** (only once something changed) keeps the changes to all three emails; **Cancel** throws them away;
+  either goes back to the preview. The preview sits under glass: the frame is `inert` and as tall as the email,
   so nothing in it can be clicked, focused or scrolled. **Send me a test** emails the draft to you, marked `[Test]`, from the
   updates sender; when your address is subscribed, its links carry your own code, so its Unsubscribe really unsubscribes you.
   Otherwise they carry the code `test`, and the pages say the link is from a test and change nothing. Every email gets its own

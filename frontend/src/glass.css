@@ -921,6 +921,47 @@ html {
   outline-offset: 1px;
 }
 
+/* The icon just picked turns once: the sun's rays around it, the moon head over heels, the Vice mark side over side. */
+.theme-switch-option[data-theme-option='light'][data-picked] .sun-rays {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: theme-sun-rays 0.7s ease-in-out;
+}
+
+.theme-switch-option[data-theme-option='dark'][data-picked] svg {
+  animation: theme-flip-x 0.7s ease-in-out;
+}
+
+.theme-switch-option[data-theme-option='vice'][data-picked] .vice-mark {
+  animation: theme-flip-y 0.7s ease-in-out;
+}
+
+@keyframes theme-sun-rays {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes theme-flip-x {
+  from {
+    transform: perspective(80px) rotateX(0);
+  }
+
+  to {
+    transform: perspective(80px) rotateX(360deg);
+  }
+}
+
+@keyframes theme-flip-y {
+  from {
+    transform: perspective(120px) rotateY(0);
+  }
+
+  to {
+    transform: perspective(120px) rotateY(360deg);
+  }
+}
+
 /* On / Off (components/OnOffSwitch): the theme slider with two stops, wide enough for a word each. */
 .on-off-switch {
   --stop: 46px;
@@ -1206,7 +1247,10 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .coffee-steam path,
   .subscribe-button .bell-body,
-  .subscribe-button .bell-clapper {
+  .subscribe-button .bell-clapper,
+  .theme-switch-option .sun-rays,
+  .theme-switch-option svg,
+  .theme-switch-option .vice-mark {
     animation: none !important;
   }
 
