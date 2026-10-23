@@ -3,7 +3,7 @@ import { page } from 'vitest/browser'
 import { THEMES } from '../../../layout/theme'
 import { api, ApiError, type SiteStatus } from '../../../services/api'
 import { a11yViolations } from '../../../test/a11y'
-import { SITE } from '../../../test/fixtures/site'
+import { SITE, SUPPORT_URL } from '../../../test/fixtures/site'
 import { ADMIN, forever, renderView, textOf } from '../../../test/render'
 import { SiteVisibility } from './SiteVisibility'
 
@@ -12,6 +12,8 @@ import { SiteVisibility } from './SiteVisibility'
 const ALL_OFF: SiteStatus = { ...SITE, pages: { whatsNew: false, apps: false, youtube: false, about: false, contact: false } }
 
 function stub(site: SiteStatus = SITE) {
+  // Asked to know whether Buy me a coffee has a page link.
+  vi.spyOn(api.support, 'get').mockResolvedValue({ url: SUPPORT_URL })
   return {
     status: vi.spyOn(api.site, 'status').mockResolvedValue(structuredClone(site)),
     save: vi

@@ -12,21 +12,22 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Runners are pinned (ubuntu-24.04, not ubuntu-latest, which is moving to Ubuntu 26): the image changes when we choose to.
 jobs:
   backend:
     name: Backend (build + unit + integration)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: backend/global.json
       # Unit + integration tests with coverage (test.sh). Integration tests use Testcontainers; Docker is available on ubuntu runners.
       - run: ./test.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: backend-coverage
@@ -35,7 +36,7 @@ jobs:
 
   frontend:
     name: Frontend (lint + build + tests)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Playwright's image: the Chromium the tests run in, with the fonts the Linux screenshots were taken with.
     # Keep its version the same as the playwright package in frontend/package-lock.json.
     container:
@@ -45,12 +46,12 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run build
       - run: npm test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: frontend-test-report

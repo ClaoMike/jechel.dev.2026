@@ -20,9 +20,12 @@ export default defineConfig({
     // Same-origin API calls: keeps the auth cookie first-party and needs no CORS.
     // xfwd sends X-Forwarded-Host/Proto so the API builds Google's callback URL
     // as http://localhost:5173/api/auth/signin-google (the URL the browser sees).
-    proxy: {
-      '/api': { target: apiUrl, xfwd: true },
-    },
+    // Not for tests (VITEST): they never reach an API, not even for an image or a video's address.
+    proxy: process.env.VITEST
+      ? undefined
+      : {
+          '/api': { target: apiUrl, xfwd: true },
+        },
   },
   // Tests run in a real browser (headless Chromium), so views get the site's own CSS: layout, themes
   // and screenshots are the real thing. The API is never called: tests stub `api` (src/test/).

@@ -1410,7 +1410,9 @@ the report shows what isn't covered yet: `coverage/index.html` (and a summary in
 - **The API is never called:** `stubApi()` (`src/test/api.ts`) stubs everything the visitor-facing views ask for, with
   realistic answers from `src/test/fixtures/` (About Me, terms, site, videos, LeetCode, résumé); a test changes what it needs,
   e.g. `api.about.get.mockRejectedValue(new ApiError('/api/about', 500))`, or `forever()` for the loading state.
-  `stubApi({ user: ADMIN })` signs the admin in.
+  `stubApi({ user: ADMIN })` signs the admin in. It's enforced (`src/test/setup.ts`): a request no test faked (XMLHttpRequest
+  or `sendBeacon`) fails the test that sent it, naming it; each view is unmounted at the end of its own test, while its fakes
+  are still there; and Vite's `/api` proxy is off under Vitest, so not even an image's address reaches a local API.
 - **The real requests:** `fakeHttp(answer)` (`src/test/http.ts`) replaces the browser's XMLHttpRequest, so an `api`
   function runs for real (URL, query, headers, errors turned into ApiErrors, cancelling, the preview switch) without
   leaving the browser. See `services/api.youtube.test.ts`.
