@@ -31,6 +31,62 @@ describe('the header', () => {
     await expect.poll(() => document.querySelector('.scene-background')).not.toBeNull()
   })
 
+  it("turns the icon just picked, once: the sun's rays round it, the moon over the X axis, Vice over the Y axis", async () => {
+    stubApi()
+    await renderApp({ theme: 'dark' })
+    await expect.element(theme().getByRole('radio', { name: 'Dark mode' })).toBeChecked()
+    const option = (value: string) => theme().element().querySelector<HTMLElement>(`[data-theme-option="${value}"]`)!
+    // Tests run with animations off, so: the animations the site's rules give an element, and the turn each keyframe makes.
+    const rules = [...document.styleSheets]
+      .flatMap((sheet) => [...sheet.cssRules])
+      .flatMap((rule) => (rule instanceof CSSMediaRule ? [...rule.cssRules].map((inner) => ({ rule: inner, media: rule.conditionText })) : [{ rule, media: '' }]))
+    // (Not the tests' own rule that stops every animation.)
+    const animations = (el: Element, media = '') =>
+      rules
+        .filter(
+          ({ rule, media: m }) =>
+            rule instanceof CSSStyleRule && m === media && rule.selectorText !== '*, ::before, ::after' && rule.style.animationName && el.matches(rule.selectorText),
+        )
+        .map(({ rule }) => (rule as CSSStyleRule).style.animationName)
+    const turn = (name: string) => {
+      const frames = rules.find(({ rule }) => rule instanceof CSSKeyframesRule && rule.name === name)!.rule as CSSKeyframesRule
+      return (frames.cssRules[frames.cssRules.length - 1] as CSSKeyframeRule).style.transform
+    }
+    const [sun, rays, moon, vice] = [
+      option('light').querySelector('svg')!,
+      option('light').querySelector('.sun-rays')!,
+      option('dark').querySelector('svg')!,
+      option('vice').querySelector('.vice-mark')!,
+    ]
+
+    // Nothing turns on load.
+    expect(theme().element().querySelector('[data-picked]')).toBeNull()
+    expect(animations(moon)).toEqual([])
+
+    await theme().getByTitle('Light mode').click()
+    await expect.poll(() => option('light').hasAttribute('data-picked')).toBe(true)
+    expect(animations(rays)).toEqual(['theme-sun-rays'])
+    expect(turn('theme-sun-rays')).toBe('rotate(360deg)')
+    // The sun itself stays still.
+    expect(animations(sun)).toEqual([])
+
+    await theme().getByTitle('Vice mode').click()
+    await expect.poll(() => option('vice').hasAttribute('data-picked')).toBe(true)
+    expect(option('light').hasAttribute('data-picked')).toBe(false)
+    expect(animations(rays)).toEqual([])
+    expect(animations(vice)).toEqual(['theme-flip-y'])
+    expect(turn('theme-flip-y')).toContain('rotateY(360deg)')
+
+    await theme().getByTitle('Dark mode').click()
+    await expect.poll(() => option('dark').hasAttribute('data-picked')).toBe(true)
+    expect(animations(moon)).toEqual(['theme-flip-x'])
+    expect(turn('theme-flip-x')).toContain('rotateX(360deg)')
+    expect(animations(vice)).toEqual([])
+
+    // Reduced motion: none of it.
+    for (const el of [rays, moon, vice]) expect(animations(el, '(prefers-reduced-motion: reduce)')).toEqual(['none'])
+  })
+
   it('moves between themes with the arrow keys', async () => {
     stubApi()
     await renderApp({ theme: 'dark' })
