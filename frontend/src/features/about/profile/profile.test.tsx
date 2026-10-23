@@ -31,6 +31,8 @@ describe('Photo and links, for a visitor', () => {
     await renderProfile()
     await expect.element(page.getByRole('img', { name: 'Claudiu Jechel' })).toHaveAttribute('src', ABOUT.photoUrl)
     await expect.element(page.getByText('Claudiu Mihai Jechel')).toBeVisible()
+    // A name: the browser's translation leaves it alone.
+    await expect.element(page.getByText('Claudiu Mihai Jechel')).toHaveAttribute('translate', 'no')
     const labels = page.getByRole('list', { name: 'Citizenship and residence' })
     await expect.poll(() => textOf(labels)).toBe('Romanian citizenshipUK Settled Status')
     expect(labels.element().querySelectorAll('img.flag')).toHaveLength(2)

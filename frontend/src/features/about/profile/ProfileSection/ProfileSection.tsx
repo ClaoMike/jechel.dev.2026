@@ -29,7 +29,7 @@ export function ProfileSection(props: ProfileSectionProps) {
       <div className="profile">
         <ProfilePhoto url={vm.photoUrl} />
         <div className="profile-heading">
-          <p className="profile-name">Claudiu Mihai Jechel</p>
+          <p className="profile-name" translate="no">Claudiu Mihai Jechel</p>
           {vm.headline && <p className="profile-headline">{vm.headline}</p>}
         </div>
         <StatusChips statuses={vm.statuses} showEmpty={vm.showNoStatuses} />

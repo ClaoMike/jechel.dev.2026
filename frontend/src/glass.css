@@ -1052,7 +1052,7 @@ html {
 }
 
 /*
- * The Get updates bell: on hover (or keyboard focus) it turns YouTube's yellow and keeps ringing. The bell
+ * The Get updates bell: at rest it rings now and then; on hover (or keyboard focus) it turns YouTube's yellow and keeps ringing. The bell
  * swings from its top; the clapper hangs from the same point, a beat behind and further out, so it strikes
  * the rim as a real one does. Yellow fill, amber outline: it shows on the light buttons as on the dark.
  */
@@ -1069,6 +1069,15 @@ html {
   transform-box: view-box;
   /* The hook at the top of the bell. */
   transform-origin: 12px 2px;
+}
+
+/* At rest, in its own colours and empty, it rings once every 10 seconds (the same swing, then still). */
+.bell-body {
+  animation: bell-ring-idle 10s ease-in-out 2s infinite;
+}
+
+.bell-clapper {
+  animation: bell-clapper-idle 10s ease-in-out 2s infinite;
 }
 
 .subscribe-button:is(:hover, :focus-visible) .bell-body {
@@ -1132,6 +1141,63 @@ html {
   }
 
   55% {
+    transform: rotate(6deg);
+  }
+}
+
+/* bell-ring and bell-clapper's frames, squeezed into the first 1.2s of 10s (× 0.12): one ring, then rest. */
+@keyframes bell-ring-idle {
+  0%,
+  7.2%,
+  100% {
+    transform: rotate(0);
+  }
+
+  1.2% {
+    transform: rotate(16deg);
+  }
+
+  2.4% {
+    transform: rotate(-14deg);
+  }
+
+  3.6% {
+    transform: rotate(11deg);
+  }
+
+  4.8% {
+    transform: rotate(-8deg);
+  }
+
+  6% {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes bell-clapper-idle {
+  0%,
+  7.8%,
+  100% {
+    transform: rotate(0);
+  }
+
+  1.68% {
+    transform: rotate(24deg) translateX(1px);
+  }
+
+  2.88% {
+    transform: rotate(-22deg) translateX(-1px);
+  }
+
+  4.08% {
+    transform: rotate(17deg) translateX(0.6px);
+  }
+
+  5.28% {
+    transform: rotate(-12deg) translateX(-0.6px);
+  }
+
+  6.6% {
     transform: rotate(6deg);
   }
 }

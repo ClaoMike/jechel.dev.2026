@@ -10,6 +10,7 @@ export function AppTile(props: AppTileProps) {
       onClick={vm.open}
       imageUrl={vm.imageUrl}
       title={vm.title}
+      translateTitle={false}
       meta={vm.categories.length > 0 && <CategoryLabels categories={vm.categories} />}
       description={vm.description}
     />

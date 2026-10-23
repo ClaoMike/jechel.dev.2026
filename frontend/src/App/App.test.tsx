@@ -18,6 +18,16 @@ describe('the site, as a visitor gets it', () => {
     await expect.poll(() => app.location()).toBe('/youtube')
   })
 
+  it("keeps the names out of the browser's translation (the site's, and the Vice mark), not the tabs or a video's title", async () => {
+    stubApi()
+    await renderApp({ path: '/youtube' })
+    await expect.element(page.getByRole('list', { name: 'Videos' })).toBeVisible()
+    expect(page.getByRole('heading', { name: 'jechel.dev' }).element().getAttribute('translate')).toBe('no')
+    expect(document.querySelector('.vice-mark')!.getAttribute('translate')).toBe('no')
+    expect(tabs().element().closest('[translate]')).toBeNull()
+    expect(document.querySelector('.media-card-title')!.closest('[translate]')).toBeNull()
+  })
+
   it('sends an unknown address home', async () => {
     stubApi()
     const app = await renderApp({ path: '/nowhere' })

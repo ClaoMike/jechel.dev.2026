@@ -6,7 +6,7 @@ import { stubApi } from '../../test/api'
 import { SITE } from '../../test/fixtures/site'
 import { renderView } from '../../test/render'
 
-// The header buttons' icons: on hover the Get updates bell turns yellow and rings (the bell swings, its
+// The header buttons' icons: the Get updates bell rings every 10 seconds, and on hover turns yellow and rings (the bell swings, its
 // clapper follows); the coffee always steams, and on hover its cup fills. Tests run with reduced motion:
 // what shows is checked on the page, how it moves in the stylesheet.
 
@@ -78,6 +78,23 @@ describe('the Get updates bell', () => {
     expect(Math.max(...clapperSwing.map(Math.abs))).toBeGreaterThan(Math.max(...bellSwing.map(Math.abs)))
     const firstPeak = (name: string) => parseFloat((keyframes(name)!.cssRules[1] as CSSKeyframeRule).keyText)
     expect(firstPeak('bell-clapper')).toBeGreaterThan(firstPeak('bell-ring'))
+  })
+
+  it('rings at rest too, once every 10 seconds: the same swing, in its own colours and empty', () => {
+    for (const [shape, name, hover] of [['.bell-body', 'bell-ring-idle', 'bell-ring'], ['.bell-clapper', 'bell-clapper-idle', 'bell-clapper']]) {
+      const idle = rules(shape).find((r) => r.rule.style.animationName === name)!
+      expect(idle.rule.selectorText).toBe(shape)
+      expect(idle.media).toBe('')
+      expect(idle.rule.style.animationDuration).toBe('10s')
+      expect(idle.rule.style.animationIterationCount).toBe('infinite')
+      // The hover's swing, frame for frame, over its first 1.2s, then still for the rest.
+      expect(rotations(name)).toEqual(rotations(hover))
+      const frames = [...keyframes(name)!.cssRules] as CSSKeyframeRule[]
+      const lastMove = Math.max(...frames.filter((f) => !/^rotate\(0(deg)?\)$/.test(f.style.transform)).map((f) => parseFloat(f.keyText)))
+      expect(lastMove).toBeLessThan(12)
+    }
+    // No yellow at rest: that's the hover's.
+    expect(rules('.bell-body').filter((r) => r.rule.style.fill).every((r) => r.rule.selectorText.includes(':hover'))).toBe(true)
   })
 
   it("stays still for visitors who ask for less motion, and in the tests' browser, which does", async () => {
