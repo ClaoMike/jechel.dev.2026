@@ -451,6 +451,34 @@ describe('errors nobody caught', () => {
     expect(queued()).toHaveLength(before)
   })
 
+  it("leaves out an error at a page's address: the CSP runs no script in the page, so it's the browser's (Chrome on iPhone's Translate)", () => {
+    const before = queued().length
+    for (const page of ['/', '/apps', '/updates/confirm'])
+      window.dispatchEvent(new ErrorEvent('error', { message: 'RangeError: Maximum call stack size exceeded.', filename: location.origin + page, lineno: 193, colno: 70 }))
+    expect(queued()).toHaveLength(before)
+
+    // A script file still counts, here and in dev.
+    window.dispatchEvent(new ErrorEvent('error', { message: 'one', filename: `${location.origin}/assets/index-abc.js` }))
+    window.dispatchEvent(new ErrorEvent('error', { message: 'two', filename: `${location.origin}/@vite/client` }))
+    expect(queued().slice(before).map((e) => e.label)).toEqual(['one', 'two'])
+  })
+
+  it("leaves out another site's script or stylesheet that didn't load (the CSP allows none: the browser added it), not an image", () => {
+    const before = queued().length
+    const link = add<HTMLLinkElement>('<link rel="stylesheet">')
+    link.setAttribute('href', 'https://www.gstatic.com/_/translate_http/_/ss/k=translate_http.tr/m=el_main_css')
+    link.dispatchEvent(new Event('error'))
+    expect(queued()).toHaveLength(before)
+
+    link.setAttribute('href', '/assets/index.css')
+    link.dispatchEvent(new Event('error'))
+    expect(last()).toMatchObject({ label: "Couldn't load a link", detail: { kind: 'resource', src: '/assets/index.css' } })
+    const image = add<HTMLImageElement>('<img alt="">')
+    image.setAttribute('src', 'https://example.com/app.png')
+    image.dispatchEvent(new Event('error'))
+    expect(last()).toMatchObject({ label: "Couldn't load an image", detail: { src: 'https://example.com/app.png' } })
+  })
+
   it('records a promise nobody waited for, whatever it failed with', () => {
     const reject = (reason: unknown) => window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason }))
     const circular: Record<string, unknown> = {}

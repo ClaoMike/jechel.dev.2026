@@ -40,6 +40,16 @@ describe('Apps page, for a visitor', () => {
     expect(tile('No Picture').element().closest('.media-card')!.querySelector('.media-card-placeholder')).not.toBeNull()
   })
 
+  it("keeps an app's name out of the browser's translation (tile and popup), and the rest of the page in", async () => {
+    await renderApps()
+    await expect.element(tile('LIGHTHOUSE')).toBeVisible()
+    const card = tile('LIGHTHOUSE').element().closest('.media-card')!
+    expect(card.querySelector('.media-card-title')!.getAttribute('translate')).toBe('no')
+    expect(card.querySelector('.media-card-description')!.closest('[translate]')).toBeNull()
+    await tile('LIGHTHOUSE').click()
+    await expect.element(page.getByRole('dialog', { name: 'LIGHTHOUSE' }).getByRole('heading', { name: 'LIGHTHOUSE' })).toHaveAttribute('translate', 'no')
+  })
+
   it('asks for 9 apps a page (a full 3 × 3 grid) and never for the categories list', async () => {
     await renderApps()
     await expect.element(tile('LIGHTHOUSE')).toBeVisible()
@@ -190,6 +200,9 @@ describe('Apps page, for the signed-in admin', () => {
     await asAdmin()
     await tile('LIGHTHOUSE').click()
     await expect.element(page.getByRole('dialog', { name: 'LIGHTHOUSE' }).getByRole('button', { name: 'Edit' })).toBeVisible()
+    // "Edit LIGHTHOUSE" is a sentence, not just the name: it may be translated.
+    await page.getByRole('button', { name: 'Edit' }).click()
+    await expect.element(page.getByRole('heading', { name: 'Edit LIGHTHOUSE' })).not.toHaveAttribute('translate')
   })
 
   it('still shows the error, with its admin controls kept out of the way, when the apps fail to load', async () => {

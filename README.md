@@ -210,7 +210,7 @@ The site records how it's used itself: no third parties, no cookies. The admin r
 
 **Recording** (`src/features/analytics/tracker.ts`, mounted by `<AnalyticsTracker>` in `App/App.tsx`):
 
-- **What:** pages opened (with the query); clicks on buttons, links and fields (the label the visitor saw, plus a link's address; **never what was typed**), and clicks into embedded players (YouTube: the window loses focus to the frame); fields changed (`change`: a list's option, a slider's value, how many files; a text field only that it was edited); forms sent (`submit`, with Enter or a button); Escape; copying text (not what); videos played, paused and finished; how far down each page was read (`scroll`, in quarters, recorded on leaving the page); the tab hidden and back (`tab`); leaving (`leave`); the site's own events (`trackEvent`: Terms accepted, Message sent / not sent and why, Contact form invalid with the field names, Subscribed / again / failed and why, Subscription confirmed, Unsubscribed, Support clicked, Swiped to another slide, Moved to another slide with the keyboard, Zoomed / Moved the map, Looked at a place on the map, Theme changed); and every **error**: script errors with file, line and stack (not a bare "Script error." with no file: that's a script the browser or an extension put in the page, such as Firefox on iPhone's on taps, since the site runs only its own), unhandled promise rejections, React crashes with the component stack (`createRoot` callbacks in `main.tsx`), requests that fail with 5xx or no answer (`onRequestFailed` in `api.ts`; 4xx answers are expected and skipped), and images or files that didn't load.
+- **What:** pages opened (with the query); clicks on buttons, links and fields (the label the visitor saw, plus a link's address; **never what was typed**), and clicks into embedded players (YouTube: the window loses focus to the frame); fields changed (`change`: a list's option, a slider's value, how many files; a text field only that it was edited); forms sent (`submit`, with Enter or a button); Escape; copying text (not what); videos played, paused and finished; how far down each page was read (`scroll`, in quarters, recorded on leaving the page); the tab hidden and back (`tab`); leaving (`leave`); the site's own events (`trackEvent`: Terms accepted, Message sent / not sent and why, Contact form invalid with the field names, Subscribed / again / failed and why, Subscription confirmed, Unsubscribed, Support clicked, Swiped to another slide, Moved to another slide with the keyboard, Zoomed / Moved the map, Looked at a place on the map, Theme changed); and every **error**: script errors with file, line and stack (not a bare "Script error." with no file: that's a script the browser or an extension put in the page, such as Firefox on iPhone's on taps, since the site runs only its own; nor an error at a page's address rather than a script file, nor another site's script or stylesheet that didn't load: the CSP allows neither, so both are the browser's, such as Chrome on iPhone's Translate, whose RangeError is reported at the page and whose gstatic.com stylesheet is blocked), unhandled promise rejections, React crashes with the component stack (`createRoot` callbacks in `main.tsx`), requests that fail with 5xx or no answer (`onRequestFailed` in `api.ts`; 4xx answers are expected and skipped), and images or files that didn't load.
 - **A visit** is a browser tab: a random id in `sessionStorage`, so it survives reloads and ends with the tab. It starts with the page, the referring site (host and path; no query), `utm_*` tags, language, time zone, screen and window size, and theme.
 - **Theme:** a visit keeps the theme it started in (Vice for first-time visitors, their earlier choice for those coming back) and the one it ended in: every batch says the theme on show, and the last is sent as the tab closes. Each switch is a `Theme changed` event with `from` and `to`.
 - **Who isn't recorded:** visitors who haven't accepted the terms (the tracker is off: nothing is kept for later; once they accept, the visit starts with the page on show and `Terms accepted`), the signed-in admin (the tracker waits for the sign-in check, and the API ignores requests with the admin cookie), and bots and headless browsers (by User-Agent, which includes the Playwright runs).
@@ -687,7 +687,8 @@ Buy Me a Coffee: it needs the site to be online.
 
 Visitors click **Get updates**, give an email address, and confirm it from an email (double opt-in). From then on they get an
 email for every new app and YouTube video, with a one-click unsubscribe link (and the `List-Unsubscribe` headers Gmail and Yahoo
-require of bulk senders).
+require of bulk senders). The button's bell rings once every 10 seconds at rest, in its own colours; on hover (or keyboard
+focus) it turns yellow and keeps ringing (`.bell-body`, `.bell-clapper` in `glass.css`; still for reduced motion).
 
 - **Subscribing** (`Features/Updates/UpdatesEndpoints.cs`): addresses are stored lower case, with a random 256-bit token used in
   the confirm and unsubscribe links. The confirmation email isn't sent to the same address more than once per 10 minutes, and each
@@ -1222,6 +1223,11 @@ Things it caught, so they stay fixed: white on the bright blue was 3.6:1 (now `-
 text was 3.8:1, the pagination over the Vice scene, popup headers counting as extra page banners, a card's link named only by its
 title while it held the whole card (now the title is the link, stretched over the card), the title and licence buttons speaking
 differently from what they show.
+
+**Translation:** the site is in English (`<html lang="en">`), so browsers offer to translate it (Chrome on a Romanian phone does).
+Names are kept as they are with `translate="no"`: the site's name (`Brand`), the Vice mark (`ViceMark`, which a translator read as
+"ViceVice"), the name on About Me, and app titles on their tiles and popups (`MediaCard`'s `translateTitle`, `AppDialogHeader`'s
+`headingIsName`). Everything else, video titles included, may be translated.
 
 ## Loading and error states, and the admin's preview switch
 

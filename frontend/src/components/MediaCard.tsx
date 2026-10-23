@@ -16,6 +16,8 @@ export interface MediaCardProps {
   meta?: ReactNode
   /** Opens `href` in a new tab (default). */
   newTab?: boolean
+  /** False for a name (an app's): browsers' translators leave it alone. */
+  translateTitle?: boolean
 }
 
 /**
@@ -23,7 +25,7 @@ export interface MediaCardProps {
  * the whole card, so the card is clickable anywhere while its name stays the title (plus "opens in a
  * new tab"); the date and description are read as the card's text, not crammed into the link's name.
  */
-export function MediaCard({ href, onClick, imageUrl, title, description, meta, newTab = true }: MediaCardProps) {
+export function MediaCard({ href, onClick, imageUrl, title, description, meta, newTab = true, translateTitle = true }: MediaCardProps) {
   const action =
     href === undefined ? (
       <button type="button" className="media-card-action" onClick={onClick}>
@@ -48,7 +50,7 @@ export function MediaCard({ href, onClick, imageUrl, title, description, meta, n
         </span>
       )}
       <div className="media-card-body">
-        <h3 className="media-card-title">{action}</h3>
+        <h3 className="media-card-title" translate={translateTitle ? undefined : 'no'}>{action}</h3>
         {meta && <span className="media-card-meta">{meta}</span>}
         {description && <p className="media-card-description">{description}</p>}
       </div>

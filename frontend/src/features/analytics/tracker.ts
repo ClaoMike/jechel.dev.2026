@@ -265,10 +265,15 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
    * Left out: a bare "Script error." with no file. The browser hides an error's details only when it comes from a
    * script of another origin, and the site runs none (the Content-Security-Policy allows only its own), so it's a
    * script the browser or an extension put in the page (Firefox on iPhone does, on taps). Nothing to learn or fix.
+   * For the same reason: an error "in" a page's address rather than a script file (the CSP runs no script written
+   * in the page, so it's one the browser injected: Chrome on iPhone's Translate is reported at a page, and its
+   * RangeError there isn't the site's), and a script or stylesheet from another site that didn't load (the CSP
+   * allows none, so the site never adds one: Translate's stylesheet from gstatic.com is blocked on every page).
    */
   function onError(event: Event) {
     if (event instanceof ErrorEvent) {
       if (!event.filename && (!event.message || event.message === 'Script error.')) return
+      if (event.filename && isPage(event.filename)) return
       error(event.message || 'Script error', { kind: 'script', source: event.filename ? `${event.filename}:${event.lineno}:${event.colno}` : '', stack: stackOf(event.error) })
       return
     }
@@ -276,6 +281,7 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
     if (element instanceof HTMLElement) {
       const tag = element.tagName.toLowerCase()
       const src = element.getAttribute('src') ?? element.getAttribute('href') ?? ''
+      if ((tag === 'script' || tag === 'link') && !isSameSite(src)) return
       error(`Couldn't load ${tag === 'img' ? 'an image' : `a ${tag}`}`, { kind: 'resource', src })
     }
   }
@@ -551,4 +557,23 @@ function messageOf(value: unknown) {
 
 function stackOf(value: unknown) {
   return value instanceof Error && value.stack ? cut(value.stack, STACK_MAX) : ''
+}
+
+/** A page of this site (/, /apps, /updates/confirm) rather than a file (/assets/app.js; Vite's /@vite/client in dev). */
+function isPage(address: string) {
+  const url = parseUrl(address)
+  return url?.origin === location.origin && !url.pathname.startsWith('/@') && !/\.[a-z0-9]+$/i.test(url.pathname)
+}
+
+function isSameSite(address: string) {
+  return parseUrl(address)?.origin === location.origin
+}
+
+/** Like URL.parse, which older iPhones (iOS 17) don't have. */
+function parseUrl(address: string) {
+  try {
+    return new URL(address, location.href)
+  } catch {
+    return null
+  }
 }
