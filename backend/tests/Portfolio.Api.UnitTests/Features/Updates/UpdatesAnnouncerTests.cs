@@ -228,12 +228,46 @@ public class UpdatesAnnouncerTests
         var announcer = new UpdatesAnnouncer(_db, stopping, Options.Create(_site), TestOptions.Monitor(new YouTubeOptions { Channel = "@me", ApiKey = "key" }), _store, _alerts, _time, NullLogger<UpdatesAnnouncer>.Instance);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => announcer.AnnounceNewAsync(stop.Token));
+        var left = await _database.Open().Announcements.SingleAsync();
+        Assert.Equal((AnnouncementStatus.Sending, 1), (left.Status, left.RecipientCount));
+        // The next run marks it sent, as far as it got, and emails nobody else.
         Assert.Equal(0, await AnnounceAsync());
 
         var announcement = await _db.Announcements.SingleAsync();
         Assert.Equal((AnnouncementStatus.Sent, 1), (announcement.Status, announcement.RecipientCount));
         Assert.Equal(["ada@example.com"], stopping.Sent);
         Assert.Empty(_emails.Sent);
+    }
+
+    [Fact]
+    public async Task While_the_emails_go_out_it_shows_as_sending_with_how_many_got_it_so_far_then_as_sent()
+    {
+        await AnnounceAsync();
+        foreach (var name in new[] { "ada", "bob", "cy" }) Subscriber($"{name}@example.com");
+        await AppAsync("Space Game");
+        await Decide(AnnouncementStatus.Approved);
+        // What the Community tab would get, read from elsewhere as each email goes out.
+        var watching = new Watching(_database);
+        await _store.RefreshAsync(default);
+        var announcer = new UpdatesAnnouncer(_db, watching, Options.Create(_site), TestOptions.Monitor(new YouTubeOptions { Channel = "@me", ApiKey = "key" }), _store, _alerts, _time, NullLogger<UpdatesAnnouncer>.Instance);
+
+        Assert.Equal(1, await announcer.AnnounceNewAsync(default));
+
+        Assert.Equal([(AnnouncementStatus.Sending, 0), (AnnouncementStatus.Sending, 1), (AnnouncementStatus.Sending, 2)], watching.Seen);
+        var announcement = await _database.Open().Announcements.SingleAsync();
+        Assert.Equal((AnnouncementStatus.Sent, 3), (announcement.Status, announcement.RecipientCount));
+    }
+
+    /// <summary>Before each email, records the announcement as another request would read it.</summary>
+    private sealed class Watching(TestDatabase database) : IEmailSender
+    {
+        public List<(string, int)> Seen { get; } = [];
+
+        public async Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
+        {
+            var announcement = await database.Open().Announcements.AsNoTracking().SingleAsync(cancellationToken);
+            Seen.Add((announcement.Status, announcement.RecipientCount));
+        }
     }
 
     /// <summary>Sends <c>count</c> emails, then stops the run as the API shutting down would.</summary>

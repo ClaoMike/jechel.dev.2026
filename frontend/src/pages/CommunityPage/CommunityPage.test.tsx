@@ -7,6 +7,7 @@ import { ADMIN, forever, renderView, textOf } from '../../test/render'
 import { DEFAULT_EMAILS, previewOf } from '../../test/fixtures/updateEmails'
 import { formatDate, formatDateTime } from '../../utils/formatDate'
 import { CommunityPage } from './CommunityPage'
+import { SENDING_REFRESH_MS } from './CommunityPage.viewModel'
 
 // The admin's Community tab: subscribers, the update emails (new apps wait to be sent or ignored), and coffees.
 
@@ -152,6 +153,22 @@ describe('Community: update emails', () => {
         [10, 'ignore'],
       ])
     await expect.poll(() => api.announcements.mock.calls.length).toBeGreaterThan(1)
+  })
+
+  it('follows an email going out without a reload: "Sending…" with how many so far, then sent to how many; then stops asking', async () => {
+    const api = stub()
+    const sending: Announcement = { ...ANNOUNCEMENTS[0], status: 'sending', sentAt: '2026-10-20T09:05:00Z', recipientCount: 2 }
+    const sent: Announcement = { ...sending, status: 'sent', recipientCount: 3 }
+    api.announcements.mockResolvedValueOnce(pageOf([sending])).mockResolvedValue(pageOf([sent]))
+    await show()
+    await expect.poll(() => textOf(item('Space Game'))).toContain('Sending…')
+    expect(textOf(item('Space Game'))).toContain('2 sent so far')
+
+    await expect.poll(() => textOf(item('Space Game')), { timeout: SENDING_REFRESH_MS * 2 }).toContain('to 3 subscribers')
+    expect(textOf(item('Space Game'))).toContain('Sent')
+    const asked = api.announcements.mock.calls.length
+    await new Promise((resolve) => setTimeout(resolve, SENDING_REFRESH_MS * 1.5))
+    expect(api.announcements.mock.calls.length).toBe(asked)
   })
 
   it('says when deciding failed', async () => {

@@ -76,7 +76,7 @@ public static class InboundEmail
     /// <summary>
     /// Resend's webhook (email.received), signed the Svix way: svix-id, svix-timestamp and svix-signature. Emails to
     /// other addresses (replies to updates@, say), failing DMARC, or sent by a program are dropped. 502 when the email
-    /// can't be read from Resend, which then tries again.
+    /// can't be read from Resend, which then tries again, and the phone hears why (once an hour).
     /// </summary>
     public static async Task<Results<Ok, BadRequest, UnauthorizedHttpResult, ProblemHttpResult>> Receive(
         HttpRequest request,
@@ -129,6 +129,14 @@ public static class InboundEmail
         catch (Exception e) when (e is ServiceException or HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(e, "Couldn't read email {Id} from Resend.", emailId);
+            // Silent otherwise: Resend keeps trying and the reply never shows (a sending-only API key does this).
+            alerts.SendThrottled($"inbound:{e.Message}", new PhoneAlert(
+                AlertKinds.EmailFailing,
+                "Replies can't come in",
+                $"An email to {ours} couldn't be read from Resend; it tries again. {(e is ServiceException ? e.Message : "Resend couldn't be reached.")} Receiving needs a Full access API key.",
+                "/settings",
+                AlertPriority.High,
+                "warning"));
             return TypedResults.Problem("Couldn't read the email from Resend.", statusCode: StatusCodes.Status502BadGateway);
         }
 

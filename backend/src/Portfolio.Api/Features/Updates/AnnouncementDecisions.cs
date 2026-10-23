@@ -14,6 +14,9 @@ public static class AnnouncementStatus
     /// <summary>To be emailed by the next run of <see cref="UpdatesAnnouncer"/> (started at once).</summary>
     public const string Approved = "approved";
 
+    /// <summary>Being emailed now; <c>RecipientCount</c> grows as the emails go out.</summary>
+    public const string Sending = "sending";
+
     public const string Sent = "sent";
     public const string Ignored = "ignored";
 }

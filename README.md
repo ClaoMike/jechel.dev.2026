@@ -711,13 +711,17 @@ focus) it turns yellow and keeps ringing (`.bell-body`, `.bell-clapper` in `glas
   a new app isn't offered to email while Apps (or Get updates) is off, and an approved one isn't sent while Apps is hidden. An app's
   email links to the Apps page (What's new? may be hidden, or showing something newer by then).
 - **Sending** (`UpdatesAnnouncer.cs`, run every 10 minutes by `UpdatesWorker`, and at once after an approval): emails what's approved,
-  reading the app as it is then (edits since are included; a deleted one is skipped). Each item is marked sent *before* the emails go
-  out: a crash halfway means some miss it, never that anyone gets it twice (who got it is still counted when the API stops
-  mid-send). When *no* email goes out (the email service down or refusing), the item goes back to "to be sent" and is tried
+  reading the app as it is then (edits since are included; a deleted one is skipped). Each item is marked **sending** *before* the
+  emails go out, counting them as they go, and **sent** once they have: a crash halfway means some miss it, never that anyone gets it
+  twice (who got it is still counted when the API stops mid-send, and the next run marks it sent). The Community tab shows
+  "Sending… · 2 sent so far" and asks again every 2 seconds while an email is to be sent or sending, so the final count shows
+  without a reload (`SENDING_REFRESH_MS`). When *no* email goes out (the email service down or refusing), the item goes back to "to be sent" and is tried
   again next run, and the phone hears why (once an hour); an item is only lost for subscribers whose own email failed. With no
   subscribers yet, an item counts as sent. At most 3 items per run; 600 ms between emails.
 - **Email service** (`Email.cs`): [Resend](https://resend.com) (free for 3,000 emails a month), while an API key is set (Settings, or
-  `Email:ResendApiKey`); otherwise emails are written to the API's log, confirm links included. A sending-only key is enough.
+  `Email:ResendApiKey`); otherwise emails are written to the API's log, confirm links included. The key needs **Full access** once receiving is on
+  (the site reads each received email from Resend); a Sending access key sends fine but every reply fails (502, and a phone alert,
+  **Replies can't come in**, with Resend's reason, once an hour).
 - **Two senders** (Settings → Resend): **Sender** (`Email:From`) for everything, and **Updates sender** (`Email:UpdatesFrom`) for
   subscribers, the confirmations and the updates. Make the updates sender an address with no mailbox (e.g.
   `jechel.dev <updates@jechel.dev>`, with no Cloudflare Email Routing rule for it, or a catch-all
@@ -728,8 +732,11 @@ focus) it turns yellow and keeps ringing (`.bell-body`, `.bell-clapper` in `glas
 - **Setting up Resend:** add and verify your domain in Resend (Domains: a DKIM `TXT` record, two `CNAME`s for sending, set to
   **DNS only** in Cloudflare, and optionally `_dmarc`), then set the senders in Settings and press **Send me a test email**. Until
   then the sender is `jechel.dev <onboarding@resend.dev>`, which Resend only delivers to the Resend account's own address.
-- **Receiving** (Settings → Resend → Receiving email): in Resend's Domains turn on **Receiving** and add its `MX` record at
-  Porkbun; in Webhooks add `/api/contact/inbound` for `email.received`, and paste its signing secret in Settings.
+- **Receiving** (Settings → Resend → Receiving email): in Resend's Domains turn on **Receiving** and add its `MX` record in
+  **Cloudflare** (DNS → Records, name `@`; the domain's DNS is there, not at Porkbun, so a record added at Porkbun does nothing);
+  in Webhooks add `/api/contact/inbound` for `email.received`, and paste its signing secret in Settings. The API key must have
+  **Full access** (a Sending access one can't read received emails). Check it with
+  `dig +short MX jechel.dev`: empty means mail to hello@ goes nowhere (the sender gets a bounce, often days later).
 - **The wording** (Community → **Preview update emails**, `features/updates/UpdateEmailsEditor/`, API in
   `UpdateEmailsEndpoints.cs`): the same four fields for each email (the confirmation, a new video, a new app): **Subject**,
   **Message**, **Button** and **Note** (optional, in grey under the button), plus the footer (why they get it; that replies aren't
@@ -931,7 +938,7 @@ flowchart TD
   to -- yes --> seen{"This email id<br/>already kept?"}
   seen -- yes --> ok2["200, kept once"]
   seen -- no --> fetch["GET /emails/receiving/{id}"]
-  fetch -- "Resend fails" --> e502["502: Resend tries again"]
+  fetch -- "Resend fails (e.g. a Sending access key)" --> e502["502: Resend tries again<br/>· 📱 Replies can't come in (once an hour)"]
   fetch --> person{"A sender, not hello@ itself;<br/>DMARC not failed;<br/>not an auto-reply?"}
   person -- no --> drop2["200, dropped"]
   person -- yes --> text["Their text only: quote, signature,<br/>'Sent from my iPhone' left out;<br/>attachments counted"]
