@@ -1177,6 +1177,8 @@ in Resend, it only reaches your own address.
   version measured the slot and pinned the button over it, which drifted when a phone over-scrolled past the top or bottom). The
   header slides away with the page, so while the page is hidden the button waits in the bottom-right corner instead, keeping the
   focus as it moves. The neon title gets some room from the screen's edge.
+- **The eye blinks** on the hide / show button (any screen) every 15 seconds, the first time 15 seconds after it appears; with the
+  page hidden or shown, only the eye closes (the slash stays still), not with reduced motion, and not while nobody is using the page (`<html data-idle>`, like the neon colours; `eye-blink` in `glass.css`).
 - **Reduce motion** (iPhone: Settings → Accessibility → Motion; Android: Remove animations): the scene draws one still frame, on
   purpose. Turn it off to see the scene move.
 - **When the scene can't be drawn** (`riviera.ts`, `onFail`): a picture that won't load, a texture the GPU refused (the first frame

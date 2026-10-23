@@ -10,6 +10,21 @@ const theme = () => page.getByRole('group', { name: 'Theme' })
 const coffee = () => page.getByRole('link', { name: 'Buy me a coffee (opens in a new tab)' })
 const tabs = () => page.getByRole('navigation', { name: 'Sections' })
 
+// Tests run with animations off, so animations are checked in the site's rules: those that give an element one, and their frames.
+const cssRules = () =>
+  [...document.styleSheets]
+    .flatMap((sheet) => [...sheet.cssRules])
+    .flatMap((rule) => (rule instanceof CSSMediaRule ? [...rule.cssRules].map((inner) => ({ rule: inner, media: rule.conditionText })) : [{ rule, media: '' }]))
+// (Not the tests' own rule that stops every animation.)
+const animationRules = (el: Element, media = '') =>
+  cssRules()
+    .map(({ rule, media: m }) =>
+      rule instanceof CSSStyleRule && m === media && rule.selectorText !== '*, ::before, ::after' && rule.style.animationName && el.matches(rule.selectorText) ? rule : null,
+    )
+    .filter((rule) => rule !== null)
+const animations = (el: Element, media = '') => animationRules(el, media).map((rule) => rule.style.animationName)
+const keyframes = (name: string) => cssRules().find(({ rule }) => rule instanceof CSSKeyframesRule && rule.name === name)!.rule as CSSKeyframesRule
+
 describe('the header', () => {
   it('names the site, linking home', async () => {
     stubApi()
@@ -36,20 +51,8 @@ describe('the header', () => {
     await renderApp({ theme: 'dark' })
     await expect.element(theme().getByRole('radio', { name: 'Dark mode' })).toBeChecked()
     const option = (value: string) => theme().element().querySelector<HTMLElement>(`[data-theme-option="${value}"]`)!
-    // Tests run with animations off, so: the animations the site's rules give an element, and the turn each keyframe makes.
-    const rules = [...document.styleSheets]
-      .flatMap((sheet) => [...sheet.cssRules])
-      .flatMap((rule) => (rule instanceof CSSMediaRule ? [...rule.cssRules].map((inner) => ({ rule: inner, media: rule.conditionText })) : [{ rule, media: '' }]))
-    // (Not the tests' own rule that stops every animation.)
-    const animations = (el: Element, media = '') =>
-      rules
-        .filter(
-          ({ rule, media: m }) =>
-            rule instanceof CSSStyleRule && m === media && rule.selectorText !== '*, ::before, ::after' && rule.style.animationName && el.matches(rule.selectorText),
-        )
-        .map(({ rule }) => (rule as CSSStyleRule).style.animationName)
     const turn = (name: string) => {
-      const frames = rules.find(({ rule }) => rule instanceof CSSKeyframesRule && rule.name === name)!.rule as CSSKeyframesRule
+      const frames = keyframes(name)
       return (frames.cssRules[frames.cssRules.length - 1] as CSSKeyframeRule).style.transform
     }
     const [sun, rays, moon, vice] = [
@@ -205,6 +208,33 @@ describe('Vice: hiding the page to see the scene', () => {
     await page.getByRole('button', { name: 'Hide page' }).click()
     await userEvent.keyboard('{Escape}')
     await expect.element(page.getByRole('button', { name: 'Hide page' })).toBeVisible()
+  })
+
+  it('blinks the eye every 15 seconds, the page shown or hidden; the slash over it stays still', async () => {
+    stubApi()
+    await renderApp({ theme: 'vice' })
+    for (const [name, next] of [
+      ['Hide page', 'Show page'],
+      ['Show page', 'Hide page'],
+    ]) {
+      const button = page.getByRole('button', { name })
+      await expect.element(button).toBeVisible()
+      const shape = [...button.element().querySelectorAll('.eye-shape')]
+      expect(shape.length).toBeGreaterThan(0)
+      for (const part of shape) {
+        const [rule] = animationRules(part)
+        expect(rule.style.animationName).toBe('eye-blink')
+        expect([rule.style.animationDuration, rule.style.animationDelay, rule.style.animationIterationCount]).toEqual(['15s', '15s', 'infinite'])
+        expect(animations(part, '(prefers-reduced-motion: reduce)')).toEqual(['none'])
+      }
+      for (const slash of button.element().querySelectorAll('.eye-slash')) expect(animations(slash)).toEqual([])
+      await button.click()
+      await expect.element(page.getByRole('button', { name: next })).toBeVisible()
+    }
+    // A blink: shut onto the middle line, then open again.
+    const frames = [...keyframes('eye-blink').cssRules] as CSSKeyframeRule[]
+    expect(frames.map((f) => f.style.transform)).toContain('scaleY(0.1)')
+    expect(frames.find((f) => f.keyText.includes('100%'))!.style.transform).toBe('scaleY(1)')
   })
 
   it("on phones, sits in the header's row while the page shows (moving with it), and in the corner while it's hidden", async () => {
