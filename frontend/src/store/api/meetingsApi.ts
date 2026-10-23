@@ -1,6 +1,7 @@
 import { api, type Meeting, type MeetingDecision } from '../../services/api'
 import { baseApi, run, whenFulfilled } from '../baseApi'
 import { contactApi } from './contactApi'
+import type { AppDispatch, RootState } from '../index'
 
 /** [from, to) as ISO 8601 timestamps (the store keeps plain data, not Dates). */
 export interface MeetingRange {
@@ -27,19 +28,29 @@ export const meetingsApi = baseApi.injectEndpoints({
     decideMeeting: build.mutation<MeetingDecision, { id: number; accept: boolean; message: string }>({
       queryFn: ({ id, accept, message }) => run(api.meetings.decide(id, accept, message)),
       onQueryStarted: ({ id }, { dispatch, getState, queryFulfilled }) =>
-        whenFulfilled(queryFulfilled, ({ status }) => {
-          const setStatus = (meetings: Meeting[]) => {
-            for (const meeting of meetings) if (meeting.id === id) meeting.status = status
-          }
-          for (const args of meetingsApi.util.selectCachedArgsForQuery(getState(), 'listMeetings')) {
-            dispatch(meetingsApi.util.updateQueryData('listMeetings', args, setStatus))
-          }
-          for (const messageId of contactApi.util.selectCachedArgsForQuery(getState(), 'getMessage')) {
-            dispatch(contactApi.util.updateQueryData('getMessage', messageId, (message) => setStatus(message.meetings)))
-          }
-        }),
+        whenFulfilled(queryFulfilled, ({ status }) => setStatusEverywhere(id, status, dispatch, getState as () => RootState)),
+    }),
+
+    /** Cancels with Cal.com (which emails them, with the reason); the meeting updates wherever it shows. */
+    cancelMeeting: build.mutation<MeetingDecision, { id: number; message: string }>({
+      queryFn: ({ id, message }) => run(api.meetings.cancel(id, message)),
+      onQueryStarted: ({ id }, { dispatch, getState, queryFulfilled }) =>
+        whenFulfilled(queryFulfilled, ({ status }) => setStatusEverywhere(id, status, dispatch, getState as () => RootState)),
     }),
   }),
 })
 
-export const { useGetBookingLinkQuery, useListMeetingsQuery, useDecideMeetingMutation } = meetingsApi
+/** The meeting's new status in the calendar and in the conversations that show it. */
+function setStatusEverywhere(id: number, status: Meeting['status'], dispatch: AppDispatch, getState: () => RootState) {
+  const setStatus = (meetings: Meeting[]) => {
+    for (const meeting of meetings) if (meeting.id === id) meeting.status = status
+  }
+  for (const args of meetingsApi.util.selectCachedArgsForQuery(getState(), 'listMeetings')) {
+    dispatch(meetingsApi.util.updateQueryData('listMeetings', args, setStatus))
+  }
+  for (const messageId of contactApi.util.selectCachedArgsForQuery(getState(), 'getMessage')) {
+    dispatch(contactApi.util.updateQueryData('getMessage', messageId, (message) => setStatus(message.meetings)))
+  }
+}
+
+export const { useGetBookingLinkQuery, useListMeetingsQuery, useDecideMeetingMutation, useCancelMeetingMutation } = meetingsApi

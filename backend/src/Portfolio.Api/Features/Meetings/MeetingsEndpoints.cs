@@ -63,6 +63,7 @@ public static class MeetingsEndpoints
             Decide(id, token, true, request, http, db, cal, emails, admins, emailOptions, time, loggers, ct)).WithName("AcceptMeeting");
         meetings.MapPost("/{id:int}/decline", (int id, string? token, MeetingDecisionRequest? request, HttpContext http, PortfolioDbContext db, ICalClient cal, IEmailSender emails, IOptionsMonitor<AdminOptions> admins, IOptionsMonitor<EmailOptions> emailOptions, TimeProvider time, ILoggerFactory loggers, CancellationToken ct) =>
             Decide(id, token, false, request, http, db, cal, emails, admins, emailOptions, time, loggers, ct)).WithName("DeclineMeeting");
+        meetings.MapPost("/{id:int}/cancel", Cancel).WithName("CancelMeeting").RequireAuthorization();
 
         return app;
     }
@@ -282,9 +283,9 @@ public static class MeetingsEndpoints
             if (accept) await cal.ConfirmAsync(meeting.Uid, cancellationToken);
             else await cal.DeclineAsync(meeting.Uid, message.Length > 0 ? message : null, cancellationToken);
         }
-        catch (ServiceException e)
+        catch (Exception e) when (CalFailed(e, cancellationToken))
         {
-            return TypedResults.Problem(e.Message, statusCode: StatusCodes.Status502BadGateway);
+            return TypedResults.Problem(CalFailure(e), statusCode: StatusCodes.Status502BadGateway);
         }
 
         meeting.Status = accept ? MeetingStatus.Accepted : MeetingStatus.Declined;
@@ -307,6 +308,65 @@ public static class MeetingsEndpoints
         }
         return TypedResults.Ok(new MeetingDecisionResult(meeting.Status, emailSent));
     }
+
+    /// <summary>Said to Cal.com when the admin gives no reason (it needs one from a host); it's in Cal.com's email.</summary>
+    public const string DefaultCancelReason = "The meeting was cancelled by the organiser.";
+
+    /// <summary>
+    /// Admin only. Cancels an accepted meeting that hasn't ended with Cal.com, which emails the attendee (with the
+    /// message as the reason). Its webhook then finds it cancelled already, so the phone isn't told about it.
+    /// Cancelling again, or a meeting that isn't accepted, answers with its status.
+    /// </summary>
+    public static async Task<Results<Ok<MeetingDecisionResult>, NotFound, ValidationProblem, ProblemHttpResult>> Cancel(
+        int id,
+        MeetingDecisionRequest? request,
+        PortfolioDbContext db,
+        ICalClient cal,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var meeting = await db.Meetings.FindAsync([id], cancellationToken);
+        if (meeting is null) return TypedResults.NotFound();
+
+        var reason = request?.Message?.Trim() ?? "";
+        if (reason.Length > MessageMaxLength) return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["message"] = [$"At most {MessageMaxLength} characters."] });
+        if (meeting.Status != MeetingStatus.Accepted) return TypedResults.Ok(new MeetingDecisionResult(meeting.Status, false));
+        if (meeting.EndTime <= time.GetUtcNow()) return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["meeting"] = ["It's over already."] });
+
+        // Marked first: Cal.com's webhook for it can come back before its answer does, and must find it cancelled
+        // already (or the phone hears of it). Put back if Cal.com refuses.
+        var updatedAt = meeting.UpdatedAt;
+        meeting.Status = MeetingStatus.Cancelled;
+        meeting.UpdatedAt = time.GetUtcNow();
+        await db.SaveChangesAsync(cancellationToken);
+        var cancelled = false;
+        try
+        {
+            await cal.CancelAsync(meeting.Uid, reason.Length > 0 ? reason : DefaultCancelReason, cancellationToken);
+            cancelled = true;
+        }
+        catch (Exception e) when (CalFailed(e, cancellationToken))
+        {
+            return TypedResults.Problem(CalFailure(e), statusCode: StatusCodes.Status502BadGateway);
+        }
+        finally
+        {
+            // Whatever went wrong. (Should Cal.com have cancelled it anyway, an answer lost on the way, it's cancelled there.)
+            if (!cancelled)
+            {
+                meeting.Status = MeetingStatus.Accepted;
+                meeting.UpdatedAt = updatedAt;
+                await db.SaveChangesAsync(CancellationToken.None);
+            }
+        }
+        return TypedResults.Ok(new MeetingDecisionResult(meeting.Status, true));
+    }
+
+    /// <summary>Cal.com refused, or couldn't be reached: the admin is told (502), it's not a crash.</summary>
+    private static bool CalFailed(Exception e, CancellationToken cancellationToken) =>
+        e is ServiceException || (e is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested);
+
+    private static string CalFailure(Exception e) => e is ServiceException ? e.Message : "Cal.com couldn't be reached.";
 
     public static string Hash(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 

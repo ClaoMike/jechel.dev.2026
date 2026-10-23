@@ -562,7 +562,7 @@ function stackOf(value: unknown) {
 /** A page of this site (/, /apps, /updates/confirm) rather than a file (/assets/app.js; Vite's /@vite/client in dev). */
 function isPage(address: string) {
   const url = parseUrl(address)
-  return url?.origin === location.origin && !url.pathname.startsWith('/@') && !/\.[a-z0-9]+$/i.test(url.pathname)
+  return !!url && /^https?:$/.test(url.protocol) && url.origin === location.origin && !url.pathname.startsWith('/@') && !/\.[a-z0-9]+$/i.test(url.pathname)
 }
 
 function isSameSite(address: string) {

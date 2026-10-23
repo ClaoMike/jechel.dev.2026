@@ -15,6 +15,7 @@ public class TestServiceTests
     {
         public Task ConfirmAsync(string uid, CancellationToken cancellationToken) => throw failure;
         public Task DeclineAsync(string uid, string? reason, CancellationToken cancellationToken) => throw failure;
+        public Task CancelAsync(string uid, string reason, CancellationToken cancellationToken) => throw failure;
         public Task<string> WhoAmIAsync(CancellationToken cancellationToken) => throw failure;
     }
 

@@ -258,6 +258,55 @@ public class UpdatesAnnouncerTests
         Assert.Equal((AnnouncementStatus.Sent, 3), (announcement.Status, announcement.RecipientCount));
     }
 
+    [Fact]
+    public async Task One_left_sending_is_marked_sent_by_the_next_run_even_with_updates_switched_off_since()
+    {
+        await AnnounceAsync();
+        foreach (var name in new[] { "ada", "bob" }) Subscriber($"{name}@example.com");
+        _youTube.List.Add(new YouTubeVideo("new1", "Devlog 1", "", "https://i.ytimg.com/vi/new1/hq.jpg", Start.AddMinutes(1)));
+        using var stop = new CancellationTokenSource();
+        await _store.RefreshAsync(default);
+        var announcer = new UpdatesAnnouncer(_db, new StopAfter(1, stop), Options.Create(_site), TestOptions.Monitor(new YouTubeOptions { Channel = "@me", ApiKey = "key" }), _store, _alerts, _time, NullLogger<UpdatesAnnouncer>.Instance);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => announcer.AnnounceNewAsync(stop.Token));
+
+        await Hide(features: ["updates"]);
+        Assert.Equal(0, await AnnounceAsync());
+
+        var announcement = await _database.Open().Announcements.SingleAsync();
+        Assert.Equal((AnnouncementStatus.Sent, 1), (announcement.Status, announcement.RecipientCount));
+        Assert.Empty(_emails.Sent);
+    }
+
+    [Fact]
+    public async Task An_email_that_fails_isnt_counted_and_the_rest_still_go()
+    {
+        await AnnounceAsync();
+        foreach (var name in new[] { "ada", "bob", "cy" }) Subscriber($"{name}@example.com");
+        _youTube.List.Add(new YouTubeVideo("new1", "Devlog 1", "", "https://i.ytimg.com/vi/new1/hq.jpg", Start.AddMinutes(1)));
+        var failing = new FailFor("bob@example.com");
+        await _store.RefreshAsync(default);
+        var announcer = new UpdatesAnnouncer(_db, failing, Options.Create(_site), TestOptions.Monitor(new YouTubeOptions { Channel = "@me", ApiKey = "key" }), _store, _alerts, _time, NullLogger<UpdatesAnnouncer>.Instance);
+
+        Assert.Equal(1, await announcer.AnnounceNewAsync(default));
+
+        Assert.Equal(["ada@example.com", "cy@example.com"], failing.Sent);
+        var announcement = await _database.Open().Announcements.SingleAsync();
+        Assert.Equal((AnnouncementStatus.Sent, 2), (announcement.Status, announcement.RecipientCount));
+    }
+
+    /// <summary>Refuses one address, as the email service would a bad one.</summary>
+    private sealed class FailFor(string address) : IEmailSender
+    {
+        public List<string> Sent { get; } = [];
+
+        public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
+        {
+            if (message.To == address) throw new Portfolio.Api.Features.Settings.ServiceException("Invalid address");
+            Sent.Add(message.To);
+            return Task.CompletedTask;
+        }
+    }
+
     /// <summary>Before each email, records the announcement as another request would read it.</summary>
     private sealed class Watching(TestDatabase database) : IEmailSender
     {
