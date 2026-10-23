@@ -14,8 +14,11 @@ export interface Subscriber {
   confirmedAt: string | null
 }
 
-/** pending: a new app waiting for the admin; approved: to be emailed (once Get updates is on for visitors). */
-export type AnnouncementStatus = 'pending' | 'approved' | 'sent' | 'ignored'
+/**
+ * pending: a new app waiting for the admin; approved: to be emailed (once Get updates is on for visitors);
+ * sending: being emailed now, `recipientCount` growing as the emails go out.
+ */
+export type AnnouncementStatus = 'pending' | 'approved' | 'sending' | 'sent' | 'ignored'
 
 /** Something new to email the subscribers about. */
 export interface Announcement {

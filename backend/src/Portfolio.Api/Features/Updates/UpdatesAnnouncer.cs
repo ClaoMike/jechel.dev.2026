@@ -11,8 +11,9 @@ namespace Portfolio.Api.Features.Updates;
 /// <summary>
 /// Emails the confirmed subscribers. Run by <see cref="UpdatesWorker"/> every few minutes, and at once
 /// when the admin approves an email. New YouTube videos are approved by themselves; a new app waits
-/// for the admin (<see cref="AnnouncementDecisions"/>). An item is marked sent before the emails go
-/// out, so a crash halfway means some miss it, never that some get it twice.
+/// for the admin (<see cref="AnnouncementDecisions"/>). An item is marked sending before the emails go
+/// out (counting them as they go, so the Community tab shows its progress) and sent once they have, so a
+/// crash halfway means some miss it, never that some get it twice.
 /// </summary>
 public class UpdatesAnnouncer(
     PortfolioDbContext db,
@@ -57,6 +58,14 @@ public class UpdatesAnnouncer(
             await RecordNewVideosAsync(state.AnnounceAfter, now, visible.Pages["youtube"] && visible.Features["updates"], cancellationToken);
         }
 
+        // Left sending by a run that stopped halfway (the app shut down): who got it is kept, the rest miss it.
+        var interrupted = await db.Announcements.Where(a => a.Status == AnnouncementStatus.Sending).ToListAsync(cancellationToken);
+        if (interrupted.Count > 0)
+        {
+            foreach (var announcement in interrupted) announcement.Status = AnnouncementStatus.Sent;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
         // Updates switched off: what's approved waits until they're back on.
         if (!visible.Features["updates"]) return 0;
 
@@ -87,7 +96,7 @@ public class UpdatesAnnouncer(
                 continue;
             }
 
-            announcement.Status = AnnouncementStatus.Sent;
+            announcement.Status = AnnouncementStatus.Sending;
             announcement.SentAt = now;
             await db.SaveChangesAsync(cancellationToken);
 
@@ -100,6 +109,7 @@ public class UpdatesAnnouncer(
                     {
                         await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item, subscriber.Token, wording, site.Value), cancellationToken);
                         announcement.RecipientCount++;
+                        await db.SaveChangesAsync(cancellationToken);
                     }
                     catch (Exception e) when (!cancellationToken.IsCancellationRequested)
                     {
@@ -130,6 +140,8 @@ public class UpdatesAnnouncer(
                     "warning"));
                 continue;
             }
+            announcement.Status = AnnouncementStatus.Sent;
+            await db.SaveChangesAsync(CancellationToken.None);
             sent++;
 
             alerts.Send(new PhoneAlert(

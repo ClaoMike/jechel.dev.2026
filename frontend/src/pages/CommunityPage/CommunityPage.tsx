@@ -79,7 +79,7 @@ function Subscribers() {
   )
 }
 
-const STATUS_TEXT = { pending: 'Waiting for you', approved: 'To be sent', sent: 'Sent', ignored: 'Not sent' } as const
+const STATUS_TEXT = { pending: 'Waiting for you', approved: 'To be sent', sending: 'Sending…', sent: 'Sent', ignored: 'Not sent' } as const
 
 function Announcements() {
   const vm = useAnnouncementsViewModel()
@@ -105,7 +105,7 @@ function Announcements() {
               <span className={announcement.status === 'pending' ? 'chip' : 'chip chip-muted'}>{STATUS_TEXT[announcement.status]}</span>
               <span className="muted">
                 {announcement.sentAt
-                  ? `${formatDateTime(announcement.sentAt)} · to ${announcement.recipientCount} ${announcement.recipientCount === 1 ? 'subscriber' : 'subscribers'}`
+                  ? `${formatDateTime(announcement.sentAt)} · ${announcement.status === 'sending' ? `${announcement.recipientCount} sent so far` : `to ${announcement.recipientCount} ${announcement.recipientCount === 1 ? 'subscriber' : 'subscribers'}`}`
                   : formatDateTime(announcement.createdAt)}
               </span>
               {announcement.status === 'pending' && (

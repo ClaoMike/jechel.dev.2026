@@ -270,6 +270,23 @@ public class InboundEmailTests
     }
 
     [Fact]
+    public async Task When_Resend_refuses_to_give_the_email_the_phone_hears_why_once_an_hour()
+    {
+        // What Resend says to a key with Sending access only.
+        _inbox.Fail = new ServiceException("Resend refused it: This API key is restricted to only send emails");
+
+        var result = await Receive(Request(Event("e1")));
+
+        Assert.Equal(502, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+        var (key, alert) = Assert.Single(_alerts.Throttled);
+        Assert.Equal("inbound:Resend refused it: This API key is restricted to only send emails", key);
+        Assert.Equal((AlertKinds.EmailFailing, "Replies can't come in", "/settings"), (alert.Kind, alert.Title, alert.Path));
+        Assert.Contains("restricted to only send emails", alert.Message);
+        Assert.Contains("Full access", alert.Message);
+        Assert.Empty(_alerts.Sent);
+    }
+
+    [Fact]
     public void A_signature_among_several_counts_and_any_other_version_doesn_t()
     {
         var good = Sign("msg_1", Now.ToUnixTimeSeconds(), "{}", Secret);
