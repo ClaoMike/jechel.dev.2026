@@ -19,11 +19,12 @@ export function UpdateEmailsEditor() {
   const editRef = useRef<HTMLButtonElement>(null)
   const wasEditing = useRef(editing)
 
-  // Into the first field on Edit; back to Edit after Save or Cancel.
+  // Into the first field on Edit (the first one marked, when a test was turned down); back to Edit after Save or Cancel.
   useEffect(() => {
     if (editing === wasEditing.current) return
     wasEditing.current = editing
-    if (editing) fieldsRef.current?.querySelector<HTMLElement>('input, textarea')?.focus()
+    const fields = fieldsRef.current
+    if (editing) (fields?.querySelector<HTMLElement>('[aria-invalid="true"]') ?? fields?.querySelector<HTMLElement>('input, textarea'))?.focus()
     else editRef.current?.focus()
   }, [editing])
 

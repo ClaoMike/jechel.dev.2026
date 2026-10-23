@@ -323,6 +323,8 @@ describe('Preview update emails: the wording', () => {
     // The fields come up, to fix it.
     await expect.element(card().getByText('Fix the fields marked first.')).toBeVisible()
     await expect.element(field('Message')).toHaveAttribute('aria-invalid', 'true')
+    // Straight into the field to fix.
+    expect(document.activeElement).toBe(field('Message').element())
   })
 
   it("says when saving didn't work for another reason", async () => {
