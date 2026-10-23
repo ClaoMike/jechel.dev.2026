@@ -54,6 +54,7 @@ How it all works is in [`docs/`](docs/):
 ├── backend/db-backup/                    # the nightly database backup's image (pg_dump to a volume)
 ├── scripts/dev_launcher.py                # GUI launcher for common dev tasks (macOS)
 ├── scripts/deploy.sh                      # deploy: pull request develop → main, merged when CI passes
+├── scripts/build_link_preview.mjs         # draws the link preview image (public/og-image.jpg)
 ├── scripts/build_brand_j.py               # draws the "j": the Vice title's first letter and the tab icon
 ├── docker-compose.yml                     # local PostgreSQL
 └── .github/workflows/ci.yml
@@ -115,29 +116,11 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 
 ## Roadmap: ideas to review
 
-Suggestions from a review of the site for its three audiences (tech employers, recruiters, people
-who want to do business), most impact first. Nothing here is decided: review, then pick, reshape
-or drop. Suggested first: 3 (a small change, the biggest effect on how shared links look).
+Still to discuss before building:
 
-1. **Engineering case studies.** Apps shows games (personality, not the day job). Add 2–3 write-ups:
-   the problem, your role, the architecture (diagram), the stack, the hard part, the result. Start
-   with **this site**: the WebGL scene built from one image, the 4K upscale and masks, the 66% → 18%
-   GPU optimisation, the glass theme system, the test suite. A "How this site works" page.
-2. **A "Work with me" page.** What you can be hired for (web apps, APIs, MVPs), how you work,
-   typical timelines (optionally "projects from £X"), a booking link for a call, response time.
-   Today a would-be client only has the contact form.
-3. **Link previews and search.** `index.html` has only a `<title>`. Add a meta description, an Open
-   Graph / Twitter image (a crop of the Riviera art), `Person` structured data, and a sitemap, so
-   links pasted into Slack and LinkedIn look professional.
-4. **Proof from other people.** 2–3 short testimonials (from LinkedIn recommendations), logos of
-   companies worked with, GitHub activity / open-source contributions.
-5. **Light writing.** A few short technical posts (e.g. how the Vice background was built): shows
-   how you think and gives people a reason to come back.
-
-Flags to decide on:
-
-- **Vice as the default for everyone.** It's ~1.5 MB and runs on the GPU continuously. Consider
-  falling back to dark on low-powered devices or when the browser asks to save data.
+- **A "Work with me" page.** What you can be hired for (web apps, APIs, MVPs), how you work,
+  typical timelines (optionally "projects from £X"), a booking link for a call, response time.
+  Today a would-be client only has the contact form.
 
 ## Configuration
 

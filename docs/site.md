@@ -344,6 +344,23 @@ Measured in Chromium (GPU on, 1512×945 at 2×, the home page), as CPU used by t
 - **API log:** EF Core's line for every SQL command is off (`Microsoft.EntityFrameworkCore.Database.Command: Warning`); its
   warnings and errors still show.
 
+## Link previews and search
+
+What a link to the site looks like when it's pasted into LinkedIn, Slack, WhatsApp or iMessage, and what search engines
+read. They don't run the app, so it's all in `index.html` (the same for every page) and `public/`:
+
+- **The card:** a description, and the Open Graph and Twitter tags: the title, the description, and a 1200 × 630
+  image (`public/og-image.jpg`): the Riviera art with "jechel.dev" in its own font, the name, and "Apps · Videos ·
+  Experience". `node scripts/build_link_preview.mjs` draws it again (in Chromium, from the art and the font), after
+  changing either or the words in the script.
+- **Who the site is about:** `Person` structured data (JSON-LD): the name, the site, and the profiles that are also
+  theirs (GitHub, LinkedIn, Instagram), so a search for the name can find the site.
+- **`robots.txt`** lets every search engine in (not `/api/` or `/admin`) and points to **`sitemap.xml`**, the visitors'
+  pages. A page switched off in Settings sends visitors home, so listing it does no harm.
+- Checked end to end (`e2e/tests/previews.spec.ts`): the tags in the page as served, the image, robots.txt and the
+  sitemap, each of its pages opening. After a change, a site like LinkedIn's Post Inspector shows the new card
+  (they keep the old one for a while otherwise).
+
 ## Accessibility
 
 The frontend's tests check the views with [axe](https://github.com/dequelabs/axe-core) against WCAG 2.1 A and AA

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The visitors' pages, for search engines (robots.txt points here). A page switched off in Settings sends
+     visitors home, so listing it does no harm. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://jechel.dev/</loc></url>
+  <url><loc>https://jechel.dev/apps</loc></url>
+  <url><loc>https://jechel.dev/youtube</loc></url>
+  <url><loc>https://jechel.dev/about</loc></url>
+  <url><loc>https://jechel.dev/contact</loc></url>
+  <url><loc>https://jechel.dev/terms</loc></url>
+</urlset>

@@ -1,0 +1,6 @@
+# Everyone may index the site; the admin's pages need a sign-in anyway, and /api answers data, not pages.
+User-agent: *
+Disallow: /api/
+Disallow: /admin
+
+Sitemap: https://jechel.dev/sitemap.xml

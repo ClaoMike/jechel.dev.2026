@@ -88,7 +88,7 @@ for the outside services. `./e2e/run.sh` does everything (Docker must be running
   (pages, thumbnails), About (folding sections, the map), Contact (checks, sending, the admin's inbox and phone alert),
   Get updates (the confirmation email, its link, the admin's list), the admin's sign-in (with Google, a refused
   account, cancelling, signing out, signing a device out) and pages, axe (WCAG 2.1 A and AA) on every page in every
-  theme and the popups, and a phone-sized screen. `*.sitewide.ts` changes the site for everyone (apps added, edited
+  theme and the popups, a phone-sized screen, and the link previews (the tags in the page as served, the image, robots.txt, the sitemap). `*.sitewide.ts` changes the site for everyone (apps added, edited
   and deleted, pages switched off, maintenance): it runs after the rest, one browser at a time, and puts it all back.
 - **The stand-ins** (`e2e/fakeServices.ts`): Google's sign-in (a "choose an account" page: the admin or a stranger),
   YouTube (12 videos, `e2e/data.ts`), Resend and ntfy (what was sent is kept: tests read the confirmation email and
