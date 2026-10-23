@@ -99,7 +99,11 @@ for the outside services. `./e2e/run.sh` does everything (Docker must be running
   and drives it from the Mac (`E2E_FIREFOX_WS`). Edge gets `--in-process-gpu` there: started by Playwright, its separate
   graphics process hangs, and with it the Vice scene's WebGL.
 - **Without a graphics card** (CI, the Firefox container) Vice isn't the default (`isLowPowerDevice`), as for visitors:
-  the tests that need it pick it.
+  the tests that need it pick it. On CI (`NO_GPU` in `tests/fixtures.ts`) everything is drawn by the CPU: WebKit there
+  draws the frosted glass (`backdrop-filter`) at one frame every few seconds on Apps and About, so Playwright waits forever
+  for a button to hold still; the blur is left out for WebKit on CI (real Safari always has Apple's graphics). Vice's
+  scene next to three other browsers is as slow, so tests in Vice ask for reduced motion there (one still frame), and CI
+  runs 2 tests at a time.
 
 ## CI
 

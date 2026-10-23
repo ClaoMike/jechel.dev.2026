@@ -8,7 +8,32 @@ import { ADMIN_STATE } from './states.ts'
 export const WEB_URL = `http://localhost:${process.env.E2E_WEB_PORT ?? '4273'}`
 export const SERVICES_URL = `http://localhost:${process.env.E2E_SERVICES_PORT ?? '5299'}`
 
-export const test = base.extend<{ blockOutside: void }>({
+/**
+ * No graphics card (CI's runners): everything is drawn by the CPU. Real Safari always has one (Apple's hardware), but
+ * WebKit on Linux without it draws the frosted glass (backdrop-filter) at a frame every few seconds, so Playwright waits
+ * forever for a button to hold still: the blur is left out there. Vice's scene, drawn by the CPU next to three other
+ * browsers, is just as slow: tests in Vice ask for reduced motion there (it draws one still frame), see `viceMotion`.
+ */
+export const NO_GPU = !!process.env.CI
+/** For tests in Vice: the scene moves where there's a graphics card, holds still where there isn't (NO_GPU). */
+export const viceMotion = { reducedMotion: NO_GPU ? ('reduce' as const) : ('no-preference' as const) }
+
+export const test = base.extend<{ blockOutside: void; noBlurWithoutGpu: void }>({
+  noBlurWithoutGpu: [
+    async ({ context, browserName }, use) => {
+      if (NO_GPU && browserName === 'webkit') {
+        await context.addInitScript(() =>
+          document.addEventListener('DOMContentLoaded', () => {
+            const style = document.createElement('style')
+            style.textContent = '*, *::before, *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }'
+            document.head.append(style)
+          }),
+        )
+      }
+      await use()
+    },
+    { auto: true },
+  ],
   blockOutside: [
     async ({ context }, use) => {
       await context.route(

@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
 import { ADMIN_STATE } from './states.ts'
-import { expect, test } from './fixtures.ts'
+import { expect, test, viceMotion } from './fixtures.ts'
 
 // Accessibility, checked by axe (WCAG 2.1 A and AA) on every page, in every theme, in every browser. What's inside
 // YouTube's player is YouTube's, so it's left out.
@@ -25,6 +25,7 @@ async function open(page: Page, path: string, theme: string) {
 
 for (const theme of THEMES) {
   test.describe(`${theme} theme`, () => {
+    if (theme === 'vice') test.use(viceMotion)
     for (const path of VISITOR_PAGES) {
       test(`${path} has no WCAG problems`, async ({ page }) => {
         await open(page, path, theme)

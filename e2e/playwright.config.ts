@@ -42,7 +42,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 4 : undefined,
+  // CI's runner has 4 cores for 4 browsers, the API and the site: 2 at a time keeps every page drawing.
+  workers: process.env.CI ? 2 : undefined,
   timeout: 30_000,
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? [['github'], ['list'], ['html', { open: 'never' }]] : [['list'], ['html', { open: 'never' }]],

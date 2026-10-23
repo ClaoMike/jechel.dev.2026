@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures.ts'
+import { expect, test, viceMotion } from './fixtures.ts'
 
 // The theme switch, and Vice's button that hides the page to show the scene behind it.
 
@@ -43,26 +43,30 @@ test('the page and the theme look different: the background changes with it', as
   await expect.poll(background).not.toBe(dark)
 })
 
-test('Vice hides the page to show the scene, and brings it back with the button or Escape', async ({ page }) => {
-  await inVice(page)
-  await page.goto('/')
-  const main = page.locator('main.page')
-  await page.getByRole('button', { name: 'Hide page' }).click()
-  await expect(page.getByRole('button', { name: 'Show page' })).toBeVisible()
-  await expect(main).toHaveAttribute('inert', '')
-  await page.getByRole('button', { name: 'Show page' }).click()
-  await expect(main).not.toHaveAttribute('inert')
+test.describe('Vice', () => {
+  test.use(viceMotion)
 
-  await page.getByRole('button', { name: 'Hide page' }).click()
-  await page.keyboard.press('Escape')
-  await expect(page.getByRole('button', { name: 'Hide page' })).toBeVisible()
-  await expect(main).not.toHaveAttribute('inert')
-})
+  test('hides the page to show the scene, and brings it back with the button or Escape', async ({ page }) => {
+    await inVice(page)
+    await page.goto('/')
+    const main = page.locator('main.page')
+    await page.getByRole('button', { name: 'Hide page' }).click()
+    await expect(page.getByRole('button', { name: 'Show page' })).toBeVisible()
+    await expect(main).toHaveAttribute('inert', '')
+    await page.getByRole('button', { name: 'Show page' }).click()
+    await expect(main).not.toHaveAttribute('inert')
 
-test('the other themes have no Hide page button', async ({ page }) => {
-  await page.goto('/')
-  await pick(page, 'Vice mode')
-  await expect(page.getByRole('button', { name: 'Hide page' })).toBeVisible()
-  await pick(page, 'Dark mode')
-  await expect(page.getByRole('button', { name: 'Hide page' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Hide page' }).click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: 'Hide page' })).toBeVisible()
+    await expect(main).not.toHaveAttribute('inert')
+  })
+
+  test('the other themes have no Hide page button', async ({ page }) => {
+    await page.goto('/')
+    await pick(page, 'Vice mode')
+    await expect(page.getByRole('button', { name: 'Hide page' })).toBeVisible()
+    await pick(page, 'Dark mode')
+    await expect(page.getByRole('button', { name: 'Hide page' })).toHaveCount(0)
+  })
 })
