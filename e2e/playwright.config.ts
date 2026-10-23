@@ -79,6 +79,8 @@ export default defineConfig({
         // Every visitor page shows (they start hidden otherwise; Settings → Visitor pages).
         Site__PagesVisibleByDefault: 'true',
         Auth__AdminEmails__0: 'admin@e2e.test',
+        // The setup's admin session serves every browser's tests; on CI the run is longer than the usual 10 idle minutes.
+        Auth__SessionIdleTimeout: '02:00:00',
         // Every outside service is the stand-in (only honoured in the E2E environment).
         E2E__Services: SERVICES_URL,
         Authentication__Google__ClientId: 'e2e',

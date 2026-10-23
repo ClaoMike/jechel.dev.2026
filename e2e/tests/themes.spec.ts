@@ -38,8 +38,10 @@ test('the page and the theme look different: the background changes with it', as
   await page.goto('/about')
   const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor + getComputedStyle(document.body).backgroundImage)
   await pick(page, 'Dark mode')
+  await expect.poll(() => theme(page)).toBe('dark')
   const dark = await background()
   await pick(page, 'Light mode')
+  await expect.poll(() => theme(page)).toBe('light')
   await expect.poll(background).not.toBe(dark)
 })
 
