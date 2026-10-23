@@ -112,6 +112,32 @@ describe('the popup', () => {
     await dialog().getByRole('button', { name: 'Close' }).click()
     await expect.element(dialog()).not.toBeInTheDocument()
   })
+
+  it('taller than a phone screen, scrolls inside its frame: the frame and its glass rim stay put', async () => {
+    await page.viewport(390, 600)
+    try {
+      await renderView(
+        <Modal labelledBy="title" onClose={vi.fn()}>
+          <h2 id="title">Hello</h2>
+          <div style={{ height: 2000 }} />
+        </Modal>,
+      )
+      const frame = dialog().element() as HTMLElement
+      const body = frame.querySelector<HTMLElement>('.modal-body')!
+      expect(frame.getBoundingClientRect().bottom).toBeLessThanOrEqual(600)
+      expect(frame.scrollHeight).toBe(frame.clientHeight)
+      expect(body.scrollHeight).toBeGreaterThan(body.clientHeight)
+
+      body.scrollTop = 500
+      expect(frame.scrollTop).toBe(0)
+      // The rim is drawn over the frame's own box, so scrolling doesn't move it.
+      const rim = getComputedStyle(frame, '::before')
+      expect(rim.position).toBe('absolute')
+      expect(getComputedStyle(body).overflowY).toBe('auto')
+    } finally {
+      await page.viewport(1280, 900)
+    }
+  })
 })
 
 describe('asking first', () => {

@@ -25,7 +25,8 @@ export function Modal({ labelledBy, initialFocus, onClose, className, dismissibl
   return createPortal(
     <div className="modal-backdrop" onKeyDown={vm.onKeyDown} onClick={vm.onClick} onMouseDown={vm.onMouseDown}>
       <div ref={dialogRef} className={className ? `modal ${className}` : 'modal'} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}>
-        {children}
+        {/* What scrolls when it's taller than the screen: the frame (and its glass rim) stays put. */}
+        <div className="modal-body">{children}</div>
       </div>
     </div>,
     document.body,
