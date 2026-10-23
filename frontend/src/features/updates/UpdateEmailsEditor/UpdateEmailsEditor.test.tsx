@@ -8,8 +8,9 @@ import { ADMIN, forever, renderView, textOf } from '../../../test/render'
 import { formatDateTime } from '../../../utils/formatDate'
 import { UpdateEmailsEditor } from './UpdateEmailsEditor'
 
-// The admin's wording of the emails subscribers get (Community tab): fields beside a live preview,
-// Save, back to the defaults, and a test sent to the admin's own inbox.
+// The admin's wording of the emails subscribers get (Community tab): the preview of each email; Edit brings up
+// the fields beside a live preview, Save keeps them, Cancel throws them away; back to the defaults, and a test
+// sent to the admin's own inbox.
 
 const MINE: UpdateEmailWording = { ...DEFAULT_WORDING, confirm: { ...DEFAULT_WORDING.confirm, subject: 'Say yes to jechel.dev' } }
 
@@ -24,6 +25,12 @@ function stub() {
 }
 
 const show = (theme?: 'dark' | 'light' | 'vice') => renderView(<UpdateEmailsEditor />, { user: ADMIN, theme })
+/** Shown, then Edit pressed: the fields are there. */
+async function showEditing(theme?: 'dark' | 'light' | 'vice') {
+  await show(theme)
+  await button('Edit').click()
+  await expect.element(field('Subject')).toBeVisible()
+}
 const card = () => page.getByRole('region', { name: 'Preview update emails' })
 const field = (name: string) => card().getByRole('textbox', { name, exact: true })
 const choose = (name: string) =>
@@ -37,10 +44,24 @@ const envelope = () => textOf(page.getByRole('definition').first()) + ' | ' + te
 const lastPreview = (stubs: ReturnType<typeof stub>) => stubs.preview.mock.calls.at(-1)!
 
 describe('Preview update emails: the wording', () => {
-  it('shows the confirmation first, its fields filled in, beside its preview from the updates sender', async () => {
+  it('shows the preview of the confirmation first, from the updates sender, and no fields until Edit', async () => {
     const stubs = stub()
     await show()
+    await expect.poll(() => frame()?.srcdoc).toContain('Yes, send me updates')
+    expect(envelope()).toBe('jechel.dev <updates@jechel.dev> | Confirm your jechel.dev updates')
+    expect(card().getByRole('textbox').query()).toBeNull()
+    expect(button('Save').query()).toBeNull()
+    expect(button('Cancel').query()).toBeNull()
+    await expect.element(button('Edit')).toBeVisible()
+    expect(lastPreview(stubs)[0]).toBe('confirm')
+  })
+
+  it('brings up the fields on Edit, filled in and focused, beside the preview; Save waits for a change', async () => {
+    const stubs = stub()
+    await show()
+    await button('Edit').click()
     await expect.element(field('Subject')).toHaveValue('Confirm your jechel.dev updates')
+    expect(document.activeElement).toBe(field('Subject').element())
     await expect.element(field('Button')).toHaveValue('Yes, send me updates')
     await expect.element(field('About replies')).toHaveValue(DEFAULT_WORDING.footer.noReply)
     await expect.poll(() => frame()?.srcdoc).toContain('Yes, send me updates')
@@ -51,12 +72,19 @@ describe('Preview update emails: the wording', () => {
     expect(lastPreview(stubs)[0]).toBe('confirm')
     expect(textOf(card())).not.toContain('Saved')
     await expect.element(button('Save')).toBeDisabled()
+    await expect.element(button('Cancel')).toBeEnabled()
+    expect(button('Edit').query()).toBeNull()
+
+    // A change enables Save; typing it back as it was disables it again.
+    await field('Button').fill('Count me in')
+    await expect.element(button('Save')).toBeEnabled()
+    await field('Button').fill('Yes, send me updates')
+    await expect.element(button('Save')).toBeDisabled()
   })
 
   it('says only what each field is: no descriptions, hints or defaults button', async () => {
     stub()
-    await show()
-    await expect.element(field('Subject')).toBeVisible()
+    await showEditing()
     expect(card().element().querySelectorAll('.field-hint')).toHaveLength(0)
     expect(textOf(card())).not.toMatch(/What subscribers get|default wording|in grey|Optional|becomes the name/)
     expect(
@@ -79,7 +107,7 @@ describe('Preview update emails: the wording', () => {
     await page.elementLocator(glass()).click({ force: true })
     expect(location.href).toBe(before)
 
-    ;(button('Save').element() as HTMLElement).focus()
+    ;(button('Edit').element() as HTMLElement).focus()
     for (let i = 0; i < 6; i++) await userEvent.tab({ shift: true })
     expect(frame()!.contains(document.activeElement)).toBe(false)
     expect(document.activeElement).not.toBe(frame())
@@ -96,10 +124,26 @@ describe('Preview update emails: the wording', () => {
     expect(email().scrollHeight).toBeLessThanOrEqual(email().clientHeight)
   })
 
-  it('switches between the three emails, each with its own fields and preview', async () => {
+  it('switches between the previews of the three emails', async () => {
     const stubs = stub()
     await show()
-    await expect.element(field('Message')).toBeVisible()
+    await expect.poll(() => frame()?.srcdoc).toContain('Yes, send me updates')
+
+    await choose('New video')
+    await expect.element(button('New video')).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(() => envelope()).toContain('A new video is up: Devlog 1')
+    expect(lastPreview(stubs)[0]).toBe('video')
+    expect(frame()!.title).toBe('Preview of the new video email')
+
+    await choose('New app')
+    await expect.poll(() => envelope()).toContain('A new app is out: Space Game')
+    expect(frame()!.title).toBe('Preview of the new app email')
+    expect(card().getByRole('textbox').query()).toBeNull()
+  })
+
+  it('switches between the three emails while editing, each with its own fields and preview', async () => {
+    const stubs = stub()
+    await showEditing()
 
     await choose('New video')
     await expect.element(field('Subject')).toHaveValue('A new video is up: {title}')
@@ -119,7 +163,7 @@ describe('Preview update emails: the wording', () => {
 
   it('follows the typing in the preview once it pauses, not every key', async () => {
     const stubs = stub()
-    await show()
+    await showEditing()
     await expect.poll(() => frame()?.srcdoc).toContain('Yes, send me updates')
     const before = stubs.preview.mock.calls.length
 
@@ -133,9 +177,9 @@ describe('Preview update emails: the wording', () => {
     expect(textOf(card())).toContain('Unsaved changes: subscribers still get the saved wording.')
   })
 
-  it('saves the whole draft, every email, and says so', async () => {
+  it('saves the whole draft, every email, says so, and goes back to the preview', async () => {
     const stubs = stub()
-    await show()
+    await showEditing()
     await field('Subject').fill('Say yes to jechel.dev')
     await choose('New app')
     // The app's fields are in place before typing (not the confirmation's, still there for a moment).
@@ -150,24 +194,37 @@ describe('Preview update emails: the wording', () => {
       app: { ...DEFAULT_WORDING.app, button: 'Try it' },
     })
     await expect.poll(() => textOf(card())).toContain(`Saved ${formatDateTime('2026-10-21T20:00:00Z')}`)
-    await expect.element(button('Save')).toBeDisabled()
     expect(textOf(card())).not.toContain('Unsaved changes')
+    // Out of editing: the preview alone, and the keyboard back on Edit.
+    expect(card().getByRole('textbox').query()).toBeNull()
+    expect(button('Save').query()).toBeNull()
+    expect(document.activeElement).toBe(button('Edit').element())
+    await expect.poll(() => envelope()).toContain('A new app is out')
+    await expect.poll(() => frame()?.srcdoc).toContain('Try it')
   })
 
-  it('throws away the changes on Discard', async () => {
-    stub()
-    await show()
-    await field('Subject').fill('Something else')
-    await button('Discard changes').click()
-    await expect.element(field('Subject')).toHaveValue('Confirm your jechel.dev updates')
+  it('throws away the changes on Cancel: the preview of the saved wording, and nothing saved', async () => {
+    const stubs = stub()
+    await showEditing()
+    await field('Button').fill('Something else')
+    await expect.poll(() => frame()?.srcdoc).toContain('Something else')
+    await button('Cancel').click()
+
+    expect(card().getByRole('textbox').query()).toBeNull()
+    expect(document.activeElement).toBe(button('Edit').element())
+    await expect.poll(() => frame()?.srcdoc).toContain('Yes, send me updates')
+    expect(stubs.save).not.toHaveBeenCalled()
+    expect(textOf(card())).not.toContain('Unsaved changes')
+
+    await button('Edit').click()
+    await expect.element(field('Button')).toHaveValue('Yes, send me updates')
     await expect.element(button('Save')).toBeDisabled()
-    expect(button('Discard changes').query()).toBeNull()
   })
 
   it('saving words back to the defaults forgets the own wording, so later defaults apply too', async () => {
     const stubs = stub()
     stubs.get.mockResolvedValue({ wording: MINE, defaults: DEFAULT_WORDING, updatedAt: '2026-10-20T10:00:00Z' })
-    await show()
+    await showEditing()
     await expect.element(field('Subject')).toHaveValue('Say yes to jechel.dev')
     expect(textOf(card())).toContain('Saved')
 
@@ -182,7 +239,7 @@ describe('Preview update emails: the wording', () => {
 
   it('a new video or app has a note too, empty at first, and it is saved with the rest', async () => {
     const stubs = stub()
-    await show()
+    await showEditing()
     await choose('New video')
     await expect.element(field('Message')).toHaveValue('A new video is up')
     await field('Note').fill('Filmed in one take.')
@@ -194,7 +251,7 @@ describe('Preview update emails: the wording', () => {
   it("marks what the API wouldn't save, next to the field, and opens that email", async () => {
     const stubs = stub()
     stubs.save.mockRejectedValueOnce(new ApiError('/api/updates/emails', 400, { 'video.subject': ['Only {title} can be filled in; remove {name}.'] }))
-    await show()
+    await showEditing()
     await field('Note').fill('A note.')
     await button('Save').click()
 
@@ -207,7 +264,7 @@ describe('Preview update emails: the wording', () => {
 
   it('checks the draft as it is typed: the preview says what is wrong and fades until fixed', async () => {
     const stubs = stub()
-    await show()
+    await showEditing()
     await expect.poll(() => frame()?.srcdoc).toContain('Yes, send me updates')
     stubs.preview.mockRejectedValue(new ApiError('/api/updates/emails/preview', 400, { 'confirm.button': ['Required.'] }))
 
@@ -229,9 +286,17 @@ describe('Preview update emails: the wording', () => {
     await expect.element(card().getByText("The preview couldn't be made.")).toBeVisible()
   })
 
-  it('sends the draft of the email shown to the admin as a test, and says how it went', async () => {
+  it('sends the saved email shown to the admin as a test before Edit', async () => {
     const stubs = stub()
     await show()
+    await button('Send me a test (confirmation)').click()
+    await expect.element(card().getByRole('status').filter({ hasText: 'Sent to' })).toHaveTextContent('✓ Sent to admin@example.com.')
+    expect(stubs.test).toHaveBeenCalledWith('confirm', DEFAULT_WORDING)
+  })
+
+  it('sends the draft of the email shown to the admin as a test, and says how it went', async () => {
+    const stubs = stub()
+    await showEditing()
     await choose('New video')
     await expect.element(field('Message')).toHaveValue('A new video is up')
     await field('Button').fill('Play')
@@ -255,6 +320,7 @@ describe('Preview update emails: the wording', () => {
     stubs.test.mockRejectedValueOnce(new ApiError('/api/updates/emails/test', 400, { 'confirm.intro': ['Required.'] }))
     await show()
     await button(/^Send me a test/).click()
+    // The fields come up, to fix it.
     await expect.element(card().getByText('Fix the fields marked first.')).toBeVisible()
     await expect.element(field('Message')).toHaveAttribute('aria-invalid', 'true')
   })
@@ -262,7 +328,7 @@ describe('Preview update emails: the wording', () => {
   it("says when saving didn't work for another reason", async () => {
     const stubs = stub()
     stubs.save.mockRejectedValueOnce(new ApiError('/api/updates/emails', 401))
-    await show()
+    await showEditing()
     await field('Subject').fill('New subject')
     await button('Save').click()
     await expect.element(card().getByRole('alert')).toHaveTextContent('Your session has ended. Sign in again, then save.')
@@ -279,17 +345,21 @@ describe('Preview update emails: the wording', () => {
     await show()
     await expect.element(page.getByText("The emails' wording couldn't be loaded.")).toBeVisible()
     await page.getByRole('button', { name: 'Try again' }).click()
-    await expect.element(field('Subject')).toHaveValue('Confirm your jechel.dev updates')
+    await expect.element(button('Edit')).toBeVisible()
   })
 
   it('works from the keyboard: pick an email, edit, save', async () => {
     const stubs = stub()
     await show()
-    await expect.element(field('Subject')).toBeVisible()
+    await expect.element(button('Edit')).toBeVisible()
     ;(button(/^New app/).element() as HTMLElement).focus()
     await userEvent.keyboard('{Enter}')
-    await expect.element(field('Message')).toHaveValue('A new app is out')
+    await expect.poll(() => envelope()).toContain('A new app is out')
+    // Past the preview (under glass, nothing to stop at) to Edit, which goes into the first field.
     await userEvent.tab()
+    expect(document.activeElement).toBe(button('Edit').element())
+    await userEvent.keyboard('{Enter}')
+    await expect.element(field('Message')).toHaveValue('A new app is out')
     expect(document.activeElement).toBe(field('Subject').element())
     await userEvent.keyboard('{End}{Backspace>40/}Out now: {{title}')
     await expect.element(field('Subject')).toHaveValue('Out now: {title}')
@@ -303,6 +373,9 @@ describe('Preview update emails: the wording', () => {
       stub()
       await show(theme)
       await expect.poll(() => frame()?.srcdoc).toContain('Yes, send me updates')
+      expect(await a11yViolations()).toEqual([])
+      await button('Edit').click()
+      await expect.element(field('Subject')).toBeVisible()
       expect(await a11yViolations()).toEqual([])
     })
   }

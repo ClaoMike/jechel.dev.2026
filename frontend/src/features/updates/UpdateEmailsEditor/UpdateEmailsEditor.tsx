@@ -1,18 +1,31 @@
+import { useEffect, useRef } from 'react'
 import { ErrorState } from '../../../components/ErrorState/ErrorState'
 import { TextField } from '../../../components/fields'
+import { PencilIcon } from '../../../components/icons/icons'
 import { Loading, Skeleton } from '../../../components/Skeleton'
 import { UPDATE_EMAIL_KINDS, type UpdateEmailKind, type UpdateEmailWording } from '../../../services/api'
 import { formatDateTime } from '../../../utils/formatDate'
 import { KIND_NAMES, useUpdateEmailsEditorViewModel } from './UpdateEmailsEditor.viewModel'
 
 /**
- * The emails subscribers get, in the admin's words (Community tab): one email at a time, the same four
- * fields for each beside a live preview under glass (to look at, not to click), then Save, and a test of
- * the draft sent to the admin's own inbox.
+ * The emails subscribers get, in the admin's words (Community tab): one email at a time, its preview under
+ * glass (to look at, not to click). Edit brings up the same four fields for each beside the preview, which
+ * follows them; Save keeps the changes, Cancel throws them away. A test of the draft goes to the admin's own inbox.
  */
 export function UpdateEmailsEditor() {
   const vm = useUpdateEmailsEditorViewModel()
-  const { state, wording, kind, errors, preview } = vm
+  const { state, wording, kind, errors, preview, editing } = vm
+  const fieldsRef = useRef<HTMLDivElement>(null)
+  const editRef = useRef<HTMLButtonElement>(null)
+  const wasEditing = useRef(editing)
+
+  // Into the first field on Edit; back to Edit after Save or Cancel.
+  useEffect(() => {
+    if (editing === wasEditing.current) return
+    wasEditing.current = editing
+    if (editing) fieldsRef.current?.querySelector<HTMLElement>('input, textarea')?.focus()
+    else editRef.current?.focus()
+  }, [editing])
 
   return (
     <section className="card community-card" aria-labelledby="email-wording-title">
@@ -38,29 +51,31 @@ export function UpdateEmailsEditor() {
             ))}
           </div>
 
-          <div className="email-wording-layout">
-            <div className="email-wording-fields">
-              <EmailFields kind={kind} wording={wording} onChange={vm.change} errors={errors} />
-              <fieldset className="email-wording-footer">
-                <legend>Under every email</legend>
-                <TextField
-                  label="Why they get it"
-                  value={wording.footer.reason}
-                  onChange={(reason) => vm.change({ ...wording, footer: { ...wording.footer, reason } })}
-                  error={errors['footer.reason']}
-                  multiline
-                  allowLinks
-                />
-                <TextField
-                  label="About replies"
-                  value={wording.footer.noReply}
-                  onChange={(noReply) => vm.change({ ...wording, footer: { ...wording.footer, noReply } })}
-                  error={errors['footer.noReply']}
-                  multiline
-                  allowLinks
-                />
-              </fieldset>
-            </div>
+          <div className={editing ? 'email-wording-layout is-editing' : 'email-wording-layout'}>
+            {editing && (
+              <div className="email-wording-fields" ref={fieldsRef}>
+                <EmailFields kind={kind} wording={wording} onChange={vm.change} errors={errors} />
+                <fieldset className="email-wording-footer">
+                  <legend>Under every email</legend>
+                  <TextField
+                    label="Why they get it"
+                    value={wording.footer.reason}
+                    onChange={(reason) => vm.change({ ...wording, footer: { ...wording.footer, reason } })}
+                    error={errors['footer.reason']}
+                    multiline
+                    allowLinks
+                  />
+                  <TextField
+                    label="About replies"
+                    value={wording.footer.noReply}
+                    onChange={(noReply) => vm.change({ ...wording, footer: { ...wording.footer, noReply } })}
+                    error={errors['footer.noReply']}
+                    multiline
+                    allowLinks
+                  />
+                </fieldset>
+              </div>
+            )}
 
             <div className="email-wording-preview" aria-busy={preview.stale}>
               <h4>Preview</h4>
@@ -95,12 +110,19 @@ export function UpdateEmailsEditor() {
           </div>
 
           <div className="email-wording-actions">
-            <button type="button" className="button" disabled={!vm.changed || vm.busy} onClick={vm.save}>
-              {vm.busy ? 'Saving…' : 'Save'}
-            </button>
-            {vm.changed && (
-              <button type="button" className="button button-secondary" disabled={vm.busy} onClick={vm.discard}>
-                Discard changes
+            {editing ? (
+              <>
+                <button type="button" className="button" disabled={!vm.changed || vm.busy} onClick={vm.save}>
+                  {vm.busy ? 'Saving…' : 'Save'}
+                </button>
+                <button type="button" className="button button-secondary" disabled={vm.busy} onClick={vm.cancel}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button type="button" className="button button-secondary" ref={editRef} onClick={vm.edit}>
+                <PencilIcon size={16} />
+                Edit
               </button>
             )}
             <button type="button" className="button button-secondary" disabled={vm.testing} onClick={vm.sendTest}>

@@ -3369,9 +3369,14 @@ button.media-card {
 
 .email-wording-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+}
+
+/* Editing: the fields beside the preview. */
+.email-wording-layout.is-editing {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
 }
 
 .email-wording-fields {
@@ -3449,8 +3454,8 @@ button.media-card {
 }
 
 @media (max-width: 760px) {
-  .email-wording-layout {
-    grid-template-columns: 1fr;
+  .email-wording-layout.is-editing {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

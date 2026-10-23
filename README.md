@@ -743,8 +743,10 @@ focus) it turns yellow and keeps ringing (`.bell-body`, `.bell-clapper` in `glas
   `UpdateEmailsEndpoints.cs`): the same four fields for each email (the confirmation, a new video, a new app): **Subject**,
   **Message**, **Button** and **Note** (optional, in grey under the button), plus the footer (why they get it; that replies aren't
   read, with a link to the contact page). A new item's subject and message can hold `{title}`; the longer texts take paragraphs
-  and `[text](url)` links (http(s), or a path on the site). Beside the fields is a live preview, made by the API with the same
-  code that sends the emails, about your newest app or video. It sits under glass: the frame is `inert` and as tall as the email,
+  and `[text](url)` links (http(s), or a path on the site). The card opens on the preview alone, made by the API with the same
+  code that sends the emails, about your newest app or video; **Edit** brings up the fields beside it, and the preview follows
+  them as you type. **Save** (only once something changed) keeps the changes to all three emails; **Cancel** throws them away;
+  either goes back to the preview. The preview sits under glass: the frame is `inert` and as tall as the email,
   so nothing in it can be clicked, focused or scrolled. **Send me a test** emails the draft to you, marked `[Test]`, from the
   updates sender; when your address is subscribed, its links carry your own code, so its Unsubscribe really unsubscribes you.
   Otherwise they carry the code `test`, and the pages say the link is from a test and change nothing. Every email gets its own
