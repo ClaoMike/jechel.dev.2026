@@ -37,6 +37,15 @@ public class CalClientTests
     }
 
     [Fact]
+    public async Task Cancelling_posts_the_reason_to_the_booking_with_the_documented_version()
+    {
+        await Client().CancelAsync("uid/1", "Something came up.", default);
+
+        var request = Assert.Single(_cal.Requests);
+        Assert.Equal((HttpMethod.Post, "https://api.cal.com/v2/bookings/uid%2F1/cancel", "Bearer cal_live_abc", CalClient.BookingsApiVersion, """{"cancellationReason":"Something came up."}"""), request);
+    }
+
+    [Fact]
     public async Task Declining_sends_the_reason_only_when_there_is_one()
     {
         await Client().DeclineAsync("b1", "Away that week", default);

@@ -68,6 +68,26 @@ public class MeetingsEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
+    public async Task The_admin_cancels_a_booked_meeting_through_Cal_com_and_visitors_cant()
+    {
+        var uid = Guid.NewGuid().ToString();
+        var email = $"grace-{Guid.NewGuid():N}@example.com";
+        Assert.Equal(HttpStatusCode.OK, (await factory.CreateClient().SendAsync(Webhook("BOOKING_CREATED", uid, email))).StatusCode);
+        var admin = await SignedInClientAsync();
+        var id = (await admin.GetFromJsonAsync<List<MeetingDto>>("/api/meetings"))!.Single(m => m.AttendeeEmail == email).Id;
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateBrowserClient().PostAsJsonAsync($"/api/meetings/{id}/cancel", new MeetingDecisionRequest(null))).StatusCode);
+        Assert.DoesNotContain(factory.Cal.Calls, c => c.Contains(uid));
+
+        var response = await admin.PostAsJsonAsync($"/api/meetings/{id}/cancel", new MeetingDecisionRequest("Something came up."));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(MeetingStatus.Cancelled, (await response.Content.ReadFromJsonAsync<MeetingDecisionResult>())!.Status);
+        Assert.Contains($"cancel {uid} Something came up.", factory.Cal.Calls);
+        Assert.Equal(MeetingStatus.Cancelled, (await admin.GetFromJsonAsync<List<MeetingDto>>("/api/meetings"))!.Single(m => m.Id == id).Status);
+    }
+
+    [Fact]
     public async Task Visitors_cant_see_the_calendar_or_decide_without_the_token()
     {
         var uid = Guid.NewGuid().ToString();

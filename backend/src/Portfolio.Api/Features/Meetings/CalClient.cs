@@ -43,6 +43,9 @@ public interface ICalClient
     Task ConfirmAsync(string uid, CancellationToken cancellationToken);
     Task DeclineAsync(string uid, string? reason, CancellationToken cancellationToken);
 
+    /// <summary>Cancels a booking; Cal.com emails the attendee, with the reason.</summary>
+    Task CancelAsync(string uid, string reason, CancellationToken cancellationToken);
+
     /// <summary>Checks the API key; returns the account's username.</summary>
     Task<string> WhoAmIAsync(CancellationToken cancellationToken);
 }
@@ -52,7 +55,7 @@ public class CalClient(HttpClient http, IOptionsMonitor<CalOptions> options) : I
 {
     public static readonly Uri BaseAddress = new("https://api.cal.com/v2/");
 
-    /// <summary>The version the confirm and decline endpoints are documented with; older ones behave differently.</summary>
+    /// <summary>The version the confirm, decline and cancel endpoints are documented with; older ones behave differently.</summary>
     public const string BookingsApiVersion = "2026-02-25";
 
     public Task ConfirmAsync(string uid, CancellationToken cancellationToken) =>
@@ -60,6 +63,10 @@ public class CalClient(HttpClient http, IOptionsMonitor<CalOptions> options) : I
 
     public Task DeclineAsync(string uid, string? reason, CancellationToken cancellationToken) =>
         SendAsync(HttpMethod.Post, $"bookings/{Uri.EscapeDataString(uid)}/decline", string.IsNullOrWhiteSpace(reason) ? new { } : new { reason }, cancellationToken);
+
+    // A host must give a reason (Cal.com refuses without one), so there always is one.
+    public Task CancelAsync(string uid, string reason, CancellationToken cancellationToken) =>
+        SendAsync(HttpMethod.Post, $"bookings/{Uri.EscapeDataString(uid)}/cancel", new { cancellationReason = reason }, cancellationToken);
 
     public async Task<string> WhoAmIAsync(CancellationToken cancellationToken)
     {

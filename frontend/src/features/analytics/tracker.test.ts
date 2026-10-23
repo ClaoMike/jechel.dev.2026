@@ -461,6 +461,11 @@ describe('errors nobody caught', () => {
     window.dispatchEvent(new ErrorEvent('error', { message: 'one', filename: `${location.origin}/assets/index-abc.js` }))
     window.dispatchEvent(new ErrorEvent('error', { message: 'two', filename: `${location.origin}/@vite/client` }))
     expect(queued().slice(before).map((e) => e.label)).toEqual(['one', 'two'])
+
+    // Not a page of this site: a blob: script made here, or another site's page, still count.
+    window.dispatchEvent(new ErrorEvent('error', { message: 'three', filename: `blob:${location.origin}/1f2e3d4c` }))
+    window.dispatchEvent(new ErrorEvent('error', { message: 'four', filename: 'https://example.com/page' }))
+    expect(queued().slice(before).map((e) => e.label)).toEqual(['one', 'two', 'three', 'four'])
   })
 
   it("leaves out another site's script or stylesheet that didn't load (the CSP allows none: the browser added it), not an image", () => {
@@ -477,6 +482,13 @@ describe('errors nobody caught', () => {
     image.setAttribute('src', 'https://example.com/app.png')
     image.dispatchEvent(new Event('error'))
     expect(last()).toMatchObject({ label: "Couldn't load an image", detail: { src: 'https://example.com/app.png' } })
+
+    // A script from elsewhere, as Translate adds: left out too.
+    const recorded = queued().length
+    const script = add<HTMLScriptElement>('<script></script>')
+    script.setAttribute('src', 'https://translate.googleapis.com/element.js')
+    script.dispatchEvent(new Event('error'))
+    expect(queued()).toHaveLength(recorded)
   })
 
   it('records a promise nobody waited for, whatever it failed with', () => {

@@ -46,4 +46,12 @@ export const meetingsEndpoints = {
   decide(id: number, accept: boolean, message: string): Promise<MeetingDecision> {
     return post<MeetingDecision>(`/api/meetings/${id}/${accept ? 'accept' : 'decline'}`, { message })
   },
+
+  /**
+   * Admin only. Cancels an accepted meeting that hasn't ended with Cal.com, which emails the attendee
+   * (with `message` as the reason). Rejects with a 502 ApiError when Cal.com refuses.
+   */
+  cancel(id: number, message: string): Promise<MeetingDecision> {
+    return post<MeetingDecision>(`/api/meetings/${id}/cancel`, { message })
+  },
 }

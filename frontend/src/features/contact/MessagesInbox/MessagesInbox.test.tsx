@@ -5,7 +5,7 @@ import { api, ApiError, type ContactMessageDetails, type ContactReply } from '..
 import { a11yViolations } from '../../../test/a11y'
 import { stubApi } from '../../../test/api'
 import { ADA, INBOX, pageOfMessages } from '../../../test/fixtures/contact'
-import { BOOKING_LINK, todaysMeetings } from '../../../test/fixtures/meetings'
+import { BOOKING_LINK, todayAt, todaysMeetings } from '../../../test/fixtures/meetings'
 import { ADMIN, forever, renderView, textOf } from '../../../test/render'
 import { formatDateTime } from '../../../utils/formatDate'
 import { MessagesInbox } from './MessagesInbox'
@@ -351,6 +351,40 @@ describe('the popup', () => {
     await booked.getByRole('button', { name: 'Accept' }).click()
     expect(decide).toHaveBeenCalledWith(meeting.id, true, '')
     await expect.element(booked.getByText('Accepted')).toBeVisible()
+  })
+
+  it('cancels an accepted meeting from the message too, asking on top of it, and the message stays open', async () => {
+    const meeting = { ...todaysMeetings()[0], attendeeName: 'Ada', startTime: todayAt(23, 0), endTime: todayAt(23, 59) }
+    calls.get.mockImplementation(async () => ({ ...structuredClone(ADA), meetings: [meeting] }))
+    const cancel = vi.spyOn(api.meetings, 'cancel').mockResolvedValue({ status: 'cancelled', emailSent: true })
+    await show()
+    await open()
+    const conversation = page.getByRole('dialog').first()
+    const booked = conversation.getByRole('region', { name: 'Meetings they booked' })
+
+    await booked.getByRole('button', { name: 'Cancel meeting' }).click()
+    const asking = page.getByRole('dialog', { name: 'Cancel the meeting with Ada?' })
+    await expect.element(asking).toBeVisible()
+    await asking.getByRole('button', { name: 'Cancel meeting' }).click()
+
+    await expect.element(asking).not.toBeInTheDocument()
+    expect(cancel).toHaveBeenCalledWith(meeting.id, '')
+    await expect.element(booked.getByText('Cancelled')).toBeVisible()
+    await expect.element(conversation).toBeVisible()
+  })
+
+  it('Escape on the question closes only the question, not the message under it', async () => {
+    const meeting = { ...todaysMeetings()[0], attendeeName: 'Ada', startTime: todayAt(23, 0), endTime: todayAt(23, 59) }
+    calls.get.mockImplementation(async () => ({ ...structuredClone(ADA), meetings: [meeting] }))
+    await show()
+    await open()
+    await dialog().getByRole('button', { name: 'Cancel meeting' }).click()
+    const asking = page.getByRole('dialog', { name: 'Cancel the meeting with Ada?' })
+    await expect.element(asking).toBeVisible()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(asking).not.toBeInTheDocument()
+    await expect.element(dialog()).toBeVisible()
   })
 })
 

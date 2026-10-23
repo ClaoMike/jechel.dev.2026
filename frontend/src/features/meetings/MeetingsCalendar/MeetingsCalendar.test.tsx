@@ -4,7 +4,7 @@ import { THEMES } from '../../../layout/theme'
 import { api, ApiError } from '../../../services/api'
 import { a11yViolations } from '../../../test/a11y'
 import { stubApi } from '../../../test/api'
-import { todaysMeetings } from '../../../test/fixtures/meetings'
+import { todayAt, todaysMeetings } from '../../../test/fixtures/meetings'
 import { ADMIN, forever, renderView, textOf } from '../../../test/render'
 import { MeetingsCalendar } from './MeetingsCalendar'
 
@@ -149,6 +149,78 @@ describe('deciding', () => {
 
     await expect.element(meeting('Ada').getByRole('button', { name: 'Accepting…' })).toBeDisabled()
     await expect.element(meeting('Ada').getByRole('button', { name: 'Decline' })).toBeDisabled()
+  })
+})
+
+describe('cancelling', () => {
+  let cancel: MockInstance<typeof api.meetings.cancel>
+
+  // Today: Bob's accepted meeting is still to come (until 23:59); Cy's ended just after midnight.
+  beforeEach(() => {
+    const [bob, ada] = todaysMeetings()
+    list.mockImplementation(async () => [
+      { ...bob, id: 4, attendeeName: 'Cy', attendeeEmail: 'cy@example.com', startTime: todayAt(0, 0), endTime: todayAt(0, 1) },
+      { ...bob, startTime: todayAt(23, 0), endTime: todayAt(23, 59) },
+      ada,
+    ])
+    cancel = vi.spyOn(api.meetings, 'cancel').mockResolvedValue({ status: 'cancelled', emailSent: true })
+  })
+  const dialog = () => page.getByRole('dialog', { name: 'Cancel the meeting with Bob?' })
+
+  it('cancels an accepted meeting after asking, with an optional reason for Cal.com to email them', async () => {
+    await show()
+    await meeting('Bob').getByRole('button', { name: 'Cancel meeting' }).click()
+    await expect.element(dialog()).toBeVisible()
+    expect(textOf(dialog())).toContain("Cal.com emails Bob that it's cancelled")
+    await dialog().getByRole('textbox', { name: 'Reason (optional)' }).fill('  Something came up, sorry.  ')
+    await dialog().getByRole('button', { name: 'Cancel meeting' }).click()
+
+    await expect.element(dialog()).not.toBeInTheDocument()
+    expect(cancel).toHaveBeenCalledWith(3, 'Something came up, sorry.')
+    await expect.element(meeting('Bob').getByText('Cancelled')).toBeVisible()
+    expect(textOf(meeting('Bob'))).toContain('Cal.com emailed them.')
+    expect(meeting('Bob').getByRole('button', { name: 'Cancel meeting' }).query()).toBeNull()
+  })
+
+  it('"Keep it" closes the question and cancels nothing', async () => {
+    await show()
+    await meeting('Bob').getByRole('button', { name: 'Cancel meeting' }).click()
+    await dialog().getByRole('button', { name: 'Keep it' }).click()
+
+    await expect.element(dialog()).not.toBeInTheDocument()
+    expect(cancel).not.toHaveBeenCalled()
+    await expect.element(meeting('Bob').getByText('Accepted')).toBeVisible()
+  })
+
+  it("says so when Cal.com won't, keeping the question open and the meeting on", async () => {
+    cancel.mockRejectedValueOnce(new ApiError('/api/meetings/3/cancel', 502))
+    await show()
+    await meeting('Bob').getByRole('button', { name: 'Cancel meeting' }).click()
+    await dialog().getByRole('button', { name: 'Cancel meeting' }).click()
+
+    await expect.element(dialog().getByRole('alert')).toHaveTextContent("Cal.com didn't take it. Check the API key in Settings, then try again.")
+    await expect.element(meeting('Bob').getByText('Accepted')).toBeVisible()
+  })
+
+  it('says when it ended meanwhile, or anything else failed; asking again starts afresh', async () => {
+    cancel.mockRejectedValueOnce(new ApiError('/api/meetings/3/cancel', 400)).mockRejectedValueOnce(new ApiError('/api/meetings/3/cancel', 500))
+    await show()
+    await meeting('Bob').getByRole('button', { name: 'Cancel meeting' }).click()
+    await dialog().getByRole('button', { name: 'Cancel meeting' }).click()
+    await expect.element(dialog().getByRole('alert')).toHaveTextContent('It has ended already: there is nothing to cancel.')
+
+    await dialog().getByRole('button', { name: 'Cancel meeting' }).click()
+    await expect.element(dialog().getByRole('alert')).toHaveTextContent("That didn't work. Please try again.")
+    await dialog().getByRole('button', { name: 'Keep it' }).click()
+    await meeting('Bob').getByRole('button', { name: 'Cancel meeting' }).click()
+    expect(dialog().getByRole('alert').query()).toBeNull()
+  })
+
+  it('offers it only for an accepted meeting that is still to come: not one that ended, nor a request', async () => {
+    await show()
+    await expect.element(meeting('Bob').getByRole('button', { name: 'Cancel meeting' })).toBeVisible()
+    expect(meeting('Cy').getByRole('button', { name: 'Cancel meeting' }).query()).toBeNull()
+    expect(meeting('Ada').getByRole('button', { name: 'Cancel meeting' }).query()).toBeNull()
   })
 })
 

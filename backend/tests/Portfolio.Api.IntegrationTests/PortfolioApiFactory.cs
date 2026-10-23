@@ -236,6 +236,12 @@ public sealed class RecordingCalClient : Portfolio.Api.Features.Meetings.ICalCli
         return Task.CompletedTask;
     }
 
+    public Task CancelAsync(string uid, string reason, CancellationToken cancellationToken)
+    {
+        Calls.Enqueue($"cancel {uid} {reason}");
+        return Task.CompletedTask;
+    }
+
     public Task<string> WhoAmIAsync(CancellationToken cancellationToken) => Task.FromResult("claomike");
 }
 

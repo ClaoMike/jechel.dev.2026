@@ -109,13 +109,14 @@ public class UpdatesAnnouncer(
                     {
                         await emails.SendAsync(UpdateEmails.NewItem(subscriber.Email, announcement.Kind, item, subscriber.Token, wording, site.Value), cancellationToken);
                         announcement.RecipientCount++;
-                        await db.SaveChangesAsync(cancellationToken);
                     }
                     catch (Exception e) when (!cancellationToken.IsCancellationRequested)
                     {
                         logger.LogWarning(e, "Couldn't email {Kind} {Key} to a subscriber.", announcement.Kind, announcement.ItemKey);
                         reason ??= e is Settings.ServiceException ? e.Message : "The email service couldn't be reached.";
                     }
+                    // The count so far, for the Community tab (outside the catch: a database failure isn't the email service's).
+                    await db.SaveChangesAsync(cancellationToken);
                     if (DelayBetweenEmails > TimeSpan.Zero) await Task.Delay(DelayBetweenEmails, time, cancellationToken);
                 }
             }

@@ -171,6 +171,23 @@ describe('Community: update emails', () => {
     expect(api.announcements.mock.calls.length).toBe(asked)
   })
 
+  it('picks up one waiting to be sent once it goes, and asks nothing more while nothing is on its way', async () => {
+    const api = stub()
+    const waiting = ANNOUNCEMENTS.filter((a) => a.status !== 'approved')
+    const toBeSent: Announcement = { ...ANNOUNCEMENTS[0], status: 'approved' }
+    api.announcements.mockResolvedValueOnce(pageOf([toBeSent])).mockResolvedValue(pageOf([{ ...toBeSent, status: 'sent', sentAt: '2026-10-20T09:05:00Z', recipientCount: 1 }]))
+    await show()
+    await expect.poll(() => textOf(item('Space Game'))).toContain('To be sent')
+    await expect.poll(() => textOf(item('Space Game')), { timeout: SENDING_REFRESH_MS * 2 }).toContain('to 1 subscriber')
+
+    // Nothing on its way: loaded once, then left alone.
+    api.announcements.mockReset().mockResolvedValue(pageOf(waiting))
+    await show()
+    await expect.poll(() => api.announcements.mock.calls.length).toBe(1)
+    await new Promise((resolve) => setTimeout(resolve, SENDING_REFRESH_MS * 1.5))
+    expect(api.announcements.mock.calls.length).toBe(1)
+  })
+
   it('says when deciding failed', async () => {
     const api = stub()
     api.decide.mockRejectedValue(new ApiError('/api/updates/announcements/10/send', 500))

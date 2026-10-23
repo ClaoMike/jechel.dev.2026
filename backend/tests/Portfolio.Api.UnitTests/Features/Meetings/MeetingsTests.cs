@@ -21,17 +21,21 @@ namespace Portfolio.Api.UnitTests.Features.Meetings;
 public sealed class FakeCalClient : ICalClient
 {
     public List<string> Calls { get; } = [];
-    public ServiceException? Refuse { get; set; }
+    public Exception? Refuse { get; set; }
+
+    /// <summary>Runs while Cal.com is being asked, e.g. its webhook arriving before its answer.</summary>
+    public Func<Task>? During { get; set; }
 
     public Task ConfirmAsync(string uid, CancellationToken cancellationToken) => Record($"confirm {uid}");
     public Task DeclineAsync(string uid, string? reason, CancellationToken cancellationToken) => Record($"decline {uid} {reason}".TrimEnd());
+    public Task CancelAsync(string uid, string reason, CancellationToken cancellationToken) => Record($"cancel {uid} {reason}");
     public Task<string> WhoAmIAsync(CancellationToken cancellationToken) => Task.FromResult("claomike");
 
-    private Task Record(string call)
+    private async Task Record(string call)
     {
+        if (During is not null) await During();
         if (Refuse is not null) throw Refuse;
         Calls.Add(call);
-        return Task.CompletedTask;
     }
 }
 
@@ -79,6 +83,9 @@ public class MeetingsTests
 
     private Task<Results<Ok<MeetingDecisionResult>, NotFound, UnauthorizedHttpResult, ValidationProblem, ProblemHttpResult>> Decide(int id, bool accept, string? message = null, string? token = null, bool admin = true) =>
         MeetingsEndpoints.Decide(id, token, accept, new MeetingDecisionRequest(message), Http(admin), _db, _cal, _emails, TestOptions.Monitor(new AdminOptions { AdminEmails = ["me@example.com"] }), TestOptions.Monitor(_emailOptions), _time, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, default);
+
+    private Task<Results<Ok<MeetingDecisionResult>, NotFound, ValidationProblem, ProblemHttpResult>> Cancel(int id, string? message = null) =>
+        MeetingsEndpoints.Cancel(id, new MeetingDecisionRequest(message), _db, _cal, _time, default);
 
     private static HttpContext Http(bool admin)
     {
@@ -147,6 +154,126 @@ public class MeetingsTests
 
         Assert.Equal(["decline b1 I'm away that week."], _cal.Calls);
         Assert.Equal(MeetingStatus.Declined, _db.Meetings.Single().Status);
+    }
+
+    [Fact]
+    public async Task The_admin_cancels_an_accepted_meeting_with_Cal_com_giving_the_reason_and_its_webhook_after_rings_nothing()
+    {
+        await Webhook(Booking("BOOKING_CREATED"));
+        var id = _db.Meetings.Single().Id;
+
+        var result = await Cancel(id, "  Something came up, sorry.  ");
+
+        Assert.Equal(new MeetingDecisionResult(MeetingStatus.Cancelled, true), Assert.IsType<Ok<MeetingDecisionResult>>(result.Result).Value);
+        Assert.Equal(["cancel b1 Something came up, sorry."], _cal.Calls);
+        Assert.Equal(MeetingStatus.Cancelled, _db.Meetings.Single().Status);
+        // Cal.com reports the cancellation back: already known, so the phone isn't told what the admin just did.
+        await Webhook(Booking("BOOKING_CANCELLED"));
+        Assert.Equal(["Meeting booked: Ada"], _alerts.Sent.Select(a => a.Title));
+    }
+
+    [Fact]
+    public async Task Cancelling_without_a_reason_gives_Cal_com_one_since_a_host_must()
+    {
+        await Webhook(Booking("BOOKING_CREATED"));
+
+        await Cancel(_db.Meetings.Single().Id, "   ");
+
+        Assert.Equal([$"cancel b1 {MeetingsEndpoints.DefaultCancelReason}"], _cal.Calls);
+    }
+
+    [Fact]
+    public async Task Only_an_accepted_meeting_that_hasnt_ended_is_cancelled()
+    {
+        await Webhook(Booking("BOOKING_REQUESTED"));
+        var id = _db.Meetings.Single().Id;
+        // A request is declined, not cancelled; one cancelled already answers with its status.
+        Assert.Equal(MeetingStatus.Requested, Assert.IsType<Ok<MeetingDecisionResult>>((await Cancel(id)).Result).Value!.Status);
+        await Decide(id, accept: true);
+        await Cancel(id);
+        Assert.Equal(MeetingStatus.Cancelled, Assert.IsType<Ok<MeetingDecisionResult>>((await Cancel(id)).Result).Value!.Status);
+        Assert.Equal(["confirm b1", $"cancel b1 {MeetingsEndpoints.DefaultCancelReason}"], _cal.Calls);
+
+        await Webhook(Booking("BOOKING_CREATED", uid: "b2"));
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 22, 14, 30, 0, TimeSpan.Zero));
+        Assert.IsType<ValidationProblem>((await Cancel(_db.Meetings.Single(m => m.Uid == "b2").Id)).Result);
+        Assert.IsType<NotFound>((await Cancel(999)).Result);
+        Assert.Equal(2, _cal.Calls.Count);
+    }
+
+    [Fact]
+    public async Task When_Cal_com_wont_cancel_the_meeting_stays_and_the_admin_hears_why()
+    {
+        await Webhook(Booking("BOOKING_CREATED"));
+        _cal.Refuse = new ServiceException("Cal.com refused it: invalid API key");
+
+        var result = await Cancel(_db.Meetings.Single().Id);
+
+        Assert.Equal(502, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
+        Assert.Equal(MeetingStatus.Accepted, _db.Meetings.Single().Status);
+    }
+
+    [Fact]
+    public async Task Cal_com_s_webhook_arriving_before_its_answer_finds_it_cancelled_and_rings_nothing()
+    {
+        await Webhook(Booking("BOOKING_CREATED"));
+        _cal.During = async () => Assert.IsType<Ok>((await Webhook(Booking("BOOKING_CANCELLED"))).Result);
+
+        await Cancel(_db.Meetings.Single().Id);
+
+        Assert.Equal(MeetingStatus.Cancelled, _db.Meetings.Single().Status);
+        Assert.Equal(["Meeting booked: Ada"], _alerts.Sent.Select(a => a.Title));
+    }
+
+    [Fact]
+    public async Task When_Cal_com_cant_be_reached_the_meeting_is_put_back_and_the_admin_is_told()
+    {
+        await Webhook(Booking("BOOKING_CREATED"));
+        var before = _db.Meetings.Single().UpdatedAt;
+        _time.Advance(TimeSpan.FromMinutes(5));
+        _cal.Refuse = new HttpRequestException("No such host");
+
+        var result = await Cancel(_db.Meetings.Single().Id);
+
+        var problem = Assert.IsType<ProblemHttpResult>(result.Result);
+        Assert.Equal((502, "Cal.com couldn't be reached."), (problem.StatusCode, problem.ProblemDetails.Detail));
+        var meeting = await _db.Meetings.AsNoTracking().SingleAsync();
+        Assert.Equal((MeetingStatus.Accepted, before), (meeting.Status, meeting.UpdatedAt));
+    }
+
+    [Fact]
+    public async Task Whatever_goes_wrong_asking_Cal_com_the_meeting_isnt_left_marked_cancelled()
+    {
+        await Webhook(Booking("BOOKING_CREATED"));
+        _cal.Refuse = new InvalidOperationException("a bug");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Cancel(_db.Meetings.Single().Id));
+
+        Assert.Equal(MeetingStatus.Accepted, (await _db.Meetings.AsNoTracking().SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task A_reason_too_long_is_refused_before_Cal_com_is_asked()
+    {
+        await Webhook(Booking("BOOKING_CREATED"));
+
+        var result = await Cancel(_db.Meetings.Single().Id, new string('x', MeetingsEndpoints.MessageMaxLength + 1));
+
+        Assert.Contains("message", Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors.Keys);
+        Assert.Empty(_cal.Calls);
+        Assert.Equal(MeetingStatus.Accepted, _db.Meetings.Single().Status);
+    }
+
+    [Fact]
+    public async Task When_Cal_com_cant_be_reached_to_accept_the_admin_is_told_and_its_no_crash()
+    {
+        await Webhook(Booking("BOOKING_REQUESTED"));
+        _cal.Refuse = new TaskCanceledException("timed out");
+
+        var result = await Decide(_db.Meetings.Single().Id, true);
+
+        Assert.Equal("Cal.com couldn't be reached.", Assert.IsType<ProblemHttpResult>(result.Result).ProblemDetails.Detail);
+        Assert.Equal(MeetingStatus.Requested, _db.Meetings.Single().Status);
     }
 
     [Fact]
