@@ -180,9 +180,18 @@ of pills moves between them, each at `/features/<its address>`, and `/features` 
 ready, it moves to where visitors will see it and comes off the list. With none, the page shows a flask and "No
 features to test right now".
 
+**Work with me** (`src/features/workWithMe/`, in Feature Testing now; for visitors, where it goes is still to decide:
+Contact, or a page of its own). What I offer (websites end to end, APIs, automations for a company's own work: manual
+processes and integrations between its apps), how a project goes (a free call or meeting, online or in person; a plan;
+the plan presented; then the price agreed, building, and keeping each other in the loop), the price (€25 an hour, the
+final price agreed once the plan is seen), and its own form, which sends a **project enquiry**. The words are in
+`workWithMe.ts`. Its switch, **Work with me** in Settings → Visitor pages, starts off (unlike the others, whatever
+`Site:PagesVisibleByDefault` says: `SiteParts.OffUntilSwitchedOn`); switched on, the contact form asks **What's it
+about?** (anything, or a project).
+
 **Contact** (`src/pages/ContactPage/ContactPage.tsx`, `src/features/contact/`):
 
-- **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. Errors appear after the first submit and then update as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields.
+- **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. Errors appear after the first submit and then update as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields. With Work with me switched on, it also asks **What's it about?**: anything (the default), or a project (`topic: "project"`). A project enquiry is kept with the subject **Project enquiry**: the inbox marks it, the phone alert says "New project enquiry from …", and replies are sent under it.
 - **The admin** (`<SignedIn>`) gets the inbox: a table of conversations (name, last message, how many), 10 per page (the page is in the URL, `?page=2`). Unread messages are bold, with a blue dot. Clicking a row opens a popup with every field and a **Copy** button for each, and marks the message as read.
 - Each detail has a copy-to-clipboard icon button (`src/components/CopyButton/CopyButton.tsx`); the icons are in `src/components/icons/icons.tsx`.
 - **Deleting:** each row has a trash button, and the popup a **Delete** button (`DELETE /api/contact/messages/{id}`, admin only). Both ask first.

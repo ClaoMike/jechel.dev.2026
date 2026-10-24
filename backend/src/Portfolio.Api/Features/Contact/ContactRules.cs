@@ -13,6 +13,12 @@ public static class ContactRules
     public const int MessageMinLength = 100;
     public const int MessageMaxLength = 1000;
 
+    /// <summary>What a message can be about, besides anything (no topic): a project to hire me for (Work with me).</summary>
+    public const string ProjectTopic = "project";
+
+    /// <summary>A project enquiry's subject, in the inbox, the phone alert and the replies' emails.</summary>
+    public const string ProjectSubject = "Project enquiry";
+
     /// <summary>Errors keyed by the (camelCase) JSON field name; empty when the request is valid.</summary>
     public static Dictionary<string, string[]> Validate(SendMessageRequest request)
     {
@@ -35,6 +41,9 @@ public static class ContactRules
             errors["message"] = [$"Message must be at least {MessageMinLength} characters."];
         else if (message.Length > MessageMaxLength)
             errors["message"] = [$"Message must be at most {MessageMaxLength} characters."];
+
+        if (request.Topic is { Length: > 0 } topic && topic != ProjectTopic)
+            errors["topic"] = ["Pick what the message is about."];
 
         return errors;
     }

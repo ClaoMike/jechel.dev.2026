@@ -6,8 +6,11 @@ import { get, http } from '../http'
 export const SITE_PAGES = ['whatsNew', 'apps', 'youtube', 'about', 'contact'] as const
 export type SitePage = (typeof SITE_PAGES)[number]
 
-/** Features that need setting up once live: Buy me a coffee and Get updates (header). Meetings are by invitation: no switch. */
-export const SITE_FEATURES = ['coffee', 'updates'] as const
+/**
+ * Features visitors can be shown or not: Buy me a coffee and Get updates (header), and Work with me (what I offer, and
+ * "A project" on the contact form; off until switched on). Meetings are by invitation: no switch.
+ */
+export const SITE_FEATURES = ['coffee', 'updates', 'workWithMe'] as const
 export type SiteFeature = (typeof SITE_FEATURES)[number]
 
 /** What visitors see. */

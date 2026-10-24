@@ -51,6 +51,32 @@ public class ContactEndpointTests(PortfolioApiFactory factory)
     }
 
     [Fact]
+    public async Task A_project_enquiry_reaches_the_admin_as_one()
+    {
+        var name = $"Sender {Guid.NewGuid():N}";
+        var response = await factory.CreateBrowserClient()
+            .PostAsJsonAsync("/api/contact", new { name, email = "sender@example.com", message = LongMessage, topic = "project" });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var admin = await SignedInClientAsync();
+
+        var summary = await FindAsync(admin, name);
+        var details = await admin.GetFromJsonAsync<ContactMessageDetails>($"/api/contact/messages/{summary.Id}");
+
+        Assert.Equal("Project enquiry", summary.Subject);
+        Assert.Equal("Project enquiry", details!.Subject);
+    }
+
+    [Fact]
+    public async Task A_topic_it_doesnt_know_is_refused()
+    {
+        var response = await factory.CreateBrowserClient()
+            .PostAsJsonAsync("/api/contact", new { name = "Ada", email = "sender@example.com", message = LongMessage, topic = "job" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(["topic"], (await response.Content.ReadFromJsonAsync<ValidationProblemDetails>())!.Errors.Keys);
+    }
+
+    [Fact]
     public async Task Invalid_messages_are_rejected_with_field_errors()
     {
         var response = await factory.CreateBrowserClient()

@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import { WorkWithMe } from '../workWithMe/WorkWithMe/WorkWithMe'
 
 /** A feature the admin tries out on the site before visitors get it (the Feature Testing tab). */
 export interface TestFeature {
@@ -17,4 +18,12 @@ export interface TestFeature {
  * folder under features/), for the admin to try on the real site; once it's ready, it moves to where visitors will see
  * it, and off this list.
  */
-export const TEST_FEATURES: readonly TestFeature[] = []
+export const TEST_FEATURES: readonly TestFeature[] = [
+  {
+    slug: 'work-with-me',
+    title: 'Work with me',
+    description:
+      'What I offer, how a project goes, and the price, with a form that arrives in your inbox as a project enquiry. For visitors: where it goes is still to decide (Contact, or a page of its own); its switch is in Settings → Visitor pages.',
+    Component: WorkWithMe,
+  },
+]

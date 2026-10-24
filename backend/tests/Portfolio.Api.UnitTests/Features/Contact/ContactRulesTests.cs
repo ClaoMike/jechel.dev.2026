@@ -14,6 +14,26 @@ public class ContactRulesTests
         Assert.Empty(ContactRules.Validate(Valid()));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("project")]
+    public void A_message_is_about_anything_or_a_project(string? topic)
+    {
+        Assert.Empty(ContactRules.Validate(Valid() with { Topic = topic }));
+    }
+
+    [Theory]
+    [InlineData("Project")]
+    [InlineData("job")]
+    [InlineData(" project")]
+    public void Any_other_topic_is_refused(string topic)
+    {
+        var errors = ContactRules.Validate(Valid() with { Topic = topic });
+
+        Assert.Equal(["Pick what the message is about."], errors["topic"]);
+    }
+
     [Fact]
     public void Missing_fields_are_all_reported()
     {

@@ -351,6 +351,25 @@ export function CoffeeIcon(p: IconProps) {
   )
 }
 
+/** A globe: websites (Work with me). */
+export const GlobeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M2 12h20" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+  </Icon>
+)
+
+/** Two arrows going round: a process that runs by itself (Work with me's automations). */
+export const AutomateIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M21 12a9 9 0 0 1-15.5 6.2L3 16" />
+    <path d="M3 21v-5h5" />
+    <path d="M3 12a9 9 0 0 1 15.5-6.2L21 8" />
+    <path d="M21 3v5h-5" />
+  </Icon>
+)
+
 /** A lab flask: features being tried out (Feature Testing). */
 export const FlaskIcon = (p: IconProps) => (
   <Icon {...p}>

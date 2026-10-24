@@ -1,7 +1,8 @@
 import { useId, useState, type FormEvent } from 'react'
-import { failureOf, type SendMessageRequest } from '../../../services/api'
+import { failureOf, type ContactTopic, type SendMessageRequest } from '../../../services/api'
 import { useSendMessageMutation } from '../../../store/api/contactApi'
 import { trackEvent } from '../../analytics'
+import { useFeature } from '../../site/useSite'
 import { MESSAGE_MIN_LENGTH, validateContact, type ContactErrors, type ContactField } from '../contactRules'
 
 /** tooMany: the API's limit on messages from one address in a short while (429). */
@@ -19,10 +20,15 @@ function fromApiErrors(apiErrors: Record<string, string[]>): ContactErrors {
   return errors
 }
 
-/** The form's values and errors: they show after the first submit, then update as you type. */
-export function useContactFormViewModel() {
+/**
+ * The form's values and errors: they show after the first submit, then update as you type. What it's about: fixed by
+ * `topic` (Work with me's own form is about a project), or picked on the form once Work with me is switched on.
+ */
+export function useContactFormViewModel({ topic: fixedTopic }: { topic?: ContactTopic } = {}) {
   const id = useId()
   const [values, setValues] = useState<SendMessageRequest>(EMPTY)
+  const [topic, setTopic] = useState<ContactTopic | ''>(fixedTopic ?? '')
+  const showTopic = useFeature('workWithMe') && !fixedTopic
   const [errors, setErrors] = useState<ContactErrors>({})
   const [submitted, setSubmitted] = useState(false)
   const [status, setStatus] = useState<Status>('idle')
@@ -50,9 +56,9 @@ export function useContactFormViewModel() {
 
     setStatus('idle')
     try {
-      await send({ name: values.name.trim(), email: values.email.trim(), message: values.message.trim() }).unwrap()
+      await send({ name: values.name.trim(), email: values.email.trim(), message: values.message.trim(), ...(topic && { topic }) }).unwrap()
       setStatus('sent')
-      trackEvent('Message sent')
+      trackEvent('Message sent', topic ? { topic } : undefined)
     } catch (error) {
       const { status: code, validationErrors } = failureOf(error)
       const apiErrors = validationErrors ? fromApiErrors(validationErrors) : {}
@@ -72,10 +78,14 @@ export function useContactFormViewModel() {
     messageLength,
     messageShort: messageLength > 0 && messageLength < MESSAGE_MIN_LENGTH,
     sentTo: values.email.trim(),
+    showTopic,
+    topic,
+    setTopic,
     update,
     submit: (event: FormEvent<HTMLFormElement>) => void submit(event),
     reset: () => {
       setValues(EMPTY)
+      setTopic(fixedTopic ?? '')
       setErrors({})
       setSubmitted(false)
       setStatus('idle')

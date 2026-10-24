@@ -1,9 +1,22 @@
+import type { ContactTopic } from '../../../services/api'
 import { EMAIL_MAX_LENGTH, MESSAGE_MAX_LENGTH, MESSAGE_MIN_LENGTH, NAME_MAX_LENGTH } from '../contactRules'
 import { useContactFormViewModel } from './ContactForm.viewModel'
 
-/** The public "Contact me" form. Errors show after the first submit, then update as you type. */
-export function ContactForm() {
-  const vm = useContactFormViewModel()
+/**
+ * The public "Contact me" form. Errors show after the first submit, then update as you type. Once Work with me is
+ * switched on, it asks what the message is about; Work with me's own form is about a project (`topic`), with its own
+ * title and words.
+ */
+export function ContactForm({
+  topic,
+  title = 'Contact me',
+  intro = "Have a question or an idea? Send me a message and I'll reply by email. All fields are required.",
+}: {
+  topic?: ContactTopic
+  title?: string
+  intro?: string
+}) {
+  const vm = useContactFormViewModel({ topic })
   const { id, errors, fieldProps } = vm
 
   if (vm.status === 'sent') {
@@ -20,8 +33,8 @@ export function ContactForm() {
 
   return (
     <section className="card" aria-labelledby={`${id}-title`}>
-      <h2 id={`${id}-title`}>Contact me</h2>
-      <p className="muted">Have a question or an idea? Send me a message and I'll reply by email. All fields are required.</p>
+      <h2 id={`${id}-title`}>{title}</h2>
+      <p className="muted">{intro}</p>
 
       <form className="contact-form" noValidate onSubmit={vm.submit}>
         <div className="field">
@@ -35,6 +48,16 @@ export function ContactForm() {
           <input {...fieldProps('email')} type="email" autoComplete="email" maxLength={EMAIL_MAX_LENGTH} onChange={(e) => vm.update('email', e.target.value)} />
           <FieldError id={`${id}-email-error`} error={errors.email} />
         </div>
+
+        {vm.showTopic && (
+          <div className="field">
+            <label htmlFor={`${id}-topic`}>What's it about?</label>
+            <select id={`${id}-topic`} className="select" value={vm.topic} onChange={(e) => vm.setTopic(e.target.value as ContactTopic | '')}>
+              <option value="">A question, or anything else</option>
+              <option value="project">A project: working with me</option>
+            </select>
+          </div>
+        )}
 
         <div className="field">
           <label htmlFor={`${id}-message`}>Message</label>

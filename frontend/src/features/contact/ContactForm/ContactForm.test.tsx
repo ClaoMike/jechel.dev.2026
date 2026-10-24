@@ -3,6 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { THEMES } from '../../../layout/theme'
 import { api, ApiError } from '../../../services/api'
 import { a11yViolations } from '../../../test/a11y'
+import { SITE } from '../../../test/fixtures/site'
 import { renderView, textOf } from '../../../test/render'
 import { MESSAGE_MAX_LENGTH, MESSAGE_MIN_LENGTH } from '../contactRules'
 import { ContactForm } from './ContactForm'
@@ -134,3 +135,64 @@ describe('the contact form', () => {
     })
   }
 })
+
+describe('what the message is about', () => {
+  const topic = () => page.getByRole('combobox', { name: "What's it about?" })
+  const withWorkWithMe = (on: boolean) => ({ site: { ...SITE, features: { ...SITE.features, workWithMe: on } } })
+
+  it("doesn't ask while Work with me is switched off, and sends no topic", async () => {
+    const send = vi.spyOn(api.contact, 'send').mockResolvedValue()
+    await renderView(<ContactForm />, withWorkWithMe(false))
+    await expect.element(field('Name')).toBeVisible()
+    expect(topic().query()).toBeNull()
+    await fill()
+    await submit().click()
+    await expect.poll(() => send.mock.calls.length).toBe(1)
+    expect(send.mock.calls[0][0]).toEqual({ name: 'Ada', email: 'ada@example.com', message: LONG })
+  })
+
+  it('asks once Work with me is on: anything by default, or a project, sent as one', async () => {
+    const send = vi.spyOn(api.contact, 'send').mockResolvedValue()
+    await renderView(<ContactForm />, withWorkWithMe(true))
+    await expect.element(topic()).toHaveValue('')
+    expect(topic().element().querySelectorAll('option')).toHaveLength(2)
+    await fill()
+    await topic().selectOptions('A project: working with me')
+    await submit().click()
+    await expect.poll(() => send.mock.calls.length).toBe(1)
+    expect(send.mock.calls[0][0]).toEqual({ name: 'Ada', email: 'ada@example.com', message: LONG, topic: 'project' })
+  })
+
+  it('sends no topic for anything else, and starts again on anything after sending', async () => {
+    const send = vi.spyOn(api.contact, 'send').mockResolvedValue()
+    await renderView(<ContactForm />, withWorkWithMe(true))
+    await fill()
+    await topic().selectOptions('A project: working with me')
+    await topic().selectOptions('A question, or anything else')
+    await submit().click()
+    await expect.poll(() => send.mock.calls.length).toBe(1)
+    expect(send.mock.calls[0][0]).not.toHaveProperty('topic')
+
+    await page.getByRole('button', { name: 'Send another message' }).click()
+    await expect.element(topic()).toHaveValue('')
+  })
+
+  it("a form that's about a project (Work with me's own) has its own words, never asks, and always sends it as one", async () => {
+    const send = vi.spyOn(api.contact, 'send').mockResolvedValue()
+    await renderView(<ContactForm topic="project" title="Tell me about your project" intro="What you'd like built." />, withWorkWithMe(true))
+    await expect.element(page.getByRole('heading', { name: 'Tell me about your project' })).toBeVisible()
+    await expect.element(page.getByText("What you'd like built.")).toBeVisible()
+    expect(topic().query()).toBeNull()
+    await fill()
+    await submit().click()
+    await expect.poll(() => send.mock.calls.length).toBe(1)
+    expect(send.mock.calls[0][0]).toEqual({ name: 'Ada', email: 'ada@example.com', message: LONG, topic: 'project' })
+
+    await page.getByRole('button', { name: 'Send another message' }).click()
+    await fill()
+    await submit().click()
+    await expect.poll(() => send.mock.calls.length).toBe(2)
+    expect(send.mock.calls[1][0]).toHaveProperty('topic', 'project')
+  })
+})
+

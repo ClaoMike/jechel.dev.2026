@@ -6,7 +6,10 @@ export const EMAIL_MAX_LENGTH = 254
 export const MESSAGE_MIN_LENGTH = 100
 export const MESSAGE_MAX_LENGTH = 1000
 
-export type ContactField = keyof SendMessageRequest
+/** A project enquiry's subject (the API's ContactRules.ProjectSubject): the inbox marks those messages. */
+export const PROJECT_ENQUIRY = 'Project enquiry'
+
+export type ContactField = Exclude<keyof SendMessageRequest, 'topic'>
 export type ContactErrors = Partial<Record<ContactField, string>>
 
 // One address, a dotted domain, no spaces or display names. Edge cases are left to the API.

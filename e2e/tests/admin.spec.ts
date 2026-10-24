@@ -1,11 +1,12 @@
 import type { Browser, Page } from '@playwright/test'
 import { ADMIN_STATE, VISITOR_STATE } from './states.ts'
-import { alerts, expect, test } from './fixtures.ts'
+import { alerts, expect, test, typeInto, unique } from './fixtures.ts'
 
 // The admin: signing in with Google (the stand-in), who is let in, signing out, and the admin's own pages.
 
 const tabs = (page: Page) => page.getByRole('navigation', { name: 'Sections' })
-const ADMIN_TABS = ['Engagement', 'Community', 'Notifications', 'Terms', 'Settings']
+const ADMIN_TABS = ['Engagement', 'Community', 'Notifications', 'Terms', 'Settings', 'Feature Testing BETA']
+const PROJECT = 'We copy orders from a spreadsheet into our shop system by hand every morning. Could you automate that for us, please?'
 
 /** A browser of its own (a visitor who accepted the terms), so signing in or out here leaves the shared admin alone. */
 async function freshPage(browser: Browser) {
@@ -141,12 +142,33 @@ test.describe("the admin's pages", () => {
     await expect(page.getByRole('group', { name: 'New message' }).getByRole('radio', { name: 'On' })).toBeVisible()
   })
 
-  test('Feature Testing (BETA) is the last tab, and says when there is nothing to test', async ({ page }) => {
+  test('Feature Testing (BETA) is the last tab, and opens the first feature to test: Work with me', async ({ page }) => {
     await page.goto('/features')
     const tab = page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Feature Testing BETA' })
     await expect(tab).toHaveAttribute('aria-current', 'page')
     await expect(tab).toBeInViewport()
-    await expect(page.getByText('No features to test right now')).toBeVisible()
+    await expect(page).toHaveURL('/features/work-with-me')
+    await expect(page.getByRole('navigation', { name: 'Features' }).getByRole('link', { name: 'Work with me' })).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('region', { name: 'What I do' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Price' })).toContainText('€25 an hour')
+  })
+
+  test("Work with me's form arrives as a project enquiry: in the inbox, and on the phone", async ({ page, browserName }) => {
+    const name = unique('Client', { browserName })
+    await page.goto('/features/work-with-me')
+    const form = page.getByRole('region', { name: 'Tell me about your project' })
+    await typeInto(form.getByRole('textbox', { name: 'Name' }), name)
+    await typeInto(form.getByRole('textbox', { name: 'Email' }), 'client@e2e.test')
+    await typeInto(form.getByRole('textbox', { name: 'Message' }), PROJECT)
+    await form.getByRole('button', { name: 'Send message' }).click()
+    // The form gives way to the thanks.
+    await expect(page.getByRole('heading', { name: 'Thank you!' })).toBeVisible()
+    await expect(page.getByText("Your message was sent. I'll get back to you at client@e2e.test.")).toBeVisible()
+    await expect.poll(async () => (await alerts()).some((alert) => alert.title === `New project enquiry from ${name}`)).toBe(true)
+
+    await page.goto('/contact')
+    const row = page.getByRole('row').filter({ hasText: name })
+    await expect(row.getByText('Project enquiry')).toBeVisible()
   })
 
   test('Terms can be edited by the admin', async ({ page }) => {

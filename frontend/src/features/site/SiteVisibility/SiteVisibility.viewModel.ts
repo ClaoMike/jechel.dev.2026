@@ -6,7 +6,7 @@ import { fetchSite, saveSite } from '../../../store/siteSlice'
 
 const PAGE_LABELS: Record<SitePage, string> = { whatsNew: "What's new?", apps: 'Apps', youtube: 'YouTube', about: 'About Me', contact: 'Contact' }
 
-const FEATURE_LABELS: Record<SiteFeature, string> = { coffee: 'Buy me a coffee', updates: 'Get updates' }
+const FEATURE_LABELS: Record<SiteFeature, string> = { coffee: 'Buy me a coffee', updates: 'Get updates', workWithMe: 'Work with me' }
 
 /** One switch as the view shows it. */
 export interface SwitchItem {

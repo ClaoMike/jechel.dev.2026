@@ -67,6 +67,18 @@ describe('Settings → Visitor pages', () => {
     await expect.element(toggle('Get updates')).toHaveAttribute('aria-checked', 'true')
   })
 
+  it('switches Work with me on and off, like the other features', async () => {
+    const off = { ...SITE, features: { ...SITE.features, workWithMe: false } }
+    const api = stub(off)
+    await show(off)
+    await expect.element(toggle('Work with me')).toHaveAttribute('aria-checked', 'false')
+
+    await toggle('Work with me').click()
+
+    expect(api.save).toHaveBeenCalledWith({ features: { workWithMe: true } })
+    await expect.element(toggle('Work with me')).toHaveAttribute('aria-checked', 'true')
+  })
+
   it("can't be switched again while saving", async () => {
     const api = stub()
     api.save.mockReturnValue(forever())

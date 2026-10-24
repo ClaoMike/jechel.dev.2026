@@ -3,10 +3,15 @@
 import { type Page, get, http, post } from '../http'
 import type { Meeting } from './meetings'
 
+/** What a message can be about, besides anything: a project to hire me for (Work with me). */
+export type ContactTopic = 'project'
+
 export interface SendMessageRequest {
   name: string
   email: string
   message: string
+  /** Left out for anything; 'project' for a project enquiry (its subject in the inbox: "Project enquiry"). */
+  topic?: ContactTopic
 }
 
 export interface ContactMessageSummary {
@@ -19,6 +24,8 @@ export interface ContactMessageSummary {
   lastActivityAt: string
   /** Messages in the conversation, the first included. */
   count: number
+  /** A project enquiry's subject, or an emailed conversation's; null for a plain message. */
+  subject?: string | null
 }
 
 export interface ContactMessageDetails {
