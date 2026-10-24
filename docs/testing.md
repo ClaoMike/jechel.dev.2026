@@ -118,14 +118,21 @@ isn't tested on GitHub: it will move to its own repository; run its tests locall
 
 1. **backend**: `backend/test.sh`, all tests with coverage (Testcontainers uses the runner's Docker); the report is
    uploaded as the run's `backend-coverage`
-2. **frontend**: in Playwright's image (`mcr.microsoft.com/playwright:v1.64.1-noble`, keep it in step with the
-   `playwright` package): `npm ci`, lint, build, `npm test`. On failure, the coverage report and the screenshots that
-   didn't match are uploaded as the run's `frontend-test-report`.
+2. **frontend**: in Playwright's image (`mcr.microsoft.com/playwright:v1.64.1-noble`, pinned: the system and fonts the
+   Linux screenshots are taken with; the Chromium comes from the `playwright` package): `npm ci`, lint, build,
+   `npm test`. On failure, the coverage report and the screenshots that didn't match are uploaded as the run's
+   `frontend-test-report`. **Then the newest Playwright, every run**: when npm has a newer one, the tests run on it,
+   the Linux screenshots are retaken with it (a new Chromium can draw a pixel differently: that isn't a change of
+   ours, and the run before it already checked this commit), and on `develop` the bot commits both and starts CI for
+   that commit (pull before pushing again).
 3. **e2e**: `e2e/run.sh` on the runner (Docker for the database), the latest Playwright and browsers each run; on
    failure, Playwright's report (traces, screenshots) is uploaded as the run's `e2e-report`. Not a required check
    (`main`'s ruleset names Backend and Frontend); add it there to make it one.
 
 **Linux screenshots.** Screenshot references are per OS: `…-chromium-darwin.png` for your Mac, `…-chromium-linux.png`
-for CI. The Linux ones are taken on GitHub, never locally: Actions → **Update Linux screenshots** → Run workflow on
-your branch. It runs the tests with `--update` in CI's image and commits the new references back to the branch. Run it
-after an intended visual change (after `npm run test:update` locally), then re-run CI.
+for CI, each taken with a known Playwright (`src/test/screenshotsTakenWith.json`). The Linux ones are taken on GitHub,
+never locally: Actions → **Update Linux screenshots** → Run workflow on your branch. It takes them all again
+(`node scripts/screenshots.ts retake`) in CI's image and commits them back to the branch. Run it after an intended
+visual change (after `npm run test:update` locally), then re-run CI. Your Mac's follow Playwright by themselves: when
+`npm test` finds Playwright changed (CI moved it, and you pulled), it first retakes them (`scripts/screenshots.ts`, as
+`pretest`); commit them.

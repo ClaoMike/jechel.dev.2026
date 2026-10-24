@@ -37,20 +37,50 @@ jobs:
   frontend:
     name: Frontend (lint + build + tests)
     runs-on: ubuntu-24.04
-    # Playwright's image: the Chromium the tests run in, with the fonts the Linux screenshots were taken with.
-    # Keep its version the same as the playwright package in frontend/package-lock.json.
+    # Playwright's image, pinned: the system and fonts the Linux screenshots are taken with. The Chromium comes from
+    # the playwright package (installed below), which this job keeps at the newest.
     container:
       image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
+    permissions:
+      contents: write # the commit with the newest Playwright
+      actions: write # starting CI for it
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v7
       - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
       - run: npm run lint
       - run: npm run build
+      # On the Playwright the screenshots were taken with: what this commit changed.
       - run: npm test
+      # Then the newest Playwright, every run: when one is out, the tests run on it, the Linux screenshots are retaken
+      # with it, and (on develop) both are committed. Its new Chromium may draw a pixel differently, which isn't a change of ours.
+      - name: The newest Playwright
+        id: playwright
+        run: |
+          installed=$(node -p "require('./node_modules/playwright/package.json').version")
+          latest=$(npm view playwright version)
+          if [ "$installed" = "$latest" ]; then echo "Playwright $installed is the newest."; exit 0; fi
+          npm install --no-audit --no-fund "playwright@$latest"
+          npx playwright install --with-deps chromium
+          node scripts/screenshots.ts retake
+          echo "updated=$latest" >> "$GITHUB_OUTPUT"
+      - name: Commit the newest Playwright
+        if: steps.playwright.outputs.updated && github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json src/test/screenshotsTakenWith.json 'src/**/*-chromium-linux.png'
+          git commit -m "Playwright ${{ steps.playwright.outputs.updated }} for the frontend tests, with its Linux screenshots (from CI)"
+          git push
+          # A push from CI starts no workflow, so CI is started for the new commit here (it takes over from this run).
+          node -e "fetch('${{ github.api_url }}/repos/${{ github.repository }}/actions/workflows/ci.yml/dispatches', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json' }, body: JSON.stringify({ ref: 'develop' }) }).then((r) => { if (!r.ok) process.exit(1) })"
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

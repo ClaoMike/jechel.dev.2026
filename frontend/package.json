@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "typecheck": "tsc -b",
+    "pretest": "node scripts/screenshots.ts",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:update": "vitest run --update",
