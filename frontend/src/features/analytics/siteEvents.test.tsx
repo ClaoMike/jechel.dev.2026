@@ -20,7 +20,8 @@ const names = () => reported.mock.calls.map(([name]) => name)
 const lastReport = () => reported.mock.calls.at(-1)!
 
 beforeEach(() => {
-  reported = vi.spyOn(tracker, 'event')
+  // Only what's reported counts here: nothing is queued, so nothing is sent to the API later, in another test.
+  reported = vi.spyOn(tracker, 'event').mockImplementation(() => {})
 })
 
 describe('getting updates', () => {
