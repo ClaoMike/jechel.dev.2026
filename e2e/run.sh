@@ -21,7 +21,20 @@ npx playwright --version
 # Chrome, Edge and Firefox are the real ones; WebKit (Safari's engine) is Playwright's, from its latest release.
 if [ -n "${CI:-}" ]; then
   # A download can stall (one hung for half an hour at 100%): each try gets 10 minutes, three tries.
-  retry() { for attempt in 1 2 3; do timeout 600 "$@" && return 0; echo "Try $attempt failed or stalled: again."; done; return 1; }
+  # A stopped try's apt-get lives on, holding apt's lock, so it's stopped too before the next try.
+  retry() {
+    for attempt in 1 2 3; do
+      timeout 600 "$@" && return 0
+      echo "Try $attempt failed or stalled: again."
+      sudo pkill -x apt-get || true
+      sudo pkill -x dpkg || true
+      sleep 2
+      sudo dpkg --configure -a || true
+    done
+    return 1
+  }
+  # apt gives up on a stalled mirror after 30 seconds and asks again, rather than waiting out the 10 minutes.
+  printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' | sudo tee /etc/apt/apt.conf.d/80-e2e-retries >/dev/null
   retry npx playwright install-deps firefox webkit
   retry npx playwright install webkit
   # The current stable Chrome and Edge, from Google and Microsoft (the runner's own may be older).
