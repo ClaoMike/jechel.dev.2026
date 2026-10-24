@@ -161,7 +161,12 @@ public class YouTubeEndpointsTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void Answers_204_when_no_channel_is_set(string channel)
+    [InlineData("@")]
+    [InlineData("https://www.youtube.com/@me")]
+    [InlineData("youtube.com/channel/UCabc")]
+    [InlineData("UC")]
+    [InlineData("UC abc")]
+    public void Answers_204_when_no_channel_is_set_or_it_is_neither_a_handle_nor_an_id(string channel)
     {
         _options.Channel = channel;
 

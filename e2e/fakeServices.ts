@@ -27,7 +27,13 @@ async function bodyOf(request: IncomingMessage) {
 const thumbnail = (title: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360"><rect width="480" height="360" fill="#334"/><text x="240" y="190" font-size="32" fill="#fff" text-anchor="middle" font-family="sans-serif">${title}</text></svg>`
 
-createServer(async (request, response) => {
+createServer((request, response) =>
+  void handle(request, response).catch((error: unknown) => {
+    if (!response.headersSent) json(response, 400, { message: String(error) })
+  }),
+).listen(port, () => console.log(`Fake services on http://localhost:${port}`))
+
+async function handle(request: IncomingMessage, response: ServerResponse) {
   const url = new URL(request.url ?? '/', `http://localhost:${port}`)
   const path = url.pathname
 
@@ -88,4 +94,4 @@ createServer(async (request, response) => {
 
   if (path === '/health') return void response.writeHead(200).end('ok')
   json(response, 404, { message: `Not faked: ${request.method} ${path}` })
-}).listen(port, () => console.log(`Fake services on http://localhost:${port}`))
+}

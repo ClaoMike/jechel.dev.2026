@@ -107,7 +107,8 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 **YouTube** (`src/pages/YouTubePage/YouTubePage.tsx`, API in `backend/.../Features/YouTube/`): the channel's public videos, newest first, in a 3 × 3 grid (2 columns on tablets, 1 on phones). Each card shows the thumbnail, title, date and the start of the description (cut after three lines), and opens the video on YouTube in a new tab. More than 9 videos get Previous / Next, with the page in the URL (`?page=2`).
 
 **The channel's page** (`GET /api/youtube/channel`, public, from **Settings → YouTube → Channel**: a handle gives
-`youtube.com/@handle`, an id `youtube.com/channel/UC…`; 204 when none is set, and then the buttons below aren't shown).
+`youtube.com/@handle`, an id `youtube.com/channel/UC…`; 204 when none is set, or it's neither, such as a pasted web address, and then
+the buttons below aren't shown).
 Three buttons open it in a new tab (`features/youtube/YouTubeChannelButton`): **Visit my YouTube page** above the
 videos, **YouTube** last among About Me's links, and, once an email subscription is confirmed, **Subscribe to my
 YouTube channel** next to **See what's new** (with `?sub_confirmation=1`: YouTube asks to subscribe).

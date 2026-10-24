@@ -67,7 +67,12 @@ const checks = [
 
 let outdated = 0
 for (const check of checks) {
-  const [installed, latest] = await Promise.all([check.installed(), check.latest()])
+  const [installed, latest] = await Promise.all([check.installed(), check.latest().catch((error: unknown) => error as Error)])
+  // Where the newest is published didn't answer: that says nothing about the browser, so it runs (with a note).
+  if (latest instanceof Error) {
+    console.log(`  ? ${check.name} ${installed}: the newest couldn't be checked (${latest.message})`)
+    continue
+  }
   const behind = older(installed, latest)
   if (behind) outdated++
   console.log(`  ${behind ? '✘' : '✓'} ${check.name} ${installed}${behind ? `: ${latest} is out (${check.update})` : ''}`)
