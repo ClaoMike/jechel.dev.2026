@@ -156,6 +156,26 @@ public class YouTubeEndpointTests(PortfolioApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Gives_visitors_the_channels_page_on_YouTube()
+    {
+        var response = await factory.CreateClient().GetAsync("/api/youtube/channel");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("https://www.youtube.com/@test", (await response.Content.ReadFromJsonAsync<YouTubeChannel>())!.Url);
+        Assert.True(response.Headers.CacheControl?.Public);
+    }
+
+    [Fact]
+    public async Task Gives_no_channel_page_when_no_channel_is_set()
+    {
+        await using var unset = factory.WithWebHostBuilder(builder => builder.UseSetting("YouTube:Channel", ""));
+
+        var response = await unset.CreateClient().GetAsync("/api/youtube/channel");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Answers_503_until_YouTube_is_set_up()
     {
         await using var unset = factory.WithWebHostBuilder(builder => builder.UseSetting("YouTube:ApiKey", ""));

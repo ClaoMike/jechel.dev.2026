@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import headers from '../../public/_headers?raw'
+
+// public/_headers as Vite serves it, at the root (an import of a file in public/ is refused or warned about).
+const headers = await (await fetch('/_headers')).text()
 
 /** The headers Cloudflare Pages sends with every page (public/_headers). */
 function header(name: string): string {

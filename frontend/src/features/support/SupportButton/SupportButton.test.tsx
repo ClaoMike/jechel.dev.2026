@@ -30,7 +30,7 @@ describe('Buy me a coffee', () => {
 
   it('records a click for the Engagement tab', async () => {
     stubApi()
-    const reported = vi.spyOn(tracker, 'event')
+    const reported = vi.spyOn(tracker, 'event').mockImplementation(() => {})
     await show()
     // Not followed: the test stays on its page.
     link()

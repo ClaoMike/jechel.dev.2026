@@ -26,6 +26,32 @@ describe('YouTube', () => {
     expect(tile(VIDEOS[2].title).element().closest('.media-card')!.querySelector('.media-card-description')).toBeNull()
   })
 
+  it('links to my YouTube page above the videos, in a new tab', async () => {
+    stubApi()
+    await renderView(<YouTubePage />, { path: '/youtube' })
+    const visit = page.getByRole('link', { name: 'Visit my YouTube page' })
+    await expect.element(visit).toHaveAttribute('href', 'https://www.youtube.com/@jechel')
+    await expect.element(visit).toHaveAttribute('target', '_blank')
+    await expect.element(tile(VIDEOS[0].title)).toBeVisible()
+    // Before the grid.
+    expect(visit.element().compareDocumentPosition(grid().element()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('has no link to my YouTube page without a channel, or when it cannot be loaded', async () => {
+    const api = stubApi()
+    api.youtube.channel.mockResolvedValue(null)
+    const none = await renderView(<YouTubePage />, { path: '/youtube' })
+    await expect.element(tile(VIDEOS[0].title)).toBeVisible()
+    expect(page.getByRole('link', { name: 'Visit my YouTube page' }).query()).toBeNull()
+    await none.unmount()
+
+    api.youtube.channel.mockRejectedValue(new ApiError('/api/youtube/channel', 500))
+    await renderView(<YouTubePage />, { path: '/youtube' })
+    await expect.element(tile(VIDEOS[0].title)).toBeVisible()
+    await expect.poll(() => api.youtube.channel.mock.calls.length).toBeGreaterThan(1)
+    expect(page.getByRole('link', { name: 'Visit my YouTube page' }).query()).toBeNull()
+  })
+
   it('asks for nine a page and pages through more, with the page in the URL', async () => {
     const api = stubApi()
     const all = Array.from({ length: 11 }, (_, i) => makeVideo(i + 1))

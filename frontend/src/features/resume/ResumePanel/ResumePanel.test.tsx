@@ -19,6 +19,7 @@ const skills = () => page.getByRole('group', { name: 'Skills to show' })
 
 describe('the résumé generator', () => {
   it('is folded away until opened, and says only the admin sees it', async () => {
+    vi.spyOn(api.resume, 'getSettings').mockResolvedValue(structuredClone(RESUME))
     await renderView(<ResumePanel skills={SKILLS} />, { user: ADMIN })
     expect(document.querySelector('details.resume-panel')?.hasAttribute('open')).toBe(false)
     await expect.poll(() => document.querySelector('summary')?.textContent).toBe('Résumé generator · only you see this')

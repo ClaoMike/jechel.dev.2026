@@ -175,6 +175,46 @@ describe('the links in the update emails', () => {
     await expect.element(page.getByRole('link', { name: "See what's new" })).toHaveAttribute('href', '/')
   })
 
+  it("offers my YouTube channel next to What's new once subscribed: YouTube's subscribe prompt, in a new tab", async () => {
+    stubApi()
+    await renderApp({ path: '/updates/confirm?token=abc' })
+    const youtube = page.getByRole('link', { name: 'Subscribe to my YouTube channel' })
+    await expect.element(youtube).toHaveAttribute('href', 'https://www.youtube.com/@jechel?sub_confirmation=1')
+    await expect.element(youtube).toHaveAttribute('target', '_blank')
+    await expect.element(youtube).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('offers no YouTube channel while confirming, when it failed, from a test email, or without a channel', async () => {
+    const api = stubApi()
+    const youtube = () => page.getByRole('link', { name: 'Subscribe to my YouTube channel' })
+    let finish!: (email: string) => void
+    api.updates.confirm.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)))
+    const confirming = await renderApp({ path: '/updates/confirm?token=abc' })
+    await expect.element(page.getByText('Confirming…')).toBeVisible()
+    expect(youtube().query()).toBeNull()
+    finish('')
+    await expect.element(youtube()).toBeVisible()
+    await confirming.unmount()
+
+    api.updates.confirm.mockRejectedValueOnce(new ApiError('/api/updates/confirm', 500))
+    const failed = await renderApp({ path: '/updates/confirm?token=abc' })
+    await expect.element(page.getByRole('alert')).toBeVisible()
+    expect(youtube().query()).toBeNull()
+    await failed.unmount()
+
+    const test = await renderApp({ path: '/updates/confirm?token=test' })
+    await expect.element(page.getByRole('status')).toBeVisible()
+    expect(youtube().query()).toBeNull()
+    await test.unmount()
+
+    api.youtube.channel.mockResolvedValue(null)
+    await renderApp({ path: '/updates/confirm?token=abc' })
+    await expect.poll(() => textOf(page.getByRole('status'))).toContain("You're subscribed")
+    await expect.element(page.getByRole('link', { name: "See what's new" })).toBeVisible()
+    expect(youtube().query()).toBeNull()
+    expect(api.youtube.channel).toHaveBeenCalled()
+  })
+
   it('says "Confirming…" meanwhile, and works without the address too', async () => {
     const api = stubApi()
     let finish!: (email: string) => void

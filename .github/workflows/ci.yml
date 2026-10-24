@@ -1,32 +1,33 @@
 name: CI
 
-# Every pull request runs the whole test suite; `main` (production) only takes pull requests whose
-# Backend and Frontend checks passed (a ruleset on GitHub, see the README's Deployment section).
+# Only on the way to production: a pull request into `main` (scripts/deploy.sh opens it) runs the whole test suite, and
+# `main` only takes it when the Backend and Frontend checks passed (a ruleset on GitHub, see docs/deployment.md).
+# Pushes to develop run nothing here: the tests run locally (scripts/test.sh). By hand: Actions → CI → Run workflow.
 on:
   pull_request:
-  push:
-    branches: [develop]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Runners are pinned (ubuntu-24.04, not ubuntu-latest, which is moving to Ubuntu 26): the image changes when we choose to.
 jobs:
   backend:
     name: Backend (build + unit + integration)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: backend/global.json
       # Unit + integration tests with coverage (test.sh). Integration tests use Testcontainers; Docker is available on ubuntu runners.
       - run: ./test.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: backend-coverage
@@ -35,22 +36,58 @@ jobs:
 
   frontend:
     name: Frontend (lint + build + tests)
-    runs-on: ubuntu-latest
-    # Playwright's image: the Chromium the tests run in, with the fonts the Linux screenshots were taken with.
-    # Keep its version the same as the playwright package in frontend/package-lock.json.
+    runs-on: ubuntu-24.04
+    # Playwright's image, pinned: the system and fonts the Linux screenshots are taken with. The Chromium comes from
+    # the playwright package (installed below), which this job keeps at the newest.
     container:
-      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
+    permissions:
+      contents: write # the commit with the newest Playwright
+      actions: write # starting CI for it
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
       - run: npm run lint
       - run: npm run build
+      # On the Playwright the screenshots were taken with: what this commit changed.
       - run: npm test
-      - uses: actions/upload-artifact@v4
+      # Then the newest Playwright, every run: when one is out, the tests run on it, the Linux screenshots are retaken
+      # with it, and both are committed to develop (the pull request's branch). Its new Chromium may draw a pixel differently, which isn't a change of ours.
+      - name: The newest Playwright
+        id: playwright
+        run: |
+          installed=$(node -p "require('./node_modules/playwright/package.json').version")
+          latest=$(npm view playwright version)
+          if [ "$installed" = "$latest" ]; then echo "Playwright $installed is the newest."; exit 0; fi
+          npm install --no-audit --no-fund "playwright@$latest"
+          npx playwright install --with-deps chromium
+          node scripts/screenshots.ts retake
+          echo "updated=$latest" >> "$GITHUB_OUTPUT"
+      - name: Commit the newest Playwright
+        if: steps.playwright.outputs.updated && (github.head_ref || github.ref_name) == 'develop'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # A pull request's run tests develop merged into main: the files go onto develop itself.
+          git stash
+          git fetch -q origin develop
+          git checkout -q -B develop origin/develop
+          git stash pop
+          git add package.json package-lock.json src/test/screenshotsTakenWith.json 'src/**/*-chromium-linux.png'
+          git commit -m "Playwright ${{ steps.playwright.outputs.updated }} for the frontend tests, with its Linux screenshots (from CI)"
+          git push origin develop
+          # A push from CI starts no workflow, so CI is started here for the new commit, which the pull request now
+          # waits on (its checks).
+          node -e "fetch('${{ github.api_url }}/repos/${{ github.repository }}/actions/workflows/ci.yml/dispatches', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json' }, body: JSON.stringify({ ref: 'develop' }) }).then((r) => { if (!r.ok) process.exit(1) })"
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: frontend-test-report
@@ -58,4 +95,32 @@ jobs:
             frontend/coverage
             frontend/src/**/__screenshots__/**/*-actual-*.png
             frontend/src/**/__screenshots__/**/*-diff-*.png
+          retention-days: 7
+
+  e2e:
+    name: End to end (Chrome, Edge, Firefox, Safari)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: backend/global.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # The whole site on a fresh database, in the latest Playwright and the latest of each browser (run.sh installs them
+      # every time: Chrome and Edge from their stable channels, Firefox and WebKit from the newest Playwright).
+      - run: ./e2e/run.sh
+        env:
+          CI: true
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
           retention-days: 7

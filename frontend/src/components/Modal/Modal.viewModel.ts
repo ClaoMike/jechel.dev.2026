@@ -17,7 +17,17 @@ export function useModalViewModel({ initialFocus, onClose, dismissible = true }:
     const { overflow } = document.body.style
     document.body.style.overflow = 'hidden'
 
+    // When what had the focus goes (an app's Save, its form swapped for the app it saved), the browser puts the focus
+    // on the page, outside: Escape and Tab would no longer reach this dialog. Back on the dialog it goes, if it's the top one.
+    const dialog = dialogRef.current!
+    const keepFocus = new MutationObserver(() => {
+      const backdrops = document.querySelectorAll('.modal-backdrop')
+      if ((document.activeElement === document.body || document.activeElement === null) && backdrops[backdrops.length - 1]?.contains(dialog)) dialog.focus({ preventScroll: true })
+    })
+    keepFocus.observe(dialog, { childList: true, subtree: true })
+
     return () => {
+      keepFocus.disconnect()
       document.body.style.overflow = overflow
       opener?.focus()
     }

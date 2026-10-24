@@ -78,3 +78,14 @@ describe('api.places', () => {
     expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual(['GET /api/places/search?q=manchester,+us'])
   })
 })
+
+describe('api.youtube.channel', () => {
+  it("reads my channel's page, or null when no channel is set (204)", async () => {
+    const { requests } = fakeHttp(() => ({ status: 200, body: { url: 'https://www.youtube.com/@jechel' } }))
+    expect(await api.youtube.channel()).toEqual({ url: 'https://www.youtube.com/@jechel' })
+    expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual(['GET /api/youtube/channel'])
+
+    fakeHttp(() => ({ status: 204 }))
+    expect(await api.youtube.channel()).toBeNull()
+  })
+})

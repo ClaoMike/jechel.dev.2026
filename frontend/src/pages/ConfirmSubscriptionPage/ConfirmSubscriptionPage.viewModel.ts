@@ -16,5 +16,5 @@ export function useConfirmSubscriptionPageViewModel() {
           : state.status === 'unknown'
             ? { role: 'alert', text: 'This link isn\'t valid any more. Subscribe again with "Get updates" at the top of the page.' }
             : { role: 'alert', text: "That didn't work. Please try the link again later." }
-  return { message, back: "See what's new" }
+  return { message, back: "See what's new", showYouTube: state.status === 'done' }
 }

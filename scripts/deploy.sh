@@ -12,6 +12,8 @@ command -v gh >/dev/null || fail "the GitHub CLI isn't installed (brew install g
 [ -z "$(git status --porcelain)" ] || fail "there are uncommitted changes; commit or stash them first."
 
 git fetch -q origin
+# CI may have committed to develop (the newest Playwright for the frontend tests): those first, then ours on top.
+git pull -q --rebase origin develop || fail "develop on GitHub has commits that don't go with yours; pull and sort them out first."
 git push origin develop
 git rev-parse -q --verify origin/main >/dev/null || fail "there's no main branch on GitHub yet."
 [ -n "$(git log --oneline origin/main..develop 2>/dev/null)" ] || fail "main already has everything on develop."

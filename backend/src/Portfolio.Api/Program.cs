@@ -48,9 +48,14 @@ builder.Services.AddSingleton<VisitorHasher>();
 // Visits are kept for as long as the terms say, then deleted.
 builder.Services.AddHostedService<AnalyticsRetention>();
 
+// The end-to-end tests (e2e/) point the outside services at their stand-in (E2E:Services, e2e/fakeServices.ts). Only in
+// that environment: everywhere else this is ignored and it's always the real service.
+var fakeServices = builder.Environment.IsEnvironment(AuthSetup.EndToEndEnvironment) && builder.Configuration["E2E:Services"] is { Length: > 0 } fakes ? fakes.TrimEnd('/') : null;
+Uri Outside(Uri real, string name) => fakeServices is null ? real : new Uri($"{fakeServices}/{name}/");
+
 builder.Services.AddHttpClient<ILeetCodeClient, LeetCodeClient>(http =>
 {
-    http.BaseAddress = LeetCodeClient.BaseAddress;
+    http.BaseAddress = Outside(LeetCodeClient.BaseAddress, "leetcode");
     http.Timeout = TimeSpan.FromSeconds(10);
     http.DefaultRequestHeaders.Referrer = LeetCodeClient.BaseAddress;
     http.DefaultRequestHeaders.UserAgent.ParseAdd("jechel.dev-portfolio/1.0");
@@ -63,7 +68,7 @@ builder.Services.AddSingleton<SettingsStore>();
 builder.Services.BindWithSettings<YouTubeOptions>(builder.Configuration, YouTubeOptions.Section);
 builder.Services.AddHttpClient<IYouTubeClient, YouTubeClient>(http =>
 {
-    http.BaseAddress = YouTubeClient.BaseAddress;
+    http.BaseAddress = Outside(YouTubeClient.BaseAddress, "youtube");
     http.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddSingleton<YouTubeVideoStore>();
@@ -105,13 +110,13 @@ builder.Services.BindWithSettings<SupportOptions>(builder.Configuration, Support
 builder.Services.BindWithSettings<EmailOptions>(builder.Configuration, EmailOptions.Section);
 builder.Services.AddHttpClient<ResendEmailSender>(http =>
 {
-    http.BaseAddress = ResendEmailSender.BaseAddress;
+    http.BaseAddress = Outside(ResendEmailSender.BaseAddress, "resend");
     http.Timeout = TimeSpan.FromSeconds(15);
 });
 // Emails to the site's address, received by Resend: the Contact inbox's conversations.
 builder.Services.AddHttpClient<IResendInbox, ResendInbox>(http =>
 {
-    http.BaseAddress = ResendEmailSender.BaseAddress;
+    http.BaseAddress = Outside(ResendEmailSender.BaseAddress, "resend");
     http.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddSingleton<LogEmailSender>();
@@ -122,7 +127,7 @@ builder.Services.AddSingleton<UpdatesTrigger>();
 builder.Services.BindWithSettings<CalOptions>(builder.Configuration, CalOptions.Section);
 builder.Services.AddHttpClient<ICalClient, CalClient>(http =>
 {
-    http.BaseAddress = CalClient.BaseAddress;
+    http.BaseAddress = Outside(CalClient.BaseAddress, "cal");
     http.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddScoped<MeetingReminders>();

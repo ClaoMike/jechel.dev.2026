@@ -37,6 +37,13 @@ describe('About Me, for a visitor', () => {
     expect(api.resume.getSettings).not.toHaveBeenCalled()
   })
 
+  it("links to my YouTube channel with the profile's links, from the channel set in Settings", async () => {
+    await renderAbout()
+    const youtube = page.getByRole('list', { name: 'Links' }).getByRole('link', { name: 'YouTube' })
+    await expect.element(youtube).toHaveAttribute('href', 'https://www.youtube.com/@jechel')
+    await expect.element(youtube).toHaveAttribute('target', '_blank')
+  })
+
   it('shows the page’s shape while it loads (with a hidden heading)', async () => {
     api = stubApi()
     api.about.get.mockReturnValue(forever())

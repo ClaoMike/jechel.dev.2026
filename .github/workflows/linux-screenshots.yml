@@ -1,8 +1,9 @@
 name: Update Linux screenshots
 
 # The frontend's screenshot tests compare against one reference per OS. CI runs on Linux, so its
-# references (…-chromium-linux.png) are taken here, on the same image CI uses, and committed back to
-# the branch this is run on. Run it after an intended visual change (Actions → this workflow → Run).
+# references (…-chromium-linux.png) are taken here, on the same image and Chromium CI uses, and committed back to
+# the branch this is run on. Run it after an intended visual change (Actions → this workflow → Run); CI itself retakes
+# them when it moves to a newer Playwright.
 on:
   workflow_dispatch:
 
@@ -11,24 +12,25 @@ permissions:
 
 jobs:
   update:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: npm ci --no-audit --no-fund
-      # Writes the references that are missing or differ; fails only on real test failures.
-      - run: npx vitest run --update
+      - run: npx playwright install --with-deps chromium
+      # All of them taken again, from scratch, and recorded as from this Playwright; fails only on real test failures.
+      - run: node scripts/screenshots.ts retake
       - name: Commit the Linux references
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add 'src/**/*-chromium-linux.png'
+          git add src/test/screenshotsTakenWith.json 'src/**/*-chromium-linux.png'
           git diff --cached --quiet && echo "Nothing changed." && exit 0
           git commit -m "Linux screenshot references from CI"
           git push

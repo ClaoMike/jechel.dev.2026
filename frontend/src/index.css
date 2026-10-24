@@ -156,6 +156,8 @@ h2 {
   font: inherit;
   font-size: 14px;
   font-weight: 500;
+  /* A link that looks like a button (e.g. "See what's new") isn't underlined either. */
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -3303,6 +3305,18 @@ button.media-card {
   display: grid;
   justify-items: start;
   gap: 12px;
+}
+
+.updates-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* "Visit my YouTube page", above the videos. */
+.youtube-channel {
+  display: flex;
+  margin-bottom: 16px;
 }
 
 /* ---------- Résumé generator (About Me, admin only) ---------- */

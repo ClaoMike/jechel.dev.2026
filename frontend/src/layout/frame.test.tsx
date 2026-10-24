@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
-import { ApiError } from '../services/api'
+import { api, ApiError } from '../services/api'
 import { slowSceneSwitched } from '../store/themeSlice'
 import { stubApi } from '../test/api'
 import { SITE, SUPPORT_URL } from '../test/fixtures/site'
@@ -136,6 +136,9 @@ describe('the header', () => {
     const adminTabs = ['Engagement', 'Community', 'Notifications', 'Terms', 'Settings']
     for (const name of ['dark', 'light', 'vice'] as const) {
       stubApi({ user: ADMIN })
+      // Only the header matters here: Engagement's own figures stay loading.
+      vi.spyOn(api.analytics, 'summary').mockImplementation(forever)
+      vi.spyOn(api.analytics, 'listSessions').mockImplementation(forever)
       const app = await renderApp({ path: '/engagement', theme: name })
       await expect.element(tabs().getByRole('link', { name: 'Settings' })).toBeVisible()
       const links = tabs().getByRole('link').elements()
@@ -178,8 +181,11 @@ describe('the admin bar', () => {
   })
 
   it('warns while maintenance is on, linking to Settings', async () => {
-    const api = stubApi({ user: ADMIN })
-    api.site.status.mockResolvedValue({ ...SITE, maintenance: true })
+    const stubs = stubApi({ user: ADMIN })
+    stubs.site.status.mockResolvedValue({ ...SITE, maintenance: true })
+    // Settings itself stays loading once there.
+    vi.spyOn(api.settings, 'get').mockImplementation(forever)
+    vi.spyOn(api.auth, 'listSessions').mockImplementation(forever)
     const app = await renderApp()
     await page.getByRole('link', { name: 'Maintenance on: visitors see the maintenance page' }).click()
     await expect.poll(() => app.location()).toBe('/settings')
@@ -262,7 +268,7 @@ describe('Vice: hiding the page to see the scene', () => {
     }
   })
 
-  it("keeps the scene in view when the browser gives <html> a background of its own (Firefox on iPhone)", async () => {
+  it('keeps the scene in view when the browser gives <html> a background of its own (Firefox on iPhone)', async () => {
     stubApi()
     await renderApp({ theme: 'vice' })
     const injected = document.createElement('style')
