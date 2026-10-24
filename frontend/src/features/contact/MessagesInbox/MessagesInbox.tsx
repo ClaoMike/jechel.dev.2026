@@ -5,6 +5,7 @@ import { Loading, SkeletonTable } from '../../../components/Skeleton'
 import { formatDateTime } from '../../../utils/formatDate'
 import { MessageDialog } from '../MessageDialog/MessageDialog'
 import { useMessagesInboxViewModel } from './MessagesInbox.viewModel'
+import { PROJECT_ENQUIRY } from '../contactRules'
 
 /** The admin's inbox: messages from the contact form, newest first, 10 per page (?page=N). */
 export function MessagesInbox() {
@@ -61,6 +62,12 @@ export function MessagesInbox() {
                       <button type="button" className="link-button" onClick={() => vm.openMessage(message)}>
                         {message.name}
                       </button>
+                      {message.subject === PROJECT_ENQUIRY && (
+                        <>
+                          {' '}
+                          <span className="chip chip-project">Project enquiry</span>
+                        </>
+                      )}
                     </td>
                     <td>
                       <time dateTime={message.lastActivityAt}>{formatDateTime(message.lastActivityAt)}</time>

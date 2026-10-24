@@ -16,7 +16,12 @@ async function visitor(browser: Browser): Promise<Page> {
 async function restoreSite() {
   const api = await adminApi()
   const response = await api.put('/api/site', {
-    data: { pages: { whatsNew: true, apps: true, youtube: true, about: true, contact: true }, maintenance: false, maintenanceMessage: '' },
+    data: {
+      pages: { whatsNew: true, apps: true, youtube: true, about: true, contact: true },
+      features: { workWithMe: false },
+      maintenance: false,
+      maintenanceMessage: '',
+    },
   })
   expect(response.ok(), await response.text()).toBe(true)
   await api.dispose()
@@ -102,6 +107,33 @@ test("a page switched off in Settings goes from the visitors' tabs and address b
   await next.goto('/youtube')
   await expect(next.getByRole('list', { name: 'Videos' })).toBeVisible()
   await next.context().close()
+})
+
+test('Work with me switched on: the contact form asks what the message is about, and a project arrives as one', async ({ page, browser, browserName }) => {
+  const topic = (guest: Page) => guest.getByRole('combobox', { name: "What's it about?" })
+  const before = await visitor(browser)
+  await before.goto('/contact')
+  await expect(before.getByRole('textbox', { name: 'Name' })).toBeVisible()
+  await expect(topic(before)).toHaveCount(0)
+  await before.context().close()
+
+  await page.goto('/settings')
+  await page.getByRole('switch', { name: 'Work with me' }).click()
+  await expect(page.getByRole('switch', { name: 'Work with me' })).toBeChecked()
+
+  const name = unique('Client', { browserName })
+  const guest = await visitor(browser)
+  await guest.goto('/contact')
+  await topic(guest).selectOption({ label: 'A project: working with me' })
+  await typeInto(guest.getByRole('textbox', { name: 'Name' }), name)
+  await typeInto(guest.getByRole('textbox', { name: 'Email' }), 'client@e2e.test')
+  await typeInto(guest.getByRole('textbox', { name: 'Message' }), 'We would like a website for our bakery, with online orders and a weekly menu we can change ourselves.')
+  await guest.getByRole('button', { name: 'Send message' }).click()
+  await expect(guest.getByRole('heading', { name: 'Thank you!' })).toBeVisible()
+  await guest.context().close()
+
+  await page.goto('/contact')
+  await expect(page.getByRole('row').filter({ hasText: name }).getByText('Project enquiry')).toBeVisible()
 })
 
 test('every page switched off: visitors get "Coming soon"', async ({ browser }) => {

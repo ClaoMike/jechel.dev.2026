@@ -64,6 +64,19 @@ describe('the inbox', () => {
     expect(textOf(row('Bob'))).toContain(formatDateTime(INBOX[1].lastActivityAt))
   })
 
+  it('marks a project enquiry (Work with me), and nothing else, not even an emailed subject', async () => {
+    calls.list.mockResolvedValueOnce(
+      pageOfMessages([
+        { ...INBOX[0], subject: 'Project enquiry' },
+        { ...INBOX[1], subject: 'Re: your app' },
+      ]),
+    )
+    await show()
+    await expect.element(row('Ada').getByText('Project enquiry')).toBeVisible()
+    expect(row('Bob').getByText('Project enquiry').query()).toBeNull()
+    expect(row('Bob').getByText('Re: your app').query()).toBeNull()
+  })
+
   it('marks a conversation with something new as unread', async () => {
     await show()
     await expect.element(row('Ada')).toBeVisible()

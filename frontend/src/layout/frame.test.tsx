@@ -133,7 +133,7 @@ describe('the header', () => {
   })
 
   it("colours the admin's own tabs pink to violet, the same in every theme, current or not", async () => {
-    const adminTabs = ['Engagement', 'Community', 'Notifications', 'Terms', 'Settings']
+    const adminTabs = ['Engagement', 'Community', 'Notifications', 'Terms', 'Settings', 'Feature Testing BETA']
     for (const name of ['dark', 'light', 'vice'] as const) {
       stubApi({ user: ADMIN })
       // Only the header matters here: Engagement's own figures stay loading.

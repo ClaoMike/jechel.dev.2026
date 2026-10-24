@@ -115,13 +115,10 @@ A small window with buttons. Each opens a new Terminal window running the matchi
 
 The first click may trigger a macOS prompt to allow Terminal automation; allow it.
 
-## Roadmap: ideas to review
+## Roadmap
 
-Still to discuss before building:
-
-- **A "Work with me" page.** What you can be hired for (web apps, APIs, MVPs), how you work,
-  typical timelines (optionally "projects from £X"), a booking link for a call, response time.
-  Today a would-be client only has the contact form.
+- **Work with me**: built, being tried in the admin's Feature Testing tab (see [The site](docs/site.md)). Still to
+  decide: where visitors get it (Contact, or a page of its own), then switch it on in Settings → Visitor pages.
 
 ## Configuration
 

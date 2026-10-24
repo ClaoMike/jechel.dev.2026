@@ -134,7 +134,7 @@ describe('the site, for the signed-in admin', () => {
         .getByRole('link')
         .elements()
         .map((a) => a.textContent),
-    ).toEqual(["What's new?", 'Apps', 'YouTube (hidden from visitors)', 'About Me', 'Contact', 'Engagement', 'Community', 'Notifications', 'Terms', 'Settings'])
+    ).toEqual(["What's new?", 'Apps', 'YouTube (hidden from visitors)', 'About Me', 'Contact', 'Engagement', 'Community', 'Notifications', 'Terms', 'Settings', 'Feature Testing BETA'])
     await expect.element(tabs().getByRole('link', { name: /YouTube/ })).toHaveAttribute('title', 'Hidden from visitors')
   })
 })

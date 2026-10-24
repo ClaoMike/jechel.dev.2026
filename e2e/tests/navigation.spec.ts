@@ -47,7 +47,7 @@ test('an address that leads nowhere goes home', async ({ page }) => {
   await expect(page.getByRole('region', { name: "What's new?" })).toBeVisible()
 })
 
-for (const path of ['/engagement', '/community', '/notifications', '/settings']) {
+for (const path of ['/engagement', '/community', '/notifications', '/settings', '/features']) {
   test(`the admin's ${path} isn't there for visitors: it goes home`, async ({ page }) => {
     await page.goto(path)
     await expect(page).toHaveURL('/')

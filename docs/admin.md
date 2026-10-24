@@ -188,7 +188,8 @@ time, of every kind or one, with what became of it.
 
 ## Settings (connections)
 
-The admin's **Settings** tab (`pages/SettingsPage/SettingsPage.tsx`, API in `Features/Settings/`) has three cards: **Visitor pages**,
+The admin's **Settings** tab (`pages/SettingsPage/SettingsPage.tsx`, API in `Features/Settings/`) has three cards: **Visitor pages** (the pages, and the
+features Buy me a coffee, Get updates and Work with me),
 **Signed-in devices** and **Connections**. Connections lists every service the site connects to, **A to Z**, each a folded row (an
 accordion, as the skills are in the About Me editor) with links to its dashboard, its keys, the URLs to paste into it (webhook, OAuth
 callback), and a test button: Buy Me a Coffee, Cal.com, Google sign-in, ntfy, Resend, YouTube Data API, plus quick links: Hosting

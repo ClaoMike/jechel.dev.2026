@@ -4060,6 +4060,78 @@ button.media-card {
   margin: 0;
 }
 
+.empty-state .empty-state-hint {
+  max-width: 42ch;
+  font-size: 14px;
+}
+
+/* ---------- Feature Testing (admin only, BETA) ---------- */
+
+/* After a tab's name, e.g. Feature Testing's BETA. */
+.tab-badge {
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  vertical-align: 2px;
+}
+
+/* An admin tab's text is its gradient (its colour is transparent), so the badge's outline takes the gradient's violet. */
+.tab-admin .tab-badge {
+  border-color: #9942f0;
+}
+
+.feature-testing {
+  display: grid;
+  gap: 16px;
+}
+
+/* Between the features being tested: a row of pills, the open one raised. */
+.feature-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-nav-link {
+  display: inline-block;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  /* Glass, like the site's other pills: it reads over Vice's scene. */
+  background: var(--glass-fill, transparent);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.feature-nav-link:hover {
+  color: var(--text);
+}
+
+.feature-nav-link[aria-current='page'] {
+  border-color: var(--accent);
+  background: var(--selected, var(--surface-muted));
+  color: var(--text);
+}
+
+.feature-testing-header {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.feature-testing-header h3,
+.feature-testing-header p {
+  margin: 0;
+}
+
 .error-state {
   display: flex;
   flex-wrap: wrap;
@@ -4581,4 +4653,113 @@ button.media-card {
 
 .whats-new-admin-note {
   margin: 0 0 12px;
+}
+
+/* The inbox marks a project enquiry (Work with me): the jechel.dev violet, so it stands out among plain messages. */
+.chip-project {
+  border-color: #9942f0;
+  color: light-dark(#7a2fd0, #c39bff);
+}
+
+/* ---------- Work with me (in Feature Testing until it's published) ---------- */
+
+.work-with-me {
+  display: grid;
+  gap: 24px;
+}
+
+.work-with-me h4 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.work-with-me-lead {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.work-services {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.work-service {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.work-service p,
+.work-step p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.work-service-icon {
+  color: var(--accent);
+}
+
+/* The steps, numbered in a column down the left. */
+.work-steps {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.work-step {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  column-gap: 12px;
+  counter-increment: step;
+}
+
+.work-step::before {
+  content: counter(step);
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-fill, var(--accent));
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.work-price p {
+  margin: 0;
+}
+
+.work-price-amount {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+/* The project form sits in the feature's own card: no second card around it. */
+.work-with-me > .card {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.work-with-me > .card::before {
+  display: none;
+}
+
+.work-with-me > .card > h2 {
+  font-size: 16px;
 }

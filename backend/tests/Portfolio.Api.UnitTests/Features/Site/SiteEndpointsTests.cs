@@ -61,14 +61,30 @@ public class SiteEndpointsTests
     }
 
     [Fact]
-    public async Task Pages_start_visible_when_the_site_says_so_and_a_feature_too()
+    public async Task Pages_start_visible_when_the_site_says_so_and_a_feature_too_but_not_one_still_being_tested()
     {
         using var services = TestSite.Services(visibleByDefault: true);
 
         var status = await Status(services);
 
         Assert.All(status.Pages.Values, Assert.True);
-        Assert.All(status.Features.Values, Assert.True);
+        Assert.True(status.Features["coffee"]);
+        Assert.True(status.Features["updates"]);
+        Assert.False(status.Features["workWithMe"]);
+    }
+
+    [Fact]
+    public async Task Work_with_me_is_a_switch_the_admin_can_turn_on_and_off()
+    {
+        using var services = TestSite.Services(visibleByDefault: true);
+
+        var on = await Save(services, new SaveSiteRequest(null, new Dictionary<string, bool> { ["workWithMe"] = true }, null, null));
+        Assert.True(Assert.IsType<Ok<SiteStatus>>(on.Result).Value!.Features["workWithMe"]);
+        Assert.True((await Status(services)).Features["workWithMe"]);
+
+        await Save(services, new SaveSiteRequest(null, new Dictionary<string, bool> { ["workWithMe"] = false }, null, null));
+        Assert.False((await Status(services)).Features["workWithMe"]);
+        Assert.True((await Status(services)).Features["coffee"]);
     }
 
     [Fact]
@@ -105,7 +121,7 @@ public class SiteEndpointsTests
         var status = SiteEndpoints.ToStatus(row, visibleByDefault: true);
 
         Assert.All(status.Pages.Values, Assert.True);
-        Assert.All(status.Features.Values, Assert.True);
+        Assert.Equal(SiteParts.Features.ToDictionary(f => f, f => !SiteParts.OffUntilSwitchedOn.Contains(f)), status.Features);
     }
 
     [Fact]

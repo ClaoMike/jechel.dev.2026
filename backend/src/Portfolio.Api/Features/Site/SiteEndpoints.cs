@@ -13,8 +13,14 @@ public static class SiteParts
 {
     public static readonly IReadOnlyList<string> Pages = ["whatsNew", "apps", "youtube", "about", "contact"];
 
-    /// <param>coffee: "Buy me a coffee" (header); updates: "Get updates" (header). Meetings are by invitation only: no switch.</param>
-    public static readonly IReadOnlyList<string> Features = ["coffee", "updates"];
+    /// <param>
+    /// coffee: "Buy me a coffee" (header); updates: "Get updates" (header); workWithMe: "Work with me" (what I offer, and
+    /// "A project" on the contact form). Meetings are by invitation only: no switch.
+    /// </param>
+    public static readonly IReadOnlyList<string> Features = ["coffee", "updates", "workWithMe"];
+
+    /// <summary>Off until the admin switches them on, whatever <see cref="SiteOptions.PagesVisibleByDefault"/> says: newer features, tried first in Feature Testing.</summary>
+    public static readonly IReadOnlyList<string> OffUntilSwitchedOn = ["workWithMe"];
 }
 
 /// <summary>What visitors see, as the API answers it: every page and feature, each on or off.</summary>
@@ -107,7 +113,7 @@ public static class SiteEndpoints
         var features = Read(row?.Features);
         return new SiteStatus(
             SiteParts.Pages.ToDictionary(p => p, p => pages.TryGetValue(p, out var on) ? on : visibleByDefault),
-            SiteParts.Features.ToDictionary(f => f, f => features.TryGetValue(f, out var on) ? on : visibleByDefault),
+            SiteParts.Features.ToDictionary(f => f, f => features.TryGetValue(f, out var on) ? on : visibleByDefault && !SiteParts.OffUntilSwitchedOn.Contains(f)),
             row?.MaintenanceEnabled ?? false,
             row?.MaintenanceMessage ?? "",
             row?.UpdatedAt);

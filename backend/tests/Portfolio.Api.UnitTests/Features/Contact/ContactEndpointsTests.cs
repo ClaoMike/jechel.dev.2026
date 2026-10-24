@@ -59,6 +59,31 @@ public class ContactEndpointsTests
     }
 
     [Fact]
+    public async Task SendMessage_keeps_a_project_enquiry_as_one_subject_and_alert_and_inbox_say()
+    {
+        var result = await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "ada@example.com", LongMessage, "project"), _db, _time, _alerts, CancellationToken.None);
+
+        Assert.IsType<Created>(result.Result);
+        Assert.Equal("Project enquiry", (await _db.ContactMessages.SingleAsync()).Subject);
+        Assert.Equal("New project enquiry from Ada", Assert.Single(_alerts.Sent).Title);
+        var listed = Assert.Single((await ContactEndpoints.ListMessages(_db, CancellationToken.None)).Value!.Items);
+        Assert.Equal("Project enquiry", listed.Subject);
+    }
+
+    [Fact]
+    public async Task SendMessage_about_anything_has_no_subject()
+    {
+        foreach (var topic in new[] { null, "" })
+        {
+            await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "ada@example.com", LongMessage, topic), _db, _time, _alerts, CancellationToken.None);
+        }
+
+        Assert.All(await _db.ContactMessages.ToListAsync(), m => Assert.Null(m.Subject));
+        Assert.All(_alerts.Sent, a => Assert.Equal("New message from Ada", a.Title));
+        Assert.All((await ContactEndpoints.ListMessages(_db, CancellationToken.None)).Value!.Items, m => Assert.Null(m.Subject));
+    }
+
+    [Fact]
     public async Task SendMessage_rejects_an_invalid_request_and_stores_nothing()
     {
         var result = await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "nope", "too short"), _db, _time, _alerts, CancellationToken.None);

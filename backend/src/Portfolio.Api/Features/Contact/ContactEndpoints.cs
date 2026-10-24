@@ -6,11 +6,13 @@ using Portfolio.Api.Features.Alerts;
 namespace Portfolio.Api.Features.Contact;
 
 /// <summary>Body of the public contact form. Nullable so missing fields become validation errors, not 400s without details.</summary>
-public record SendMessageRequest(string? Name, string? Email, string? Message);
+/// <param name="Topic">"project" for a project enquiry (Work with me); empty or missing for anything else.</param>
+public record SendMessageRequest(string? Name, string? Email, string? Message, string? Topic = null);
 
 /// <param name="LastActivityAt">When anyone last wrote in the conversation.</param>
 /// <param name="Count">Messages in the conversation: the first and every one after.</param>
-public record ContactMessageSummary(int Id, string Name, DateTimeOffset ReceivedAt, bool IsRead, DateTimeOffset LastActivityAt, int Count);
+/// <param name="Subject">A project enquiry's, or an emailed conversation's subject; null for a plain message.</param>
+public record ContactMessageSummary(int Id, string Name, DateTimeOffset ReceivedAt, bool IsRead, DateTimeOffset LastActivityAt, int Count, string? Subject = null);
 
 /// <param name="Replies">Every message after the first, oldest first: the admin's answers and the visitor's.</param>
 /// <param name="Meetings">Meetings the same address booked with Cal.com (not cancelled), soonest first: to accept or decline from the message.</param>
@@ -70,12 +72,14 @@ public static class ContactEndpoints
             Email = request.Email!.Trim(),
             Message = request.Message!.Trim(),
             ReceivedAt = time.GetUtcNow(),
+            Subject = request.Topic == ContactRules.ProjectTopic ? ContactRules.ProjectSubject : null,
         };
         message.LastActivityAt = message.ReceivedAt;
         db.ContactMessages.Add(message);
         await db.SaveChangesAsync(cancellationToken);
 
-        alerts.Send(new PhoneAlert(AlertKinds.Message, $"New message from {message.Name}", message.Message, "/contact", AlertPriority.High, "envelope"));
+        var title = message.Subject == ContactRules.ProjectSubject ? $"New project enquiry from {message.Name}" : $"New message from {message.Name}";
+        alerts.Send(new PhoneAlert(AlertKinds.Message, title, message.Message, "/contact", AlertPriority.High, "envelope"));
 
         return TypedResults.Created();
     }
@@ -97,7 +101,7 @@ public static class ContactEndpoints
             .ThenByDescending(m => m.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(m => new ContactMessageSummary(m.Id, m.Name, m.ReceivedAt, m.ReadAt != null, m.LastActivityAt, 1 + db.ContactReplies.Count(r => r.MessageId == m.Id)))
+            .Select(m => new ContactMessageSummary(m.Id, m.Name, m.ReceivedAt, m.ReadAt != null, m.LastActivityAt, 1 + db.ContactReplies.Count(r => r.MessageId == m.Id), m.Subject))
             .ToListAsync(cancellationToken);
 
         return TypedResults.Ok(new PagedResponse<ContactMessageSummary>(items, page, pageSize, totalCount));

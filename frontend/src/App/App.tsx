@@ -12,6 +12,7 @@ import { CommunityPage } from '../pages/CommunityPage/CommunityPage'
 import { ContactPage } from '../pages/ContactPage/ContactPage'
 import { EngagementPage } from '../pages/EngagementPage/EngagementPage'
 import { NotificationsPage } from '../pages/NotificationsPage/NotificationsPage'
+import { FeatureTestingPage } from '../pages/FeatureTestingPage/FeatureTestingPage'
 import { SettingsPage } from '../pages/SettingsPage/SettingsPage'
 import { TermsPage } from '../pages/TermsPage/TermsPage'
 import { ConfirmSubscriptionPage } from '../pages/ConfirmSubscriptionPage/ConfirmSubscriptionPage'
@@ -74,6 +75,8 @@ function App() {
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="terms" element={<TermsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="features" element={<FeatureTestingPage />} />
+          <Route path="features/:feature" element={<FeatureTestingPage />} />
           {/* The link in an answer's email: works while the Contact page is hidden, and during maintenance. */}
           <Route path="updates/confirm" element={<ConfirmSubscriptionPage />} />
           <Route path="updates/unsubscribe" element={<UnsubscribePage />} />
