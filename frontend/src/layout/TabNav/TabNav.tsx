@@ -11,14 +11,14 @@ export function TabNav() {
   const { navRef, ...vm } = useTabNavViewModel()
 
   return (
-    <div className="tabs-frame" data-overflowing={vm.overflowing || undefined} data-more-left={vm.more.left || undefined} data-more-right={vm.more.right || undefined}>
+    <div className="tabs-frame" data-more-left={vm.more.left || undefined} data-more-right={vm.more.right || undefined}>
       {/* For pointers and fingers only: keyboards reach every tab with Tab (the current one is scrolled into view), so these stay out of the way. */}
       {vm.more.left && (
         <button type="button" className="tabs-arrow tabs-arrow-left" tabIndex={-1} aria-hidden="true" onClick={vm.scrollLeft}>
           <ArrowLeftIcon size={18} />
         </button>
       )}
-      {/* The ends fade here, not on the bar that scrolls (glass.css). */}
+      {/* An end with an arrow fades here, not on the bar that scrolls (glass.css). */}
       <div className="tabs-window">
         <nav ref={navRef} className="tabs" aria-label="Sections" data-dragging={vm.dragging ? '' : undefined} {...vm.navHandlers}>
           {vm.indicator && <span className="tab-indicator" aria-hidden="true" data-animate={vm.indicator.animate ? '' : undefined} style={vm.indicator.style} />}
