@@ -132,15 +132,15 @@ describe('the header', () => {
     await expect.element(tabs().getByRole('link', { name: 'Apps' })).not.toHaveAttribute('aria-current')
   })
 
-  it("colours the admin's own tabs pink to violet, the same in every theme, current or not", async () => {
-    const adminTabs = ['Engagement', 'Community', 'Notifications', 'Terms', 'Settings', 'Feature Testing BETA']
+  it("colours the admin's own tab (System) pink to violet, the same in every theme, current or not", async () => {
+    const adminTabs = ['System']
     for (const name of ['dark', 'light', 'vice'] as const) {
       stubApi({ user: ADMIN })
       // Only the header matters here: Engagement's own figures stay loading.
       vi.spyOn(api.analytics, 'summary').mockImplementation(forever)
       vi.spyOn(api.analytics, 'listSessions').mockImplementation(forever)
       const app = await renderApp({ path: '/engagement', theme: name })
-      await expect.element(tabs().getByRole('link', { name: 'Settings' })).toBeVisible()
+      await expect.element(tabs().getByRole('link', { name: 'System' })).toBeVisible()
       const links = tabs().getByRole('link').elements()
       const own = links.filter((link) => adminTabs.includes(link.textContent!.trim()))
       expect(own.map((link) => link.textContent!.trim())).toEqual(adminTabs)

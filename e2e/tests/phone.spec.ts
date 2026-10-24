@@ -24,6 +24,15 @@ test('every tab can be reached and used', async ({ page, browserName }) => {
   await expect(page.getByRole('heading', { name: 'Contact me' })).toBeVisible()
 })
 
+test("a swipe that starts on the current tab scrolls the bar, as on any other: nothing holds it back there", async ({ page }) => {
+  await page.goto('/')
+  const tabs = page.getByRole('navigation', { name: 'Sections' })
+  const current = tabs.locator('[aria-current="page"]')
+  await expect(current).toHaveText("What's new?")
+  // A touch-action other than auto (the bar's own scrolling) would stop a sideways swipe from it.
+  for (const tab of [current, tabs.getByRole('link', { name: 'Apps' })]) expect(await tab.evaluate((el) => getComputedStyle(el).touchAction)).toBe('auto')
+})
+
 test('the arrows scroll the tabs to either end and no further, however quickly they are pressed', async ({ page, browserName }) => {
   // The narrowest phones: the most tabs out of view.
   await page.setViewportSize({ width: 320, height: 700 })

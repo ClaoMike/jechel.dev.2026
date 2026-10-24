@@ -8,34 +8,31 @@ export interface Currency {
   symbol: string
   /** Written after the amount (25 lei), not before it (€25). */
   after?: boolean
+  /** Its icon: the flag of where it's used (the EU's for the euro), as About Me's citizenships show them. */
+  flag: string
 }
 
 /** At the top of the list. */
 export const FAVOURITE_CURRENCIES: readonly Currency[] = [
-  { code: 'EUR', name: 'Euro', symbol: '€' },
-  { code: 'RON', name: 'Romanian leu', symbol: 'lei', after: true },
-  { code: 'GBP', name: 'British pound', symbol: '£' },
+  { code: 'EUR', name: 'Euro', symbol: '€', flag: 'EU' },
+  { code: 'RON', name: 'Romanian leu', symbol: 'lei', after: true, flag: 'RO' },
+  { code: 'GBP', name: 'British pound', symbol: '£', flag: 'GB' },
 ]
 
-/** The rest, after the favourites. */
+/** After the favourites: the other currencies of the EU's countries (those not on the euro). */
 export const OTHER_CURRENCIES: readonly Currency[] = [
-  { code: 'USD', name: 'US dollar', symbol: '$' },
-  { code: 'CHF', name: 'Swiss franc', symbol: 'CHF', after: true },
-  { code: 'PLN', name: 'Polish złoty', symbol: 'zł', after: true },
-  { code: 'HUF', name: 'Hungarian forint', symbol: 'Ft', after: true },
-  { code: 'CZK', name: 'Czech koruna', symbol: 'Kč', after: true },
-  { code: 'SEK', name: 'Swedish krona', symbol: 'kr', after: true },
-  { code: 'NOK', name: 'Norwegian krone', symbol: 'kr', after: true },
-  { code: 'DKK', name: 'Danish krone', symbol: 'kr', after: true },
-  { code: 'CAD', name: 'Canadian dollar', symbol: 'C$' },
-  { code: 'AUD', name: 'Australian dollar', symbol: 'A$' },
+  { code: 'CZK', name: 'Czech koruna', symbol: 'Kč', after: true, flag: 'CZ' },
+  { code: 'DKK', name: 'Danish krone', symbol: 'kr.', after: true, flag: 'DK' },
+  { code: 'HUF', name: 'Hungarian forint', symbol: 'Ft', after: true, flag: 'HU' },
+  { code: 'PLN', name: 'Polish złoty', symbol: 'zł', after: true, flag: 'PL' },
+  { code: 'SEK', name: 'Swedish krona', symbol: 'kr', after: true, flag: 'SE' },
 ]
 
 export const CURRENCIES: readonly Currency[] = [...FAVOURITE_CURRENCIES, ...OTHER_CURRENCIES]
 
 /** The currency with that code; one not on the list is written as its code. */
 export function currencyOf(code: string): Currency {
-  return CURRENCIES.find((c) => c.code === code) ?? { code, name: code, symbol: code, after: true }
+  return CURRENCIES.find((c) => c.code === code) ?? { code, name: code, symbol: code, after: true, flag: '' }
 }
 
 /** "€25", "25 lei", "£30.50": whole amounts without decimals, others with two. */

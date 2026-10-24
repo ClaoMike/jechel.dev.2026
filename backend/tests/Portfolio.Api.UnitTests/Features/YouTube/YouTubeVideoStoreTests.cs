@@ -82,6 +82,29 @@ public class YouTubeVideoStoreTests
     }
 
     [Fact]
+    public async Task Keeps_why_the_last_fetch_failed_until_one_succeeds()
+    {
+        var store = Store();
+        _youTube.Fails = true;
+        await store.RefreshAsync(CancellationToken.None);
+
+        Assert.Equal("HttpRequestException: YouTube is down", store.LastError);
+
+        _youTube.Fails = false;
+        await store.RefreshAsync(CancellationToken.None);
+
+        Assert.Null(store.LastError);
+    }
+
+    [Theory]
+    [InlineData("GET https://youtube.googleapis.com/youtube/v3/channels?part=x&key=AIzaSecret&id=1 failed", "HttpRequestException: GET https://youtube.googleapis.com/youtube/v3/channels?part=x&key=…&id=1 failed")]
+    [InlineData("Response status code does not indicate success: 403 (Forbidden).", "HttpRequestException: Response status code does not indicate success: 403 (Forbidden).")]
+    public void Describes_a_failure_without_the_API_key(string message, string described)
+    {
+        Assert.Equal(described, YouTubeVideoStore.Describe(new HttpRequestException(message)));
+    }
+
+    [Fact]
     public async Task With_no_list_at_all_and_YouTube_down_has_nothing_to_show()
     {
         _youTube.Fails = true;

@@ -96,6 +96,8 @@ public class YouTubeEndpointsTests
 
         Assert.Equal(503, problem.StatusCode);
         Assert.Equal("YouTube can't be reached right now; the videos shown are the last ones saved.", problem.ProblemDetails.Detail);
+        // Why, to look into: the admin's refresh shows it, to copy.
+        Assert.Equal("HttpRequestException: YouTube is down", problem.ProblemDetails.Extensions["cause"]);
         Assert.Equal(11, Assert.IsType<Ok<PagedResponse<YouTubeVideo>>>((await List()).Result).Value!.TotalCount);
     }
 

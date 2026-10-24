@@ -20,16 +20,29 @@ export interface Page<T> {
 /** Field errors of a 400 response, keyed by camelCase field name (ASP.NET Core ValidationProblem). */
 export type ValidationErrors = Record<string, string[]>
 
+/** What the API said about a failure (its ProblemDetails), to show the admin or copy. */
+export interface ProblemInfo {
+  /** e.g. "YouTube can't be reached right now; …" */
+  detail?: string
+  /** Why, when the API knows (e.g. YouTube's own error). */
+  cause?: string
+}
+
 export class ApiError extends Error {
   /** HTTP status, or 0 when no response arrived (network error). */
   readonly status: number
   /** Field errors, when the API rejected the request body (400 ValidationProblem). */
   readonly validationErrors: ValidationErrors | null
+  /** The method and path asked, e.g. "POST /api/youtube/refresh". */
+  readonly request: string
+  readonly problem: ProblemInfo
 
-  constructor(path: string, status: number, validationErrors: ValidationErrors | null = null) {
+  constructor(path: string, status: number, validationErrors: ValidationErrors | null = null, { method = 'GET', problem = {} }: { method?: string; problem?: ProblemInfo } = {}) {
     super(`Request to ${path} failed with status ${status}`)
     this.status = status
     this.validationErrors = validationErrors
+    this.request = `${method} ${path}`
+    this.problem = problem
   }
 }
 
@@ -41,14 +54,17 @@ export interface ApiFailure {
   /** HTTP status, or 0 when no response arrived (network error). */
   status: number
   validationErrors: ValidationErrors | null
+  /** The method and path asked; "" when it wasn't an API call. */
+  request?: string
+  problem?: ProblemInfo
 }
 
 /** Any failure (an ApiError, an ApiFailure from the store, anything else) as an ApiFailure; status 0 when it isn't an HTTP one. */
 export function failureOf(error: unknown): ApiFailure {
-  if (error instanceof ApiError) return { status: error.status, validationErrors: error.validationErrors }
+  if (error instanceof ApiError) return { status: error.status, validationErrors: error.validationErrors, request: error.request, problem: error.problem }
   if (typeof error === 'object' && error !== null && 'status' in error && typeof error.status === 'number') {
-    const { validationErrors } = error as Partial<ApiFailure>
-    return { status: error.status, validationErrors: validationErrors ?? null }
+    const { validationErrors, request, problem } = error as Partial<ApiFailure>
+    return { status: error.status, validationErrors: validationErrors ?? null, ...(request !== undefined && { request }), ...(problem !== undefined && { problem }) }
   }
   return { status: 0, validationErrors: null }
 }
@@ -115,10 +131,22 @@ http.interceptors.response.use(undefined, (error: unknown) => {
     const status = error.response?.status ?? 0
     const failed = { method: (error.config?.method ?? 'get').toUpperCase(), path, status }
     for (const listener of failedRequestListeners) listener(failed)
-    throw new ApiError(path, status, readValidationErrors(error.response?.data))
+    throw new ApiError(path, status, readValidationErrors(error.response?.data), { method: failed.method, problem: readProblem(error.response?.data) })
   }
   throw error
 })
+
+/** A ProblemDetails' detail (or title) and cause, as far as they're text. */
+function readProblem(body: unknown): ProblemInfo {
+  if (typeof body !== 'object' || body === null) return {}
+  const { detail, title, cause } = body as Record<string, unknown>
+  const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined)
+  const problem: ProblemInfo = {}
+  const said = text(detail) ?? text(title)
+  if (said) problem.detail = said
+  if (text(cause)) problem.cause = text(cause)
+  return problem
+}
 
 function readValidationErrors(body: unknown): ValidationErrors | null {
   if (typeof body !== 'object' || body === null || !('errors' in body)) return null

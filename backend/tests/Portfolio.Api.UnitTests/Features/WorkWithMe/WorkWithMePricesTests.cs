@@ -8,7 +8,7 @@ public class WorkWithMePricesTests
     [InlineData("EUR", "25")]
     [InlineData("RON", "120.50")]
     [InlineData("GBP", "0.01")]
-    [InlineData("AUD", "100000")]
+    [InlineData("SEK", "100000")]
     public void A_listed_currency_and_an_amount_above_0_with_up_to_two_decimals_can_be_saved(string currency, string amount)
     {
         Assert.Empty(WorkWithMePrices.Validate(new SaveWorkWithMePriceRequest(currency, decimal.Parse(amount))));
@@ -20,6 +20,8 @@ public class WorkWithMePricesTests
     [InlineData("eur")]
     [InlineData("XYZ")]
     [InlineData("BTC")]
+    [InlineData("USD")]
+    [InlineData("BGN")]
     public void A_currency_not_on_the_list_is_refused(string? currency)
     {
         var errors = WorkWithMePrices.Validate(new SaveWorkWithMePriceRequest(currency, 25m));

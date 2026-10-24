@@ -10,8 +10,11 @@ public record SaveWorkWithMePriceRequest(string? Currency, decimal? Amount);
 /// <summary>The currencies the price can be in, and what makes a price.</summary>
 public static class WorkWithMePrices
 {
-    /// <summary>The ones the admin can pick (the frontend's features/workWithMe/currencies.ts lists the same, with their symbols).</summary>
-    public static readonly IReadOnlyList<string> Currencies = ["EUR", "RON", "GBP", "USD", "CHF", "PLN", "HUF", "CZK", "SEK", "NOK", "DKK", "CAD", "AUD"];
+    /// <summary>
+    /// The ones the admin can pick: the favourites, then the other currencies of the EU's countries (the frontend's
+    /// features/workWithMe/currencies.ts lists the same, with their symbols and flags).
+    /// </summary>
+    public static readonly IReadOnlyList<string> Currencies = ["EUR", "RON", "GBP", "CZK", "DKK", "HUF", "PLN", "SEK"];
 
     public const decimal MaxAmount = 100_000m;
 

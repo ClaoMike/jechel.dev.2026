@@ -3313,10 +3313,108 @@ button.media-card {
   gap: 12px;
 }
 
-/* "Visit my YouTube page", above the videos. */
+/* "Visit my YouTube page", above the videos, and the admin's refresh at the other end. */
 .youtube-channel {
   display: flex;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 16px;
+}
+
+/* ---------- The admin's refresh from YouTube: an icon that spins, then a tick or a cross ---------- */
+
+.refresh-button {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  margin-inline-start: auto;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* The three icons sit on top of each other; the phase shows one. */
+.refresh-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: scale(0.4) rotate(-90deg);
+  transition:
+    opacity 0.25s,
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.refresh-button:is([data-phase='idle'], [data-phase='busy']) .refresh-icon-refresh,
+.refresh-button[data-phase='done'] .refresh-icon-done,
+.refresh-button[data-phase='failed'] .refresh-icon-failed {
+  opacity: 1;
+  transform: none;
+}
+
+.refresh-button[data-phase='busy'] {
+  cursor: progress;
+}
+
+.refresh-button[data-phase='busy'] .refresh-icon-refresh svg {
+  animation: refresh-spin 0.9s linear infinite;
+}
+
+.refresh-icon-done {
+  color: var(--success);
+}
+
+.refresh-icon-failed {
+  color: var(--error);
+}
+
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refresh-icon {
+    transition: opacity 0.2s;
+    transform: none;
+  }
+
+  .refresh-button[data-phase='busy'] .refresh-icon-refresh svg {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* The popup's details: as the API said them, to copy. */
+.error-report {
+  margin-top: 12px;
+}
+
+.error-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.error-report h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.error-report pre {
+  margin: 8px 0 0;
+  padding: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- Résumé generator (About Me, admin only) ---------- */
@@ -4142,8 +4240,8 @@ button.media-card {
   gap: 16px;
 }
 
-/* Between the features being tested: a row of pills, the open one raised. */
-.feature-nav ul {
+/* A row of pills between pages (System's) or features (Feature Testing's), the open one raised. */
+.pill-nav ul {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -4152,7 +4250,7 @@ button.media-card {
   list-style: none;
 }
 
-.feature-nav-link {
+.pill-nav-link {
   display: inline-block;
   padding: 7px 14px;
   border: 1px solid var(--border);
@@ -4165,14 +4263,31 @@ button.media-card {
   text-decoration: none;
 }
 
-.feature-nav-link:hover {
+.pill-nav-link:hover {
   color: var(--text);
 }
 
-.feature-nav-link[aria-current='page'] {
+.pill-nav-link[aria-current='page'] {
   border-color: var(--accent);
   background: var(--selected, var(--surface-muted));
   color: var(--text);
+}
+
+/* E.g. Feature Testing's BETA. */
+.pill-nav-badge {
+  margin-inline-start: 2px;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
+
+/* System's pages, above the one on show (it stays while they slide). */
+.system-nav {
+  margin-bottom: 16px;
 }
 
 .error-state {
@@ -4814,7 +4929,7 @@ button.media-card {
   gap: 14px;
 }
 
-/* ---------- Currency picker: a short dropdown, each currency with its coin ---------- */
+/* ---------- Currency picker: a short dropdown, each currency with its flag ---------- */
 
 .currency-picker {
   position: relative;
@@ -4864,66 +4979,15 @@ button.media-card {
   text-overflow: ellipsis;
 }
 
-/* A currency's icon: its symbol on a coin, each currency its own colour (white on it at least 4.5:1). */
-.currency-coin {
-  display: inline-grid;
+/* A currency's icon: its flag, a little larger than About Me's. */
+.currency-flag {
+  display: inline-flex;
   flex: none;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 25%, rgb(255 255 255 / 0.28), transparent 60%), var(--coin, #4a4a55);
-  box-shadow:
-    inset 0 0 0 2px rgb(255 255 255 / 0.25),
-    0 1px 3px rgb(0 0 0 / 0.3);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
 }
 
-.currency-coin[data-long] {
-  font-size: 9px;
-}
-
-.currency-coin[data-currency='EUR'] {
-  --coin: #1f4fbf;
-}
-.currency-coin[data-currency='RON'] {
-  --coin: #a8231c;
-}
-.currency-coin[data-currency='GBP'] {
-  --coin: #5b3cc4;
-}
-.currency-coin[data-currency='USD'] {
-  --coin: #1b6b3e;
-}
-.currency-coin[data-currency='CHF'] {
-  --coin: #b3202a;
-}
-.currency-coin[data-currency='PLN'] {
-  --coin: #9c1f38;
-}
-.currency-coin[data-currency='HUF'] {
-  --coin: #2a6e47;
-}
-.currency-coin[data-currency='CZK'] {
-  --coin: #1d5a9e;
-}
-.currency-coin[data-currency='SEK'] {
-  --coin: #1a5891;
-}
-.currency-coin[data-currency='NOK'] {
-  --coin: #962032;
-}
-.currency-coin[data-currency='DKK'] {
-  --coin: #a52537;
-}
-.currency-coin[data-currency='CAD'] {
-  --coin: #ab202b;
-}
-.currency-coin[data-currency='AUD'] {
-  --coin: #1a4a85;
+.currency-flag .flag {
+  width: 24px;
+  height: 18px;
 }
 
 .currency-list {

@@ -1,27 +1,34 @@
-import { NavLink } from 'react-router'
+import { Link } from 'react-router'
 import { EyeOffIcon } from '../../components/icons/icons'
 
 /**
- * One tab: a link that's marked current on its page (and, when `nested`, the pages under it); the admin sees which
- * visitor pages are hidden, and their own tabs in pink and violet. A `badge` (e.g. BETA) follows the name.
+ * One tab: a link marked current (aria-current="page") on its page, the pages under it, or the pages it groups (the tab
+ * bar works that out); the admin sees which visitor pages are hidden, and their own tabs in pink and violet. A `badge`
+ * (e.g. BETA) follows the name.
  */
 export function TabLink({
   to,
   label,
+  current,
   hiddenFromVisitors,
   adminOnly = false,
   badge,
-  nested = false,
 }: {
   to: string
   label: string
+  current: boolean
   hiddenFromVisitors: boolean
   adminOnly?: boolean
   badge?: string
-  nested?: boolean
 }) {
   return (
-    <NavLink to={to} end={!nested} className={adminOnly ? 'tab tab-admin' : 'tab'} draggable={false} title={hiddenFromVisitors ? 'Hidden from visitors' : undefined}>
+    <Link
+      to={to}
+      aria-current={current ? 'page' : undefined}
+      className={adminOnly ? 'tab tab-admin' : 'tab'}
+      draggable={false}
+      title={hiddenFromVisitors ? 'Hidden from visitors' : undefined}
+    >
       {label}
       {badge && (
         <>
@@ -38,6 +45,6 @@ export function TabLink({
           </span>
         </>
       )}
-    </NavLink>
+    </Link>
   )
 }

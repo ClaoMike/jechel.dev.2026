@@ -37,14 +37,14 @@ describe('who sees it', () => {
     expect(page.getByRole('link', { name: /Feature Testing/ }).query()).toBeNull()
   })
 
-  it('is the last admin tab, marked BETA, and stays marked on a feature of its own', async () => {
+  it("is System's last page, marked BETA, and stays marked (System too) on a feature of its own", async () => {
     stubApi({ user: ADMIN })
-    await renderApp({ path: '/features' })
-    const tabs = page.getByRole('navigation', { name: 'Sections' }).getByRole('link')
-    await expect.poll(() => textOf(tabs.last())).toBe('Feature Testing BETA')
-    await expect.element(tabs.last()).toHaveAttribute('aria-current', 'page')
-    expect(tabs.last().element().classList.contains('tab-admin')).toBe(true)
-    expect(tabs.last().element().querySelector('.tab-badge')?.textContent).toBe('BETA')
+    await renderApp({ path: '/features/work-with-me' })
+    const pages = page.getByRole('navigation', { name: 'System' }).getByRole('link')
+    await expect.poll(() => textOf(pages.last())).toBe('Feature Testing BETA')
+    await expect.element(pages.last()).toHaveAttribute('aria-current', 'page')
+    expect(pages.last().element().querySelector('.pill-nav-badge')?.textContent).toBe('BETA')
+    await expect.element(page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'System' })).toHaveAttribute('aria-current', 'page')
   })
 })
 

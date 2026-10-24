@@ -17,7 +17,12 @@ on the icon links in `index.html` (browsers keep tab icons cached).
 
 ## Site sections and the contact feature
 
-The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch, whose icon turns once when picked: the sun's rays go round it, the moon flips over the X axis, the Vice mark over the Y axis; not on load, nor with reduced motion) above five tabs (eleven for the signed-in admin, whose own six are written in the jechel.dev pink to violet, the same in every theme: `.tab-admin` in `glass.css`), each a route rendered inside `src/layout/AppLayout/AppLayout.tsx`:
+The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch, whose icon turns once when picked: the sun's rays go round it, the moon flips over the X axis, the Vice mark over the Y axis; not on load, nor with reduced motion) above five tabs (six for the signed-in admin: **System**, written in the jechel.dev pink to violet, the same in every theme: `.tab-admin` in `glass.css`), each a route rendered inside `src/layout/AppLayout/AppLayout.tsx`.
+
+**System** (`layout/tabs.ts`'s `SYSTEM_PAGES`, `layout/SystemNav/`) holds the admin's own pages: its tab opens the first
+(Engagement), and is marked current on any of them; above the page, a row of pills (`nav` "System") goes to each, and
+stays put while the pages slide. They keep their own addresses (`/engagement`, `/settings`, …: the links in alerts sent
+before still work); `/system` opens the first. Visitors never see the row, not even on `/terms`, which they can read.
 
 | Tab | Route | Status |
 | --- | --- | --- |
@@ -26,11 +31,12 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 | YouTube | `/youtube` | my videos, 9 a page |
 | About Me | `/about` | profile, where I've been (map), problem solving (LeetCode, NeetCode), skills timeline, experience, education, papers, qualifications, languages, licences, hackathons; editable by the admin |
 | Contact | `/contact` | contact form / admin inbox |
-| Engagement | `/engagement` | admin only: how visitors use the site, and every visit replayable to reproduce errors (see [Engagement](features.md#engagement-visitor-analytics)); visitors who open the URL go to `/` |
-| Community | `/community` | admin only: email subscribers, the update emails (new apps wait here to be sent or ignored), and coffees (see [Email updates](features.md#email-updates) and [Buy me a coffee](features.md#buy-me-a-coffee-donations)) |
-| Terms | `/terms` | admin only: the terms and conditions, editable (see [Terms and conditions](features.md#terms-and-conditions)) |
-| Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](admin.md#settings-connections)) |
-| Feature Testing (BETA) | `/features`, `/features/:feature` | admin only: new features, tried out on the real site before visitors get them, with a navigation between them; "No features to test right now" when there are none (see below) |
+| System → Engagement | `/engagement` | admin only: how visitors use the site, and every visit replayable to reproduce errors (see [Engagement](features.md#engagement-visitor-analytics)); visitors who open the URL go to `/` |
+| System → Community | `/community` | admin only: email subscribers, the update emails (new apps wait here to be sent or ignored), and coffees (see [Email updates](features.md#email-updates) and [Buy me a coffee](features.md#buy-me-a-coffee-donations)) |
+| System → Notifications | `/notifications` | admin only: where alerts go and which (see [Notifications](admin.md#notifications-phone-alerts-on-or-off)) |
+| System → Terms | `/terms` | admin only: the terms and conditions, editable (see [Terms and conditions](features.md#terms-and-conditions)) |
+| System → Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](admin.md#settings-connections)) |
+| System → Feature Testing (BETA) | `/features`, `/features/:feature` | admin only: new features, tried out on the real site before visitors get them, with a navigation between them; "No features to test right now" when there are none (see below) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
 **What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): an app or the newest YouTube video, whichever came last, shown in full. The app is the first in the admin's order (Apps → **Organise**) whose **Show in What's new?** is on, compared with the video by when it was added (the video by when it was published). An app switched off is skipped for the next one that's on. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for that one app and the newest video, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later). The signed-in admin sees exactly what visitors see, with a note saying which section is left out and why; the empty and error messages name only what's shown (apps, videos, or both). If one list fails (e.g. YouTube isn't set up), the other is shown.
@@ -155,9 +161,14 @@ How the videos get to the page:
   costs about 2 units of the free 10,000 a day.
 - Visitors' browsers may keep a page of videos for 5 minutes (`Cache-Control: private, max-age=300`, `Vary: Cookie`);
   the signed-in admin's never do (`no-store`).
-- **Refresh from YouTube** (admin only, above the grid): `POST /api/youtube/refresh` asks YouTube now, e.g. right after
-  an upload, and says how many videos there are; the grid and What's new? load again. 503 when YouTube isn't set up or
-  can't be reached (the saved list stays).
+- **Refresh from YouTube** (admin only: a refresh icon at the right end of the row with **Visit my YouTube page**):
+  `POST /api/youtube/refresh` asks YouTube now, e.g. right after an upload; the grid and What's new? load again. The
+  icon spins while it asks (dims, with reduced motion), then turns into a green tick for 2 seconds (screen readers hear
+  how many videos there are), or into a red cross with a popup saying what went wrong, closed only with its **×**.
+  The popup has the details to copy (when, the request, the status, what the API said and why: a 503's `cause`,
+  `YouTubeVideoStore.LastError`, e.g. YouTube's own "403 (Forbidden)", with any API key blanked). 503 when YouTube
+  isn't set up or can't be reached (the saved list stays). Every `ApiError` keeps the request and the API's `detail`
+  and `cause` (`ProblemInfo`, `services/http.ts`) for this.
 - **Reusable for Apps:** `src/components/PagedGrid/PagedGrid.tsx` (takes the RTK Query hook for a page, e.g. `useListAppsQuery`, and its texts as one `PagedGridTexts` object from the page's view model; shows loading / empty / error and the pagination, and renders its children after the grid, e.g. the app popup) and `src/components/MediaCard.tsx` (image, title, meta line, clamped description; the whole card is a link). `Pagination.tsx` and `usePageParam.ts` are shared with the contact inbox.
 
 Unknown URLs redirect to `/`.
@@ -168,12 +179,12 @@ The fade is on a wrapper (`.tabs-window`), not the bar that scrolls, and the arr
 has stopped (120 ms without scrolling): changing mid-scroll on the scrolling bar itself, they made Safari on iPhone draw
 the tabs far past either end with a gap beside them. A press that changes nothing (at the end, while the bar still
 glides there) does nothing: asked again, Safari started the glide over and stopped it short. The current tab is
-scrolled into view, clear of the arrows, also once the admin's tabs appear (after the page has opened). The arrows are for pointers and fingers; keyboards
-reach every tab with Tab. One highlight glides to the tab that's picked. Pressing the current tab and dragging moves it
+scrolled into view, clear of the arrows, also once the admin's tab appears (after the page has opened). The arrows are for pointers and fingers; keyboards
+reach every tab with Tab. One highlight glides to the tab that's picked. With a mouse, pressing the current tab and dragging moves it
 across; letting go snaps it to the nearest tab, which opens (a tap stays a tap: dragging starts after 5 px, and the click that ends a
-drag is swallowed). On phones the bar still scrolls sideways when dragged anywhere else.
+drag is swallowed). A finger always scrolls the bar, the current tab included (its `touch-action` is the bar's own).
 
-**Feature Testing** (`src/pages/FeatureTestingPage/`, admin only, its tab marked BETA): where a new feature goes first,
+**Feature Testing** (`src/pages/FeatureTestingPage/`, admin only, System's last page, marked BETA): where a new feature goes first,
 to be tried on the real site before visitors see it. The features are listed in
 `src/features/featureTesting/testFeatures.ts` (an address, a title, and the component); a row
 of pills moves between them (the feature fills the card below them, with no heading of its own), each at `/features/<its address>`, and `/features` opens the first. Once a feature is
@@ -187,8 +198,9 @@ the plan presented; then the price agreed, building, and keeping each other in t
 final price agreed once the plan is seen. The words are in `workWithMe.ts`. The price is the API's
 (`GET /api/work-with-me/price`, public: €25 until it's first saved): the signed-in admin's **Edit** changes its currency
 and amount (`PUT`, admin only; up to 100,000, two decimals). The currency is picked from a short dropdown
-(`CurrencyPicker`, a select-only combobox usable from the keyboard alone), each currency with its coin (its symbol, its
-own colour): the favourites EUR, RON and GBP first, then USD, CHF, PLN, HUF, CZK, SEK, NOK, DKK, CAD and AUD
+(`CurrencyPicker`, a select-only combobox usable from the keyboard alone), each currency with its flag (the EU's for
+the euro; About Me's `Flag`, from flag-icons): the favourites EUR, RON and GBP first, then the other EU countries'
+currencies, CZK, DKK, HUF, PLN and SEK (Bulgaria is on the euro since 2026)
 (`currencies.ts`, the same codes as the API's `WorkWithMePrices`). Visitors only read it: "€25", "120 lei", "£30.50".
 Its switch, **Work with me** in Settings → Visitor pages, starts off (unlike the others, whatever
 `Site:PagesVisibleByDefault` says: `SiteParts.OffUntilSwitchedOn`); switched on, the contact form asks **What's it

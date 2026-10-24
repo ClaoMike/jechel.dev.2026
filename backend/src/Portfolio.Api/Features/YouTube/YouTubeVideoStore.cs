@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Portfolio.Api.Data;
@@ -29,6 +30,12 @@ public class YouTubeVideoStore(
     // One fetch or database read at a time: requests arriving together cause one.
     private readonly SemaphoreSlim _lock = new(1, 1);
     private Kept? _kept;
+
+    /// <summary>
+    /// Why the last fetch from YouTube failed ("HttpRequestException: … 403 (Forbidden)."), with any API key blanked;
+    /// null once one succeeds. For the admin's refresh, to look into.
+    /// </summary>
+    public string? LastError { get; private set; }
 
     private string Channel => options.CurrentValue.Channel.Trim().ToLowerInvariant();
 
@@ -68,6 +75,9 @@ public class YouTubeVideoStore(
         }
     }
 
+    /// <summary>An exception as "Type: message", any "key=…" in it (a request's address) blanked.</summary>
+    public static string Describe(Exception e) => Regex.Replace($"{e.GetType().Name}: {e.Message}", @"key=[^&\s]+", "key=…");
+
     /// <summary>Forgets the list in memory (the channel or key changed): the next <see cref="GetAsync"/> reads it again.</summary>
     public void Clear() => _kept = null;
 
@@ -99,9 +109,11 @@ public class YouTubeVideoStore(
         catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(e, "Couldn't get the YouTube videos.");
+            LastError = Describe(e);
             return null;
         }
 
+        LastError = null;
         _kept = new Kept(channel, videos);
         try
         {

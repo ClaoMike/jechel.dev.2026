@@ -1,13 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import { THEMES } from '../layout/theme'
-import { ApiError } from '../services/api'
+import { api, ApiError } from '../services/api'
 import { a11yViolations } from '../test/a11y'
 import { stubApi } from '../test/api'
 import { SITE } from '../test/fixtures/site'
 import { ADMIN, forever, renderApp, shootWhole } from '../test/render'
 
 const tabs = () => page.getByRole('navigation', { name: 'Sections' })
+
+/** Engagement (System's first page) loads its figures: here they stay loading. */
+function holdEngagement() {
+  vi.spyOn(api.analytics, 'summary').mockImplementation(forever)
+  vi.spyOn(api.analytics, 'listSessions').mockImplementation(forever)
+}
 
 describe('the site, as a visitor gets it', () => {
   it('opens on the page in the address, inside the frame', async () => {
@@ -124,7 +130,7 @@ describe('the site, as a visitor gets it', () => {
 })
 
 describe('the site, for the signed-in admin', () => {
-  it('shows every page, hidden ones marked, and the admin tabs; never the maintenance screen', async () => {
+  it("shows every page, hidden ones marked, and System (the admin's pages); never the maintenance screen", async () => {
     const api = stubApi({ user: ADMIN })
     api.site.status.mockResolvedValue({ ...SITE, maintenance: true, pages: { ...SITE.pages, youtube: false } })
     await renderApp({ path: '/youtube' })
@@ -134,20 +140,50 @@ describe('the site, for the signed-in admin', () => {
         .getByRole('link')
         .elements()
         .map((a) => a.textContent),
-    ).toEqual([
-      "What's new?",
-      'Apps',
-      'YouTube (hidden from visitors)',
-      'About Me',
-      'Contact',
-      'Engagement',
-      'Community',
-      'Notifications',
-      'Terms',
-      'Settings',
-      'Feature Testing BETA',
-    ])
+    ).toEqual(["What's new?", 'Apps', 'YouTube (hidden from visitors)', 'About Me', 'Contact', 'System'])
     await expect.element(tabs().getByRole('link', { name: /YouTube/ })).toHaveAttribute('title', 'Hidden from visitors')
+  })
+
+  it("groups the admin's pages under System: its tab opens the first, and its own row moves between them, each at its own address", async () => {
+    stubApi({ user: ADMIN })
+    holdEngagement()
+    const app = await renderApp({ path: '/' })
+    const system = () => page.getByRole('navigation', { name: 'System' })
+    expect(system().query()).toBeNull()
+
+    await tabs().getByRole('link', { name: 'System' }).click()
+    await expect.poll(() => app.location()).toBe('/engagement')
+    await expect.element(tabs().getByRole('link', { name: 'System' })).toHaveAttribute('aria-current', 'page')
+    expect(
+      system()
+        .getByRole('link')
+        .elements()
+        .map((a) => a.textContent),
+    ).toEqual(['Engagement', 'Community', 'Notifications', 'Terms', 'Settings', 'Feature Testing BETA'])
+    await expect.element(system().getByRole('link', { name: 'Engagement' })).toHaveAttribute('aria-current', 'page')
+
+    await system().getByRole('link', { name: 'Terms' }).click()
+    await expect.poll(() => app.location()).toBe('/terms')
+    await expect.element(system().getByRole('link', { name: 'Terms' })).toHaveAttribute('aria-current', 'page')
+    await expect.element(system().getByRole('link', { name: 'Engagement' })).not.toHaveAttribute('aria-current')
+    await expect.element(tabs().getByRole('link', { name: 'System' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it("opens System's first page from its own address, /system", async () => {
+    stubApi({ user: ADMIN })
+    holdEngagement()
+    const app = await renderApp({ path: '/system' })
+    await expect.poll(() => app.location()).toBe('/engagement')
+  })
+})
+
+describe("System's row, for visitors", () => {
+  it("isn't there: not on the terms page they can read, nor anywhere else", async () => {
+    stubApi()
+    await renderApp({ path: '/terms' })
+    await expect.element(page.getByRole('heading', { name: 'Terms and Conditions' })).toBeVisible()
+    expect(page.getByRole('navigation', { name: 'System' }).query()).toBeNull()
+    expect(tabs().getByRole('link', { name: 'System' }).query()).toBeNull()
   })
 })
 

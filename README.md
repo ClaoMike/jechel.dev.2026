@@ -117,7 +117,7 @@ The first click may trigger a macOS prompt to allow Terminal automation; allow i
 
 ## Roadmap
 
-- **Work with me**: built, being tried in the admin's Feature Testing tab (see [The site](docs/site.md)). Still to
+- **Work with me**: built, being tried in the admin's Feature Testing (System → Feature Testing) (see [The site](docs/site.md)). Still to
   decide: where visitors get it (Contact, or a page of its own), then switch it on in Settings → Visitor pages.
 
 ## Configuration

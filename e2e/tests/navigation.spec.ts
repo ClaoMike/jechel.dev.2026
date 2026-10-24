@@ -51,7 +51,8 @@ for (const path of ['/engagement', '/community', '/notifications', '/settings', 
   test(`the admin's ${path} isn't there for visitors: it goes home`, async ({ page }) => {
     await page.goto(path)
     await expect(page).toHaveURL('/')
-    await expect(tabs(page).getByRole('link', { name: 'Settings' })).toHaveCount(0)
+    await expect(tabs(page).getByRole('link', { name: 'System' })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'System' })).toHaveCount(0)
   })
 }
 

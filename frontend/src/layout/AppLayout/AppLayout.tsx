@@ -9,6 +9,7 @@ import { ContentToggle } from '../ContentToggle/ContentToggle'
 import { PageTransition } from '../PageTransition/PageTransition'
 import { SiteFooter } from '../SiteFooter/SiteFooter'
 import { SlowSceneNotice } from '../SlowSceneNotice/SlowSceneNotice'
+import { SystemNav } from '../SystemNav/SystemNav'
 import { MaintenanceScreen } from '../../features/site/MaintenanceScreen/MaintenanceScreen'
 import { TabNav } from '../TabNav/TabNav'
 import { ThemeSwitch } from '../ThemeSwitch/ThemeSwitch'
@@ -20,9 +21,9 @@ export interface Downtime {
 }
 
 /**
- * The site frame: the admin's own bar on top (who's signed in, Sign out), then the site name, "Buy me a
- * coffee" and "Get updates", the theme switch, the tabs, the current tab's page, and the footer. With
- * `downtime`, visitors get the same frame (the name, the theme switch, Vice's scene) around the
+ * The site frame: the admin's own bar on top (who's signed in, Sign out), then the site name, "Buy me a coffee" and
+ * "Get updates", the theme switch, the tabs, System's own navigation (on the admin's pages), the current tab's page,
+ * and the footer. With `downtime`, visitors get the same frame (the name, the theme switch, Vice's scene) around the
  * maintenance card, without the tabs, the pages, the footer or the header's other buttons.
  */
 export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
@@ -46,7 +47,14 @@ export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
         {!downtime && <TabNav />}
       </header>
       <main className="page" inert={vm.contentHidden}>
-        {downtime ? <MaintenanceScreen reason={downtime.reason} message={downtime.message} /> : <PageTransition key={vm.preview} />}
+        {downtime ? (
+          <MaintenanceScreen reason={downtime.reason} message={downtime.message} />
+        ) : (
+          <>
+            <SystemNav />
+            <PageTransition key={vm.preview} />
+          </>
+        )}
       </main>
       {!downtime && <SiteFooter inert={vm.contentHidden} />}
       {vm.vice && <ContentToggle hidden={vm.contentHidden} onToggle={vm.toggleContent} slot={vm.toggleSlot} />}
