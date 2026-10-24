@@ -864,9 +864,17 @@ html {
   backdrop-filter: var(--glass-blur);
 }
 
-/* Buttons that sit on the page itself, outside any card ("Visit my YouTube page", the admin's page actions): the same glass, for the same reason. */
+/*
+ * Buttons and pills that sit on the page itself, outside any card ("Visit my YouTube page", the admin's page actions,
+ * Engagement's periods, Feature Testing's features): the same glass, for the same reason. Hovered or open, they light
+ * up over the glass, not instead of it (on its own, that light is see-through).
+ */
 .youtube-channel .button-secondary,
-.page-actions .button-secondary {
+.page-actions .button-secondary,
+.engagement-toggle .button-secondary,
+.engagement-toggle .licence-toggle:not([aria-pressed='true']),
+.feature-nav-link {
+  border-color: transparent;
   background: var(--glass-fill);
   box-shadow:
     var(--glass-shine),
@@ -876,8 +884,25 @@ html {
 }
 
 .youtube-channel .button-secondary:not(:disabled):hover,
-.page-actions .button-secondary:not(:disabled):hover {
-  background: var(--raised-hover);
+.page-actions .button-secondary:not(:disabled):hover,
+.engagement-toggle .button-secondary:not(:disabled):hover,
+.engagement-toggle .licence-toggle:not([aria-pressed='true']):hover,
+.feature-nav-link:hover {
+  background: linear-gradient(var(--raised-hover), var(--raised-hover)), var(--glass-fill);
+}
+
+/* "Couldn't be loaded" on the page itself (not in a card): its red tint over the glass. */
+.error-state:not(.card .error-state) {
+  background: linear-gradient(rgb(255 69 58 / 0.1), rgb(255 69 58 / 0.1)), var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+.feature-nav-link[aria-current='page'] {
+  background: linear-gradient(var(--selected), var(--selected)), var(--glass-fill);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--accent);
 }
 
 .pagination > span {
@@ -1332,6 +1357,7 @@ html {
 
 .field input,
 .field textarea,
+.currency-button,
 .select,
 .year-input,
 .month-field select,
@@ -1347,6 +1373,8 @@ html {
 
 .field input:focus,
 .field textarea:focus,
+.currency-button:focus-visible,
+.currency-button[aria-expanded='true'],
 .select:focus,
 .year-input:focus,
 .month-field select:focus,
@@ -1361,6 +1389,21 @@ html {
 .select option,
 .month-field option {
   background: var(--solid-surface);
+}
+
+/* The currency picker's list: solid (a blur inside a card that's blurred already has nothing to blur), with the glass's lit edge. */
+.currency-list {
+  border: 0;
+  border-radius: 16px;
+  background: var(--solid-surface);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge),
+    var(--glass-shadow);
+}
+
+.currency-option[data-active] {
+  background: var(--raised);
 }
 
 /* ---------- Smaller glass pieces ---------- */

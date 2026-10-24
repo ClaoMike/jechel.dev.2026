@@ -5,10 +5,8 @@ import { WorkWithMe } from '../workWithMe/WorkWithMe/WorkWithMe'
 export interface TestFeature {
   /** Its address under /features: 'work-with-me' is /features/work-with-me. */
   slug: string
-  /** Its name in the features' navigation, and its heading. */
+  /** Its name in the features' navigation (and its section's, for screen readers). */
   title: string
-  /** A line on what it is, or what to try. */
-  description: string
   /** The feature itself. */
   Component: ComponentType
 }
@@ -22,8 +20,6 @@ export const TEST_FEATURES: readonly TestFeature[] = [
   {
     slug: 'work-with-me',
     title: 'Work with me',
-    description:
-      'What I offer, how a project goes, and the price, with a form that arrives in your inbox as a project enquiry. For visitors: where it goes is still to decide (Contact, or a page of its own); its switch is in Settings → Visitor pages.',
     Component: WorkWithMe,
   },
 ]

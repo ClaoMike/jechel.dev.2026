@@ -36,6 +36,7 @@ export const baseApi = createApi({
     'Videos',
     'Visit',
     'Visits',
+    'WorkWithMePrice',
   ],
   // Coming back to a view shows what was loaded at once, and checks for news meanwhile.
   refetchOnMountOrArgChange: 30,

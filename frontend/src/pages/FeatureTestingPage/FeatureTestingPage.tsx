@@ -37,11 +37,7 @@ function FeatureTesting({ features }: { features: readonly TestFeature[] }) {
               ))}
             </ul>
           </nav>
-          <section className="card feature-testing-card" aria-labelledby="feature-title">
-            <header className="feature-testing-header">
-              <h3 id="feature-title">{vm.current.title}</h3>
-              <p className="muted">{vm.current.description}</p>
-            </header>
+          <section className="card feature-testing-card" aria-label={vm.current.title}>
             <vm.current.Component />
           </section>
         </>

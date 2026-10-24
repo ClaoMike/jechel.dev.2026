@@ -175,19 +175,24 @@ drag is swallowed). On phones the bar still scrolls sideways when dragged anywhe
 
 **Feature Testing** (`src/pages/FeatureTestingPage/`, admin only, its tab marked BETA): where a new feature goes first,
 to be tried on the real site before visitors see it. The features are listed in
-`src/features/featureTesting/testFeatures.ts` (an address, a title, a line on what to try, and the component); a row
-of pills moves between them, each at `/features/<its address>`, and `/features` opens the first. Once a feature is
+`src/features/featureTesting/testFeatures.ts` (an address, a title, and the component); a row
+of pills moves between them (the feature fills the card below them, with no heading of its own), each at `/features/<its address>`, and `/features` opens the first. Once a feature is
 ready, it moves to where visitors will see it and comes off the list. With none, the page shows a flask and "No
 features to test right now".
 
 **Work with me** (`src/features/workWithMe/`, in Feature Testing now; for visitors, where it goes is still to decide:
 Contact, or a page of its own). What I offer (websites end to end, APIs, automations for a company's own work: manual
 processes and integrations between its apps), how a project goes (a free call or meeting, online or in person; a plan;
-the plan presented; then the price agreed, building, and keeping each other in the loop), the price (€25 an hour, the
-final price agreed once the plan is seen), and its own form, which sends a **project enquiry**. The words are in
-`workWithMe.ts`. Its switch, **Work with me** in Settings → Visitor pages, starts off (unlike the others, whatever
+the plan presented; then the price agreed, building, and keeping each other in the loop), and the price an hour, the
+final price agreed once the plan is seen. The words are in `workWithMe.ts`. The price is the API's
+(`GET /api/work-with-me/price`, public: €25 until it's first saved): the signed-in admin's **Edit** changes its currency
+and amount (`PUT`, admin only; up to 100,000, two decimals). The currency is picked from a short dropdown
+(`CurrencyPicker`, a select-only combobox usable from the keyboard alone), each currency with its coin (its symbol, its
+own colour): the favourites EUR, RON and GBP first, then USD, CHF, PLN, HUF, CZK, SEK, NOK, DKK, CAD and AUD
+(`currencies.ts`, the same codes as the API's `WorkWithMePrices`). Visitors only read it: "€25", "120 lei", "£30.50".
+Its switch, **Work with me** in Settings → Visitor pages, starts off (unlike the others, whatever
 `Site:PagesVisibleByDefault` says: `SiteParts.OffUntilSwitchedOn`); switched on, the contact form asks **What's it
-about?** (anything, or a project).
+about?** (anything, or a project), which arrives as a **project enquiry**.
 
 **Contact** (`src/pages/ContactPage/ContactPage.tsx`, `src/features/contact/`):
 

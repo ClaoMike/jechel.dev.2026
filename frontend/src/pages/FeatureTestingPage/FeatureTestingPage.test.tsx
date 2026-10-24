@@ -11,8 +11,8 @@ import { FeatureTestingPage } from './FeatureTestingPage'
 // The admin's Feature Testing tab (BETA): features tried out before visitors get them, with a navigation between them.
 
 const FEATURES: TestFeature[] = [
-  { slug: 'work-with-me', title: 'Work with me', description: 'What I offer, and how to start.', Component: () => <p>The work with me page</p> },
-  { slug: 'dark-map', title: 'Dark map', description: 'The map, darker.', Component: () => <p>The darker map</p> },
+  { slug: 'work-with-me', title: 'Work with me', Component: () => <p>The work with me page</p> },
+  { slug: 'dark-map', title: 'Dark map', Component: () => <p>The darker map</p> },
 ]
 
 function show(path = '/features', { features = FEATURES as readonly TestFeature[], theme }: { features?: readonly TestFeature[]; theme?: 'dark' | 'light' | 'vice' } = {}) {
@@ -65,14 +65,18 @@ describe('with no features to test', () => {
 })
 
 describe('with features to test', () => {
-  it('opens the first, with its name and what to try, marked in the navigation', async () => {
+  it('opens the first straight away, in a section named after it, marked in the navigation', async () => {
     const view = await show()
     await expect.poll(() => view.location()).toBe('/features/work-with-me')
-    await expect.element(page.getByRole('heading', { name: 'Work with me' })).toBeVisible()
-    await expect.element(page.getByText('What I offer, and how to start.')).toBeVisible()
-    await expect.element(page.getByText('The work with me page')).toBeVisible()
+    await expect.element(page.getByRole('region', { name: 'Work with me' })).toHaveTextContent('The work with me page')
+    expect(page.getByRole('heading', { name: 'Work with me' }).query()).toBeNull()
     await expect.element(link('Work with me')).toHaveAttribute('aria-current', 'page')
-    expect(featureNav().getByRole('link').elements().map((a) => a.textContent)).toEqual(['Work with me', 'Dark map'])
+    expect(
+      featureNav()
+        .getByRole('link')
+        .elements()
+        .map((a) => a.textContent),
+    ).toEqual(['Work with me', 'Dark map'])
   })
 
   it('moves between them with the navigation, each at its own address', async () => {

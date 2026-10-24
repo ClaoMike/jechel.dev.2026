@@ -139,6 +139,18 @@ export const CheckIcon = (p: IconProps) => (
   </Icon>
 )
 
+export const ChevronDownIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Icon>
+)
+
+export const StarIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3l-5.5 2.9 1-6.2L3 9.6l6.2-.9z" />
+  </Icon>
+)
+
 export const PersonIcon = (p: IconProps) => (
   <Icon {...p} strokeWidth={1.5}>
     <circle cx="12" cy="8" r="4" />

@@ -36,6 +36,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<AlertChannelSetting> AlertChannels => Set<AlertChannelSetting>();
     public DbSet<PushDevice> PushDevices => Set<PushDevice>();
     public DbSet<WebPushKeys> WebPushKeys => Set<WebPushKeys>();
+    public DbSet<WorkWithMePrice> WorkWithMePrices => Set<WorkWithMePrice>();
 
     /// <summary>ASP.NET Core Data Protection's keys (they encrypt cookies and saved secrets), so they survive redeploys.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -346,6 +347,16 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(k => k.PublicKey).HasColumnName("public_key").HasMaxLength(200).IsRequired();
             entity.Property(k => k.PrivateKey).HasColumnName("private_key").HasMaxLength(200).IsRequired();
             entity.Property(k => k.CreatedAt).HasColumnName("created_at");
+        });
+
+        modelBuilder.Entity<WorkWithMePrice>(entity =>
+        {
+            entity.ToTable("work_with_me_price");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(p => p.Currency).HasColumnName("currency").HasMaxLength(3).IsRequired();
+            entity.Property(p => p.Amount).HasColumnName("amount").HasPrecision(12, 2);
+            entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         });
 
         modelBuilder.Entity<UpdateEmailsPage>(entity =>

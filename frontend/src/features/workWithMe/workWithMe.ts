@@ -38,8 +38,8 @@ export const STEPS: readonly Step[] = [
   { title: 'Price, then building', text: 'We agree the price, I build it, and we keep each other in the loop all the way.' },
 ]
 
+/** The amount and currency are the admin's (the API's); these are the words around them. */
 export const PRICE = {
-  amount: '€25',
   per: 'an hour',
   note: "The final price is agreed together, once you've seen the plan.",
 }

@@ -1,12 +1,11 @@
 import type { Browser, Page } from '@playwright/test'
 import { ADMIN_STATE, VISITOR_STATE } from './states.ts'
-import { alerts, expect, test, typeInto, unique } from './fixtures.ts'
+import { alerts, expect, test, typeInto } from './fixtures.ts'
 
 // The admin: signing in with Google (the stand-in), who is let in, signing out, and the admin's own pages.
 
 const tabs = (page: Page) => page.getByRole('navigation', { name: 'Sections' })
 const ADMIN_TABS = ['Engagement', 'Community', 'Notifications', 'Terms', 'Settings', 'Feature Testing BETA']
-const PROJECT = 'We copy orders from a spreadsheet into our shop system by hand every morning. Could you automate that for us, please?'
 
 /** A browser of its own (a visitor who accepted the terms), so signing in or out here leaves the shared admin alone. */
 async function freshPage(browser: Browser) {
@@ -150,25 +149,36 @@ test.describe("the admin's pages", () => {
     await expect(page).toHaveURL('/features/work-with-me')
     await expect(page.getByRole('navigation', { name: 'Features' }).getByRole('link', { name: 'Work with me' })).toHaveAttribute('aria-current', 'page')
     await expect(page.getByRole('region', { name: 'What I do' })).toBeVisible()
-    await expect(page.getByRole('region', { name: 'Price' })).toContainText('€25 an hour')
+    // Its amount is whatever the price test last saved (they run at once): only the words around it are certain.
+    await expect(page.getByRole('region', { name: 'Price' })).toContainText(/ an hour/)
   })
 
-  test("Work with me's form arrives as a project enquiry: in the inbox, and on the phone", async ({ page, browserName }) => {
-    const name = unique('Client', { browserName })
+  test("Work with me's price is the admin's to change: a currency from the list (favourites first) and an amount", async ({ page, browser }) => {
+    // Each browser its own amount: they run at once against the same API.
+    const amounts: Record<string, string> = { chrome: '120', edge: '130', firefox: '140', safari: '150' }
+    const amount = amounts[test.info().project.name] ?? '160'
     await page.goto('/features/work-with-me')
-    const form = page.getByRole('region', { name: 'Tell me about your project' })
-    await typeInto(form.getByRole('textbox', { name: 'Name' }), name)
-    await typeInto(form.getByRole('textbox', { name: 'Email' }), 'client@e2e.test')
-    await typeInto(form.getByRole('textbox', { name: 'Message' }), PROJECT)
-    await form.getByRole('button', { name: 'Send message' }).click()
-    // The form gives way to the thanks.
-    await expect(page.getByRole('heading', { name: 'Thank you!' })).toBeVisible()
-    await expect(page.getByText("Your message was sent. I'll get back to you at client@e2e.test.")).toBeVisible()
-    await expect.poll(async () => (await alerts()).some((alert) => alert.title === `New project enquiry from ${name}`)).toBe(true)
+    const price = page.getByRole('region', { name: 'Price' })
+    await price.getByRole('button', { name: 'Edit the price' }).click()
 
-    await page.goto('/contact')
-    const row = page.getByRole('row').filter({ hasText: name })
-    await expect(row.getByText('Project enquiry')).toBeVisible()
+    const currency = price.getByRole('combobox', { name: 'Currency' })
+    await currency.click()
+    await expect(page.getByRole('listbox', { name: 'Currency' }).getByRole('group').first()).toHaveAttribute('aria-label', 'Favourites')
+    await page.getByRole('option', { name: /RON/ }).click()
+    await expect(currency).toContainText('RON')
+    await typeInto(price.getByRole('textbox', { name: 'Amount, an hour' }), amount)
+    const saved = page.waitForResponse((r) => r.url().endsWith('/api/work-with-me/price') && r.request().method() === 'PUT')
+    await price.getByRole('button', { name: 'Save' }).click()
+    expect(await (await saved).json()).toEqual({ currency: 'RON', amount: Number(amount) })
+    // The other browsers save theirs at the same time, so the page may show one of theirs: in lei, though.
+    await expect(price.getByRole('form', { name: 'Edit the price' })).toBeHidden()
+    await expect(price).toContainText(/\d+ lei an hour/)
+
+    // Visitors read it; only the admin can change it.
+    const visitor = await freshPage(browser)
+    expect((await visitor.request.put('/api/work-with-me/price', { data: { currency: 'GBP', amount: 1 } })).status()).toBe(401)
+    expect(await (await visitor.request.get('/api/work-with-me/price')).json()).toHaveProperty('currency')
+    await visitor.context().close()
   })
 
   test('Terms can be edited by the admin', async ({ page }) => {
