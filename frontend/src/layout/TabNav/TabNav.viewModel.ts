@@ -19,6 +19,9 @@ interface Drag {
 /** A drag starts once the pointer has moved this far, so a tap stays a tap. */
 const DRAG_THRESHOLD = 5
 
+/** The bar counts as stopped once it hasn't scrolled for this long. */
+const SCROLL_SETTLED_MS = 120
+
 export interface TabItem extends Tab {
   /** The admin sees hidden pages too, marked. */
   hiddenFromVisitors: boolean
@@ -47,10 +50,9 @@ export function useTabNavViewModel() {
   const [dragBox, setDragBox] = useState<Box | null>(null)
   // Whether there are more tabs out of view on each side (narrow windows, phones): then an arrow shows there.
   const [more, setMore] = useState({ left: false, right: false })
-  // Whether the tabs don't all fit: then both ends fade, with room for the arrows (it changes with the window, not the scroll).
-  const [overflowing, setOverflowing] = useState(false)
   // Where the arrows last sent the bar: a press while it's still gliding goes on from there, not from midway.
   const scrollTarget = useRef<number | null>(null)
+  const scrollSettling = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const drag = useRef<Drag | null>(null)
   const suppressClick = useRef(false)
 
@@ -62,22 +64,15 @@ export function useTabNavViewModel() {
     const left = nav.scrollLeft > 1
     const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1
     setMore((current) => (current.left === left && current.right === right ? current : { left, right }))
-    if (scrollTarget.current !== null && Math.abs(nav.scrollLeft - scrollTarget.current) < 1) scrollTarget.current = null
+    // Stopped: the next press goes on from where the bar is.
+    scrollTarget.current = null
   }, [])
 
   const measure = useCallback(() => {
-    const nav = navRef.current
-    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]')
+    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
     setBox(active ? { left: active.offsetLeft, width: active.offsetWidth } : null)
-    const tabs = tabElements()
-    if (nav && tabs.length > 0) {
-      // The tabs' own width, whatever the bar's padding: the room for the arrows doesn't count. When they fit, the bar
-      // is as wide as they are plus a few pixels; when they don't, it's as wide as it may be, and that's narrower.
-      const width = tabs.at(-1)!.offsetLeft + tabs.at(-1)!.offsetWidth - tabs[0].offsetLeft
-      setOverflowing(width > nav.clientWidth - 2)
-    }
     updateMore()
-  }, [updateMore, tabElements])
+  }, [updateMore])
 
   useLayoutEffect(measure, [measure, pathname, tabs.length])
 
@@ -178,16 +173,23 @@ export function useTabNavViewModel() {
     event.stopPropagation()
   }
 
+  // The arrows and fades follow the scroll once it has stopped, not during it: Safari on iPhone drew the tabs in the wrong
+  // place when the fade changed mid-scroll.
+  function onScroll() {
+    clearTimeout(scrollSettling.current)
+    scrollSettling.current = setTimeout(updateMore, SCROLL_SETTLED_MS)
+  }
+  useEffect(() => () => clearTimeout(scrollSettling.current), [])
+
   const shown = dragBox ?? box
   return {
     navRef,
     tabs,
     more,
-    overflowing,
     dragging: dragBox !== null,
     indicator: shown && { animate, style: { width: shown.width, transform: `translateX(${shown.left}px)` } satisfies CSSProperties },
     scrollLeft: () => scrollTabs(-1),
     scrollRight: () => scrollTabs(1),
-    navHandlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClickCapture, onScroll: updateMore },
+    navHandlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClickCapture, onScroll },
   }
 }

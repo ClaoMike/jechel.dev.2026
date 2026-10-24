@@ -680,7 +680,6 @@ html {
  * scrolls inside it, so the fades below take only the tabs.
  */
 .tabs-frame {
-  --tabs-fade: 40px;
   position: relative;
   width: fit-content;
   /* Wider than the page (880px) so the admin's nine tabs fit; narrower windows scroll it sideways. */
@@ -694,20 +693,23 @@ html {
 }
 
 /*
- * When the tabs don't all fit, both ends fade, always, over a margin the arrows sit on: at either end of the bar no tab
- * is under an arrow. The fade is on this wrapper and never changes while the bar scrolls: Safari on iPhone drew the tabs
- * in the wrong place (far past either end, a gap beside them) when the scrolling bar's own mask changed mid-scroll, as
- * each arrow came and went.
+ * The tabs fade out under an arrow, so it's clear the bar goes on. The fade is on this wrapper, not on the bar that
+ * scrolls inside it, and it changes only once the bar has stopped (TabNav.viewModel.ts): Safari on iPhone drew the tabs
+ * far past either end, with a gap beside them, when the scrolling bar's own fade changed mid-scroll.
  */
-.tabs-frame[data-overflowing] > .tabs-window {
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--tabs-fade), #000 calc(100% - var(--tabs-fade)), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 var(--tabs-fade), #000 calc(100% - var(--tabs-fade)), transparent 100%);
+.tabs-frame[data-more-left] > .tabs-window {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 56px);
+  mask-image: linear-gradient(to right, transparent 0, #000 56px);
 }
 
-.tabs-frame[data-overflowing] .tabs {
-  padding-inline: var(--tabs-fade);
-  /* The current tab, scrolled into view, stops clear of the fade too. */
-  scroll-padding-inline: var(--tabs-fade);
+.tabs-frame[data-more-right] > .tabs-window {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 56px);
+  mask-image: linear-gradient(to left, transparent 0, #000 56px);
+}
+
+.tabs-frame[data-more-left][data-more-right] > .tabs-window {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
 }
 
 .tabs-arrow {

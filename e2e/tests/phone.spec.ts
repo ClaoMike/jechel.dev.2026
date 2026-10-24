@@ -31,20 +31,23 @@ test('the arrows scroll the tabs to either end and no further, however quickly t
   const tabs = page.getByRole('navigation', { name: 'Sections' })
   const edges = async (name: string) => (await tabs.getByRole('link', { name, exact: true }).boundingBox())!
   const bar = async () => (await page.locator('.tabs-window').boundingBox())!
-  const fade = 40
+  // The end tabs sit against the bar's edges: only its own few pixels of padding between them.
+  const padding = 4
+  const gapAfterContact = async () => (await bar()).x + (await bar()).width - ((await edges('Contact')).x + (await edges('Contact')).width)
+  const gapBeforeWhatsNew = async () => (await edges("What's new?")).x - (await bar()).x
 
+  expect(await gapBeforeWhatsNew()).toBeLessThanOrEqual(padding + 1)
   const right = page.locator('.tabs-arrow-right')
   for (let i = 0; i < 4 && (await right.isVisible()); i++) await tap(right, browserName)
   await expect(right).toBeHidden()
-  // Contact ends at the bar's end, just clear of the fade: not drawn further left, with a gap after it.
-  await expect.poll(async () => Math.round((await bar()).x + (await bar()).width - fade - ((await edges('Contact')).x + (await edges('Contact')).width)), { timeout: 5000 }).toBeLessThanOrEqual(1)
-  expect((await bar()).x + (await bar()).width - fade - ((await edges('Contact')).x + (await edges('Contact')).width)).toBeGreaterThanOrEqual(-1)
+  await expect.poll(gapAfterContact, { timeout: 5000 }).toBeLessThanOrEqual(padding + 1)
+  expect(await gapAfterContact()).toBeGreaterThanOrEqual(0)
 
   const left = page.locator('.tabs-arrow-left')
   for (let i = 0; i < 4 && (await left.isVisible()); i++) await tap(left, browserName)
   await expect(left).toBeHidden()
-  await expect.poll(async () => Math.round((await edges("What's new?")).x - ((await bar()).x + fade)), { timeout: 5000 }).toBeGreaterThanOrEqual(-1)
-  expect((await edges("What's new?")).x - ((await bar()).x + fade)).toBeLessThanOrEqual(8)
+  await expect.poll(gapBeforeWhatsNew, { timeout: 5000 }).toBeLessThanOrEqual(padding + 1)
+  expect(await gapBeforeWhatsNew()).toBeGreaterThanOrEqual(0)
 })
 
 test("an app's popup fits the screen, and only its inside scrolls", async ({ page, browserName }) => {
