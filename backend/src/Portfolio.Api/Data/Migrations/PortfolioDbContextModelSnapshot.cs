@@ -1199,6 +1199,32 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("web_push_keys", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.WorkWithMePrice", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("work_with_me_price", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.YouTubeSnapshot", b =>
                 {
                     b.Property<string>("Channel")

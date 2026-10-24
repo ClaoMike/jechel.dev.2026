@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { AutomateIcon, CodeIcon, GlobeIcon } from '../../../components/icons/icons'
-import { ContactForm } from '../../contact/ContactForm/ContactForm'
-import { PRICE, SERVICES, STEPS, type ServiceIcon } from '../workWithMe'
+import { WorkWithMePrice } from '../WorkWithMePrice/WorkWithMePrice'
+import { SERVICES, STEPS, type ServiceIcon } from '../workWithMe'
 
 const ICONS: Record<ServiceIcon, ReactNode> = {
   website: <GlobeIcon size={24} />,
@@ -9,12 +9,10 @@ const ICONS: Record<ServiceIcon, ReactNode> = {
   automation: <AutomateIcon size={24} />,
 }
 
-/** Work with me: what I offer, how a project goes, the price, and a form to start one (a project enquiry in the inbox). */
+/** Work with me: what I offer, how a project goes, and the price (the admin sets it here). */
 export function WorkWithMe() {
   return (
     <div className="work-with-me">
-      <p className="work-with-me-lead">I build websites and the systems behind them, end to end, and automate the work your team still does by hand.</p>
-
       <section aria-labelledby="work-services-title">
         <h4 id="work-services-title">What I do</h4>
         <ul className="work-services">
@@ -40,19 +38,7 @@ export function WorkWithMe() {
         </ol>
       </section>
 
-      <section aria-labelledby="work-price-title" className="work-price">
-        <h4 id="work-price-title">Price</h4>
-        <p>
-          <span className="work-price-amount">{PRICE.amount}</span> {PRICE.per}
-        </p>
-        <p className="muted">{PRICE.note}</p>
-      </section>
-
-      <ContactForm
-        topic="project"
-        title="Tell me about your project"
-        intro="What you'd like built or automated, and anything I should know. I'll reply by email to set up the call. All fields are required."
-      />
+      <WorkWithMePrice />
     </div>
   )
 }

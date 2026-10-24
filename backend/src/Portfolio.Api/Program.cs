@@ -21,6 +21,7 @@ using Portfolio.Api.Features.Site;
 using Portfolio.Api.Features.Support;
 using Portfolio.Api.Features.Terms;
 using Portfolio.Api.Features.Updates;
+using Portfolio.Api.Features.WorkWithMe;
 using Portfolio.Api.Features.YouTube;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -236,5 +237,6 @@ api.MapNotificationsEndpoints();
 api.MapPushEndpoints();
 api.MapMeetingsEndpoints();
 api.MapSiteEndpoints();
+api.MapWorkWithMeEndpoints();
 
 app.Run();

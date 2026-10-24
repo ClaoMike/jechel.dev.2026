@@ -26,6 +26,7 @@ import { siteEndpoints } from './endpoints/site'
 import { supportEndpoints } from './endpoints/support'
 import { termsEndpoints } from './endpoints/terms'
 import { updatesEndpoints } from './endpoints/updates'
+import { workWithMeEndpoints } from './endpoints/workWithMe'
 import { youtubeEndpoints } from './endpoints/youtube'
 
 export { ApiError, failureOf, onRequestFailed, setRequestPreview } from './http'
@@ -47,6 +48,7 @@ export * from './endpoints/site'
 export * from './endpoints/support'
 export * from './endpoints/terms'
 export * from './endpoints/updates'
+export * from './endpoints/workWithMe'
 export * from './endpoints/youtube'
 
 export const api = {
@@ -68,4 +70,5 @@ export const api = {
   settings: settingsEndpoints,
   notifications: notificationsEndpoints,
   profile: profileEndpoints,
+  workWithMe: workWithMeEndpoints,
 }

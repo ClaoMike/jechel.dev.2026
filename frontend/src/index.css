@@ -4175,17 +4175,6 @@ button.media-card {
   color: var(--text);
 }
 
-.feature-testing-header {
-  display: grid;
-  gap: 4px;
-  margin-bottom: 16px;
-}
-
-.feature-testing-header h3,
-.feature-testing-header p {
-  margin: 0;
-}
-
 .error-state {
   display: flex;
   flex-wrap: wrap;
@@ -4727,12 +4716,6 @@ button.media-card {
   font-size: 16px;
 }
 
-.work-with-me-lead {
-  margin: 0;
-  font-size: 17px;
-  line-height: 1.5;
-}
-
 .work-services {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -4800,20 +4783,209 @@ button.media-card {
   font-weight: 700;
 }
 
-/* The project form sits in the feature's own card: no second card around it. */
-.work-with-me > .card {
-  padding: 0;
-  border: 0;
-  background: none;
-  box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+/* The heading, and the admin's Edit beside it. */
+.work-price-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
-.work-with-me > .card::before {
+.work-with-me .work-price-header h4 {
+  margin: 0;
+}
+
+.work-price {
+  display: grid;
+  gap: 6px;
+}
+
+.work-price-editor {
+  display: grid;
+  gap: 14px;
+}
+
+/* Currency and amount side by side, one above the other on a phone. */
+.work-price-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+/* ---------- Currency picker: a short dropdown, each currency with its coin ---------- */
+
+.currency-picker {
+  position: relative;
+}
+
+.field-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.currency-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.currency-button > svg {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+
+.currency-button[aria-expanded='true'] > svg {
+  transform: rotate(180deg);
+}
+
+.currency-code {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.currency-name {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A currency's icon: its symbol on a coin, each currency its own colour (white on it at least 4.5:1). */
+.currency-coin {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, rgb(255 255 255 / 0.28), transparent 60%), var(--coin, #4a4a55);
+  box-shadow:
+    inset 0 0 0 2px rgb(255 255 255 / 0.25),
+    0 1px 3px rgb(0 0 0 / 0.3);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.currency-coin[data-long] {
+  font-size: 9px;
+}
+
+.currency-coin[data-currency='EUR'] {
+  --coin: #1f4fbf;
+}
+.currency-coin[data-currency='RON'] {
+  --coin: #a8231c;
+}
+.currency-coin[data-currency='GBP'] {
+  --coin: #5b3cc4;
+}
+.currency-coin[data-currency='USD'] {
+  --coin: #1b6b3e;
+}
+.currency-coin[data-currency='CHF'] {
+  --coin: #b3202a;
+}
+.currency-coin[data-currency='PLN'] {
+  --coin: #9c1f38;
+}
+.currency-coin[data-currency='HUF'] {
+  --coin: #2a6e47;
+}
+.currency-coin[data-currency='CZK'] {
+  --coin: #1d5a9e;
+}
+.currency-coin[data-currency='SEK'] {
+  --coin: #1a5891;
+}
+.currency-coin[data-currency='NOK'] {
+  --coin: #962032;
+}
+.currency-coin[data-currency='DKK'] {
+  --coin: #a52537;
+}
+.currency-coin[data-currency='CAD'] {
+  --coin: #ab202b;
+}
+.currency-coin[data-currency='AUD'] {
+  --coin: #1a4a85;
+}
+
+.currency-list {
+  position: absolute;
+  top: 100%;
+  inset-inline: 0;
+  z-index: 20;
+  max-height: 280px;
+  margin: 6px 0 0;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--solid-surface);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+  list-style: none;
+}
+
+.currency-list[hidden] {
   display: none;
 }
 
-.work-with-me > .card > h2 {
-  font-size: 16px;
+.currency-group {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.currency-group + .currency-group,
+li + li > .currency-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.currency-group-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.currency-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.currency-option[data-active] {
+  background: var(--surface-muted);
+}
+
+.currency-option > svg {
+  margin-inline-start: auto;
+  color: var(--accent);
 }
