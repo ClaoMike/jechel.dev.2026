@@ -47,6 +47,10 @@ export function useTabNavViewModel() {
   const [dragBox, setDragBox] = useState<Box | null>(null)
   // Whether there are more tabs out of view on each side (narrow windows, phones): then an arrow shows there.
   const [more, setMore] = useState({ left: false, right: false })
+  // Whether the tabs don't all fit: then both ends fade, with room for the arrows (it changes with the window, not the scroll).
+  const [overflowing, setOverflowing] = useState(false)
+  // Where the arrows last sent the bar: a press while it's still gliding goes on from there, not from midway.
+  const scrollTarget = useRef<number | null>(null)
   const drag = useRef<Drag | null>(null)
   const suppressClick = useRef(false)
 
@@ -58,13 +62,22 @@ export function useTabNavViewModel() {
     const left = nav.scrollLeft > 1
     const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1
     setMore((current) => (current.left === left && current.right === right ? current : { left, right }))
+    if (scrollTarget.current !== null && Math.abs(nav.scrollLeft - scrollTarget.current) < 1) scrollTarget.current = null
   }, [])
 
   const measure = useCallback(() => {
-    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
+    const nav = navRef.current
+    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]')
     setBox(active ? { left: active.offsetLeft, width: active.offsetWidth } : null)
+    const tabs = tabElements()
+    if (nav && tabs.length > 0) {
+      // The tabs' own width, whatever the bar's padding: the room for the arrows doesn't count. When they fit, the bar
+      // is as wide as they are plus a few pixels; when they don't, it's as wide as it may be, and that's narrower.
+      const width = tabs.at(-1)!.offsetLeft + tabs.at(-1)!.offsetWidth - tabs[0].offsetLeft
+      setOverflowing(width > nav.clientWidth - 2)
+    }
     updateMore()
-  }, [updateMore])
+  }, [updateMore, tabElements])
 
   useLayoutEffect(measure, [measure, pathname, tabs.length])
 
@@ -89,10 +102,17 @@ export function useTabNavViewModel() {
     navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
   }, [pathname])
 
-  /** Scrolls the bar most of its width that way, so the next tabs come into view. */
+  /**
+   * Scrolls the bar most of its width that way, so the next tabs come into view, stopping at the end. Quick presses add
+   * up: each goes on from where the last one was taking the bar.
+   */
   function scrollTabs(direction: -1 | 1) {
     const nav = navRef.current
-    nav?.scrollBy?.({ left: direction * nav.clientWidth * 0.7, behavior: 'smooth' })
+    if (!nav?.scrollTo) return
+    const from = scrollTarget.current ?? nav.scrollLeft
+    const to = Math.min(Math.max(from + direction * nav.clientWidth * 0.7, 0), nav.scrollWidth - nav.clientWidth)
+    scrollTarget.current = to
+    nav.scrollTo({ left: to, behavior: 'smooth' })
   }
 
   /** The tab whose middle is closest to `center`. */
@@ -105,6 +125,8 @@ export function useTabNavViewModel() {
   }
 
   function onPointerDown(event: PointerEvent<HTMLElement>) {
+    // A finger on the bar scrolls it itself: the arrows' last target no longer holds.
+    scrollTarget.current = null
     // Only the current tab is a handle: dragging elsewhere scrolls the bar (phones) or does nothing.
     if (!box || !event.isPrimary || event.button !== 0 || !(event.target as HTMLElement).closest('[aria-current="page"]')) return
     drag.current = { pointerId: event.pointerId, startX: event.clientX, startLeft: box.left, moved: false }
@@ -161,6 +183,7 @@ export function useTabNavViewModel() {
     navRef,
     tabs,
     more,
+    overflowing,
     dragging: dragBox !== null,
     indicator: shown && { animate, style: { width: shown.width, transform: `translateX(${shown.left}px)` } satisfies CSSProperties },
     scrollLeft: () => scrollTabs(-1),

@@ -24,6 +24,29 @@ test('every tab can be reached and used', async ({ page, browserName }) => {
   await expect(page.getByRole('heading', { name: 'Contact me' })).toBeVisible()
 })
 
+test('the arrows scroll the tabs to either end and no further, however quickly they are pressed', async ({ page, browserName }) => {
+  // The narrowest phones: the most tabs out of view.
+  await page.setViewportSize({ width: 320, height: 700 })
+  await page.goto('/')
+  const tabs = page.getByRole('navigation', { name: 'Sections' })
+  const edges = async (name: string) => (await tabs.getByRole('link', { name, exact: true }).boundingBox())!
+  const bar = async () => (await page.locator('.tabs-window').boundingBox())!
+  const fade = 40
+
+  const right = page.locator('.tabs-arrow-right')
+  for (let i = 0; i < 4 && (await right.isVisible()); i++) await tap(right, browserName)
+  await expect(right).toBeHidden()
+  // Contact ends at the bar's end, just clear of the fade: not drawn further left, with a gap after it.
+  await expect.poll(async () => Math.round((await bar()).x + (await bar()).width - fade - ((await edges('Contact')).x + (await edges('Contact')).width)), { timeout: 5000 }).toBeLessThanOrEqual(1)
+  expect((await bar()).x + (await bar()).width - fade - ((await edges('Contact')).x + (await edges('Contact')).width)).toBeGreaterThanOrEqual(-1)
+
+  const left = page.locator('.tabs-arrow-left')
+  for (let i = 0; i < 4 && (await left.isVisible()); i++) await tap(left, browserName)
+  await expect(left).toBeHidden()
+  await expect.poll(async () => Math.round((await edges("What's new?")).x - ((await bar()).x + fade)), { timeout: 5000 }).toBeGreaterThanOrEqual(-1)
+  expect((await edges("What's new?")).x - ((await bar()).x + fade)).toBeLessThanOrEqual(8)
+})
+
 test("an app's popup fits the screen, and only its inside scrolls", async ({ page, browserName }) => {
   await page.goto('/apps')
   await tap(page.getByRole('button', { name: 'E2E app 2', exact: true }), browserName)

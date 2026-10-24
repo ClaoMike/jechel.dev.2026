@@ -171,3 +171,78 @@ describe('more tabs than fit', () => {
     }
   })
 })
+
+describe('more tabs than fit, on a phone', () => {
+  const FADE = 40
+  const frame = () => document.querySelector<HTMLElement>('.tabs-frame')!
+  const windowBox = () => document.querySelector<HTMLElement>('.tabs-window')!.getBoundingClientRect()
+  const mask = (element: Element) => {
+    const style = getComputedStyle(element)
+    return style.maskImage || style.webkitMaskImage
+  }
+  const arrow = (side: 'left' | 'right') => document.querySelector<HTMLButtonElement>(`.tabs-arrow-${side}`)
+  /** Every tab is where the bar shows it: none left of the fade at its start, none past the fade at its end. */
+  const tabsInView = (bar: HTMLElement) => [...bar.querySelectorAll('.tab')].map((t) => t.getBoundingClientRect())
+
+  async function openVisitor(width = 375) {
+    await page.viewport(width, 800)
+    stubApi()
+    await renderApp({ path: '/' })
+    await expect.poll(() => arrow('right')).not.toBeNull()
+    return nav().element() as HTMLElement
+  }
+
+  afterEach(async () => {
+    await page.viewport(1280, 900)
+  })
+
+  it('fades both ends from the start, outside the bar that scrolls, and the first tab starts clear of the fade', async () => {
+    const bar = await openVisitor()
+    expect(frame().hasAttribute('data-overflowing')).toBe(true)
+    expect(mask(document.querySelector('.tabs-window')!)).toContain('linear-gradient')
+    expect(mask(bar)).toBe('none')
+    expect(tabsInView(bar)[0].left).toBeGreaterThanOrEqual(windowBox().left + FADE - 1)
+  })
+
+  it("the fade stays the same however the bar scrolls (Safari on iPhone drew the tabs elsewhere when it changed)", async () => {
+    const bar = await openVisitor()
+    const before = mask(document.querySelector('.tabs-window')!)
+    arrow('right')!.click()
+    await expect.poll(() => arrow('left')).not.toBeNull()
+    expect(mask(document.querySelector('.tabs-window')!)).toBe(before)
+    expect(mask(bar)).toBe('none')
+  })
+
+  it('the right arrow stops with the last tab at the end, clear of the fade, however often it is pressed', async () => {
+    const bar = await openVisitor(320)
+    for (let i = 0; i < 5; i++) arrow('right')?.click()
+    await expect.poll(() => arrow('right')).toBeNull()
+    await expect.poll(() => bar.scrollLeft).toBe(bar.scrollWidth - bar.clientWidth)
+    const last = tabsInView(bar).at(-1)!
+    expect(last.right).toBeLessThanOrEqual(windowBox().right - FADE + 1)
+    // Right up to it: no gap after the last tab.
+    expect(last.right).toBeGreaterThan(windowBox().right - FADE - 2)
+  })
+
+  it('quick presses add up: two take the bar twice as far as one, and back again to the very start', async () => {
+    const bar = await openVisitor(320)
+    const step = Math.round(bar.clientWidth * 0.7)
+    arrow('right')!.click()
+    arrow('right')!.click()
+    await expect.poll(() => Math.round(bar.scrollLeft)).toBe(Math.min(2 * step, bar.scrollWidth - bar.clientWidth))
+    for (let i = 0; i < 4; i++) arrow('left')?.click()
+    await expect.poll(() => bar.scrollLeft).toBe(0)
+    await expect.poll(() => arrow('left')).toBeNull()
+    expect(tabsInView(bar)[0].left).toBeGreaterThanOrEqual(windowBox().left + FADE - 1)
+  })
+
+  it('on a wide screen nothing fades and there are no arrows', async () => {
+    stubApi()
+    await renderApp({ path: '/' })
+    await expect.element(page.getByRole('link', { name: 'Contact', exact: true })).toBeVisible()
+    expect(frame().hasAttribute('data-overflowing')).toBe(false)
+    expect(mask(document.querySelector('.tabs-window')!)).toBe('none')
+    expect(arrow('right')).toBeNull()
+  })
+})
+

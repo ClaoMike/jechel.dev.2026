@@ -29,6 +29,12 @@ if ! gh pr merge "$pr" --auto --merge 2>/dev/null; then
 fi
 echo
 echo "Waiting for the tests (merged and deployed automatically when they pass)..."
+# GitHub takes a moment to start the checks after a push: until they show up, there's nothing to watch (and "no
+# checks" would read as a failure). Two minutes at most.
+for _ in $(seq 24); do
+  [ "$(gh pr checks "$pr" --required --json name -q length 2>/dev/null || echo 0)" -gt 0 ] && break
+  sleep 5
+done
 # By number: once it's merged, "develop" no longer names an open pull request.
 gh pr checks "$pr" --watch --required || fail "a required check failed; see the pull request."
 echo
