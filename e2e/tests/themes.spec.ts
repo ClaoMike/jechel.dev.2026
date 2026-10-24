@@ -37,12 +37,16 @@ test('opens in Vice where the device can draw it (light or dark otherwise), and 
 test('the page and the theme look different: the background changes with it', async ({ page }) => {
   await page.goto('/about')
   const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor + getComputedStyle(document.body).backgroundImage)
+  // The colours fade from one theme to the next: read them once the fade is over.
+  const settled = () => expect.poll(() => page.evaluate(() => document.body.getAnimations().length)).toBe(0)
   await pick(page, 'Dark mode')
   await expect.poll(() => theme(page)).toBe('dark')
+  await settled()
   const dark = await background()
   await pick(page, 'Light mode')
   await expect.poll(() => theme(page)).toBe('light')
-  await expect.poll(background).not.toBe(dark)
+  await settled()
+  expect(await background()).not.toBe(dark)
 })
 
 test.describe('Vice', () => {
