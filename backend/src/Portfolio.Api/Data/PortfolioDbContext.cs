@@ -33,6 +33,9 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
     public DbSet<SiteState> SiteStates => Set<SiteState>();
     public DbSet<PhoneAlertLog> PhoneAlertLogs => Set<PhoneAlertLog>();
     public DbSet<AlertPreference> AlertPreferences => Set<AlertPreference>();
+    public DbSet<AlertChannelSetting> AlertChannels => Set<AlertChannelSetting>();
+    public DbSet<PushDevice> PushDevices => Set<PushDevice>();
+    public DbSet<WebPushKeys> WebPushKeys => Set<WebPushKeys>();
 
     /// <summary>ASP.NET Core Data Protection's keys (they encrypt cookies and saved secrets), so they survive redeploys.</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -296,6 +299,7 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(a => a.Message).HasColumnName("message").HasMaxLength(1000).IsRequired();
             entity.Property(a => a.Path).HasColumnName("path").HasMaxLength(200);
             entity.Property(a => a.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(a => a.SentTo).HasColumnName("sent_to").HasMaxLength(40);
             entity.Property(a => a.CreatedAt).HasColumnName("created_at");
             // Newest first, all or of one kind.
             entity.HasIndex(a => a.CreatedAt);
@@ -309,6 +313,39 @@ public class PortfolioDbContext(DbContextOptions<PortfolioDbContext> options) : 
             entity.Property(p => p.Kind).HasColumnName("kind").HasMaxLength(40);
             entity.Property(p => p.Enabled).HasColumnName("enabled");
             entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<AlertChannelSetting>(entity =>
+        {
+            entity.ToTable("alert_channels");
+            entity.HasKey(c => c.Channel);
+            entity.Property(c => c.Channel).HasColumnName("channel").HasMaxLength(20);
+            entity.Property(c => c.Enabled).HasColumnName("enabled");
+            entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<PushDevice>(entity =>
+        {
+            entity.ToTable("push_devices");
+            entity.HasKey(d => d.Id);
+            entity.Property(d => d.Id).HasColumnName("id");
+            entity.Property(d => d.Endpoint).HasColumnName("endpoint").HasMaxLength(1000).IsRequired();
+            entity.Property(d => d.P256dh).HasColumnName("p256dh").HasMaxLength(200).IsRequired();
+            entity.Property(d => d.Auth).HasColumnName("auth").HasMaxLength(100).IsRequired();
+            entity.Property(d => d.Label).HasColumnName("label").HasMaxLength(100).IsRequired();
+            entity.Property(d => d.CreatedAt).HasColumnName("created_at");
+            entity.Property(d => d.LastSentAt).HasColumnName("last_sent_at");
+            entity.HasIndex(d => d.Endpoint).IsUnique();
+        });
+
+        modelBuilder.Entity<WebPushKeys>(entity =>
+        {
+            entity.ToTable("web_push_keys");
+            entity.HasKey(k => k.Id);
+            entity.Property(k => k.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(k => k.PublicKey).HasColumnName("public_key").HasMaxLength(200).IsRequired();
+            entity.Property(k => k.PrivateKey).HasColumnName("private_key").HasMaxLength(200).IsRequired();
+            entity.Property(k => k.CreatedAt).HasColumnName("created_at");
         });
 
         modelBuilder.Entity<UpdateEmailsPage>(entity =>

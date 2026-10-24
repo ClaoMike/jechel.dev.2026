@@ -3,6 +3,7 @@
  * player, are answered with an empty page), and helpers for the admin's API and for what the stand-ins received.
  */
 import { test as base, expect, request, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+import { createDecipheriv, createECDH, hkdfSync, randomBytes } from 'node:crypto'
 import { ADMIN_STATE } from './states.ts'
 
 export const WEB_URL = `http://localhost:${process.env.E2E_WEB_PORT ?? '4273'}`
@@ -108,7 +109,58 @@ export async function typeInto(field: Locator, text: string) {
 }
 
 /** A tap on a phone; a click in Firefox, where Playwright can't touch yet (WebDriver BiDi). */
-export async function tap(target: Locator, browserName: string) {
-  if (browserName === 'firefox') await target.click()
-  else await target.tap()
+export async function tap(target: Locator, browserName: string, options: { timeout?: number } = {}) {
+  if (browserName === 'firefox') await target.click(options)
+  else await target.tap(options)
 }
+
+export interface SentPush {
+  device: string
+  authorization: string
+  encoding: string
+  ttl: string
+  /** As posted: encrypted, base64. */
+  body: string
+}
+
+/** What the stand-in push service got for this device, oldest first; waits for at least `count`. */
+export async function pushesTo(device: string, count = 1): Promise<SentPush[]> {
+  let found: SentPush[] = []
+  await expect
+    .poll(async () => {
+      found = ((await (await fetch(`${SERVICES_URL}/sent/pushes`)).json()) as SentPush[]).filter((push) => push.device === device)
+      return found.length
+    })
+    .toBeGreaterThanOrEqual(count)
+  return found
+}
+
+/**
+ * A made-up device for the site's own notifications, at the stand-in push service: its key pair and secret, as a
+ * browser makes them, and the decryption a phone does (RFC 8291, aes128gcm), to read what the API sent it.
+ */
+export function pushDevice(name: string) {
+  const key = createECDH('prime256v1')
+  const publicKey = key.generateKeys()
+  const secret = randomBytes(16)
+  return {
+    name,
+    subscription: { endpoint: `${SERVICES_URL}/push/${name}`, keys: { p256dh: publicKey.toString('base64url'), auth: secret.toString('base64url') } },
+    read(push: SentPush): { title: string; body: string; url: string } {
+      const body = Buffer.from(push.body, 'base64')
+      const salt = body.subarray(0, 16)
+      const keyLength = body[20]
+      const senderKey = body.subarray(21, 21 + keyLength)
+      const cipherText = body.subarray(21 + keyLength)
+      const shared = key.computeSecret(senderKey)
+      const inputKey = Buffer.from(hkdfSync('sha256', shared, secret, Buffer.concat([Buffer.from('WebPush: info\0'), publicKey, senderKey]), 32))
+      const contentKey = Buffer.from(hkdfSync('sha256', inputKey, salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16))
+      const nonce = Buffer.from(hkdfSync('sha256', inputKey, salt, Buffer.from('Content-Encoding: nonce\0'), 12))
+      const decipher = createDecipheriv('aes-128-gcm', contentKey, nonce)
+      decipher.setAuthTag(cipherText.subarray(cipherText.length - 16))
+      const plain = Buffer.concat([decipher.update(cipherText.subarray(0, cipherText.length - 16)), decipher.final()])
+      return JSON.parse(plain.subarray(0, plain.lastIndexOf(2)).toString('utf8'))
+    },
+  }
+}
+

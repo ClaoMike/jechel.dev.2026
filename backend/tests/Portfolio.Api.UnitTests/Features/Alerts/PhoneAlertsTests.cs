@@ -279,7 +279,8 @@ public class PhoneAlertsTests
     {
         var ntfy = new FlakyNtfy(failOn: "Two");
         var alerts = new PhoneAlerts(_time);
-        var worker = new AlertWorker(alerts, Sender(ntfy, new AlertOptions { NtfyTopic = "t" }), new AlertPreferences(), new YouTube.TestDatabase().Scopes, _time, NullLogger<AlertWorker>.Instance);
+        var database = new YouTube.TestDatabase();
+        var worker = new AlertWorker(alerts, Sender(ntfy, new AlertOptions { NtfyTopic = "t" }), TestWebPush.Sender(database.Scopes, _time), new AlertPreferences(), database.Scopes, _time, NullLogger<AlertWorker>.Instance);
 
         await worker.StartAsync(default);
         foreach (var title in new[] { "One", "Two", "Three" }) alerts.Send(new PhoneAlert(AlertKinds.SiteError, title, "m"));

@@ -1,6 +1,6 @@
 import type { Browser, Page } from '@playwright/test'
 import { ADMIN_STATE, VISITOR_STATE } from './states.ts'
-import { adminApi, expect, test, unique, typeInto } from './fixtures.ts'
+import { adminApi, alerts, expect, pushDevice, pushesTo, test, unique, typeInto } from './fixtures.ts'
 
 // What the admin changes for everyone: apps added, edited and deleted; pages switched off; maintenance. These run once
 // every browser's other tests are done, one browser at a time (playwright.config.ts), and put everything back.
@@ -34,9 +34,19 @@ async function deleteAddedApps(prefix = 'Added ') {
   await api.dispose()
 }
 
+/** Both ways alerts go back on, and the made-up devices gone. */
+async function restoreNotifications() {
+  const api = await adminApi()
+  for (const channel of ['ntfy', 'push']) expect((await api.put(`/api/notifications/channels/${channel}`, { data: { enabled: true } })).ok()).toBe(true)
+  const { devices } = (await (await api.get('/api/notifications/push')).json()) as { devices: { id: number; label: string }[] }
+  for (const device of devices.filter((d) => d.label.startsWith('E2E '))) await api.delete(`/api/notifications/push/devices/${device.id}`)
+  await api.dispose()
+}
+
 test.afterEach(async () => {
   await restoreSite()
   await deleteAddedApps()
+  await restoreNotifications()
 })
 
 test('the admin adds an app, visitors see it; edits it, they see the change; deletes it, it is gone', async ({ page, browser, browserName }) => {
@@ -134,6 +144,58 @@ test('Work with me switched on: the contact form asks what the message is about,
 
   await page.goto('/contact')
   await expect(page.getByRole('row').filter({ hasText: name }).getByText('Project enquiry')).toBeVisible()
+})
+
+test("the site's own notifications, with ntfy switched off: a visitor's message reaches the device alone, encrypted for it", async ({ page, browser, browserName }) => {
+  const device = pushDevice(unique('phone', { browserName }).replace(/\W+/g, '-'))
+  const api = await adminApi()
+  expect((await api.post('/api/notifications/push/devices', { data: { ...device.subscription, label: 'E2E phone' } })).ok()).toBe(true)
+  await api.dispose()
+
+  await page.goto('/notifications')
+  const where = page.getByRole('region', { name: 'Where they go' })
+  await expect(where.getByRole('listitem').filter({ hasText: 'E2E phone' })).toBeVisible()
+  await where.getByRole('group', { name: 'The ntfy app' }).getByText('Off').click()
+  await expect(where.getByRole('group', { name: 'The ntfy app' }).getByRole('radio', { name: 'Off' })).toBeChecked()
+
+  const name = unique('Visitor', { browserName })
+  const guest = await visitor(browser)
+  await guest.goto('/contact')
+  await typeInto(guest.getByRole('textbox', { name: 'Name' }), name)
+  await typeInto(guest.getByRole('textbox', { name: 'Email' }), 'visitor@e2e.test')
+  await typeInto(guest.getByRole('textbox', { name: 'Message' }), 'Hello! A message to check that the site’s own notifications reach the admin’s phone, encrypted on the way there.')
+  await guest.getByRole('button', { name: 'Send message' }).click()
+  await expect(guest.getByRole('heading', { name: 'Thank you!' })).toBeVisible()
+  await guest.context().close()
+
+  // Signed with the site's key, encrypted for the device: only it can read it.
+  const [push] = await pushesTo(device.name)
+  expect(push.authorization).toMatch(/^vapid t=[^,]+, k=[\w-]+$/)
+  expect(push.encoding).toBe('aes128gcm')
+  expect(device.read(push)).toEqual({ title: `New message from ${name}`, body: expect.stringContaining('encrypted'), url: expect.stringMatching(/\/contact$/) })
+  expect((await alerts()).some((alert) => alert.title === `New message from ${name}`)).toBe(false)
+
+  // The history says where it went; a test reaches the device too.
+  await page.reload()
+  const history = page.getByRole('region', { name: 'History' })
+  await expect(history.getByRole('listitem').filter({ hasText: `New message from ${name}` })).toContainText("to this site's notifications")
+  await where.getByRole('listitem').filter({ hasText: 'E2E phone' }).getByRole('button', { name: 'Send a test' }).click()
+  await expect(where.getByText('Sent to E2E phone: it should show in a moment.')).toBeVisible()
+  const [, test] = await pushesTo(device.name, 2)
+  expect(device.read(test).title).toBe('It works!')
+})
+
+test('a device its push service no longer knows is forgotten', async ({ page }) => {
+  const api = await adminApi()
+  const gone = pushDevice('gone')
+  expect((await api.post('/api/notifications/push/devices', { data: { ...gone.subscription, label: 'E2E old phone' } })).ok()).toBe(true)
+  await api.dispose()
+
+  await page.goto('/notifications')
+  const where = page.getByRole('region', { name: 'Where they go' })
+  await where.getByRole('listitem').filter({ hasText: 'E2E old phone' }).getByRole('button', { name: 'Send a test' }).click()
+  await expect(where.getByText("It couldn't be sent to E2E old phone.", { exact: false })).toBeVisible()
+  await expect(where.getByRole('listitem').filter({ hasText: 'E2E old phone' })).toHaveCount(0)
 })
 
 test('every page switched off: visitors get "Coming soon"', async ({ browser }) => {

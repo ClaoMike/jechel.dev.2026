@@ -113,7 +113,14 @@ public class NtfySender(IHttpClientFactory http, IOptionsMonitor<AlertOptions> o
 /// tab aren't. Each is then written to the history (<see cref="PhoneAlertLog"/>) with what became of it, and the
 /// history is kept for <see cref="KeptFor"/>. A failed alert, or a failed write, is logged and dropped.
 /// </summary>
-public class AlertWorker(PhoneAlerts alerts, NtfySender ntfy, AlertPreferences preferences, IServiceScopeFactory scopes, TimeProvider time, ILogger<AlertWorker> logger) : BackgroundService
+public class AlertWorker(
+    PhoneAlerts alerts,
+    NtfySender ntfy,
+    WebPushSender push,
+    AlertPreferences preferences,
+    IServiceScopeFactory scopes,
+    TimeProvider time,
+    ILogger<AlertWorker> logger) : BackgroundService
 {
     public static readonly TimeSpan KeptFor = TimeSpan.FromDays(90);
 
@@ -126,10 +133,10 @@ public class AlertWorker(PhoneAlerts alerts, NtfySender ntfy, AlertPreferences p
     {
         await foreach (var alert in alerts.Reader.ReadAllAsync(stoppingToken))
         {
-            var status = await DeliverAsync(alert, stoppingToken);
+            var (status, sentTo) = await DeliverAsync(alert, stoppingToken);
             try
             {
-                await RecordAsync(alert, status, stoppingToken);
+                await RecordAsync(alert, status, sentTo, stoppingToken);
             }
             catch (Exception e) when (!stoppingToken.IsCancellationRequested)
             {
@@ -138,22 +145,44 @@ public class AlertWorker(PhoneAlerts alerts, NtfySender ntfy, AlertPreferences p
         }
     }
 
-    /// <summary>Sends it, unless its kind is switched off; says what became of it.</summary>
-    private async Task<string> DeliverAsync(PhoneAlert alert, CancellationToken stoppingToken)
+    /// <summary>
+    /// Sends it every way that's switched on, unless its kind is switched off; says what became of it: sent when any way
+    /// took it (and which), failed when one failed and none took it, not set up when none could (no ntfy topic, no device).
+    /// </summary>
+    private async Task<(string Status, string? SentTo)> DeliverAsync(PhoneAlert alert, CancellationToken stoppingToken)
     {
-        if (!preferences.IsEnabled(alert.Kind)) return AlertStatus.Off;
+        if (!preferences.IsEnabled(alert.Kind)) return (AlertStatus.Off, null);
+        var channels = AlertChannels.All.Where(preferences.IsChannelEnabled).ToList();
+        if (channels.Count == 0) return (AlertStatus.NoChannel, null);
+
+        var sentTo = new List<string>();
+        var failed = false;
+        foreach (var channel in channels)
+        {
+            var result = await SendAsync(channel, alert, stoppingToken);
+            if (result == PushResult.Sent) sentTo.Add(channel);
+            failed |= result == PushResult.Failed;
+        }
+        if (sentTo.Count > 0) return (AlertStatus.Sent, string.Join(',', sentTo));
+        return (failed ? AlertStatus.Failed : AlertStatus.NotSetUp, null);
+    }
+
+    private async Task<PushResult> SendAsync(string channel, PhoneAlert alert, CancellationToken stoppingToken)
+    {
         try
         {
-            return await ntfy.SendAsync(alert, stoppingToken) ? AlertStatus.Sent : AlertStatus.NotSetUp;
+            return channel == AlertChannels.Ntfy
+                ? await ntfy.SendAsync(alert, stoppingToken) ? PushResult.Sent : PushResult.NoDevices
+                : await push.SendAsync(alert, stoppingToken);
         }
         catch (Exception e) when (!stoppingToken.IsCancellationRequested)
         {
-            logger.LogWarning(e, "Couldn't send the phone alert \"{Title}\".", alert.Title);
-            return AlertStatus.Failed;
+            logger.LogWarning(e, "Couldn't send the alert \"{Title}\" with {Channel}.", alert.Title, channel);
+            return PushResult.Failed;
         }
     }
 
-    private async Task RecordAsync(PhoneAlert alert, string status, CancellationToken stoppingToken)
+    private async Task RecordAsync(PhoneAlert alert, string status, string? sentTo, CancellationToken stoppingToken)
     {
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PortfolioDbContext>();
@@ -165,6 +194,7 @@ public class AlertWorker(PhoneAlerts alerts, NtfySender ntfy, AlertPreferences p
             Message = NtfySender.Cut(alert.Message, 1000),
             Path = alert.Path is { Length: > 0 and <= 200 } path ? path : null,
             Status = status,
+            SentTo = sentTo,
             CreatedAt = now,
         });
         if (now - _lastPruned >= PruneEvery)

@@ -4,7 +4,8 @@ import { THEMES } from '../../layout/theme'
 import { api, ApiError, type NotificationKind } from '../../services/api'
 import { a11yViolations } from '../../test/a11y'
 import { stubApi } from '../../test/api'
-import { KINDS, NOTIFICATIONS, pageOfNotifications } from '../../test/fixtures/notifications'
+import { webPush } from '../../features/notifications/webPush'
+import { CHANNELS, KINDS, NOTIFICATIONS, PUSH, pageOfNotifications } from '../../test/fixtures/notifications'
 import { ADMIN, forever, renderApp, renderView, textOf } from '../../test/render'
 import { formatDateTime } from '../../utils/formatDate'
 import { NotificationsPage } from './NotificationsPage'
@@ -24,6 +25,10 @@ beforeEach(() => {
     }),
     list: vi.spyOn(api.notifications, 'list').mockResolvedValue(pageOfNotifications()),
   }
+  // Where they go: its own tests (AlertChannelsCard.test.tsx).
+  vi.spyOn(api.notifications, 'listChannels').mockResolvedValue(structuredClone(CHANNELS))
+  vi.spyOn(api.notifications, 'getPush').mockResolvedValue(structuredClone(PUSH))
+  vi.spyOn(webPush, 'currentEndpoint').mockResolvedValue(null)
 })
 
 const show = (theme?: 'dark' | 'light' | 'vice') => renderView(<NotificationsPage />, { path: '/notifications', user: ADMIN, theme })

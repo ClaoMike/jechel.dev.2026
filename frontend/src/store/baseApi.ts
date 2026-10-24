@@ -12,6 +12,7 @@ export const baseApi = createApi({
   baseQuery: fakeBaseQuery<ApiFailure>(),
   tagTypes: [
     'About',
+    'AlertChannels',
     'AppCategories',
     'Apps',
     'Announcements',
@@ -21,6 +22,7 @@ export const baseApi = createApi({
     'MeetingsLink',
     'NotificationKinds',
     'Notifications',
+    'Push',
     'Message',
     'Messages',
     'Resume',

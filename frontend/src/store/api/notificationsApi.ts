@@ -1,11 +1,14 @@
-import { api, type Notification, type NotificationKind, type Page } from '../../services/api'
-import { baseApi, run } from '../baseApi'
+import { api, type AlertChannel, type AlertChannelState, type Notification, type NotificationKind, type Page, type PushDevice, type PushSetup, type PushSubscriptionJson } from '../../services/api'
+import { baseApi, run, whenFulfilled } from '../baseApi'
 import type { PageArgs } from './appsApi'
 
 /** The latest save asked for each kind: an answer to an older one changes nothing (it was clicked again since). */
 const latestSave = new Map<string, string>()
 
-/** The admin's Notifications tab: the kinds of phone alert (on or off) and the history of what was raised. */
+/**
+ * The admin's Notifications tab: the ways alerts go (ntfy, the site's own notifications, each on or off) and the devices
+ * that get the site's own, the kinds of alert (on or off), and the history of what was raised.
+ */
 export const notificationsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     listNotificationKinds: build.query<NotificationKind[], void>({ queryFn: (_, { signal }) => run(api.notifications.listKinds(signal)), providesTags: ['NotificationKinds'] }),
@@ -39,6 +42,45 @@ export const notificationsApi = baseApi.injectEndpoints({
       },
     }),
 
+    listAlertChannels: build.query<AlertChannelState[], void>({ queryFn: (_, { signal }) => run(api.notifications.listChannels(signal)), providesTags: ['AlertChannels'] }),
+
+    /** The switch moves at once; the answer settles both (a failed save puts it back). */
+    saveAlertChannel: build.mutation<AlertChannelState[], { channel: AlertChannel; enabled: boolean }>({
+      queryFn: ({ channel, enabled }) => run(api.notifications.saveChannel(channel, enabled)),
+      onQueryStarted: async ({ channel, enabled }, { dispatch, queryFulfilled }) => {
+        const moved = dispatch(
+          notificationsApi.util.updateQueryData('listAlertChannels', undefined, (channels) => {
+            const saved = channels.find((c) => c.channel === channel)
+            if (saved) saved.enabled = enabled
+          }),
+        )
+        try {
+          const { data } = await queryFulfilled
+          dispatch(notificationsApi.util.upsertQueryData('listAlertChannels', undefined, data))
+        } catch {
+          moved.undo()
+        }
+      },
+    }),
+
+    getPush: build.query<PushSetup, void>({ queryFn: (_, { signal }) => run(api.notifications.getPush(signal)), providesTags: ['Push'] }),
+
+    /** The device list as the API now has it; whether the site's own notifications can deliver may have changed. */
+    addPushDevice: build.mutation<PushDevice[], { subscription: PushSubscriptionJson; label: string }>({
+      queryFn: ({ subscription, label }) => run(api.notifications.addPushDevice(subscription, label)),
+      invalidatesTags: ['AlertChannels'],
+      onQueryStarted: (_, { dispatch, queryFulfilled }) => whenFulfilled(queryFulfilled, (devices) => dispatch(notificationsApi.util.updateQueryData('getPush', undefined, (push) => void (push.devices = devices)))),
+    }),
+
+    removePushDevice: build.mutation<PushDevice[], number>({
+      queryFn: (id) => run(api.notifications.removePushDevice(id)),
+      invalidatesTags: ['AlertChannels'],
+      onQueryStarted: (_, { dispatch, queryFulfilled }) => whenFulfilled(queryFulfilled, (devices) => dispatch(notificationsApi.util.updateQueryData('getPush', undefined, (push) => void (push.devices = devices)))),
+    }),
+
+    /** A device its push service no longer knows is forgotten by the API: the list loads again. */
+    testPushDevice: build.mutation<void, number>({ queryFn: (id) => run(api.notifications.testPushDevice(id)), invalidatesTags: ['Push'] }),
+
     listNotifications: build.query<Page<Notification>, PageArgs & { kind: string | null }>({
       queryFn: ({ page, pageSize, kind }, { signal }) => run(api.notifications.list(page, pageSize, kind, signal)),
       providesTags: ['Notifications'],
@@ -46,4 +88,14 @@ export const notificationsApi = baseApi.injectEndpoints({
   }),
 })
 
-export const { useListNotificationKindsQuery, useSaveNotificationKindMutation, useListNotificationsQuery } = notificationsApi
+export const {
+  useListNotificationKindsQuery,
+  useSaveNotificationKindMutation,
+  useListNotificationsQuery,
+  useListAlertChannelsQuery,
+  useSaveAlertChannelMutation,
+  useGetPushQuery,
+  useAddPushDeviceMutation,
+  useRemovePushDeviceMutation,
+  useTestPushDeviceMutation,
+} = notificationsApi

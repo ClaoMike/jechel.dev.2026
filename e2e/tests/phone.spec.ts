@@ -38,13 +38,14 @@ test('the arrows scroll the tabs to either end and no further, however quickly t
 
   expect(await gapBeforeWhatsNew()).toBeLessThanOrEqual(padding + 1)
   const right = page.locator('.tabs-arrow-right')
-  for (let i = 0; i < 4 && (await right.isVisible()); i++) await tap(right, browserName)
+  // An arrow goes once the bar stops at the end, maybe between seeing it and tapping it: then there's nothing to tap.
+  for (let i = 0; i < 4 && (await right.isVisible()); i++) await tap(right, browserName, { timeout: 2000 }).catch(() => {})
   await expect(right).toBeHidden()
   await expect.poll(gapAfterContact, { timeout: 5000 }).toBeLessThanOrEqual(padding + 1)
   expect(await gapAfterContact()).toBeGreaterThanOrEqual(0)
 
   const left = page.locator('.tabs-arrow-left')
-  for (let i = 0; i < 4 && (await left.isVisible()); i++) await tap(left, browserName)
+  for (let i = 0; i < 4 && (await left.isVisible()); i++) await tap(left, browserName, { timeout: 2000 }).catch(() => {})
   await expect(left).toBeHidden()
   await expect.poll(gapBeforeWhatsNew, { timeout: 5000 }).toBeLessThanOrEqual(padding + 1)
   expect(await gapBeforeWhatsNew()).toBeGreaterThanOrEqual(0)

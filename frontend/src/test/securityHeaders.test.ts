@@ -52,4 +52,20 @@ describe('the security headers (public/_headers)', () => {
     expect(header('X-Content-Type-Options')).toBe('nosniff')
     expect(header('Referrer-Policy')).toBe('strict-origin-when-cross-origin')
   })
+
+  it('let the notifications service worker run from the site only, and never keep an old one', () => {
+    expect(csp()['worker-src']).toContain("'self'")
+    const block = headers.split(/\n(?=\S)/).find((b) => b.startsWith('/sw.js'))
+    expect(block).toContain('Cache-Control: no-cache')
+  })
+})
+
+describe('the web app (public/manifest.webmanifest)', () => {
+  it('opens as an app of its own from the Home Screen, with the site’s icons, and is linked from the page', async () => {
+    const manifest = await (await fetch('/manifest.webmanifest')).json()
+    expect(manifest).toMatchObject({ name: 'jechel.dev', start_url: '/', scope: '/', display: 'standalone' })
+    for (const icon of manifest.icons as { src: string }[]) expect((await fetch(icon.src)).status).toBe(200)
+    const page = await (await fetch('/index.html')).text()
+    expect(page).toContain('<link rel="manifest" href="/manifest.webmanifest" />')
+  })
 })
