@@ -162,7 +162,10 @@ How the videos get to the page:
 Unknown URLs redirect to `/`.
 
 **The tab bar** (`layout/TabNav/TabNav.tsx`): when the window is too narrow for every tab (phones, small windows), a ‹ / › arrow shows
-at the end that has more, over a fade, and scrolls the bar most of its width. The arrows are for pointers and fingers; keyboards
+at the end that has more and scrolls the bar most of its width, stopping at the end (quick presses add up). Both ends
+fade while the tabs don't fit, over a margin the arrows sit on, so neither end's tab is ever under an arrow. The fade is
+on a wrapper (`.tabs-window`) and never changes while the bar scrolls: on the scrolling bar itself, changing as each arrow
+came and went, it made Safari on iPhone draw the tabs far past either end with a gap beside them. The arrows are for pointers and fingers; keyboards
 reach every tab with Tab. One highlight glides to the tab that's picked. Pressing the current tab and dragging moves it
 across; letting go snaps it to the nearest tab, which opens (a tap stays a tap: dragging starts after 5 px, and the click that ends a
 drag is swallowed). On phones the bar still scrolls sideways when dragged anywhere else.
