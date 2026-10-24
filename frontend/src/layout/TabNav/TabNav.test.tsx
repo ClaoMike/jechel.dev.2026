@@ -3,7 +3,7 @@ import { page } from 'vitest/browser'
 import { stubApi } from '../../test/api'
 import { ADMIN, renderApp } from '../../test/render'
 
-// The tab bar: the highlight under the current tab can be dragged across; letting go opens the tab it's over.
+// The tab bar: the highlight under the current tab can be dragged across with a mouse; letting go opens the tab it's over.
 
 const nav = () => page.getByRole('navigation', { name: 'Sections' })
 const tab = (name: string) => nav().getByRole('link', { name, exact: true }).element() as HTMLAnchorElement
@@ -74,18 +74,17 @@ describe('dragging the highlight', () => {
     await expect.poll(() => app.location()).toBe('/about')
   })
 
-  it('after a finger drag (no click follows), the next tap opens its tab', async () => {
+  it("a finger on the current tab doesn't drag the highlight: the bar scrolls under it, as anywhere else", async () => {
     const app = await open('/')
     const from = tab("What's new?")
-    const to = tab('About Me')
 
-    await dragTo(from, to, { pointerType: 'touch' })
-    pointer('pointerup', from, to.getBoundingClientRect().left - from.getBoundingClientRect().left, { pointerType: 'touch' })
-    await expect.poll(() => app.location()).toBe('/about')
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    pointer('pointerdown', from, 0, { pointerType: 'touch' })
+    pointer('pointermove', from, 200, { pointerType: 'touch' })
+    pointer('pointerup', from, 200, { pointerType: 'touch' })
 
-    tab('Apps').click()
-    await expect.poll(() => app.location()).toBe('/apps')
+    expect(nav().element().hasAttribute('data-dragging')).toBe(false)
+    expect(getComputedStyle(from).touchAction).toBe('auto')
+    expect(app.location()).toBe('/')
   })
 
   it('a tap is a tap: moving less than 5 pixels opens nothing new', async () => {
@@ -236,13 +235,13 @@ describe('more tabs than fit, on a phone', () => {
     expect(tabBoxes(bar)[0].left - windowBox().left).toBeLessThanOrEqual(PADDING + 1)
   })
 
-  it("opening an admin tab's page (e.g. a reload) shows its tab, clear of the arrows, though the admin's tabs come only once the session is known", async () => {
-    for (const path of ['/terms', '/features']) {
+  it('opening an admin page (e.g. a reload) shows the System tab, clear of the arrows, though it comes only once the session is known', async () => {
+    for (const path of ['/terms', '/features/work-with-me']) {
       await page.viewport(375, 800)
       stubApi({ user: ADMIN })
       const app = await renderApp({ path })
       const current = () => nav().element().querySelector<HTMLElement>('[aria-current="page"]')
-      await expect.poll(() => current()?.getAttribute('href')).toBe(path)
+      await expect.poll(() => current()?.textContent).toBe('System')
       const bar = windowBox()
       await expect.poll(() => current()!.getBoundingClientRect().left).toBeGreaterThanOrEqual(bar.left)
       await expect.poll(() => current()!.getBoundingClientRect().right).toBeLessThanOrEqual(bar.right)

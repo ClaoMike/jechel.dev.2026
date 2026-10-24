@@ -26,11 +26,11 @@ function FeatureTesting({ features }: { features: readonly TestFeature[] }) {
       <h2 className="visually-hidden">Feature Testing</h2>
       {vm.current ? (
         <>
-          <nav className="feature-nav" aria-label="Features">
+          <nav className="pill-nav" aria-label="Features">
             <ul>
               {vm.links.map((link) => (
                 <li key={link.key}>
-                  <NavLink to={link.to} className="feature-nav-link">
+                  <NavLink to={link.to} className="pill-nav-link">
                     {link.title}
                   </NavLink>
                 </li>

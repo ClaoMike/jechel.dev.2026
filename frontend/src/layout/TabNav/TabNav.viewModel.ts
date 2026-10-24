@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useAppSelector } from '../../store'
-import { TABS, type Tab } from '../tabs'
+import { isCurrent, linkOf, TABS, type Tab } from '../tabs'
 
 /** Where the highlight is, in the tab bar's own coordinates (it scrolls with the tabs). */
 interface Box {
@@ -25,6 +25,9 @@ const SCROLL_SETTLED_MS = 120
 export interface TabItem extends Tab {
   /** The admin sees hidden pages too, marked. */
   hiddenFromVisitors: boolean
+  /** Where its link goes (System: its first page). */
+  link: string
+  current: boolean
 }
 
 /**
@@ -42,6 +45,8 @@ export function useTabNavViewModel() {
   const tabs: TabItem[] = TABS.filter((tab) => (isAuthenticated ? true : !tab.adminOnly && site.status === 'loaded' && !hidden(tab))).map((tab) => ({
     ...tab,
     hiddenFromVisitors: isAuthenticated && hidden(tab),
+    link: linkOf(tab),
+    current: isCurrent(tab, pathname),
   }))
 
   const [box, setBox] = useState<Box | null>(null)
@@ -126,8 +131,8 @@ export function useTabNavViewModel() {
   function onPointerDown(event: PointerEvent<HTMLElement>) {
     // A finger on the bar scrolls it itself: the arrows' last target no longer holds.
     scrollTarget.current = null
-    // Only the current tab is a handle: dragging elsewhere scrolls the bar (phones) or does nothing.
-    if (!box || !event.isPrimary || event.button !== 0 || !(event.target as HTMLElement).closest('[aria-current="page"]')) return
+    // Only the current tab is a handle, and only for a mouse: a finger anywhere on the bar, the current tab too, scrolls it.
+    if (!box || event.pointerType !== 'mouse' || !event.isPrimary || event.button !== 0 || !(event.target as HTMLElement).closest('[aria-current="page"]')) return
     drag.current = { pointerId: event.pointerId, startX: event.clientX, startLeft: box.left, moved: false }
   }
 
@@ -160,8 +165,9 @@ export function useTabNavViewModel() {
     }, 0)
     const target = dragBox && nearestTab(dragBox.left + dragBox.width / 2)
     setDragBox(null)
+    // Back over the current tab (System too, on any of its pages) stays where it is.
     const to = target?.getAttribute('href')
-    if (to && to !== pathname) navigate(to)
+    if (to && target?.getAttribute('aria-current') !== 'page') navigate(to)
   }
 
   function onPointerCancel() {

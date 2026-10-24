@@ -36,7 +36,7 @@ redirects to Google (authorization code flow with PKCE, a `state` parameter and 
 - **cancelled or failed on Google** (or a callback without this browser's correlation cookie): `/admin?error=login_failed`
 
 The frontend (`useSessionKeeper`, into the store's `auth` slice) calls `/api/auth/me` on load. Signed in, the admin bar shows
-"Signed in as ... · Sign out", and the admin's tabs and editing appear.
+"Signed in as ... · Sign out", and the System tab (the admin's pages) and editing appear.
 
 ### Sessions (one per device, in the database)
 

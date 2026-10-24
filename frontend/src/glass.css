@@ -766,8 +766,7 @@ html {
 /* The current tab's text; its pill is .tab-indicator, which glides from tab to tab. */
 .tab[aria-current='page'] {
   color: var(--text);
-  /* It's the drag handle: a sideways swipe on it moves the highlight, not the bar. */
-  touch-action: pan-y;
+  /* The mouse's drag handle. A finger's swipe on it scrolls the bar, as on any other tab. */
   cursor: grab;
 }
 
@@ -866,14 +865,15 @@ html {
 
 /*
  * Buttons and pills that sit on the page itself, outside any card ("Visit my YouTube page", the admin's page actions,
- * Engagement's periods, Feature Testing's features): the same glass, for the same reason. Hovered or open, they light
+ * Engagement's periods, System's pages, Feature Testing's features): the same glass, for the same reason. Hovered or open, they light
  * up over the glass, not instead of it (on its own, that light is see-through).
  */
 .youtube-channel .button-secondary,
+.youtube-channel .refresh-button,
 .page-actions .button-secondary,
 .engagement-toggle .button-secondary,
 .engagement-toggle .licence-toggle:not([aria-pressed='true']),
-.feature-nav-link {
+.pill-nav-link {
   border-color: transparent;
   background: var(--glass-fill);
   box-shadow:
@@ -884,10 +884,11 @@ html {
 }
 
 .youtube-channel .button-secondary:not(:disabled):hover,
+.youtube-channel .refresh-button:hover,
 .page-actions .button-secondary:not(:disabled):hover,
 .engagement-toggle .button-secondary:not(:disabled):hover,
 .engagement-toggle .licence-toggle:not([aria-pressed='true']):hover,
-.feature-nav-link:hover {
+.pill-nav-link:hover {
   background: linear-gradient(var(--raised-hover), var(--raised-hover)), var(--glass-fill);
 }
 
@@ -898,7 +899,7 @@ html {
   backdrop-filter: var(--glass-blur);
 }
 
-.feature-nav-link[aria-current='page'] {
+.pill-nav-link[aria-current='page'] {
   background: linear-gradient(var(--selected), var(--selected)), var(--glass-fill);
   box-shadow:
     var(--glass-shine),

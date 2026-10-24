@@ -3,7 +3,7 @@ import { TabLink } from '../TabLink/TabLink'
 import { useTabNavViewModel } from './TabNav.viewModel'
 
 /**
- * Links styled as tabs; the current one gets aria-current="page" (from NavLink). Admin-only tabs show
+ * Links styled as tabs; the current one gets aria-current="page" (System's, on any of the admin's pages). Admin-only tabs show
  * once signed in. One highlight glides to the tab that's picked, and can be dragged across from the
  * current tab: let go and it snaps to the nearest tab, which opens.
  */
@@ -25,12 +25,12 @@ export function TabNav() {
           {vm.tabs.map((tab) => (
             <TabLink
               key={tab.to}
-              to={tab.to}
+              to={tab.link}
               label={tab.label}
+              current={tab.current}
               hiddenFromVisitors={!!tab.hiddenFromVisitors}
               adminOnly={!!tab.adminOnly}
               badge={tab.badge}
-              nested={!!tab.nested}
             />
           ))}
         </nav>

@@ -76,12 +76,12 @@ describe('the price', () => {
     const api = stubApi({ user: ADMIN })
     await renderView(<WorkWithMe />, { user: ADMIN })
     await editButton().click()
-    await expect.element(currency()).toHaveTextContent('€EUREuro')
+    await expect.element(currency()).toHaveTextContent('EUREuro')
     await expect.element(amount()).toHaveValue('25')
 
     await currency().click()
     await page.getByRole('option', { name: /GBP/ }).click()
-    await expect.element(currency()).toHaveTextContent('£GBPBritish pound')
+    await expect.element(currency()).toHaveTextContent('GBPBritish pound')
     await amount().fill('30,50')
     await page.getByRole('button', { name: 'Save' }).click()
 

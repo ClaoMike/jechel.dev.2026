@@ -1,17 +1,18 @@
 import { CheckIcon, ChevronDownIcon, StarIcon } from '../../../components/icons/icons'
+import { Flag } from '../../about/Flag'
 import { CURRENCIES, FAVOURITE_CURRENCIES, OTHER_CURRENCIES, type Currency } from '../currencies'
 import { useCurrencyPickerViewModel } from './CurrencyPicker.viewModel'
 
-/** A currency's icon: its symbol on a coin. */
-export function CurrencyCoin({ currency }: { currency: Currency }) {
+/** A currency's icon: the flag of where it's used. Decorative: the code and name beside it say which it is. */
+function CurrencyFlag({ currency }: { currency: Currency }) {
   return (
-    <span className="currency-coin" data-currency={currency.code} data-long={currency.symbol.length > 2 || undefined} aria-hidden="true">
-      {currency.symbol}
+    <span className="currency-flag" aria-hidden="true">
+      <Flag code={currency.flag} />
     </span>
   )
 }
 
-/** A short dropdown of currencies, each with its coin: the favourites (EUR, RON, GBP) first, then the rest. */
+/** A short dropdown of currencies, each with its flag: the favourites (EUR, RON, GBP) first, then the rest. */
 export function CurrencyPicker({ label, value, onChange }: { label: string; value: string; onChange: (code: string) => void }) {
   const { root, ...vm } = useCurrencyPickerViewModel(value, onChange)
 
@@ -35,7 +36,7 @@ export function CurrencyPicker({ label, value, onChange }: { label: string; valu
               onPointerMove={() => vm.highlight(index)}
               onClick={() => vm.pick(index)}
             >
-              <CurrencyCoin currency={currency} />
+              <CurrencyFlag currency={currency} />
               <span className="currency-code">{currency.code}</span>
               <span className="currency-name">{currency.name}</span>
               {vm.isChosen(index) && <CheckIcon size={16} />}
@@ -64,7 +65,7 @@ export function CurrencyPicker({ label, value, onChange }: { label: string; valu
         onKeyDown={vm.onKeyDown}
         onKeyUp={vm.onKeyUp}
       >
-        <CurrencyCoin currency={vm.current} />
+        <CurrencyFlag currency={vm.current} />
         <span className="currency-code">{vm.current.code}</span>
         <span className="currency-name">{vm.current.name}</span>
         <ChevronDownIcon size={16} />

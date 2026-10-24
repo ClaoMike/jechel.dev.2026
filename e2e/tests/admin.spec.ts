@@ -5,7 +5,7 @@ import { alerts, expect, test, typeInto } from './fixtures.ts'
 // The admin: signing in with Google (the stand-in), who is let in, signing out, and the admin's own pages.
 
 const tabs = (page: Page) => page.getByRole('navigation', { name: 'Sections' })
-const ADMIN_TABS = ['Engagement', 'Community', 'Notifications', 'Terms', 'Settings', 'Feature Testing BETA']
+const SYSTEM_PAGES = ['Engagement', 'Community', 'Notifications', 'Terms', 'Settings', 'Feature Testing BETA']
 
 /** A browser of its own (a visitor who accepted the terms), so signing in or out here leaves the shared admin alone. */
 async function freshPage(browser: Browser) {
@@ -22,13 +22,13 @@ async function chooseAt(page: Page, account: RegExp | string) {
 }
 
 test.describe('signing in', () => {
-  test("lets the admin in with Google: home, the admin's tabs, and an alert on the phone", async ({ browser }) => {
+  test("lets the admin in with Google: home, the System tab, and an alert on the phone", async ({ browser }) => {
     const page = await freshPage(browser)
     const before = (await alerts()).filter((a) => a.title === 'Signed in to jechel.dev').length
     await chooseAt(page, /admin@e2e\.test/)
     await expect(page).toHaveURL('/')
     await expect(page.getByText('Signed in as admin@e2e.test')).toBeVisible()
-    for (const name of ADMIN_TABS) await expect(tabs(page).getByRole('link', { name })).toBeVisible()
+    await expect(tabs(page).getByRole('link', { name: 'System' })).toBeVisible()
     await expect.poll(async () => (await alerts()).filter((a) => a.title === 'Signed in to jechel.dev').length).toBeGreaterThan(before)
     await page.context().close()
   })
@@ -59,7 +59,7 @@ test.describe('signing in', () => {
     await expect(page.getByText('Signed in as admin@e2e.test')).toBeVisible()
     await page.getByRole('button', { name: 'Sign out' }).click()
     await expect(page.getByText(/Signed in as/)).toBeHidden()
-    await expect(tabs(page).getByRole('link', { name: 'Settings' })).toHaveCount(0)
+    await expect(tabs(page).getByRole('link', { name: 'System' })).toHaveCount(0)
     await page.goto('/settings')
     await expect(page).toHaveURL('/')
     await page.context().close()
@@ -98,7 +98,7 @@ test.describe('signing in', () => {
 
     await other.reload()
     await expect(other.getByText(/Signed in as/)).toBeHidden()
-    await expect(other.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Settings' })).toHaveCount(0)
+    await expect(other.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'System' })).toHaveCount(0)
     await here.context().close()
     await otherContext.close()
   })
@@ -141,11 +141,37 @@ test.describe("the admin's pages", () => {
     await expect(page.getByRole('group', { name: 'New message' }).getByRole('radio', { name: 'On' })).toBeVisible()
   })
 
-  test('Feature Testing (BETA) is the last tab, and opens the first feature to test: Work with me', async ({ page }) => {
+  test("System holds the admin's pages: its tab opens the first, its own row goes to each, and the tab stays marked", async ({ page }) => {
+    await page.goto('/')
+    const system = page.getByRole('navigation', { name: 'System' })
+    await expect(system).toHaveCount(0)
+    await tabs(page).getByRole('link', { name: 'System' }).click()
+    await expect(page).toHaveURL('/engagement')
+    await expect(page.getByRole('heading', { name: 'Engagement', level: 2 })).toBeVisible()
+    await expect(system.getByRole('link')).toHaveText(SYSTEM_PAGES)
+    for (const [name, path, heading] of [
+      ['Community', '/community', 'Email subscribers'],
+      ['Notifications', '/notifications', 'On your phone'],
+      ['Settings', '/settings', 'Visitor pages'],
+    ]) {
+      await system.getByRole('link', { name }).click()
+      await expect(page).toHaveURL(path)
+      await expect(page.getByRole('heading', { name: heading }).first()).toBeVisible()
+      await expect(system.getByRole('link', { name })).toHaveAttribute('aria-current', 'page')
+      await expect(tabs(page).getByRole('link', { name: 'System' })).toHaveAttribute('aria-current', 'page')
+    }
+    // Its own address opens its first page.
+    await page.goto('/system')
+    await expect(page).toHaveURL('/engagement')
+  })
+
+  test("Feature Testing (BETA) is System's last page, and opens the first feature to test: Work with me", async ({ page }) => {
     await page.goto('/features')
-    const tab = page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Feature Testing BETA' })
-    await expect(tab).toHaveAttribute('aria-current', 'page')
-    await expect(tab).toBeInViewport()
+    const system = tabs(page).getByRole('link', { name: 'System' })
+    await expect(system).toHaveAttribute('aria-current', 'page')
+    await expect(system).toBeInViewport()
+    await expect(page.getByRole('navigation', { name: 'System' }).getByRole('link').last()).toHaveText('Feature Testing BETA')
+    await expect(page.getByRole('navigation', { name: 'System' }).getByRole('link', { name: 'Feature Testing BETA' })).toHaveAttribute('aria-current', 'page')
     await expect(page).toHaveURL('/features/work-with-me')
     await expect(page.getByRole('navigation', { name: 'Features' }).getByRole('link', { name: 'Work with me' })).toHaveAttribute('aria-current', 'page')
     await expect(page.getByRole('region', { name: 'What I do' })).toBeVisible()
@@ -179,6 +205,47 @@ test.describe("the admin's pages", () => {
     expect((await visitor.request.put('/api/work-with-me/price', { data: { currency: 'GBP', amount: 1 } })).status()).toBe(401)
     expect(await (await visitor.request.get('/api/work-with-me/price')).json()).toHaveProperty('currency')
     await visitor.context().close()
+  })
+
+  test('YouTube: the refresh icon across from "Visit my YouTube page" asks YouTube now, and turns into a green tick', async ({ page }) => {
+    await page.goto('/youtube')
+    const refresh = page.getByRole('button', { name: 'Refresh from YouTube' })
+    const visit = page.getByRole('link', { name: 'Visit my YouTube page' })
+    await expect(refresh).toBeVisible()
+    const [link, button] = [await visit.boundingBox(), await refresh.boundingBox()]
+    expect(Math.abs(link!.y + link!.height / 2 - (button!.y + button!.height / 2))).toBeLessThan(4)
+    expect(button!.x).toBeGreaterThan(link!.x + link!.width)
+
+    await refresh.click()
+    await expect(refresh).toHaveAttribute('data-phase', 'done')
+    await expect(page.getByRole('status').filter({ hasText: /Up to date: \d+ videos? on YouTube\./ })).toBeAttached()
+    await expect(refresh).toHaveAttribute('data-phase', 'idle', { timeout: 5000 })
+  })
+
+  test('YouTube: a refresh that fails turns red, and its popup (closed only with ×) has the details to copy', async ({ page }) => {
+    await page.route('**/api/youtube/refresh', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ status: 503, detail: "YouTube can't be reached right now; the videos shown are the last ones saved.", cause: 'HttpRequestException: 403 (Forbidden).' }),
+      }),
+    )
+    await page.goto('/youtube')
+    const refresh = page.getByRole('button', { name: 'Refresh from YouTube' })
+    await refresh.click()
+    const popup = page.getByRole('dialog', { name: "Couldn't refresh from YouTube" })
+    await expect(popup).toBeVisible()
+    await expect(refresh).toHaveAttribute('data-phase', 'failed')
+    await expect(popup.locator('pre')).toContainText('Request: POST /api/youtube/refresh')
+    await expect(popup.locator('pre')).toContainText('Cause: HttpRequestException: 403 (Forbidden).')
+    await expect(popup.getByRole('button', { name: 'Copy the error details' })).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await page.mouse.click(5, 5)
+    await expect(popup).toBeVisible()
+    await popup.getByRole('button', { name: 'Close' }).click()
+    await expect(popup).toBeHidden()
+    await expect(refresh).toHaveAttribute('data-phase', 'idle')
   })
 
   test('Terms can be edited by the admin', async ({ page }) => {

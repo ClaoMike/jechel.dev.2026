@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { page } from 'vitest/browser'
+import { describe, expect, it, vi } from 'vitest'
+import { page, userEvent } from 'vitest/browser'
 import { THEMES } from '../../layout/theme'
 import { ApiError } from '../../services/api'
 import { a11yViolations } from '../../test/a11y'
@@ -55,7 +55,9 @@ describe('YouTube', () => {
   it('asks for nine a page and pages through more, with the page in the URL', async () => {
     const api = stubApi()
     const all = Array.from({ length: 11 }, (_, i) => makeVideo(i + 1))
-    api.youtube.listVideos.mockImplementation(async (pageNumber = 1, pageSize = 9) => pageOfVideos(all.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), pageNumber, pageSize, all.length))
+    api.youtube.listVideos.mockImplementation(async (pageNumber = 1, pageSize = 9) =>
+      pageOfVideos(all.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), pageNumber, pageSize, all.length),
+    )
     const view = await renderView(<YouTubePage />, { path: '/youtube' })
     await expect.element(page.getByText('Page 1 of 2')).toBeVisible()
     expect(api.youtube.listVideos).toHaveBeenCalledWith(1, 9, expect.anything())
@@ -67,7 +69,9 @@ describe('YouTube', () => {
   it('goes back to the first page with Previous, leaving the page out of the URL', async () => {
     const api = stubApi()
     const all = Array.from({ length: 11 }, (_, i) => makeVideo(i + 1))
-    api.youtube.listVideos.mockImplementation(async (pageNumber = 1, pageSize = 9) => pageOfVideos(all.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), pageNumber, pageSize, all.length))
+    api.youtube.listVideos.mockImplementation(async (pageNumber = 1, pageSize = 9) =>
+      pageOfVideos(all.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), pageNumber, pageSize, all.length),
+    )
     const view = await renderView(<YouTubePage />, { path: '/youtube?page=2' })
     await expect.element(tile('Video 10')).toBeVisible()
     await page.getByRole('button', { name: 'Previous' }).click()
@@ -87,7 +91,9 @@ describe('YouTube', () => {
   it('moves a page past the end (an old link) to the last page there is', async () => {
     const api = stubApi()
     const all = Array.from({ length: 11 }, (_, i) => makeVideo(i + 1))
-    api.youtube.listVideos.mockImplementation(async (pageNumber = 1, pageSize = 9) => pageOfVideos(all.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), pageNumber, pageSize, all.length))
+    api.youtube.listVideos.mockImplementation(async (pageNumber = 1, pageSize = 9) =>
+      pageOfVideos(all.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), pageNumber, pageSize, all.length),
+    )
     const view = await renderView(<YouTubePage />, { path: '/youtube?page=7' })
     await expect.poll(() => view.location()).toBe('/youtube?page=2')
     await expect.element(tile('Video 11')).toBeVisible()
@@ -123,8 +129,12 @@ describe('YouTube', () => {
 
   describe("the admin's Refresh from YouTube", () => {
     const refresh = () => page.getByRole('button', { name: 'Refresh from YouTube' })
+    const phase = () => refresh().element().getAttribute('data-phase')
+    const announced = () => document.querySelector('.refresh-status')?.textContent ?? ''
+    const popup = () => page.getByRole('dialog', { name: "Couldn't refresh from YouTube" })
+    const failure = (status: number, problem = {}) => new ApiError('/api/youtube/refresh', status, null, { method: 'POST', problem })
 
-    it('is only there for the admin', async () => {
+    it('is only there for the admin, an icon at the other end of the row from "Visit my YouTube page"', async () => {
       stubApi()
       const visitor = await renderView(<YouTubePage />)
       await expect.element(tile(VIDEOS[0].title)).toBeVisible()
@@ -133,20 +143,41 @@ describe('YouTube', () => {
       stubApi({ user: ADMIN })
       await renderView(<YouTubePage />, { user: ADMIN })
       await expect.element(refresh()).toBeVisible()
+      const row = document.querySelector('.youtube-channel')!
+      expect([...row.children].map((c) => c.textContent || c.getAttribute('aria-label'))).toEqual(['Visit my YouTube page', 'Refresh from YouTube', null])
+      expect(refresh().element().querySelector('.refresh-icon-refresh svg')).not.toBeNull()
+      const link = page.getByRole('link', { name: 'Visit my YouTube page' }).element().getBoundingClientRect()
+      const button = refresh().element().getBoundingClientRect()
+      expect(button.top).toBeLessThan(link.bottom)
+      expect(button.right).toBeCloseTo(row.getBoundingClientRect().right, 0)
     })
 
-    it('asks YouTube now, says how many videos there are, and shows the new one first', async () => {
+    it('spins while it asks, then a green tick, then the refresh icon again; the new video comes first', async () => {
       const api = stubApi({ user: ADMIN })
       await renderView(<YouTubePage />, { user: ADMIN })
       await expect.element(tile(VIDEOS[0].title)).toBeVisible()
       const uploaded = makeVideo(99, { title: 'Just uploaded' })
+      let answer!: (count: number) => void
       api.youtube.listVideos.mockResolvedValue(pageOfVideos([uploaded, ...VIDEOS]))
-      api.youtube.refreshVideos.mockResolvedValue(4)
+      api.youtube.refreshVideos.mockReturnValue(new Promise((resolve) => (answer = resolve)))
+
       await refresh().click()
-      await expect.poll(() => textOf(page.getByRole('status'))).toBe('✓ Up to date: 4 videos on YouTube.')
-      await expect.element(tile('Just uploaded')).toBeVisible()
+      await expect.poll(phase).toBe('busy')
+      expect(announced()).toBe('Refreshing from YouTube…')
+      // The tests ask for reduced motion: then it dims instead of spinning.
+      expect(getComputedStyle(refresh().element().querySelector('.refresh-icon-refresh svg')!).opacity).toBe('0.5')
+      // Pressed again meanwhile: nothing more is asked.
+      await refresh().click()
       expect(api.youtube.refreshVideos).toHaveBeenCalledTimes(1)
+
+      answer(4)
+      await expect.poll(phase).toBe('done')
+      expect(announced()).toBe('Up to date: 4 videos on YouTube.')
+      await expect.poll(() => getComputedStyle(refresh().element().querySelector('.refresh-icon-done')!).opacity).toBe('1')
+      await expect.element(tile('Just uploaded')).toBeVisible()
       expect(grid().element().querySelector('li')?.textContent).toContain('Just uploaded')
+      expect(popup().query()).toBeNull()
+      await expect.poll(phase, { timeout: 4000 }).toBe('idle')
     })
 
     it('says "1 video" for one', async () => {
@@ -154,47 +185,113 @@ describe('YouTube', () => {
       api.youtube.refreshVideos.mockResolvedValue(1)
       await renderView(<YouTubePage />, { user: ADMIN })
       await refresh().click()
-      await expect.poll(() => textOf(page.getByRole('status'))).toBe('✓ Up to date: 1 video on YouTube.')
+      await expect.poll(announced).toBe('Up to date: 1 video on YouTube.')
     })
 
-    it('says "Refreshing…" and can\'t be pressed again meanwhile', async () => {
-      const api = stubApi({ user: ADMIN })
-      api.youtube.refreshVideos.mockReturnValue(forever())
-      await renderView(<YouTubePage />, { user: ADMIN })
-      await refresh().click()
-      const busy = page.getByRole('button', { name: 'Refreshing…' })
-      await expect.element(busy).toBeDisabled()
-    })
-
-    it('says when YouTube can\'t be reached, keeping the videos shown', async () => {
+    it('turns into a red cross and opens a popup with what went wrong, which only its × closes; the videos stay', async () => {
       const api = stubApi({ user: ADMIN })
       await renderView(<YouTubePage />, { user: ADMIN })
       await expect.element(tile(VIDEOS[0].title)).toBeVisible()
-      api.youtube.refreshVideos.mockRejectedValue(new ApiError('/api/youtube/refresh', 503))
+      api.youtube.refreshVideos.mockRejectedValue(
+        failure(503, {
+          detail: "YouTube can't be reached right now; the videos shown are the last ones saved.",
+          cause: 'HttpRequestException: Response status code does not indicate success: 403 (Forbidden).',
+        }),
+      )
       await refresh().click()
-      await expect.poll(() => textOf(page.getByRole('status'))).toBe("YouTube can't be reached right now, or isn't set up (Settings). The videos shown are the last ones saved.")
+
+      await expect.element(popup()).toBeVisible()
+      expect(phase()).toBe('failed')
+      expect(announced()).toBe("Couldn't refresh from YouTube.")
+      await expect.element(popup().getByText("YouTube can't be reached right now; the videos shown are the last ones saved.", { exact: true })).toBeVisible()
+      const details = popup().element().querySelector('pre')!.textContent!
+      expect(details.split('\n')).toEqual([
+        'Refresh from YouTube failed',
+        expect.stringMatching(/^When: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/),
+        'Request: POST /api/youtube/refresh',
+        'Status: 503',
+        "API: YouTube can't be reached right now; the videos shown are the last ones saved.",
+        'Cause: HttpRequestException: Response status code does not indicate success: 403 (Forbidden).',
+      ])
+
+      // Not Escape, not a click outside it.
+      await userEvent.keyboard('{Escape}')
+      document.querySelector<HTMLElement>('.modal-backdrop')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      document.querySelector<HTMLElement>('.modal-backdrop')!.click()
+      await expect.element(popup()).toBeVisible()
+
+      await popup().getByRole('button', { name: 'Close' }).click()
+      expect(popup().query()).toBeNull()
+      await expect.poll(phase).toBe('idle')
       await expect.element(tile(VIDEOS[0].title)).toBeVisible()
-      await expect.element(refresh()).toBeEnabled()
     })
 
-    it('says to try again on any other failure, and clears the message when trying again', async () => {
+    it('copies the details, with the copy button', async () => {
       const api = stubApi({ user: ADMIN })
-      api.youtube.refreshVideos.mockRejectedValueOnce(new ApiError('/api/youtube/refresh', 500))
+      api.youtube.refreshVideos.mockRejectedValue(failure(500))
       await renderView(<YouTubePage />, { user: ADMIN })
       await refresh().click()
-      await expect.poll(() => textOf(page.getByRole('status'))).toBe("That didn't work. Please try again.")
-      api.youtube.refreshVideos.mockReturnValue(forever())
-      await refresh().click()
-      await expect.poll(() => page.getByRole('status').query()).toBeNull()
+      await expect.element(popup()).toBeVisible()
+      const written: string[] = []
+      const spy = vi.spyOn(navigator.clipboard, 'writeText').mockImplementation(async (text) => void written.push(text))
+      try {
+        await popup().getByRole('button', { name: 'Copy the error details' }).click()
+        await expect.poll(() => written).toEqual([popup().element().querySelector('pre')!.textContent])
+        expect(written[0]).toContain('Status: 500')
+      } finally {
+        spy.mockRestore()
+      }
     })
 
-    it('has no WCAG problems, with its message', async () => {
-      stubApi({ user: ADMIN })
+    it.each([
+      [0, "The API couldn't be reached. Check the connection, then try again.", 'Status: no answer'],
+      [401, 'Your session has ended. Sign in again, then refresh.', 'Status: 401'],
+      [503, "YouTube can't be reached right now, or isn't set up (Settings). The videos shown are the last ones saved.", 'Status: 503'],
+      [500, "That didn't work. Please try again.", 'Status: 500'],
+    ])('a failure with status %i says: %s', async (status, message, line) => {
+      const api = stubApi({ user: ADMIN })
+      api.youtube.refreshVideos.mockRejectedValue(failure(status))
       await renderView(<YouTubePage />, { user: ADMIN })
       await refresh().click()
-      await expect.element(page.getByRole('status')).toBeVisible()
-      expect(await a11yViolations()).toEqual([])
+      await expect.element(popup().getByText(message, { exact: true })).toBeVisible()
+      expect(popup().element().querySelector('pre')!.textContent).toContain(line)
     })
+
+    it('can be tried again once the popup is closed', async () => {
+      const api = stubApi({ user: ADMIN })
+      api.youtube.refreshVideos.mockRejectedValueOnce(failure(500)).mockResolvedValueOnce(3)
+      await renderView(<YouTubePage />, { user: ADMIN })
+      await refresh().click()
+      await popup().getByRole('button', { name: 'Close' }).click()
+      await refresh().click()
+      await expect.poll(phase).toBe('done')
+      expect(api.youtube.refreshVideos).toHaveBeenCalledTimes(2)
+    })
+
+    for (const theme of THEMES) {
+      it(`${theme}: the row with the refresh, and the popup, with no WCAG problems`, async () => {
+        const api = stubApi({ user: ADMIN })
+        api.youtube.refreshVideos.mockRejectedValue(
+          failure(503, { detail: "YouTube can't be reached right now; the videos shown are the last ones saved.", cause: 'HttpRequestException: 403 (Forbidden).' }),
+        )
+        await renderView(<YouTubePage />, { user: ADMIN, theme })
+        await expect.element(tile(VIDEOS[0].title)).toBeVisible()
+        expect(await a11yViolations()).toEqual([])
+        await shootWhole(page.getByRole('main'), `${theme}-admin`)
+
+        // The details say when: the same moment in every screenshot.
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(new Date('2026-10-25T09:30:00Z'))
+        try {
+          await refresh().click()
+          await expect.element(popup()).toBeVisible()
+        } finally {
+          vi.useRealTimers()
+        }
+        expect(await a11yViolations()).toEqual([])
+        await expect(popup()).toMatchScreenshot(`${theme}-refresh-error`)
+      })
+    }
   })
 
   for (const theme of THEMES) {

@@ -23,6 +23,23 @@ describe('the API plumbing', () => {
     }
   })
 
+  it('keeps what the API said about a failure (its detail, or title, and cause), and what was asked', async () => {
+    fakeHttp(() => ({ status: 503, body: { title: 'Service Unavailable', detail: "YouTube can't be reached right now.", cause: 'HttpRequestException: 403 (Forbidden).' } }))
+    const error = (await api.youtube.refreshVideos().catch((e: unknown) => e)) as ApiError
+    expect(error.request).toBe('POST /api/youtube/refresh')
+    expect(error.problem).toEqual({ detail: "YouTube can't be reached right now.", cause: 'HttpRequestException: 403 (Forbidden).' })
+
+    for (const [body, problem] of [
+      [{ title: 'Bad request' }, { detail: 'Bad request' }],
+      [{ detail: ' ', cause: 42 }, {}],
+      ['plain text', {}],
+      [undefined, {}],
+    ] as const) {
+      fakeHttp(() => ({ status: 500, body }))
+      expect(((await api.youtube.refreshVideos().catch((e: unknown) => e)) as ApiError).problem).toEqual(problem)
+    }
+  })
+
   it('leaves signing in alone in preview: the session is still checked', async () => {
     const { requests } = fakeHttp(() => ({ status: 401 }))
     setRequestPreview('error')
@@ -44,7 +61,7 @@ describe('the API plumbing', () => {
 
   describe('failureOf', () => {
     it('reads an ApiError', () => {
-      expect(failureOf(new ApiError('/api/x', 400, { name: ['Required'] }))).toEqual({ status: 400, validationErrors: { name: ['Required'] } })
+      expect(failureOf(new ApiError('/api/x', 400, { name: ['Required'] }))).toEqual({ status: 400, validationErrors: { name: ['Required'] }, request: 'GET /api/x', problem: {} })
     })
 
     it('reads a failure the store kept as plain data', () => {

@@ -75,6 +75,8 @@ function App() {
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="terms" element={<TermsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          {/* System's own address: its first page. */}
+          <Route path="system" element={<Navigate to="/engagement" replace />} />
           <Route path="features" element={<FeatureTestingPage />} />
           <Route path="features/:feature" element={<FeatureTestingPage />} />
           {/* The link in an answer's email: works while the Contact page is hidden, and during maintenance. */}

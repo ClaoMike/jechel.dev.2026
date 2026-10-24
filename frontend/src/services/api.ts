@@ -30,7 +30,7 @@ import { workWithMeEndpoints } from './endpoints/workWithMe'
 import { youtubeEndpoints } from './endpoints/youtube'
 
 export { ApiError, failureOf, onRequestFailed, setRequestPreview } from './http'
-export type { ApiFailure, FailedRequest, Page, RequestPreview, ValidationErrors } from './http'
+export type { ApiFailure, FailedRequest, Page, ProblemInfo, RequestPreview, ValidationErrors } from './http'
 export * from './endpoints/about'
 export * from './endpoints/analytics'
 export * from './endpoints/apps'

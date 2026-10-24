@@ -68,7 +68,7 @@ public static class YouTubeEndpoints
     /// <summary>
     /// Admin only. Asks YouTube for the videos now (e.g. right after uploading one) instead of waiting for
     /// the hourly refresh, and keeps them. 503 when YouTube isn't configured or can't be reached (the
-    /// list kept so far stays).
+    /// list kept so far stays), the latter with why (<c>cause</c>: <see cref="YouTubeVideoStore.LastError"/>).
     /// </summary>
     public static async Task<Results<Ok<RefreshResult>, ProblemHttpResult>> Refresh(
         IOptionsMonitor<YouTubeOptions> options,
@@ -82,7 +82,10 @@ public static class YouTubeEndpoints
 
         var videos = await store.RefreshAsync(cancellationToken);
         return videos is null
-            ? TypedResults.Problem("YouTube can't be reached right now; the videos shown are the last ones saved.", statusCode: StatusCodes.Status503ServiceUnavailable)
+            ? TypedResults.Problem(
+                "YouTube can't be reached right now; the videos shown are the last ones saved.",
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                extensions: store.LastError is { } cause ? new Dictionary<string, object?> { ["cause"] = cause } : null)
             : TypedResults.Ok(new RefreshResult(videos.Count));
     }
 }

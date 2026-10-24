@@ -48,12 +48,14 @@ describe('who sees it', () => {
     expect(calls.list).not.toHaveBeenCalled()
   })
 
-  it('is one of the admin tabs, after Community', async () => {
+  it("is one of System's pages, after Community", async () => {
     stubApi({ user: ADMIN })
     await renderApp({ path: '/notifications' })
-    const tab = page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Notifications' })
-    await expect.element(tab).toHaveAttribute('aria-current', 'page')
-    expect(tab.element().classList.contains('tab-admin')).toBe(true)
+    await expect.element(page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'System' })).toHaveAttribute('aria-current', 'page')
+    const pages = page.getByRole('navigation', { name: 'System' }).getByRole('link')
+    await expect.element(pages.nth(2)).toHaveTextContent('Notifications')
+    await expect.element(pages.nth(1)).toHaveTextContent('Community')
+    await expect.element(pages.nth(2)).toHaveAttribute('aria-current', 'page')
   })
 })
 

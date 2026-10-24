@@ -4,7 +4,7 @@ import { page, userEvent } from 'vitest/browser'
 import { renderView } from '../../../test/render'
 import { CurrencyPicker } from './CurrencyPicker'
 
-// A short dropdown of currencies, each with its coin, the favourites first; usable with the mouse or the keyboard alone.
+// A short dropdown of currencies, each with its flag, the favourites first; usable with the mouse or the keyboard alone.
 
 function Picker({ start = 'EUR' }: { start?: string }) {
   const [value, setValue] = useState(start)
@@ -23,14 +23,15 @@ const chosen = () => document.querySelector('output')!.textContent
 const active = () => document.getElementById(combobox().element().getAttribute('aria-activedescendant') ?? '')?.textContent
 
 describe('the currency picker', () => {
-  it('shows the chosen currency with its coin, closed', async () => {
+  it('shows the chosen currency with its flag, closed', async () => {
     await renderView(<Picker />)
-    await expect.element(combobox()).toHaveTextContent('€EUREuro')
+    await expect.element(combobox()).toHaveTextContent('EUREuro')
+    expect(combobox().element().querySelector('img.flag')!.getAttribute('src')).toMatch(/eu\.[^/]*svg/)
     await expect.element(combobox()).toHaveAttribute('aria-expanded', 'false')
     expect(listbox().query()).toBeNull()
   })
 
-  it('lists the favourites (EUR, RON, GBP) first, then the others, each with its coin, the chosen one ticked', async () => {
+  it('lists the favourites (EUR, RON, GBP) first, then the other EU currencies, each with its flag, the chosen one ticked', async () => {
     await renderView(<Picker start="RON" />)
     await combobox().click()
     await expect.element(listbox()).toBeVisible()
@@ -43,19 +44,26 @@ describe('the currency picker', () => {
         .elements()
         .map((o) => o.querySelector('.currency-code')!.textContent),
     ).toEqual(['EUR', 'RON', 'GBP'])
-    expect(groups.last().getByRole('option').elements()).toHaveLength(10)
+    expect(
+      groups
+        .last()
+        .getByRole('option')
+        .elements()
+        .map((o) => o.querySelector('.currency-code')!.textContent),
+    ).toEqual(['CZK', 'DKK', 'HUF', 'PLN', 'SEK'])
     const options = listbox().getByRole('option').elements()
-    expect(options.every((o) => o.querySelector('.currency-coin')?.getAttribute('aria-hidden') === 'true')).toBe(true)
+    // The flags are decorative: the code and name say which currency it is.
+    expect(options.map((o) => o.querySelector('.currency-flag[aria-hidden="true"] img.flag')?.getAttribute('alt'))).toEqual(Array(8).fill(''))
     expect(options.filter((o) => o.getAttribute('aria-selected') === 'true').map((o) => o.querySelector('.currency-code')!.textContent)).toEqual(['RON'])
   })
 
   it('picks one with a click, and closes', async () => {
     await renderView(<Picker />)
     await combobox().click()
-    await page.getByRole('option', { name: /USD/ }).click()
-    expect(chosen()).toBe('USD')
+    await page.getByRole('option', { name: /PLN/ }).click()
+    expect(chosen()).toBe('PLN')
     await expect.element(combobox()).toHaveAttribute('aria-expanded', 'false')
-    await expect.element(combobox()).toHaveTextContent('$USDUS dollar')
+    await expect.element(combobox()).toHaveTextContent('PLNPolish złoty')
   })
 
   it('closes on a click elsewhere, or on its own button again, without changing the currency', async () => {
@@ -79,21 +87,22 @@ describe('the currency picker', () => {
     await userEvent.keyboard('{ArrowDown}')
     expect(active()).toContain('GBP')
     await userEvent.keyboard('{End}')
-    expect(active()).toContain('AUD')
+    expect(active()).toContain('SEK')
     await userEvent.keyboard('{ArrowDown}')
-    expect(active()).toContain('AUD')
+    expect(active()).toContain('SEK')
     await userEvent.keyboard('{Home}')
     expect(active()).toContain('EUR')
     await userEvent.keyboard('{ArrowUp}')
     expect(active()).toContain('EUR')
-    await userEvent.keyboard('c')
-    expect(active()).toContain('CHF')
-    await userEvent.keyboard('c')
-    expect(active()).toContain('CZK')
-    await userEvent.keyboard('c')
-    expect(active()).toContain('CAD')
-    await userEvent.keyboard('c')
-    expect(active()).toContain('CHF')
+    await userEvent.keyboard('p')
+    expect(active()).toContain('PLN')
+    await userEvent.keyboard('h')
+    expect(active()).toContain('HUF')
+    // A letter no code starts with stays put; one only one starts with stays on it.
+    await userEvent.keyboard('x')
+    expect(active()).toContain('HUF')
+    await userEvent.keyboard('h')
+    expect(active()).toContain('HUF')
 
     await userEvent.keyboard('{Escape}')
     await expect.element(combobox()).toHaveAttribute('aria-expanded', 'false')
