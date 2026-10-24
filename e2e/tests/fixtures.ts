@@ -2,7 +2,7 @@
  * What every test file uses: `test` keeps each page on this computer (requests anywhere else, such as YouTube's
  * player, are answered with an empty page), and helpers for the admin's API and for what the stand-ins received.
  */
-import { test as base, expect, request, type APIRequestContext, type Page } from '@playwright/test'
+import { test as base, expect, request, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 import { ADMIN_STATE } from './states.ts'
 
 export const WEB_URL = `http://localhost:${process.env.E2E_WEB_PORT ?? '4273'}`
@@ -96,4 +96,19 @@ export function linkIn(email: SentEmail, path: string): string {
   const match = email.text.match(new RegExp(`https?://[^\\s)]+${path.replace(/\//g, '\\/')}[^\\s)]*`))
   if (!match) throw new Error(`No ${path} link in "${email.subject}":\n${email.text}`)
   return match[0]
+}
+
+/**
+ * Types into a field key by key, as a person does. (Playwright's `fill` sets the value in one go; in the real Firefox,
+ * driven over WebDriver BiDi, that doesn't fire the input events the site listens for yet.)
+ */
+export async function typeInto(field: Locator, text: string) {
+  await field.clear()
+  await field.pressSequentially(text)
+}
+
+/** A tap on a phone; a click in Firefox, where Playwright can't touch yet (WebDriver BiDi). */
+export async function tap(target: Locator, browserName: string) {
+  if (browserName === 'firefox') await target.click()
+  else await target.tap()
 }

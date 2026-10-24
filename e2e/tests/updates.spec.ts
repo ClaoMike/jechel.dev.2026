@@ -1,5 +1,5 @@
 import { ADMIN_STATE } from './states.ts'
-import { emailsTo, expect, linkIn, test, unique } from './fixtures.ts'
+import { emailsTo, expect, linkIn, test, unique, typeInto } from './fixtures.ts'
 
 // Get updates: subscribing, the confirmation email (from the stand-in for Resend), confirming, and unsubscribing.
 
@@ -10,7 +10,7 @@ test('subscribes: asks to confirm by email, the link confirms, and the admin see
   await page.goto('/')
   await page.getByRole('button', { name: 'Get updates by email' }).click()
   const dialog = page.getByRole('dialog', { name: 'Get updates' })
-  await dialog.getByRole('textbox', { name: 'Email' }).fill(email)
+  await typeInto(dialog.getByRole('textbox', { name: 'Email' }), email)
   await dialog.getByRole('button', { name: 'Subscribe' }).click()
   await expect(dialog.getByRole('status')).toContainText(`Almost there: check ${email}`)
   await dialog.getByRole('button', { name: 'Done' }).click()
@@ -34,7 +34,7 @@ test('a confirmation link used twice, or made up, says so', async ({ page, brows
   await page.goto('/')
   await page.getByRole('button', { name: 'Get updates by email' }).click()
   const dialog = page.getByRole('dialog', { name: 'Get updates' })
-  await dialog.getByRole('textbox', { name: 'Email' }).fill(email)
+  await typeInto(dialog.getByRole('textbox', { name: 'Email' }), email)
   await dialog.getByRole('button', { name: 'Subscribe' }).click()
   const [confirmation] = await emailsTo(email)
   const link = linkIn(confirmation, '/updates/confirm')
@@ -49,7 +49,7 @@ test('refuses an address that is not one', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Get updates by email' }).click()
   const dialog = page.getByRole('dialog', { name: 'Get updates' })
-  await dialog.getByRole('textbox', { name: 'Email' }).fill('nope')
+  await typeInto(dialog.getByRole('textbox', { name: 'Email' }), 'nope')
   await dialog.getByRole('button', { name: 'Subscribe' }).click()
   await expect(dialog.getByRole('textbox', { name: 'Email' })).toHaveAttribute('aria-invalid', 'true')
   await expect(dialog.getByRole('status')).toHaveCount(0)

@@ -80,9 +80,15 @@ production build (`vite preview`, `/api` passed on as on Cloudflare), the real A
 for the outside services. `./e2e/run.sh` does everything (Docker must be running); arguments go to Playwright, e.g.
 `./e2e/run.sh --project chrome` or `./e2e/run.sh tests/contact.spec.ts`. The report: `npx playwright show-report` in `e2e/`.
 
-- **Always the latest browsers.** Every run installs the newest `@playwright/test` (no lockfile) with its Firefox and
-  WebKit, and in CI the current stable Chrome and Edge from their own channels. Locally Chrome and Edge are the ones
-  installed on the Mac (they update themselves). So a browser update that breaks the site shows up on the next run.
+- **Always the newest browsers, enforced.** The real **Chrome, Edge and Firefox** (Firefox driven over WebDriver BiDi,
+  `channel: 'moz-firefox'`) and **WebKit**, Safari's engine (real Safari can't be automated; Playwright's WebKit is
+  what Safari runs on). Every run installs the newest `@playwright/test` (no lockfile) and its WebKit; on CI also the
+  current stable Chrome and Edge (`playwright install --force chrome msedge`) and Firefox (Mozilla's latest download);
+  on a Mac the installed Chrome, Edge and Firefox, which update themselves. Then **`checkBrowsers.ts`** starts each one
+  and compares its version with what its maker publishes as current (Google's version history for Chrome's stable
+  channel, Microsoft's Edge updates feed, Mozilla's product details, npm for Playwright): one that's older stops the run
+  and says what to update. `E2E_ALLOW_OUTDATED=1 ./e2e/run.sh` runs anyway, with the warning (for the day or two a new
+  release takes to reach your Mac). Nothing to bump by hand.
 - **What it covers** (`e2e/tests/`): the welcome popup and terms (nothing recorded before they're accepted), the tabs,
   back/forward and unknown addresses, the themes and Vice's Hide page, What's new, Apps (pages, the popup), YouTube
   (pages, thumbnails), About (folding sections, the map), Contact (checks, sending, the admin's inbox and phone alert),
@@ -95,9 +101,9 @@ for the outside services. `./e2e/run.sh` does everything (Docker must be running
   the alerts). The API runs in the `E2E` environment with `E2E:Services` pointing at them; anywhere else that setting
   is ignored (tested in `HostingTests`), and the `E2E` environment doesn't read your user secrets, so nothing real is
   ever sent. The setup (`setup.setup.ts`) accepts the terms, signs the admin in and adds 10 apps.
-- **On a Mac:** Playwright's Firefox doesn't start on macOS 27, so `run.sh` runs it in Playwright's Linux image (Docker)
-  and drives it from the Mac (`E2E_FIREFOX_WS`). Edge gets `--in-process-gpu` there: started by Playwright, its separate
-  graphics process hangs, and with it the Vice scene's WebGL.
+- **On a Mac:** Edge gets `--in-process-gpu`: started by Playwright, its separate graphics process hangs, and with it the
+  Vice scene's WebGL. Playwright's typing in one go (`fill`) and taps don't reach the site in the real Firefox yet
+  (WebDriver BiDi), so the tests type key by key (`typeInto`) and tap with a click there (`tap`), as a person would.
 - **Without a graphics card** (CI, the Firefox container) Vice isn't the default (`isLowPowerDevice`), as for visitors:
   the tests that need it pick it. On CI (`NO_GPU` in `tests/fixtures.ts`) everything is drawn by the CPU: WebKit there
   draws the frosted glass (`backdrop-filter`) at one frame every few seconds on Apps and About, so Playwright waits forever

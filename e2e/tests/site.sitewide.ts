@@ -1,6 +1,6 @@
 import type { Browser, Page } from '@playwright/test'
 import { ADMIN_STATE, VISITOR_STATE } from './states.ts'
-import { adminApi, expect, test, unique } from './fixtures.ts'
+import { adminApi, expect, test, unique, typeInto } from './fixtures.ts'
 
 // What the admin changes for everyone: apps added, edited and deleted; pages switched off; maintenance. These run once
 // every browser's other tests are done, one browser at a time (playwright.config.ts), and put everything back.
@@ -39,8 +39,8 @@ test('the admin adds an app, visitors see it; edits it, they see the change; del
   await page.goto('/apps')
   await page.getByRole('button', { name: 'Add an app' }).click()
   const form = page.getByRole('dialog', { name: 'Add an app' })
-  await form.getByRole('textbox', { name: 'Title' }).fill(title)
-  await form.getByRole('textbox', { name: 'Description' }).fill('Added by the end-to-end tests.')
+  await typeInto(form.getByRole('textbox', { name: 'Title' }), title)
+  await typeInto(form.getByRole('textbox', { name: 'Description' }), 'Added by the end-to-end tests.')
   await form.getByRole('button', { name: 'Add app' }).click()
   // Added, the popup shows the app as visitors will.
   await expect(page.getByRole('dialog', { name: title })).toBeVisible()
@@ -55,7 +55,7 @@ test('the admin adds an app, visitors see it; edits it, they see the change; del
   await page.getByRole('list', { name: 'Apps' }).getByRole('button', { name: title }).click()
   await page.getByRole('dialog', { name: title }).getByRole('button', { name: 'Edit' }).click()
   const editing = page.getByRole('dialog', { name: `Edit ${title}` })
-  await editing.getByRole('textbox', { name: 'Title' }).fill(`${title} v2`)
+  await typeInto(editing.getByRole('textbox', { name: 'Title' }), `${title} v2`)
   await editing.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('dialog', { name: `${title} v2` })).toBeVisible()
   await page.keyboard.press('Escape')
@@ -117,7 +117,7 @@ test('every page switched off: visitors get "Coming soon"', async ({ browser }) 
 test('maintenance: visitors get the maintenance page with its message; the admin still sees the site, warned', async ({ page, browser }) => {
   await page.goto('/settings')
   await page.getByRole('switch', { name: 'Under maintenance' }).click()
-  await page.getByRole('textbox', { name: 'Message on the maintenance page (optional)' }).fill('Back by 18:00')
+  await typeInto(page.getByRole('textbox', { name: 'Message on the maintenance page (optional)' }), 'Back by 18:00')
   await page.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('switch', { name: 'Under maintenance' })).toBeChecked()
 

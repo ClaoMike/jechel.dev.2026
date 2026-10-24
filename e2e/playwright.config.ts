@@ -6,8 +6,9 @@ import { VISITOR_STATE } from './tests/states.ts'
  * API on a fresh PostgreSQL, and stand-ins for Google's sign-in, YouTube, Resend and ntfy (fakeServices.ts). Run with ./run.sh, which
  * starts the database and installs the latest Playwright and browsers first.
  *
- * Four browsers, each the latest: Chrome and Edge are the real ones (their stable channel, installed fresh),
- * Firefox and Safari are Playwright's builds of their engines (Safari: WebKit), from the latest Playwright.
+ * Four browsers, each the newest release, checked before every run (checkBrowsers.ts): the real Chrome, Edge and
+ * Firefox (on CI downloaded fresh from Google, Microsoft and Mozilla; on a Mac the installed ones, which update
+ * themselves), and WebKit, Safari's engine, from the latest Playwright.
  */
 const API_PORT = process.env.E2E_API_PORT ?? '5205'
 const WEB_PORT = process.env.E2E_WEB_PORT ?? '4273'
@@ -17,14 +18,13 @@ const API_URL = `http://localhost:${API_PORT}`
 const WEB_URL = `http://localhost:${WEB_PORT}`
 const SERVICES_URL = `http://localhost:${SERVICES_PORT}`
 
-// Playwright's Firefox doesn't start on macOS 27, so on a Mac run.sh runs it in Playwright's Linux image (Docker)
-// and the tests drive it from here (E2E_FIREFOX_WS); its localhost is this computer's.
-const firefoxServer = process.env.E2E_FIREFOX_WS
 const BROWSERS = [
   { name: 'chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
   // On a Mac, Edge started by Playwright hangs creating its graphics process (the Vice scene's WebGL): kept in the browser's own.
   { name: 'edge', use: { ...devices['Desktop Edge'], channel: 'msedge', launchOptions: { args: process.platform === 'darwin' ? ['--in-process-gpu'] : [] } } },
-  { name: 'firefox', use: { ...devices['Desktop Firefox'], ...(firefoxServer && { connectOptions: { wsEndpoint: firefoxServer, exposeNetwork: '<loopback>' } }) } },
+  // The real Firefox, its current release (Playwright drives it over WebDriver BiDi): the Mac's own, which updates itself;
+  // on CI the latest from Mozilla, downloaded by run.sh (E2E_FIREFOX_PATH).
+  { name: 'firefox', use: { ...devices['Desktop Firefox'], channel: 'moz-firefox', launchOptions: { executablePath: process.env.E2E_FIREFOX_PATH || undefined } } },
   { name: 'safari', use: { ...devices['Desktop Safari'] } },
 ] satisfies Project[]
 
