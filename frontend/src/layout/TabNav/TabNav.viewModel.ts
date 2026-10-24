@@ -92,10 +92,11 @@ export function useTabNavViewModel() {
     return () => cancelAnimationFrame(frame)
   }, [box, animate])
 
-  // On narrow screens the tabs scroll sideways: keep the current one in view.
+  // On narrow screens the tabs scroll sideways: keep the current one in view. Also once the tabs come (the admin's appear
+  // when the session is known, after the page has opened, e.g. on reloading Settings).
   useEffect(() => {
     navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
-  }, [pathname])
+  }, [pathname, tabs.length])
 
   /**
    * Scrolls the bar most of its width that way, so the next tabs come into view, stopping at the end. Quick presses add
@@ -106,6 +107,9 @@ export function useTabNavViewModel() {
     if (!nav?.scrollTo) return
     const from = scrollTarget.current ?? nav.scrollLeft
     const to = Math.min(Math.max(from + direction * nav.clientWidth * 0.7, 0), nav.scrollWidth - nav.clientWidth)
+    // Already going there (a press at the end while the bar glides to it, before the arrow goes): nothing to do. Asked
+    // again, Safari starts the glide over and sometimes stops it short of the end.
+    if (to === from) return
     scrollTarget.current = to
     nav.scrollTo({ left: to, behavior: 'smooth' })
   }

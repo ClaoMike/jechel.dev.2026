@@ -749,6 +749,8 @@ html {
   margin: 0;
   padding: 4px;
   gap: 2px;
+  /* The current tab, scrolled into view, stops clear of the arrows (34px, 4px in), or right at the bar's end. */
+  scroll-padding-inline: 44px;
 }
 
 .tab {

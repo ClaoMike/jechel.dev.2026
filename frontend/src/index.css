@@ -4060,6 +4060,78 @@ button.media-card {
   margin: 0;
 }
 
+.empty-state .empty-state-hint {
+  max-width: 42ch;
+  font-size: 14px;
+}
+
+/* ---------- Feature Testing (admin only, BETA) ---------- */
+
+/* After a tab's name, e.g. Feature Testing's BETA. */
+.tab-badge {
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  vertical-align: 2px;
+}
+
+/* An admin tab's text is its gradient (its colour is transparent), so the badge's outline takes the gradient's violet. */
+.tab-admin .tab-badge {
+  border-color: #9942f0;
+}
+
+.feature-testing {
+  display: grid;
+  gap: 16px;
+}
+
+/* Between the features being tested: a row of pills, the open one raised. */
+.feature-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-nav-link {
+  display: inline-block;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  /* Glass, like the site's other pills: it reads over Vice's scene. */
+  background: var(--glass-fill, transparent);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.feature-nav-link:hover {
+  color: var(--text);
+}
+
+.feature-nav-link[aria-current='page'] {
+  border-color: var(--accent);
+  background: var(--selected, var(--surface-muted));
+  color: var(--text);
+}
+
+.feature-testing-header {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.feature-testing-header h3,
+.feature-testing-header p {
+  margin: 0;
+}
+
 .error-state {
   display: flex;
   flex-wrap: wrap;

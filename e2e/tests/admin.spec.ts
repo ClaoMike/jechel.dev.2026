@@ -141,6 +141,14 @@ test.describe("the admin's pages", () => {
     await expect(page.getByRole('group', { name: 'New message' }).getByRole('radio', { name: 'On' })).toBeVisible()
   })
 
+  test('Feature Testing (BETA) is the last tab, and says when there is nothing to test', async ({ page }) => {
+    await page.goto('/features')
+    const tab = page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Feature Testing BETA' })
+    await expect(tab).toHaveAttribute('aria-current', 'page')
+    await expect(tab).toBeInViewport()
+    await expect(page.getByText('No features to test right now')).toBeVisible()
+  })
+
   test('Terms can be edited by the admin', async ({ page }) => {
     await page.goto('/terms')
     await expect(page.getByRole('heading', { name: 'Terms and Conditions', level: 2 })).toBeVisible()

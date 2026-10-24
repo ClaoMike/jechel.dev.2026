@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import { stubApi } from '../../test/api'
 import { ADMIN, renderApp } from '../../test/render'
@@ -234,6 +234,37 @@ describe('more tabs than fit, on a phone', () => {
     await expect.poll(() => bar.scrollLeft).toBe(0)
     await expect.poll(() => arrow('left')).toBeNull()
     expect(tabBoxes(bar)[0].left - windowBox().left).toBeLessThanOrEqual(PADDING + 1)
+  })
+
+  it("opening an admin tab's page (e.g. a reload) shows its tab, clear of the arrows, though the admin's tabs come only once the session is known", async () => {
+    for (const path of ['/terms', '/features']) {
+      await page.viewport(375, 800)
+      stubApi({ user: ADMIN })
+      const app = await renderApp({ path })
+      const current = () => nav().element().querySelector<HTMLElement>('[aria-current="page"]')
+      await expect.poll(() => current()?.getAttribute('href')).toBe(path)
+      const bar = windowBox()
+      await expect.poll(() => current()!.getBoundingClientRect().left).toBeGreaterThanOrEqual(bar.left)
+      await expect.poll(() => current()!.getBoundingClientRect().right).toBeLessThanOrEqual(bar.right)
+      // Not under an arrow.
+      for (const side of ['left', 'right'] as const) {
+        const box = arrow(side)?.getBoundingClientRect()
+        if (box) expect(box.right <= current()!.getBoundingClientRect().left || box.left >= current()!.getBoundingClientRect().right).toBe(true)
+      }
+      await app.unmount()
+    }
+  })
+
+  it("a press that changes nothing (the bar already gliding to the end) doesn't start the glide over: Safari stopped it short", async () => {
+    const bar = await openVisitor(375)
+    const scrollTo = vi.spyOn(bar, 'scrollTo')
+    // One press reaches the end here; the arrow stays until the bar has stopped.
+    arrow('right')!.click()
+    arrow('right')!.click()
+    arrow('right')!.click()
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+    await expect.poll(() => arrow('right')).toBeNull()
+    expect(bar.scrollLeft).toBe(bar.scrollWidth - bar.clientWidth)
   })
 
   it('on a wide screen nothing fades and there are no arrows', async () => {

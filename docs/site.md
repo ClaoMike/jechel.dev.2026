@@ -17,7 +17,7 @@ on the icon links in `index.html` (browsers keep tab icons cached).
 
 ## Site sections and the contact feature
 
-The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch, whose icon turns once when picked: the sun's rays go round it, the moon flips over the X axis, the Vice mark over the Y axis; not on load, nor with reduced motion) above five tabs (nine for the signed-in admin, whose own four are written in the jechel.dev pink to violet, the same in every theme: `.tab-admin` in `glass.css`), each a route rendered inside `src/layout/AppLayout/AppLayout.tsx`:
+The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch, whose icon turns once when picked: the sun's rays go round it, the moon flips over the X axis, the Vice mark over the Y axis; not on load, nor with reduced motion) above five tabs (eleven for the signed-in admin, whose own six are written in the jechel.dev pink to violet, the same in every theme: `.tab-admin` in `glass.css`), each a route rendered inside `src/layout/AppLayout/AppLayout.tsx`:
 
 | Tab | Route | Status |
 | --- | --- | --- |
@@ -30,6 +30,7 @@ The site is a header (for the admin, a bar on top with who's signed in and **Sig
 | Community | `/community` | admin only: email subscribers, the update emails (new apps wait here to be sent or ignored), and coffees (see [Email updates](features.md#email-updates) and [Buy me a coffee](features.md#buy-me-a-coffee-donations)) |
 | Terms | `/terms` | admin only: the terms and conditions, editable (see [Terms and conditions](features.md#terms-and-conditions)) |
 | Settings | `/settings` | admin only: the services the site connects to (folded, each with how far it's set up), their links and keys, with test buttons (see [Settings](admin.md#settings-connections)) |
+| Feature Testing (BETA) | `/features`, `/features/:feature` | admin only: new features, tried out on the real site before visitors get them, with a navigation between them; "No features to test right now" when there are none (see below) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
 **What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): an app or the newest YouTube video, whichever came last, shown in full. The app is the first in the admin's order (Apps → **Organise**) whose **Show in What's new?** is on, compared with the video by when it was added (the video by when it was published). An app switched off is skipped for the next one that's on. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for that one app and the newest video, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later). The signed-in admin sees exactly what visitors see, with a note saying which section is left out and why; the empty and error messages name only what's shown (apps, videos, or both). If one list fails (e.g. YouTube isn't set up), the other is shown.
@@ -165,10 +166,19 @@ Unknown URLs redirect to `/`.
 at the end that has more, over a fade, and scrolls the bar most of its width, stopping at the end (quick presses add up).
 The fade is on a wrapper (`.tabs-window`), not the bar that scrolls, and the arrows and fades change only once the bar
 has stopped (120 ms without scrolling): changing mid-scroll on the scrolling bar itself, they made Safari on iPhone draw
-the tabs far past either end with a gap beside them. The arrows are for pointers and fingers; keyboards
+the tabs far past either end with a gap beside them. A press that changes nothing (at the end, while the bar still
+glides there) does nothing: asked again, Safari started the glide over and stopped it short. The current tab is
+scrolled into view, clear of the arrows, also once the admin's tabs appear (after the page has opened). The arrows are for pointers and fingers; keyboards
 reach every tab with Tab. One highlight glides to the tab that's picked. Pressing the current tab and dragging moves it
 across; letting go snaps it to the nearest tab, which opens (a tap stays a tap: dragging starts after 5 px, and the click that ends a
 drag is swallowed). On phones the bar still scrolls sideways when dragged anywhere else.
+
+**Feature Testing** (`src/pages/FeatureTestingPage/`, admin only, its tab marked BETA): where a new feature goes first,
+to be tried on the real site before visitors see it. The features are listed in
+`src/features/featureTesting/testFeatures.ts` (an address, a title, a line on what to try, and the component); a row
+of pills moves between them, each at `/features/<its address>`, and `/features` opens the first. Once a feature is
+ready, it moves to where visitors will see it and comes off the list. With none, the page shows a flask and "No
+features to test right now".
 
 **Contact** (`src/pages/ContactPage/ContactPage.tsx`, `src/features/contact/`):
 

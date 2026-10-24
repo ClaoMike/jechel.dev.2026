@@ -8,7 +8,7 @@ import { expect, test, viceMotion } from './fixtures.ts'
 
 const THEMES = ['dark', 'light', 'vice'] as const
 const VISITOR_PAGES = ['/', '/apps', '/youtube', '/about', '/contact', '/terms']
-const ADMIN_PAGES = ['/apps', '/contact', '/engagement', '/community', '/notifications', '/terms', '/settings']
+const ADMIN_PAGES = ['/apps', '/contact', '/engagement', '/community', '/notifications', '/terms', '/settings', '/features']
 
 async function violations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).exclude('iframe').analyze()

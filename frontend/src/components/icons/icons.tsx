@@ -351,6 +351,15 @@ export function CoffeeIcon(p: IconProps) {
   )
 }
 
+/** A lab flask: features being tried out (Feature Testing). */
+export const FlaskIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M9 3h6" />
+    <path d="M10 3v6.5L4.6 18.4A1.7 1.7 0 0 0 6.1 21h11.8a1.7 1.7 0 0 0 1.5-2.6L14 9.5V3" />
+    <path d="M7.2 15h9.6" />
+  </Icon>
+)
+
 export const InboxIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M22 12h-6l-2 3h-4l-2-3H2" />
