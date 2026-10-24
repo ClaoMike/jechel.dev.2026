@@ -8,6 +8,8 @@ test('shows every section, each with its heading', async ({ page }) => {
   await page.goto('/about')
   for (const name of SECTIONS) await expect(page.getByRole('region', { name })).toBeVisible()
   await expect(page.getByRole('list', { name: 'Links' }).getByRole('link', { name: 'GitHub' })).toBeVisible()
+  // The channel set for YouTube (Settings).
+  await expect(page.getByRole('list', { name: 'Links' }).getByRole('link', { name: 'YouTube' })).toHaveAttribute('href', 'https://www.youtube.com/@e2e')
 })
 
 test('a section folds away and opens again, and stays folded after a reload', async ({ page }) => {

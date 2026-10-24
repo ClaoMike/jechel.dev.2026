@@ -54,6 +54,7 @@ How it all works is in [`docs/`](docs/):
 ├── backend/db-backup/                    # the nightly database backup's image (pg_dump to a volume)
 ├── scripts/dev_launcher.py                # GUI launcher for common dev tasks (macOS)
 ├── scripts/deploy.sh                      # deploy: pull request develop → main, merged when CI passes
+├── scripts/test.sh                        # every test CI runs, locally (CI itself only runs on the way to main)
 ├── scripts/build_link_preview.mjs         # draws the link preview image (public/og-image.jpg)
 ├── scripts/build_brand_j.py               # draws the "j": the Vice title's first letter and the tab icon
 ├── docker-compose.yml                     # local PostgreSQL

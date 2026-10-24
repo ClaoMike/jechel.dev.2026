@@ -1,4 +1,4 @@
-import { api, type AppCategory, type AppCategoryRequest, type AppDetails, type AppOrderItem, type AppRequest, type Page, type YouTubeVideo } from '../../services/api'
+import { api, type AppCategory, type AppCategoryRequest, type AppDetails, type AppOrderItem, type AppRequest, type Page, type YouTubeChannel, type YouTubeVideo } from '../../services/api'
 import { baseApi, run, whenFulfilled } from '../baseApi'
 
 export interface PageArgs {
@@ -74,6 +74,12 @@ export const appsApi = baseApi.injectEndpoints({
       onQueryStarted: (_, { dispatch, queryFulfilled }) => whenFulfilled(queryFulfilled, (data) => dispatch(appsApi.util.upsertQueryData('listAppCategories', undefined, data))),
     }),
 
+    /** My channel's page on YouTube, or null when no channel is set. */
+    getYouTubeChannel: build.query<YouTubeChannel | null, void>({
+      queryFn: (_, { signal }) => run(api.youtube.channel(signal)),
+      providesTags: ['Videos'],
+    }),
+
     listVideos: build.query<Page<YouTubeVideo>, PageArgs>({
       queryFn: ({ page, pageSize }, { signal }) => run(api.youtube.listVideos(page, pageSize, signal)),
       providesTags: ['Videos'],
@@ -115,6 +121,7 @@ export const {
   useSaveAppOrderMutation,
   useListAppCategoriesQuery,
   useSaveAppCategoriesMutation,
+  useGetYouTubeChannelQuery,
   useListVideosQuery,
   useRefreshVideosMutation,
   useGetLatestQuery,

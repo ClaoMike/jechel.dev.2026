@@ -13,9 +13,20 @@ public static class YouTubeEndpoints
 
     public static IEndpointRouteBuilder MapYouTubeEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapGet("/youtube/channel", GetChannel).WithName("GetYouTubeChannel");
         app.MapGet("/youtube/videos", ListVideos).WithName("ListYouTubeVideos");
         app.MapPost("/youtube/refresh", Refresh).WithName("RefreshYouTubeVideos").RequireAuthorization();
         return app;
+    }
+
+    /// <summary>
+    /// Public. The channel's page on YouTube, for the site's links to it; 204 when no channel is set. Browsers may
+    /// keep it for <see cref="BrowserCacheFor"/>.
+    /// </summary>
+    public static Results<Ok<YouTubeChannel>, NoContent> GetChannel(IOptionsMonitor<YouTubeOptions> options, HttpContext http)
+    {
+        http.Response.Headers.CacheControl = $"public, max-age={(int)BrowserCacheFor.TotalSeconds}";
+        return options.CurrentValue.ChannelUrl is { } url ? TypedResults.Ok(new YouTubeChannel(url)) : TypedResults.NoContent();
     }
 
     /// <summary>

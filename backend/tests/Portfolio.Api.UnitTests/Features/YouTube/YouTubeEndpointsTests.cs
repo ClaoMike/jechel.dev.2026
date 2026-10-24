@@ -134,4 +134,47 @@ public class YouTubeEndpointsTests
         Assert.Equal("YouTube can't be reached right now.", problem.ProblemDetails.Detail);
         Assert.Empty(_http.Response.Headers.CacheControl.ToString());
     }
+
+    [Theory]
+    [InlineData("@me", "https://www.youtube.com/@me")]
+    [InlineData("  @CiresariiStudio ", "https://www.youtube.com/@CiresariiStudio")]
+    [InlineData("UCabc_123-XYZ", "https://www.youtube.com/channel/UCabc_123-XYZ")]
+    public void Gives_the_channels_page_on_YouTube(string channel, string url)
+    {
+        _options.Channel = channel;
+
+        var ok = Assert.IsType<Ok<YouTubeChannel>>(YouTubeEndpoints.GetChannel(TestOptions.Monitor(_options), _http).Result);
+
+        Assert.Equal(url, ok.Value!.Url);
+        Assert.Equal("public, max-age=300", _http.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public void Gives_the_channels_page_without_an_API_key_and_never_asks_YouTube()
+    {
+        _options.ApiKey = "";
+
+        Assert.IsType<Ok<YouTubeChannel>>(YouTubeEndpoints.GetChannel(TestOptions.Monitor(_options), _http).Result);
+        Assert.Equal(0, _youTube.Calls);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Answers_204_when_no_channel_is_set(string channel)
+    {
+        _options.Channel = channel;
+
+        Assert.IsType<NoContent>(YouTubeEndpoints.GetChannel(TestOptions.Monitor(_options), _http).Result);
+    }
+
+    [Fact]
+    public void Keeps_a_handle_in_the_address_even_with_odd_characters()
+    {
+        _options.Channel = "@a b/c";
+
+        var ok = Assert.IsType<Ok<YouTubeChannel>>(YouTubeEndpoints.GetChannel(TestOptions.Monitor(_options), _http).Result);
+
+        Assert.Equal("https://www.youtube.com/@a%20b%2Fc", ok.Value!.Url);
+    }
 }

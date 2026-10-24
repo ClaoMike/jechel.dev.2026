@@ -19,4 +19,15 @@ public class YouTubeOptions
     public string ApiKey { get; set; } = "";
 
     public bool IsConfigured => Channel.Trim().Length > 0 && ApiKey.Trim().Length > 0;
+
+    /// <summary>The channel's page on YouTube (no API key needed), or null when no channel is set.</summary>
+    public string? ChannelUrl => Channel.Trim() switch
+    {
+        "" => null,
+        ['@', .. var handle] => $"https://www.youtube.com/@{Uri.EscapeDataString(handle)}",
+        var id => $"https://www.youtube.com/channel/{Uri.EscapeDataString(id)}",
+    };
 }
+
+/// <param name="Url">The channel's page on youtube.com.</param>
+public record YouTubeChannel(string Url);

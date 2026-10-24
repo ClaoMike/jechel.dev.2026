@@ -16,8 +16,11 @@ function renderProfile({
   onSave = vi.fn(async () => {}),
   onRetryContact,
   leetCodeUsername = 'jechel',
-}: { value?: Profile; headline?: string; canEdit?: boolean; onSave?: (p: Profile) => Promise<void>; onRetryContact?: () => void; leetCodeUsername?: string } = {}) {
-  return renderView(<ProfileSection value={value} headline={headline} canEdit={canEdit} onSave={onSave} onRetryContact={onRetryContact} leetCodeUsername={leetCodeUsername} />)
+  youTubeChannelUrl,
+}: { value?: Profile; headline?: string; canEdit?: boolean; onSave?: (p: Profile) => Promise<void>; onRetryContact?: () => void; leetCodeUsername?: string; youTubeChannelUrl?: string | null } = {}) {
+  return renderView(
+    <ProfileSection value={value} headline={headline} canEdit={canEdit} onSave={onSave} onRetryContact={onRetryContact} leetCodeUsername={leetCodeUsername} youTubeChannelUrl={youTubeChannelUrl} />,
+  )
 }
 
 const privateLine = () => page.getByText('Only you see this:').element().closest('.profile-private')!
@@ -49,6 +52,24 @@ describe('Photo and links, for a visitor', () => {
     await expect.element(link('LinkedIn')).toBeVisible()
     await expect.element(link('Instagram')).not.toBeInTheDocument()
     expect(page.getByRole('list', { name: 'Links' }).getByRole('link').elements().map((a) => a.textContent)).toEqual(['Download résumé', 'GitHub', 'LeetCode', 'LinkedIn'])
+  })
+
+  it('links to my YouTube channel last, in a new tab, once there is one', async () => {
+    await renderProfile({ youTubeChannelUrl: 'https://www.youtube.com/@jechel' })
+    await expect.element(link('YouTube')).toHaveAttribute('href', 'https://www.youtube.com/@jechel')
+    await expect.element(link('YouTube')).toHaveAttribute('target', '_blank')
+    await expect.element(link('YouTube')).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(link('YouTube').element().querySelector('svg')).not.toBeNull()
+    expect(page.getByRole('list', { name: 'Links' }).getByRole('link').elements().map((a) => a.textContent)).toEqual(['Download résumé', 'GitHub', 'LeetCode', 'LinkedIn', 'YouTube'])
+  })
+
+  it('has no YouTube link without a channel', async () => {
+    for (const youTubeChannelUrl of [undefined, null]) {
+      const view = await renderProfile({ youTubeChannelUrl })
+      await expect.element(link('GitHub')).toBeVisible()
+      await expect.element(link('YouTube')).not.toBeInTheDocument()
+      await view.unmount()
+    }
   })
 
   it('never links somewhere unsafe, and has no LeetCode link without a username', async () => {

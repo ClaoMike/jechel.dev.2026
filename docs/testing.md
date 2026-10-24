@@ -113,7 +113,9 @@ for the outside services. `./e2e/run.sh` does everything (Docker must be running
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every pull request and on pushes to `develop` (the repo map tool in `tools/repomap`
+Locally, `./scripts/test.sh` runs everything CI runs (or one part: `backend`, `frontend`, `e2e`). On GitHub,
+`.github/workflows/ci.yml` runs only on the way to production: on a pull request into `main` (`scripts/deploy.sh`
+opens it), or by hand (Actions → CI → Run workflow); pushes to `develop` run nothing (the repo map tool in `tools/repomap`
 isn't tested on GitHub: it will move to its own repository; run its tests locally):
 
 1. **backend**: `backend/test.sh`, all tests with coverage (Testcontainers uses the runner's Docker); the report is
@@ -123,8 +125,8 @@ isn't tested on GitHub: it will move to its own repository; run its tests locall
    `npm test`. On failure, the coverage report and the screenshots that didn't match are uploaded as the run's
    `frontend-test-report`. **Then the newest Playwright, every run**: when npm has a newer one, the tests run on it,
    the Linux screenshots are retaken with it (a new Chromium can draw a pixel differently: that isn't a change of
-   ours, and the run before it already checked this commit), and on `develop` the bot commits both and starts CI for
-   that commit (pull before pushing again).
+   ours, and the run before it already checked this commit), and the bot commits both to `develop` and starts CI for
+   that commit, which the pull request then waits on (pull before pushing again).
 3. **e2e**: `e2e/run.sh` on the runner (Docker for the database), the latest Playwright and browsers each run; on
    failure, Playwright's report (traces, screenshots) is uploaded as the run's `e2e-report`. Not a required check
    (`main`'s ruleset names Backend and Frontend); add it there to make it one.

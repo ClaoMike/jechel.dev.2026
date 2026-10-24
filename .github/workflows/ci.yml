@@ -1,11 +1,11 @@
 name: CI
 
-# Every pull request runs the whole test suite; `main` (production) only takes pull requests whose
-# Backend and Frontend checks passed (a ruleset on GitHub, see docs/deployment.md).
+# Only on the way to production: a pull request into `main` (scripts/deploy.sh opens it) runs the whole test suite, and
+# `main` only takes it when the Backend and Frontend checks passed (a ruleset on GitHub, see docs/deployment.md).
+# Pushes to develop run nothing here: the tests run locally (scripts/test.sh). By hand: Actions → CI → Run workflow.
 on:
   pull_request:
-  push:
-    branches: [develop]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -57,7 +57,7 @@ jobs:
       # On the Playwright the screenshots were taken with: what this commit changed.
       - run: npm test
       # Then the newest Playwright, every run: when one is out, the tests run on it, the Linux screenshots are retaken
-      # with it, and (on develop) both are committed. Its new Chromium may draw a pixel differently, which isn't a change of ours.
+      # with it, and both are committed to develop (the pull request's branch). Its new Chromium may draw a pixel differently, which isn't a change of ours.
       - name: The newest Playwright
         id: playwright
         run: |
@@ -69,17 +69,23 @@ jobs:
           node scripts/screenshots.ts retake
           echo "updated=$latest" >> "$GITHUB_OUTPUT"
       - name: Commit the newest Playwright
-        if: steps.playwright.outputs.updated && github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+        if: steps.playwright.outputs.updated && (github.head_ref || github.ref_name) == 'develop'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # A pull request's run tests develop merged into main: the files go onto develop itself.
+          git stash
+          git fetch -q origin develop
+          git checkout -q -B develop origin/develop
+          git stash pop
           git add package.json package-lock.json src/test/screenshotsTakenWith.json 'src/**/*-chromium-linux.png'
           git commit -m "Playwright ${{ steps.playwright.outputs.updated }} for the frontend tests, with its Linux screenshots (from CI)"
-          git push
-          # A push from CI starts no workflow, so CI is started for the new commit here (it takes over from this run).
+          git push origin develop
+          # A push from CI starts no workflow, so CI is started here for the new commit, which the pull request now
+          # waits on (its checks).
           node -e "fetch('${{ github.api_url }}/repos/${{ github.repository }}/actions/workflows/ci.yml/dispatches', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json' }, body: JSON.stringify({ ref: 'develop' }) }).then((r) => { if (!r.ok) process.exit(1) })"
       - uses: actions/upload-artifact@v7
         if: failure()

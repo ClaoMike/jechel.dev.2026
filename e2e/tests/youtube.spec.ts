@@ -15,6 +15,15 @@ test('shows the newest 9 videos, each linking to YouTube', async ({ page }) => {
   await expect(videos(page).first().getByText(VIDEOS[0].description)).toBeVisible()
 })
 
+test('links to the channel above the videos, in a new tab', async ({ page }) => {
+  await page.goto('/youtube')
+  const visit = page.getByRole('link', { name: 'Visit my YouTube page' })
+  await expect(visit).toHaveAttribute('href', 'https://www.youtube.com/@e2e')
+  await expect(visit).toHaveAttribute('target', '_blank')
+  await expect(videos(page)).toHaveCount(9)
+  expect(await visit.evaluate((link) => !!(link.compareDocumentPosition(document.querySelector('[aria-label="Videos"]')!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true)
+})
+
 test('pages through them: Next, Previous, and the address follows', async ({ page }) => {
   await page.goto('/youtube')
   const pagination = page.getByRole('navigation', { name: 'Pagination' })

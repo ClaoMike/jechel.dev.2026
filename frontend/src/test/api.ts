@@ -23,6 +23,7 @@ export function stubApi({ user = null }: { user?: CurrentUser | null } = {}) {
       listCategories: vi.spyOn(api.apps, 'listCategories').mockResolvedValue(CATEGORIES),
     },
     youtube: {
+      channel: vi.spyOn(api.youtube, 'channel').mockResolvedValue({ url: 'https://www.youtube.com/@jechel' }),
       listVideos: vi.spyOn(api.youtube, 'listVideos').mockResolvedValue(pageOfVideos()),
       refreshVideos: vi.spyOn(api.youtube, 'refreshVideos').mockResolvedValue(VIDEOS.length),
     },

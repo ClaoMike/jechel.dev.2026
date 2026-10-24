@@ -21,6 +21,10 @@ test('subscribes: asks to confirm by email, the link confirms, and the admin see
   expect(confirmation.from).toBe('jechel.dev <updates@e2e.test>')
   await page.goto(linkIn(confirmation, '/updates/confirm'))
   await expect(page.getByRole('status')).toContainText(email)
+  // My channel is next: YouTube's subscribe prompt for it, in a new tab.
+  const youtube = page.getByRole('link', { name: 'Subscribe to my YouTube channel' })
+  await expect(youtube).toHaveAttribute('href', 'https://www.youtube.com/@e2e?sub_confirmation=1')
+  await expect(youtube).toHaveAttribute('target', '_blank')
 
   const admin = await browser.newContext({ storageState: ADMIN_STATE })
   const community = await admin.newPage()

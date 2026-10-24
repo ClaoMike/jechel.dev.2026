@@ -8,6 +8,8 @@ export interface ProfileSectionProps {
   /** Public, under the name: the résumé's headline ("" hides it). */
   headline?: string
   leetCodeUsername?: string
+  /** My YouTube channel's page (Settings → YouTube), when one is set. */
+  youTubeChannelUrl?: string | null
   canEdit: boolean
   onSave: (value: Profile) => Promise<void>
   /** Set when the résumé's private details couldn't be loaded (admin only). */
@@ -15,13 +17,14 @@ export interface ProfileSectionProps {
 }
 
 /** The links worth showing (empty or unsafe ones are left out), the photo, the headline, and the admin's private email and phone. */
-export function useProfileSectionViewModel({ value, headline = '', leetCodeUsername = '', canEdit, onRetryContact }: ProfileSectionProps) {
+export function useProfileSectionViewModel({ value, headline = '', leetCodeUsername = '', youTubeChannelUrl, canEdit, onRetryContact }: ProfileSectionProps) {
   const candidates: Omit<ProfileLinkItem, 'external'>[] = [
     { href: value.links.resumeUrl, label: 'Download résumé', icon: 'resume', download: true },
     { href: value.links.gitHubUrl, label: 'GitHub', icon: 'github', download: false },
     { href: leetCodeUsername ? leetCodeProfileUrl(leetCodeUsername) : '', label: 'LeetCode', icon: 'leetcode', download: false },
     { href: value.links.linkedInUrl, label: 'LinkedIn', icon: 'linkedin', download: false },
     { href: value.links.instagramUrl, label: 'Instagram', icon: 'instagram', download: false },
+    { href: youTubeChannelUrl ?? '', label: 'YouTube', icon: 'youtube', download: false },
   ]
   const contact = value.contact
   const privateItems: PrivateContactItem[] = contact

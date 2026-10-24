@@ -3,6 +3,7 @@ import type { Profile } from '../../features/about/profile/profile'
 import { plainText } from '../../features/about/textLinks'
 import { failureOf, type AboutContent, type ApiFailure, type ResumeContact } from '../../services/api'
 import { useGetAboutQuery, useUpdateAboutMutation } from '../../store/api/aboutApi'
+import { useGetYouTubeChannelQuery } from '../../store/api/appsApi'
 import { useGetResumeHeadlineQuery, useGetResumeSettingsQuery, useSaveResumeContactMutation } from '../../store/api/resumeApi'
 import { toLoadable } from '../../store/loadable'
 
@@ -26,6 +27,8 @@ export function useAboutPageViewModel() {
   const [saveResumeContact] = useSaveResumeContactMutation()
   // Public, under the name; the admin's save updates it at once. Without it, the name stands alone.
   const headline = useGetResumeHeadlineQuery().data ?? ''
+  // My channel (Settings → YouTube), with the profile's links.
+  const youTubeChannelUrl = useGetYouTubeChannelQuery().data?.url
 
   const save = async (patch: Partial<AboutContent>) => {
     if (page) await updateAbout({ ...page, ...patch }).unwrap()
@@ -57,6 +60,7 @@ export function useAboutPageViewModel() {
         value: { photoUrl: page.photoUrl, statuses: page.statuses, links: page.links, contact: isAuthenticated ? contact : undefined } satisfies Profile,
         headline,
         leetCodeUsername: page.problemSolving.leetCodeUsername,
+        youTubeChannelUrl,
         canEdit,
         onRetryContact: isAuthenticated && resume.isError ? () => void resume.refetch() : undefined,
         onSave: async ({ contact: nextContact, ...profile }: Profile) => {

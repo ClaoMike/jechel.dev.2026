@@ -9,7 +9,7 @@ export interface Profile {
 }
 
 /** The profile's links on the card, in order; `icon` names the icon the view draws. */
-export type ProfileLinkIcon = 'resume' | 'github' | 'leetcode' | 'linkedin' | 'instagram'
+export type ProfileLinkIcon = 'resume' | 'github' | 'leetcode' | 'linkedin' | 'instagram' | 'youtube'
 
 export interface ProfileLinkItem {
   href: string

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { DownloadIcon, GitHubIcon, InstagramIcon, LeetCodeIcon, LinkedInIcon } from '../../../../components/icons/icons'
+import { DownloadIcon, GitHubIcon, InstagramIcon, LeetCodeIcon, LinkedInIcon, YouTubeIcon } from '../../../../components/icons/icons'
 import type { ProfileLinkIcon, ProfileLinkItem } from '../profile'
 
 const ICONS: Record<ProfileLinkIcon, ReactNode> = {
@@ -8,6 +8,7 @@ const ICONS: Record<ProfileLinkIcon, ReactNode> = {
   leetcode: <LeetCodeIcon />,
   linkedin: <LinkedInIcon />,
   instagram: <InstagramIcon />,
+  youtube: <YouTubeIcon />,
 }
 
 /** The profile's links as buttons: the résumé downloads, the others open in a new tab. */
