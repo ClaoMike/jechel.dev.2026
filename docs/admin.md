@@ -125,12 +125,15 @@ to the log. Setting it up (Settings tab, ntfy card):
 Optionally reserve the topic with an ntfy account (access token), or use your own server, under "Your own ntfy server".
 
 **Or the site's own notifications** (Web Push, `WebPushSender`), with no app to install: on an iPhone (iOS 16.4 or later),
-add the site to the Home Screen (Safari → Share → **Add to Home Screen**), open it from there, sign in, and in Notifications →
+add the admin to the Home Screen (on jechel.dev/admin, or any page while signed in: Safari → Share → **Add to Home Screen**),
+open it from there, sign in, and in Notifications →
 **Where they go** press **Get them on this device**, then **Allow**. A computer's browser can get them the same way. Each
 device is listed there, with **Send a test** and **Remove**. How it works:
 
 - The page has a web app manifest (`public/manifest.webmanifest`: opened from the Home Screen, it's an app of its own, which
-  is what an iPhone needs for notifications) and a service worker (`public/sw.js`, registered only when you allow them here): it
+  is what an iPhone needs for notifications). The sign-in page and the signed-in admin link the admin's own instead
+  (`public/admin.webmanifest`, `layout/manifest.ts`): a phone saves the manifest's start page, not the page on show, so that
+  one opens on /admin (the sign-in, or home when still signed in), a separate app from the visitors' and a service worker (`public/sw.js`, registered only when you allow them here): it
   shows each notification, and opens its page when tapped. It handles nothing else (no caching).
 - The API encrypts each alert for each device and signs it with the site's own key pair (VAPID, made the first time it's
   needed and kept in `web_push_keys`: a new pair would cut off every device), then posts it to the device's push service

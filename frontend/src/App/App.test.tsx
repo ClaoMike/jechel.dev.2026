@@ -134,8 +134,53 @@ describe('the site, for the signed-in admin', () => {
         .getByRole('link')
         .elements()
         .map((a) => a.textContent),
-    ).toEqual(["What's new?", 'Apps', 'YouTube (hidden from visitors)', 'About Me', 'Contact', 'Engagement', 'Community', 'Notifications', 'Terms', 'Settings', 'Feature Testing BETA'])
+    ).toEqual([
+      "What's new?",
+      'Apps',
+      'YouTube (hidden from visitors)',
+      'About Me',
+      'Contact',
+      'Engagement',
+      'Community',
+      'Notifications',
+      'Terms',
+      'Settings',
+      'Feature Testing BETA',
+    ])
     await expect.element(tabs().getByRole('link', { name: /YouTube/ })).toHaveAttribute('title', 'Hidden from visitors')
+  })
+})
+
+describe('the web app saved to the Home Screen', () => {
+  // The page's own <link rel="manifest"> (index.html), which the tests' page doesn't have.
+  const manifestLink = () => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]') ?? document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'manifest' }))
+    link.setAttribute('href', '/manifest.webmanifest')
+    return link
+  }
+
+  it("is the visitors' one on the site's pages", async () => {
+    const link = manifestLink()
+    stubApi()
+    await renderApp({ path: '/youtube' })
+    await expect.element(page.getByRole('list', { name: 'Videos' })).toBeVisible()
+    expect(link.getAttribute('href')).toBe('/manifest.webmanifest')
+  })
+
+  it("is the admin's own on the sign-in, so it opens there", async () => {
+    const link = manifestLink()
+    stubApi()
+    await renderApp({ path: '/admin' })
+    await expect.element(page.getByRole('heading', { name: 'Admin sign in' })).toBeVisible()
+    expect(link.getAttribute('href')).toBe('/admin.webmanifest')
+  })
+
+  it("is the admin's own on every page while the admin is signed in", async () => {
+    const link = manifestLink()
+    stubApi({ user: ADMIN })
+    await renderApp({ path: '/youtube' })
+    await expect.element(page.getByRole('list', { name: 'Videos' })).toBeVisible()
+    await expect.poll(() => link.getAttribute('href')).toBe('/admin.webmanifest')
   })
 })
 

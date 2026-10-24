@@ -68,4 +68,10 @@ describe('the web app (public/manifest.webmanifest)', () => {
     const page = await (await fetch('/index.html')).text()
     expect(page).toContain('<link rel="manifest" href="/manifest.webmanifest" />')
   })
+
+  it("has the admin's own, a separate app that opens on the sign-in (linked on /admin and while signed in)", async () => {
+    const manifest = await (await fetch('/admin.webmanifest')).json()
+    expect(manifest).toMatchObject({ id: '/admin', start_url: '/admin', scope: '/', display: 'standalone' })
+    for (const icon of manifest.icons as { src: string }[]) expect((await fetch(icon.src)).status).toBe(200)
+  })
 })
