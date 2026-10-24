@@ -864,6 +864,22 @@ html {
   backdrop-filter: var(--glass-blur);
 }
 
+/* Buttons that sit on the page itself, outside any card ("Visit my YouTube page", the admin's page actions): the same glass, for the same reason. */
+.youtube-channel .button-secondary,
+.page-actions .button-secondary {
+  background: var(--glass-fill);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+.youtube-channel .button-secondary:not(:disabled):hover,
+.page-actions .button-secondary:not(:disabled):hover {
+  background: var(--raised-hover);
+}
+
 .pagination > span {
   color: var(--text);
 }
