@@ -7,6 +7,8 @@
  *  - YouTube's Data API (/youtube): one channel with the videos in data.ts.
  *  - Resend (/resend): emails are kept, and listed at GET /sent/emails.
  *  - ntfy (/ntfy): phone alerts are kept, and listed at GET /sent/alerts.
+ *  - A push service (/push/<device>), as Apple's or Google's for the site's own notifications: what's posted is kept,
+ *    encrypted as it came, and listed at GET /sent/pushes; /push/gone answers 410, as for a device no longer there.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { ACCOUNTS, VIDEOS } from './data.ts'
@@ -14,8 +16,15 @@ import { ACCOUNTS, VIDEOS } from './data.ts'
 const port = Number(process.env.FAKE_SERVICES_PORT ?? 5299)
 const emails: unknown[] = []
 const alerts: unknown[] = []
+const pushes: { device: string; authorization: string; encoding: string; ttl: string; body: string }[] = []
 
 const json = (response: ServerResponse, status: number, body: unknown) => response.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body))
+
+async function bytesOf(request: IncomingMessage) {
+  const chunks: Buffer[] = []
+  for await (const chunk of request) chunks.push(chunk as Buffer)
+  return Buffer.concat(chunks)
+}
 
 async function bodyOf(request: IncomingMessage) {
   let body = ''
@@ -89,6 +98,14 @@ async function handle(request: IncomingMessage, response: ServerResponse) {
     alerts.push(JSON.parse(await bodyOf(request)))
     return json(response, 200, { id: `alert-${alerts.length}` })
   }
+  if (path.startsWith('/push/') && request.method === 'POST') {
+    const device = path.slice('/push/'.length)
+    if (device === 'gone') return json(response, 410, {})
+    const header = (name: string) => String(request.headers[name] ?? '')
+    pushes.push({ device, authorization: header('authorization'), encoding: header('content-encoding'), ttl: header('ttl'), body: (await bytesOf(request)).toString('base64') })
+    return void response.writeHead(201).end()
+  }
+  if (path === '/sent/pushes') return json(response, 200, pushes)
   if (path === '/sent/emails') return json(response, 200, emails)
   if (path === '/sent/alerts') return json(response, 200, alerts)
 

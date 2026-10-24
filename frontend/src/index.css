@@ -3538,6 +3538,60 @@ button.media-card {
   font-size: 13px;
 }
 
+.notification-intro {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
+.notification-sent-to {
+  font-size: 13px;
+}
+
+/* The devices with the site's own notifications (Where they go). */
+.push-devices {
+  display: grid;
+  gap: 8px;
+}
+
+.push-devices h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.push-device-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.push-device {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.push-device-here {
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 12px;
+}
+
+.push-device-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.push-here {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
 .notification-history-actions {
   display: inline-flex;
   align-items: center;

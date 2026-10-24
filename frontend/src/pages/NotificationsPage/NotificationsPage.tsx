@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { AlertChannelsCard } from '../../features/notifications/AlertChannelsCard/AlertChannelsCard'
 import { AdminOnly } from '../../components/AdminOnly/AdminOnly'
 import { EmptyState } from '../../components/EmptyState/EmptyState'
 import { ErrorState } from '../../components/ErrorState/ErrorState'
@@ -9,14 +10,16 @@ import { formatDateTime } from '../../utils/formatDate'
 import { STATUS_TEXT, useNotificationHistoryViewModel, useNotificationKindsViewModel } from './NotificationsPage.viewModel'
 
 /**
- * Notifications (an admin-only tab): every kind of alert the site sends to the phone, each switched on or
- * off, and the history of what was raised, sent or not. Visitors who open the URL go home.
+ * Notifications (an admin-only tab): where alerts go (the ntfy app, the site's own notifications, each on or off, and
+ * the devices that get the site's own), every kind of alert, each switched on or off, and the history of what was
+ * raised, sent or not, and where. Visitors who open the URL go home.
  */
 export function NotificationsPage() {
   return (
     <AdminOnly>
       <div className="notifications">
         <h2 className="visually-hidden">Notifications</h2>
+        <AlertChannelsCard />
         <Kinds />
         <History />
       </div>
@@ -102,6 +105,7 @@ function History() {
                 <span className="chip">{vm.labelOf(notification.kind)}</span>
                 <strong>{vm.linkOf(notification.path) ? <Link to={vm.linkOf(notification.path)!}>{notification.title}</Link> : notification.title}</strong>
                 <span className={notification.status === 'sent' ? 'chip chip-muted' : 'chip notification-status-held'}>{STATUS_TEXT[notification.status]}</span>
+                {notification.sentTo.length > 0 && <span className="muted notification-sent-to">{vm.sentToText(notification.sentTo)}</span>}
               </div>
               <p className="notification-message">{notification.message}</p>
               <time className="muted" dateTime={notification.createdAt}>

@@ -97,6 +97,9 @@ builder.Services.AddSingleton<AlertPreferences>();
 builder.Services.AddSingleton<IPhoneAlerts>(services => services.GetRequiredService<PhoneAlerts>());
 builder.Services.AddHttpClient(NtfySender.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<NtfySender>();
+// The site's own notifications: posted to each device's push service (Apple's, Google's, Mozilla's), wherever that is.
+builder.Services.AddHttpClient(WebPushSender.HttpClientName, http => http.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<WebPushSender>();
 builder.Services.AddHostedService<AlertWorker>();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<CrashAlertHandler>();
@@ -230,6 +233,7 @@ api.MapUpdateEmailsEndpoints();
 api.MapResumeEndpoints();
 api.MapSettingsEndpoints();
 api.MapNotificationsEndpoints();
+api.MapPushEndpoints();
 api.MapMeetingsEndpoints();
 api.MapSiteEndpoints();
 

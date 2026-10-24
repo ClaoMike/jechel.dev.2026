@@ -124,9 +124,29 @@ to the log. Setting it up (Settings tab, ntfy card):
 
 Optionally reserve the topic with an ntfy account (access token), or use your own server, under "Your own ntfy server".
 
+**Or the site's own notifications** (Web Push, `WebPushSender`), with no app to install: on an iPhone (iOS 16.4 or later),
+add the site to the Home Screen (Safari → Share → **Add to Home Screen**), open it from there, sign in, and in Notifications →
+**Where they go** press **Get them on this device**, then **Allow**. A computer's browser can get them the same way. Each
+device is listed there, with **Send a test** and **Remove**. How it works:
+
+- The page has a web app manifest (`public/manifest.webmanifest`: opened from the Home Screen, it's an app of its own, which
+  is what an iPhone needs for notifications) and a service worker (`public/sw.js`, registered only when you allow them here): it
+  shows each notification, and opens its page when tapped. It handles nothing else (no caching).
+- The API encrypts each alert for each device and signs it with the site's own key pair (VAPID, made the first time it's
+  needed and kept in `web_push_keys`: a new pair would cut off every device), then posts it to the device's push service
+  (Apple's, Google's, Mozilla's), which delivers it. A device its push service no longer knows (removed from the Home Screen,
+  notifications turned off) is forgotten at the next alert.
+- Unlike ntfy: no buttons on the notification (iPhones don't show them: a new app's Send / Ignore is in the Community tab) and
+  no priorities (a high one is only marked urgent for the push service).
+
+**Both, either or neither**: Notifications → **Where they go** has a switch for each way (`alert_channels`; both on to start
+with). An alert goes every way that's on; it counts as sent when any took it, and the history says which.
+
 ## Notifications (phone alerts, on or off)
 
-The admin's **Notifications** tab (`pages/NotificationsPage/`, API in `Features/Alerts/NotificationsEndpoints.cs`) lists every kind of
+The admin's **Notifications** tab (`pages/NotificationsPage/`, API in `Features/Alerts/NotificationsEndpoints.cs` and
+`PushEndpoints.cs`) starts with **Where they go** (above: the ntfy app and the site's own notifications, each on or off, and the
+devices), then lists every kind of
 phone alert, grouped, each with how many came in the last 30 days, when the last did, and an **On / Off** switch (the theme
 switcher's look, two stops: `components/OnOffSwitch`). Below it, the **History**: every alert raised, newest first, a page at a
 time, of every kind or one, with what became of it.
@@ -138,8 +158,9 @@ time, of every kind or one, with what became of it.
 - **Switched off:** the alert isn't sent, but it's still in the history, marked **Off: not sent**. It applies to the next alert
   (`AlertPreferences`, in memory, loaded at start-up and after each change; `alert_preferences`, one row per kind switched).
   A new app with its kind off has no Send / Ignore buttons on the phone: decide in the Community tab.
-- **History** (`phone_alerts`): written by `AlertWorker` after it sends (or holds back) each alert: **Sent**, **Off: not sent**,
-  **ntfy not set up**, or **Failed**. Kept for 90 days.
+- **History** (`phone_alerts`): written by `AlertWorker` after it sends (or holds back) each alert: **Sent** (and where: to ntfy,
+  to this site's notifications, or both), **Off: not sent**, **Not set up: not sent** (no way that's on could send it: no ntfy
+  topic, no device), **Both ways off: not sent**, or **Failed** (every way that tried failed). Kept for 90 days.
 - **A switch moves at once**, before the API answers, and is never locked while saving (locking it dropped the keyboard's
   focus, so an arrow key threw you out of it). Each answer settles **its own kind only**, and only if it answers the latest click
   on it: taking the whole list from every answer let one arriving late put back a switch saved since. A failed save puts the
@@ -174,11 +195,13 @@ time, of every kind or one, with what became of it.
  new PhoneAlert(AlertKinds.Message, …) ──► queue ──► kind on? (AlertPreferences) ──no──► not sent ─┐
    (throttled ones: SendThrottled)                       │ yes                                    │
                                                          ▼                                        │
-                                               ntfy topic set? ──no──► not set up ─────────────────┤
-                                                         │ yes                                    │
+                                               a way on? (Where they go) ──no──► both ways off ────┤
+                                                         │ yes: each way that's on                │
                                                          ▼                                        │
-                                               POST to ntfy ──ok──► 📱 on your phone ── sent ──────┤
-                                                         └──refused──► failed ───────────────────┤
+                                               ntfy: topic set? POST to ntfy ─┐                    │
+                                               push: each device, encrypted ──┼─ any took it ─► 📱 sent (and where) ┤
+                                                 (gone: device forgotten)     ├─ one failed ──► failed ────────────┤
+                                                                              └─ none set up ─► not set up ────────┤
                                                                                                   ▼
                                                phone_alerts (90 days) ◄───────────────────────────┘
  Notifications tab ── GET /api/notifications/kinds ── switches, counts, last time

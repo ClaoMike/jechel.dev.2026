@@ -98,7 +98,9 @@ for the outside services. `./e2e/run.sh` does everything (Docker must be running
   and deleted, pages switched off, maintenance): it runs after the rest, one browser at a time, and puts it all back.
 - **The stand-ins** (`e2e/fakeServices.ts`): Google's sign-in (a "choose an account" page: the admin or a stranger),
   YouTube (12 videos, `e2e/data.ts`), Resend and ntfy (what was sent is kept: tests read the confirmation email and
-  the alerts). The API runs in the `E2E` environment with `E2E:Services` pointing at them; anywhere else that setting
+  the alerts), and a push service for the site's own notifications (a made-up device's address points there; the test
+  decrypts what arrived with the device's key, as a phone does: `pushDevice` in `tests/fixtures.ts`). A real browser's
+  own subscription isn't tested end to end: its push service is outside, and only a real iPhone shows the result. The API runs in the `E2E` environment with `E2E:Services` pointing at them; anywhere else that setting
   is ignored (tested in `HostingTests`), and the `E2E` environment doesn't read your user secrets, so nothing real is
   ever sent. The setup (`setup.setup.ts`) accepts the terms, signs the admin in and adds 10 apps.
 - **On a Mac:** Edge gets `--in-process-gpu`: started by Playwright, its separate graphics process hangs, and with it the

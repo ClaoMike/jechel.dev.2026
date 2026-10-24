@@ -13,7 +13,8 @@ Writes:
 
     python3 scripts/build_brand_j.py
 
-The tab icon's PNG copies (favicon.ico at 16/32/48 px, apple-touch-icon.png at 180 px) are renders of
+The tab icon's PNG copies (favicon.ico at 16/32/48 px, apple-touch-icon.png at 180 px, and the web app's
+icon-192.png and icon-512.png, in manifest.webmanifest) are renders of
 favicon.svg; redo them after changing it (e.g. screenshot it with Playwright), and bump the ?v= in
 frontend/index.html so browsers drop their cached icon.
 """

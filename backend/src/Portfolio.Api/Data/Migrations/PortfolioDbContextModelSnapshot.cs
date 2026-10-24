@@ -122,6 +122,26 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("admin_sessions", (string)null);
                 });
 
+            modelBuilder.Entity("Portfolio.Api.Data.AlertChannelSetting", b =>
+                {
+                    b.Property<string>("Channel")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("channel");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Channel");
+
+                    b.ToTable("alert_channels", (string)null);
+                });
+
             modelBuilder.Entity("Portfolio.Api.Data.AlertPreference", b =>
                 {
                     b.Property<string>("Kind")
@@ -615,6 +635,11 @@ namespace Portfolio.Api.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("path");
 
+                    b.Property<string>("SentTo")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("sent_to");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -661,6 +686,55 @@ namespace Portfolio.Api.Data.Migrations
                             Id = 1,
                             FirstName = "Claudiu"
                         });
+                });
+
+            modelBuilder.Entity("Portfolio.Api.Data.PushDevice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Auth")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("auth");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("endpoint");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("label");
+
+                    b.Property<DateTimeOffset?>("LastSentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_sent_at");
+
+                    b.Property<string>("P256dh")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("p256dh");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Endpoint")
+                        .IsUnique();
+
+                    b.ToTable("push_devices", (string)null);
                 });
 
             modelBuilder.Entity("Portfolio.Api.Data.ResumeSettings", b =>
@@ -1096,6 +1170,33 @@ namespace Portfolio.Api.Data.Migrations
                     b.HasIndex("StartedAt");
 
                     b.ToTable("visit_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("Portfolio.Api.Data.WebPushKeys", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("PrivateKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("private_key");
+
+                    b.Property<string>("PublicKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("public_key");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("web_push_keys", (string)null);
                 });
 
             modelBuilder.Entity("Portfolio.Api.Data.YouTubeSnapshot", b =>

@@ -225,7 +225,7 @@ public class NotificationsTests
         var ntfy = new FakeNtfy(answer);
         var alerts = new PhoneAlerts(_time);
         var sender = new NtfySender(new Clients(ntfy), TestOptions.Monitor(new AlertOptions { NtfyTopic = topic }), Options.Create(new SiteOptions()), NullLogger<NtfySender>.Instance);
-        var worker = new AlertWorker(alerts, sender, _preferences, _database.Scopes, _time, NullLogger<AlertWorker>.Instance);
+        var worker = new AlertWorker(alerts, sender, TestWebPush.Sender(_database.Scopes, _time), _preferences, _database.Scopes, _time, NullLogger<AlertWorker>.Instance);
         var list = raised.ToList();
         var lastId = _database.Open().PhoneAlertLogs.Select(a => (long?)a.Id).Max() ?? 0;
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { NotificationKind, NotificationStatus } from '../../services/api'
+import type { AlertChannel, NotificationKind, NotificationStatus } from '../../services/api'
 import { useAppDispatch } from '../../store'
 import { baseApi } from '../../store/baseApi'
 import { useListNotificationKindsQuery, useListNotificationsQuery, useSaveNotificationKindMutation } from '../../store/api/notificationsApi'
@@ -8,7 +8,15 @@ import { usePagedQuery } from '../../store/usePagedQuery'
 
 export const NOTIFICATIONS_PAGE_SIZE = 20
 
-export const STATUS_TEXT: Record<NotificationStatus, string> = { sent: 'Sent', off: 'Off: not sent', 'not-set-up': 'ntfy not set up', failed: 'Failed' }
+const SENT_TO: Record<AlertChannel, string> = { ntfy: 'ntfy', push: "this site's notifications" }
+
+export const STATUS_TEXT: Record<NotificationStatus, string> = {
+  sent: 'Sent',
+  off: 'Off: not sent',
+  'not-set-up': 'Not set up: not sent',
+  failed: 'Failed',
+  'no-channel': 'Both ways off: not sent',
+}
 
 /** Every kind of phone alert, grouped as the API orders them, each with a switch. */
 export function useNotificationKindsViewModel() {
@@ -53,6 +61,8 @@ export function useNotificationHistoryViewModel() {
     kind,
     kinds,
     labelOf: (key: string) => kinds.find((k) => k.kind === key)?.label ?? key,
+    /** Where it went, e.g. "to ntfy and this site's notifications". */
+    sentToText: (channels: AlertChannel[]) => `to ${channels.map((c) => SENT_TO[c]).join(' and ')}`,
     /** A page on this site, to link the title to; null for anything else (only the API's own paths are links). */
     linkOf: (path: string | null) => (path?.startsWith('/') && !path.startsWith('//') && !path.startsWith('/\\') ? path : null),
     /** What came while the page was open: the history, and the kinds' counts. */

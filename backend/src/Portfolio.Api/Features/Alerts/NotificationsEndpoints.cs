@@ -13,7 +13,8 @@ public record NotificationKindDto(string Kind, string Label, string Group, bool 
 public record SaveNotificationKindRequest(bool? Enabled);
 
 /// <param name="Status">One of <see cref="AlertStatus"/>.</param>
-public record NotificationDto(long Id, string Kind, string Title, string Message, string? Path, string Status, DateTimeOffset CreatedAt);
+/// <param name="SentTo">Where it went, once sent: <see cref="AlertChannels"/>, in order; empty when it wasn't.</param>
+public record NotificationDto(long Id, string Kind, string Title, string Message, string? Path, string Status, DateTimeOffset CreatedAt, IReadOnlyList<string> SentTo);
 
 /// <summary>The admin's Notifications tab: every kind of phone alert, switched on or off, and the history of what was raised.</summary>
 public static class NotificationsEndpoints
@@ -105,9 +106,13 @@ public static class NotificationsEndpoints
             .ThenByDescending(a => a.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(a => new NotificationDto(a.Id, a.Kind, a.Title, a.Message, a.Path, a.Status, a.CreatedAt))
+            .Select(a => new { a.Id, a.Kind, a.Title, a.Message, a.Path, a.Status, a.CreatedAt, a.SentTo })
             .ToListAsync(cancellationToken);
 
-        return TypedResults.Ok(new PagedResponse<NotificationDto>(items, page, pageSize, totalCount));
+        return TypedResults.Ok(new PagedResponse<NotificationDto>(
+            [.. items.Select(a => new NotificationDto(a.Id, a.Kind, a.Title, a.Message, a.Path, a.Status, a.CreatedAt, a.SentTo is { Length: > 0 } to ? to.Split(',') : []))],
+            page,
+            pageSize,
+            totalCount));
     }
 }

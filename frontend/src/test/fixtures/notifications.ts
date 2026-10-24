@@ -1,4 +1,4 @@
-import type { Notification, NotificationKind, Page } from '../../services/api'
+import type { AlertChannelState, Notification, NotificationKind, Page, PushSetup } from '../../services/api'
 
 /** The kinds as the API lists them (AlertKinds.cs), some with alerts lately. */
 export const KINDS: NotificationKind[] = [
@@ -18,7 +18,7 @@ export const KINDS: NotificationKind[] = [
 ]
 
 export const NOTIFICATIONS: Notification[] = [
-  { id: 3, kind: 'message', title: 'New message from Ada', message: 'Hello! I loved the Space Game.', path: '/contact', status: 'sent', createdAt: '2026-10-22T20:15:00Z' },
+  { id: 3, kind: 'message', title: 'New message from Ada', message: 'Hello! I loved the Space Game.', path: '/contact', status: 'sent', createdAt: '2026-10-22T20:15:00Z', sentTo: ['ntfy', 'push'] },
   {
     id: 2,
     kind: 'site-error',
@@ -27,10 +27,28 @@ export const NOTIFICATIONS: Notification[] = [
     path: '/engagement',
     status: 'off',
     createdAt: '2026-10-22T18:00:00Z',
+    sentTo: [],
   },
-  { id: 1, kind: 'sign-in', title: 'Signed in to jechel.dev', message: 'Chrome on macOS · 203.0.113.7 (GB)', path: null, status: 'failed', createdAt: '2026-10-22T09:00:00Z' },
+  { id: 1, kind: 'sign-in', title: 'Signed in to jechel.dev', message: 'Chrome on macOS · 203.0.113.7 (GB)', path: null, status: 'failed', createdAt: '2026-10-22T09:00:00Z', sentTo: [] },
 ]
 
 export function pageOfNotifications(items: Notification[] = NOTIFICATIONS, totalCount = items.length, page = 1): Page<Notification> {
   return { items, page, pageSize: 20, totalCount }
 }
+
+export const CHANNELS: AlertChannelState[] = [
+  { channel: 'ntfy', enabled: true, ready: true },
+  { channel: 'push', enabled: true, ready: true },
+]
+
+/** A made-up device; `here` is this browser's push address in the tests that allow notifications. */
+export const HERE = 'https://web.push.apple.com/this-device'
+
+export const PUSH: PushSetup = {
+  publicKey: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM',
+  devices: [
+    { id: 2, label: 'iPhone · Home Screen app', endpoint: HERE, createdAt: '2026-10-24T16:00:00Z', lastSentAt: '2026-10-24T17:30:00Z' },
+    { id: 1, label: 'Mac · Chrome', endpoint: 'https://fcm.googleapis.com/fcm/send/mac', createdAt: '2026-10-23T09:00:00Z', lastSentAt: null },
+  ],
+}
+
