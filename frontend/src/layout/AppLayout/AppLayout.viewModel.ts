@@ -15,9 +15,8 @@ export function useAppLayoutViewModel({ downtime = false }: { downtime?: boolean
   // Vice can hide the page to show off the scene; leaving Vice always brings the page back.
   const [hideContent, setHideContent] = useState(false)
   if (theme !== 'vice' && hideContent) setHideContent(false)
-  // Swiping between pages: in Feature Testing for now, so the signed-in admin's only.
-  const isAuthenticated = useAppSelector((state) => state.auth.status === 'authenticated')
-  const pageRef = useSwipeNavigation(isAuthenticated && !downtime && !(theme === 'vice' && hideContent))
+  // Swiping between pages, for everyone; not while the page is down or hidden.
+  const pageRef = useSwipeNavigation(!downtime && !(theme === 'vice' && hideContent))
   const toggleContent = useCallback(() => setHideContent((hidden) => !hidden), [])
   // On phones, Vice's hide / show button sits in this slot in the header while the page shows (see ContentToggle).
   const [toggleSlot, setToggleSlot] = useState<HTMLSpanElement | null>(null)

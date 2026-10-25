@@ -96,13 +96,12 @@ async function swipe(page: Page, { from, to, y = 500 }: { from: number; to: numb
   await cdp.detach()
 }
 
-test.describe('swiping between pages (in Feature Testing: the admin only)', () => {
-  test.use({ storageState: ADMIN_STATE })
+test.describe('swiping between pages', () => {
   test.skip(({ browserName }) => browserName !== 'chromium', 'touch moves can only be sent in Chrome and Edge')
 
-  test('a swipe left goes to the next tab, right to the previous; not from the edge, nor on the strip that scrolls', async ({ page }) => {
+  test('a swipe left goes to the next tab, right to the previous; not from the edge, nor in a text box', async ({ page }) => {
     await page.goto('/apps')
-    await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'System' })).toBeVisible()
+    await expect(page.locator('main')).not.toBeEmpty()
     await swipe(page, { from: 300, to: 100 })
     await expect(page).toHaveURL('/youtube')
     await swipe(page, { from: 100, to: 300 })
@@ -112,27 +111,30 @@ test.describe('swiping between pages (in Feature Testing: the admin only)', () =
     await page.waitForTimeout(300)
     await expect(page).toHaveURL('/apps')
 
-    await page.goto('/features/swipe')
-    const strip = page.getByRole('region', { name: 'A strip that scrolls sideways' })
-    await strip.scrollIntoViewIfNeeded()
-    const box = (await strip.boundingBox())!
+    await page.goto('/contact')
+    const message = page.getByRole('textbox', { name: 'Message' })
+    await message.scrollIntoViewIfNeeded()
+    const box = (await message.boundingBox())!
     await swipe(page, { from: 300, to: 100, y: box.y + box.height / 2 })
     await page.waitForTimeout(300)
-    await expect(page).toHaveURL('/features/swipe')
-    expect(await strip.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0)
-    // Elsewhere on the page, it goes.
-    const heading = page.getByRole('heading', { name: 'Try it' })
-    await heading.scrollIntoViewIfNeeded()
-    await swipe(page, { from: 100, to: 300, y: (await heading.boundingBox())!.y + 8 })
-    await expect(page).toHaveURL('/features/work-with-me')
+    await expect(page).toHaveURL('/contact')
+    // Visitors have nothing after Contact.
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await swipe(page, { from: 300, to: 100 })
+    await page.waitForTimeout(300)
+    await expect(page).toHaveURL('/contact')
   })
-})
 
-test("visitors' swipes don't change the page while it's in Feature Testing", async ({ page, browserName }) => {
-  test.skip(browserName !== 'chromium', 'touch moves can only be sent in Chrome and Edge')
-  await page.goto('/apps')
-  await expect(page.locator('main')).not.toBeEmpty()
-  await swipe(page, { from: 300, to: 100 })
-  await page.waitForTimeout(300)
-  await expect(page).toHaveURL('/apps')
+  test.describe('the admin', () => {
+    test.use({ storageState: ADMIN_STATE })
+
+    test("goes from Contact to System's first page and back", async ({ page }) => {
+      await page.goto('/contact')
+      await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'System' })).toBeVisible()
+      await swipe(page, { from: 300, to: 100, y: 300 })
+      await expect(page).toHaveURL('/engagement')
+      await swipe(page, { from: 100, to: 300, y: 300 })
+      await expect(page).toHaveURL('/contact')
+    })
+  })
 })
