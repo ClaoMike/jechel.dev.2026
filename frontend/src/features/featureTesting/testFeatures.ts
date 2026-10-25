@@ -1,5 +1,4 @@
 import type { ComponentType } from 'react'
-import { SwipeBetweenPages } from '../swipeNavigation/SwipeBetweenPages/SwipeBetweenPages'
 import { WorkWithMe } from '../workWithMe/WorkWithMe/WorkWithMe'
 
 /** A feature the admin tries out on the site before visitors get it (the Feature Testing tab). */
@@ -22,11 +21,5 @@ export const TEST_FEATURES: readonly TestFeature[] = [
     slug: 'work-with-me',
     title: 'Work with me',
     Component: WorkWithMe,
-  },
-  {
-    // The swipe itself is on every page (useSwipeNavigation, the admin's only while it's here); this says how it works.
-    slug: 'swipe',
-    title: 'Swipe between pages',
-    Component: SwipeBetweenPages,
   },
 ]

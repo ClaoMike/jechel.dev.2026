@@ -60,22 +60,18 @@ export function tabIndex(pathname: string) {
 }
 
 /**
- * Where a swipe goes from this path (`next`: the page to the right, a swipe to the left): the next or previous of the
- * tabs on show (`tabs`, as the tab bar has them), or, on one of a group's pages (System's), the next or previous of
- * those, a nested tab's pages one by one (Feature Testing's `features`). Nothing past either end, nor off a page that
- * isn't on show.
+ * Where a swipe goes from this path (`next`: the page to the right, a swipe to the left): the next or previous page
+ * along the tabs on show (`tabs`, as the tab bar has them), a group (System) standing for each of its pages and a
+ * nested tab for each of its own (Feature Testing's `features`), so Contact's next is Engagement and Engagement's
+ * previous is Contact. Nothing past either end, nor off a page that isn't on show.
  */
 export function swipeTarget(pathname: string, tabs: readonly Tab[], features: readonly string[], to: 'next' | 'previous'): string | null {
-  const tab = tabs.find((t) => isCurrent(t, pathname))
-  if (!tab) return null
-  let pages = tabs.map(linkOf)
-  let here = tabs.indexOf(tab)
-  if (tab.sections) {
-    // A nested page stands for its own pages (/features: /features/work-with-me, …); on its bare address, its first.
-    const nested = tab.sections.find((page) => page.nested && isCurrent(page, pathname))
-    pages = tab.sections.flatMap((page) => (page.nested && features.length > 0 ? features.map((slug) => `${page.to}/${slug}`) : [page.to]))
-    here = pages.indexOf(nested && pathname === nested.to ? (pages.find((page) => page.startsWith(`${nested.to}/`)) ?? pathname) : pathname)
-  }
+  const pagesOf = (tab: Tab): string[] =>
+    tab.sections ? tab.sections.flatMap(pagesOf) : tab.nested && features.length > 0 ? features.map((slug) => `${tab.to}/${slug}`) : [tab.to]
+  const pages = tabs.flatMap(pagesOf)
+  // A nested tab's bare address (/features) is its first page.
+  const nested = tabs.flatMap((tab) => tab.sections ?? [tab]).find((tab) => tab.nested && tab.to === pathname)
+  const here = pages.indexOf(nested ? (pages.find((page) => page.startsWith(`${pathname}/`)) ?? pathname) : pathname)
   if (here < 0) return null
   return pages[here + (to === 'next' ? 1 : -1)] ?? null
 }

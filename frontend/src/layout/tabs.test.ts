@@ -32,7 +32,7 @@ describe('tabs', () => {
   })
 
   describe('where a swipe goes', () => {
-    const FEATURES = ['work-with-me', 'swipe']
+    const FEATURES = ['work-with-me', 'dark-map']
     const next = (path: string, tabs = TABS) => swipeTarget(path, tabs, FEATURES, 'next')
     const previous = (path: string, tabs = TABS) => swipeTarget(path, tabs, FEATURES, 'previous')
 
@@ -48,18 +48,20 @@ describe('tabs', () => {
       expect(previous('/about', visitors)).toBe('/apps')
     })
 
-    it("on System's pages, goes between them, each feature in turn, stopping at either end", () => {
+    it("goes through System's pages and each feature in turn, Engagement and Contact either side of each other, stopping at the end", () => {
       expect(next('/engagement')).toBe('/community')
-      expect(previous('/engagement')).toBeNull()
+      expect(previous('/engagement')).toBe('/contact')
+      expect(previous('/community')).toBe('/engagement')
       expect(next('/settings')).toBe('/features/work-with-me')
-      expect(next('/features')).toBe('/features/swipe')
-      expect(next('/features/work-with-me')).toBe('/features/swipe')
+      expect(next('/features')).toBe('/features/dark-map')
+      expect(next('/features/work-with-me')).toBe('/features/dark-map')
       expect(previous('/features/work-with-me')).toBe('/settings')
-      expect(previous('/features/swipe')).toBe('/features/work-with-me')
-      expect(next('/features/swipe')).toBeNull()
+      expect(previous('/features/dark-map')).toBe('/features/work-with-me')
+      expect(next('/features/dark-map')).toBeNull()
       // With no features, Feature Testing is one page.
       expect(swipeTarget('/settings', TABS, [], 'next')).toBe('/features')
       expect(swipeTarget('/features', TABS, [], 'next')).toBeNull()
+      expect(swipeTarget('/features', TABS, [], 'previous')).toBe('/settings')
     })
 
     it("goes nowhere off a page that isn't on show, or a feature that isn't listed", () => {

@@ -35,7 +35,7 @@ function scrollsSideways(from: Element, page: Element) {
  * A swipe sideways on the page goes to the next tab (to the left) or the previous one (to the right), in the tab bar's
  * order; on System's pages, to the next or previous of those (see swipeTarget). Only a clear, quick, sideways swipe of
  * one finger counts, and not one that starts at the screen's edge, in a field, on something that scrolls sideways
- * itself, or while zoomed in. `enabled`: while it's in Feature Testing, the admin's only.
+ * itself, or while zoomed in. `enabled`: off while there's no page to leave (maintenance) or it's hidden (Vice).
  */
 export function useSwipeNavigation(enabled: boolean) {
   const pageRef = useRef<HTMLElement>(null)

@@ -184,25 +184,23 @@ reach every tab with Tab. One highlight glides to the tab that's picked. With a 
 across; letting go snaps it to the nearest tab, which opens (a tap stays a tap: dragging starts after 5 px, and the click that ends a
 drag is swallowed). A finger always scrolls the bar, the current tab included (its `touch-action` is the bar's own).
 
+**Swiping between pages** (`layout/useSwipeNavigation.ts`, everyone's). On a touchscreen, a swipe sideways on the
+page (`<main>`) goes to the next page (to the left) or the previous one (to the right), along the tabs on show
+(`useShownTabs`, the tab bar's), System standing for each of its pages and Feature Testing for each of its features: so
+Contact's next is Engagement and Engagement's previous is Contact; nothing past either end (`swipeTarget` in
+`layout/tabs.ts`). Only a quick (under 800 ms), clear (at least 60 px, twice as much sideways as up or down) swipe of one
+finger counts. Not one that starts within 24 px of the screen's edge (the browser's: Safari's back and forward), in a
+field or a popup, on something that scrolls sideways itself (a carousel, a wide table), while zoomed in, or while text is
+selected; nor while the page is down for maintenance or hidden in Vice. The page slides the way of the swipe
+(`state.slide` on the navigation, read by `PageTransition` only on that navigation: back and forward to it later go by
+the tab order).
+
 **Feature Testing** (`src/pages/FeatureTestingPage/`, admin only, System's last page, marked BETA): where a new feature goes first,
 to be tried on the real site before visitors see it. The features are listed in
 `src/features/featureTesting/testFeatures.ts` (an address, a title, and the component); a row
 of pills moves between them (the feature fills the card below them, with no heading of its own), each at `/features/<its address>`, and `/features` opens the first. Once a feature is
 ready, it moves to where visitors will see it and comes off the list. With none, the page shows a flask and "No
 features to test right now".
-
-**Swipe between pages** (in Feature Testing now, so the signed-in admin's only: `layout/useSwipeNavigation.ts`, its page
-`src/features/swipeNavigation/`). On a touchscreen, a swipe sideways on the page (`<main>`) goes to the next tab (to the
-left) or the previous one (to the right), in the order of the tabs on show (`useShownTabs`, the tab bar's), nothing
-past either end; on System's pages, between them, Feature Testing standing for each of its features in turn, stopping at
-either end (`swipeTarget` in `layout/tabs.ts`). Only a quick (under 800 ms), clear (at least 60 px, twice as much
-sideways as up or down) swipe of one finger counts. Not one that starts within 24 px of the screen's edge (the
-browser's: Safari's back and forward), in a field or a popup, on something that scrolls sideways itself (a carousel, a
-wide table, the System pills on a phone), while zoomed in, or while text is selected. The page slides the way of the
-swipe (`state.slide` on the navigation, read by `PageTransition` only on that navigation: back and forward to it later
-go by the tab order). Its page in Feature Testing says how it works, with a strip that scrolls sideways and a text box to
-try the exceptions on. Once it leaves Feature Testing, the `enabled` flag in `AppLayout.viewModel.ts` drops the
-admin-only check.
 
 **Work with me** (`src/features/workWithMe/`, in Feature Testing now; for visitors, where it goes is still to decide:
 Contact, or a page of its own). What I offer (websites end to end, APIs, automations for a company's own work: manual
