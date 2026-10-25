@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { useAppSelector } from '../../store'
-import { isCurrent, linkOf, TABS, type Tab } from '../tabs'
+import { isCurrent, linkOf } from '../tabs'
+import { useShownTabs, type ShownTab } from '../useShownTabs'
 
 /** Where the highlight is, in the tab bar's own coordinates (it scrolls with the tabs). */
 interface Box {
@@ -22,9 +22,7 @@ const DRAG_THRESHOLD = 5
 /** The bar counts as stopped once it hasn't scrolled for this long. */
 const SCROLL_SETTLED_MS = 120
 
-export interface TabItem extends Tab {
-  /** The admin sees hidden pages too, marked. */
-  hiddenFromVisitors: boolean
+export interface TabItem extends ShownTab {
   /** Where its link goes (System: its first page). */
   link: string
   current: boolean
@@ -39,12 +37,8 @@ export function useTabNavViewModel() {
   const navRef = useRef<HTMLElement>(null)
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const isAuthenticated = useAppSelector((state) => state.auth.status === 'authenticated')
-  const site = useAppSelector((state) => state.site)
-  const hidden = (tab: Tab) => tab.page !== undefined && site.status === 'loaded' && !site.site.pages[tab.page]
-  const tabs: TabItem[] = TABS.filter((tab) => (isAuthenticated ? true : !tab.adminOnly && site.status === 'loaded' && !hidden(tab))).map((tab) => ({
+  const tabs: TabItem[] = useShownTabs().map((tab) => ({
     ...tab,
-    hiddenFromVisitors: isAuthenticated && hidden(tab),
     link: linkOf(tab),
     current: isCurrent(tab, pathname),
   }))

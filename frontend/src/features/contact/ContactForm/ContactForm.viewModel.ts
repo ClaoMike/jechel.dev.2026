@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { failureOf, type ContactTopic, type SendMessageRequest } from '../../../services/api'
 import { useSendMessageMutation } from '../../../store/api/contactApi'
 import { trackEvent } from '../../analytics'
@@ -21,7 +21,8 @@ function fromApiErrors(apiErrors: Record<string, string[]>): ContactErrors {
 }
 
 /**
- * The form's values and errors: they show after the first submit, then update as you type. What it's about: fixed by
+ * The form's values and errors: Send stays off until every field is right, and a field's error shows once it's been
+ * left (then updates as you type), or when the API turns it down (until that field is changed). What it's about: fixed by
  * `topic` (Work with me's own form is about a project), or picked on the form once Work with me is switched on.
  */
 export function useContactFormViewModel({ topic: fixedTopic }: { topic?: ContactTopic } = {}) {
@@ -29,30 +30,40 @@ export function useContactFormViewModel({ topic: fixedTopic }: { topic?: Contact
   const [values, setValues] = useState<SendMessageRequest>(EMPTY)
   const [topic, setTopic] = useState<ContactTopic | ''>(fixedTopic ?? '')
   const showTopic = useFeature('workWithMe') && !fixedTopic
-  const [errors, setErrors] = useState<ContactErrors>({})
-  const [submitted, setSubmitted] = useState(false)
+  const [touched, setTouched] = useState<Partial<Record<ContactField, boolean>>>({})
+  const [apiErrors, setApiErrors] = useState<ContactErrors>({})
+  // Fields already reported as stopping the visitor, so leaving one again doesn't report it twice.
+  const reported = useRef(new Set<ContactField>())
   const [status, setStatus] = useState<Status>('idle')
   const [send, { isLoading: sending }] = useSendMessageMutation()
 
+  const found = validateContact(values)
+  const valid = Object.keys(found).length === 0
+  const errors: ContactErrors = {}
+  for (const field of ['name', 'email', 'message'] as const) {
+    const error = apiErrors[field] ?? (touched[field] ? found[field] : undefined)
+    if (error) errors[field] = error
+  }
+
   function update(field: ContactField, value: string) {
-    const next = { ...values, [field]: value }
-    setValues(next)
-    if (submitted) setErrors(validateContact(next))
+    setValues({ ...values, [field]: value })
+    if (apiErrors[field]) setApiErrors((current) => ({ ...current, [field]: undefined }))
+  }
+
+  function leave(field: ContactField) {
+    // Leaving a field untouched (tabbing through) isn't a mistake yet.
+    if (!values[field]) return
+    setTouched((current) => (current[field] ? current : { ...current, [field]: true }))
+    if (found[field] && !reported.current.has(field)) {
+      // Which fields stop people (the values are never recorded).
+      reported.current.add(field)
+      trackEvent('Contact form invalid', { fields: field })
+    }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setSubmitted(true)
-
-    const found = validateContact(values)
-    setErrors(found)
-    if (Object.keys(found).length > 0) {
-      // Which fields stop people (the values are never recorded).
-      trackEvent('Contact form invalid', { fields: Object.keys(found).join(', ') })
-      const firstInvalid = (['name', 'email', 'message'] as const).find((field) => found[field])
-      document.getElementById(`${id}-${firstInvalid}`)?.focus()
-      return
-    }
+    if (!valid || sending) return
 
     setStatus('idle')
     try {
@@ -61,9 +72,9 @@ export function useContactFormViewModel({ topic: fixedTopic }: { topic?: Contact
       trackEvent('Message sent', topic ? { topic } : undefined)
     } catch (error) {
       const { status: code, validationErrors } = failureOf(error)
-      const apiErrors = validationErrors ? fromApiErrors(validationErrors) : {}
-      trackEvent('Message not sent', { reason: Object.keys(apiErrors).length > 0 ? `invalid ${Object.keys(apiErrors).join(', ')}` : String(code || 'no response') })
-      if (Object.keys(apiErrors).length > 0) setErrors(apiErrors)
+      const turnedDown = validationErrors ? fromApiErrors(validationErrors) : {}
+      trackEvent('Message not sent', { reason: Object.keys(turnedDown).length > 0 ? `invalid ${Object.keys(turnedDown).join(', ')}` : String(code || 'no response') })
+      if (Object.keys(turnedDown).length > 0) setApiErrors(turnedDown)
       else setStatus(code === 429 ? 'tooMany' : 'failed')
     }
   }
@@ -73,6 +84,8 @@ export function useContactFormViewModel({ topic: fixedTopic }: { topic?: Contact
     id,
     values,
     errors,
+    /** Send is off until every field is right (and while sending). */
+    canSend: valid && !sending && !Object.values(apiErrors).some(Boolean),
     status,
     sending,
     messageLength,
@@ -82,12 +95,14 @@ export function useContactFormViewModel({ topic: fixedTopic }: { topic?: Contact
     topic,
     setTopic,
     update,
+    leave,
     submit: (event: FormEvent<HTMLFormElement>) => void submit(event),
     reset: () => {
       setValues(EMPTY)
       setTopic(fixedTopic ?? '')
-      setErrors({})
-      setSubmitted(false)
+      setTouched({})
+      setApiErrors({})
+      reported.current.clear()
       setStatus('idle')
     },
     /** The ids and ARIA wiring of a field. */
@@ -96,6 +111,7 @@ export function useContactFormViewModel({ topic: fixedTopic }: { topic?: Contact
       name: field,
       required: true,
       value: values[field],
+      onBlur: () => leave(field),
       'aria-invalid': errors[field] ? true : undefined,
       'aria-describedby': [field === 'message' ? `${id}-message-hint` : '', errors[field] ? `${id}-${field}-error` : ''].filter(Boolean).join(' ') || undefined,
     }),

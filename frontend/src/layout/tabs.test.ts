@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isCurrent, linkOf, SYSTEM_PAGES, tabIndex, TABS } from './tabs'
+import { isCurrent, linkOf, swipeTarget, SYSTEM_PAGES, tabIndex, TABS } from './tabs'
 
 describe('tabs', () => {
   it('lists the visitor pages first, then System, which holds the admin-only ones', () => {
@@ -29,5 +29,48 @@ describe('tabs', () => {
     expect(tabIndex('/settings/x')).toBe(-1)
     expect(tabIndex('/featuresx')).toBe(-1)
     expect(tabIndex('/updates/confirm')).toBe(-1)
+  })
+
+  describe('where a swipe goes', () => {
+    const FEATURES = ['work-with-me', 'swipe']
+    const next = (path: string, tabs = TABS) => swipeTarget(path, tabs, FEATURES, 'next')
+    const previous = (path: string, tabs = TABS) => swipeTarget(path, tabs, FEATURES, 'previous')
+
+    it('goes along the tabs on show, System opening its first page, nothing past either end', () => {
+      expect(next('/')).toBe('/apps')
+      expect(previous('/apps')).toBe('/')
+      expect(previous('/')).toBeNull()
+      expect(next('/contact')).toBe('/engagement')
+      // Visitors' tabs: no System after Contact; a hidden page is skipped.
+      const visitors = TABS.filter((t) => !t.adminOnly && t.page !== 'youtube')
+      expect(next('/contact', visitors)).toBeNull()
+      expect(next('/apps', visitors)).toBe('/about')
+      expect(previous('/about', visitors)).toBe('/apps')
+    })
+
+    it("on System's pages, goes between them, each feature in turn, stopping at either end", () => {
+      expect(next('/engagement')).toBe('/community')
+      expect(previous('/engagement')).toBeNull()
+      expect(next('/settings')).toBe('/features/work-with-me')
+      expect(next('/features')).toBe('/features/swipe')
+      expect(next('/features/work-with-me')).toBe('/features/swipe')
+      expect(previous('/features/work-with-me')).toBe('/settings')
+      expect(previous('/features/swipe')).toBe('/features/work-with-me')
+      expect(next('/features/swipe')).toBeNull()
+      // With no features, Feature Testing is one page.
+      expect(swipeTarget('/settings', TABS, [], 'next')).toBe('/features')
+      expect(swipeTarget('/features', TABS, [], 'next')).toBeNull()
+    })
+
+    it("goes nowhere off a page that isn't on show, or a feature that isn't listed", () => {
+      expect(next('/updates/confirm')).toBeNull()
+      expect(
+        next(
+          '/terms',
+          TABS.filter((t) => !t.adminOnly),
+        ),
+      ).toBeNull()
+      expect(next('/features/gone')).toBeNull()
+    })
   })
 })

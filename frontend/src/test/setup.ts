@@ -14,6 +14,11 @@ const still = document.createElement('style')
 still.textContent = '*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }'
 document.head.append(still)
 
+// Nor the page's scrollbar taking room: macOS shows one while a mouse is connected, narrowing every screenshot.
+const noScrollbar = document.createElement('style')
+noScrollbar.textContent = 'html { scrollbar-width: none; }'
+document.head.append(noScrollbar)
+
 // The real API is never called: a request no test faked (stubApi, fakeHttp) fails the test that sent it.
 let unfaked: string[] = []
 beforeEach(() => {

@@ -90,11 +90,15 @@ describe('the contact form', () => {
       .fill('Hello, I would like to talk about your apps and how you built the slider on the Apps page. Could we book a call next week, please?')
   }
 
-  it('reports which fields stopped the visitor, then the message sent', async () => {
+  it('reports a field that stopped the visitor (once), then the message sent', async () => {
     vi.spyOn(api.contact, 'send').mockResolvedValue()
     await renderView(<ContactForm />)
-    await page.getByRole('button', { name: 'Send message' }).click()
-    await expect.poll(lastReport).toEqual(['Contact form invalid', { fields: 'name, email, message' }])
+    await page.getByRole('textbox', { name: 'Email' }).fill('ada@')
+    await page.getByRole('textbox', { name: 'Name' }).click()
+    await expect.poll(lastReport).toEqual(['Contact form invalid', { fields: 'email' }])
+    await page.getByRole('textbox', { name: 'Email' }).click()
+    await page.getByRole('textbox', { name: 'Name' }).click()
+    expect(names().filter((name) => name === 'Contact form invalid')).toHaveLength(1)
     await fill()
     await page.getByRole('button', { name: 'Send message' }).click()
     await expect.poll(() => names().at(-1)).toBe('Message sent')

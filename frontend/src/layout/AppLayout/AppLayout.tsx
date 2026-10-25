@@ -22,12 +22,13 @@ export interface Downtime {
 
 /**
  * The site frame: the admin's own bar on top (who's signed in, Sign out), then the site name, "Buy me a coffee" and
- * "Get updates", the theme switch, the tabs, System's own navigation (on the admin's pages), the current tab's page,
- * and the footer. With `downtime`, visitors get the same frame (the name, the theme switch, Vice's scene) around the
- * maintenance card, without the tabs, the pages, the footer or the header's other buttons.
+ * "Get updates", the theme switch, the tabs, System's own navigation (on the admin's pages), the current tab's page
+ * (on a touchscreen, a swipe sideways goes to the next or previous: useSwipeNavigation), and the footer. With
+ * `downtime`, visitors get the same frame (the name, the theme switch, Vice's scene) around the maintenance card,
+ * without the tabs, the pages, the footer or the header's other buttons.
  */
 export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
-  const { toggleSlotRef, ...vm } = useAppLayoutViewModel()
+  const { toggleSlotRef, pageRef, ...vm } = useAppLayoutViewModel({ downtime: !!downtime })
 
   return (
     <div className="app" data-content-hidden={vm.contentHidden || undefined}>
@@ -46,7 +47,7 @@ export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
         </div>
         {!downtime && <TabNav />}
       </header>
-      <main className="page" inert={vm.contentHidden}>
+      <main ref={pageRef} className="page" inert={vm.contentHidden}>
         {downtime ? (
           <MaintenanceScreen reason={downtime.reason} message={downtime.message} />
         ) : (
