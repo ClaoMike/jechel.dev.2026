@@ -191,6 +191,19 @@ of pills moves between them (the feature fills the card below them, with no head
 ready, it moves to where visitors will see it and comes off the list. With none, the page shows a flask and "No
 features to test right now".
 
+**Swipe between pages** (in Feature Testing now, so the signed-in admin's only: `layout/useSwipeNavigation.ts`, its page
+`src/features/swipeNavigation/`). On a touchscreen, a swipe sideways on the page (`<main>`) goes to the next tab (to the
+left) or the previous one (to the right), in the order of the tabs on show (`useShownTabs`, the tab bar's), nothing
+past either end; on System's pages, between them, Feature Testing standing for each of its features in turn, stopping at
+either end (`swipeTarget` in `layout/tabs.ts`). Only a quick (under 800 ms), clear (at least 60 px, twice as much
+sideways as up or down) swipe of one finger counts. Not one that starts within 24 px of the screen's edge (the
+browser's: Safari's back and forward), in a field or a popup, on something that scrolls sideways itself (a carousel, a
+wide table, the System pills on a phone), while zoomed in, or while text is selected. The page slides the way of the
+swipe (`state.slide` on the navigation, read by `PageTransition` only on that navigation: back and forward to it later
+go by the tab order). Its page in Feature Testing says how it works, with a strip that scrolls sideways and a text box to
+try the exceptions on. Once it leaves Feature Testing, the `enabled` flag in `AppLayout.viewModel.ts` drops the
+admin-only check.
+
 **Work with me** (`src/features/workWithMe/`, in Feature Testing now; for visitors, where it goes is still to decide:
 Contact, or a page of its own). What I offer (websites end to end, APIs, automations for a company's own work: manual
 processes and integrations between its apps), how a project goes (a free call or meeting, online or in person; a plan;
@@ -208,7 +221,7 @@ about?** (anything, or a project), which arrives as a **project enquiry**.
 
 **Contact** (`src/pages/ContactPage/ContactPage.tsx`, `src/features/contact/`):
 
-- **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. Errors appear after the first submit and then update as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields. With Work with me switched on, it also asks **What's it about?**: anything (the default), or a project (`topic: "project"`). A project enquiry is kept with the subject **Project enquiry**: the inbox marks it, the phone alert says "New project enquiry from …", and replies are sent under it.
+- **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. **Send message** stays off until every field is right ("Fill in every field to send it." beside it); a field's error shows once it's been left with something in it (a field only tabbed through says nothing), then updates as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields. With Work with me switched on, it also asks **What's it about?**: anything (the default), or a project (`topic: "project"`). A project enquiry is kept with the subject **Project enquiry**: the inbox marks it, the phone alert says "New project enquiry from …", and replies are sent under it.
 - **The admin** (`<SignedIn>`) gets the inbox: a table of conversations (name, last message, how many), 10 per page (the page is in the URL, `?page=2`). Unread messages are bold, with a blue dot. Clicking a row opens a popup with every field and a **Copy** button for each, and marks the message as read.
 - Each detail has a copy-to-clipboard icon button (`src/components/CopyButton/CopyButton.tsx`); the icons are in `src/components/icons/icons.tsx`.
 - **Deleting:** each row has a trash button, and the popup a **Delete** button (`DELETE /api/contact/messages/{id}`, admin only). Both ask first.

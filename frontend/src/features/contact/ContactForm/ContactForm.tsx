@@ -3,7 +3,7 @@ import { EMAIL_MAX_LENGTH, MESSAGE_MAX_LENGTH, MESSAGE_MIN_LENGTH, NAME_MAX_LENG
 import { useContactFormViewModel } from './ContactForm.viewModel'
 
 /**
- * The public "Contact me" form. Errors show after the first submit, then update as you type. Once Work with me is
+ * The public "Contact me" form. Send stays off until every field is right; a field's error shows once it's left. Once Work with me is
  * switched on, it asks what the message is about; Work with me's own form is about a project (`topic`), with its own
  * title and words.
  */
@@ -84,9 +84,16 @@ export function ContactForm({
           </p>
         )}
 
-        <button type="submit" className="button" disabled={vm.sending}>
-          {vm.sending ? 'Sending…' : 'Send message'}
-        </button>
+        <div className="contact-send">
+          <button type="submit" className="button" disabled={!vm.canSend} aria-describedby={vm.canSend || vm.sending ? undefined : `${id}-send-hint`}>
+            {vm.sending ? 'Sending…' : 'Send message'}
+          </button>
+          {!vm.canSend && !vm.sending && (
+            <p className="field-hint" id={`${id}-send-hint`}>
+              Fill in every field to send it.
+            </p>
+          )}
+        </div>
       </form>
     </section>
   )

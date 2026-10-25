@@ -249,8 +249,15 @@ h2 {
   margin-top: 20px;
 }
 
-.contact-form .button {
-  align-self: flex-start;
+.contact-send {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.contact-send .field-hint {
+  margin: 0;
 }
 
 .field {
@@ -5052,4 +5059,60 @@ li + li > .currency-group {
 .currency-option > svg {
   margin-inline-start: auto;
   color: var(--accent);
+}
+
+/* ---------- Swipe between pages (Feature Testing) ---------- */
+
+.swipe-between-pages {
+  display: grid;
+  gap: 24px;
+}
+
+.swipe-between-pages > section {
+  min-width: 0;
+}
+
+.swipe-between-pages h4 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.swipe-between-pages p {
+  margin: 0;
+}
+
+.swipe-between-pages section > .muted {
+  margin-bottom: 12px;
+}
+
+.swipe-rules {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.swipe-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+  padding: 4px 2px;
+  scrollbar-width: thin;
+}
+
+.swipe-strip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.swipe-strip-item {
+  flex: 0 0 120px;
+  display: grid;
+  place-items: center;
+  height: 64px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-weight: 600;
 }

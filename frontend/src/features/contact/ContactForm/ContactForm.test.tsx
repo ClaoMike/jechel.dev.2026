@@ -8,7 +8,7 @@ import { renderView, textOf } from '../../../test/render'
 import { MESSAGE_MAX_LENGTH, MESSAGE_MIN_LENGTH } from '../contactRules'
 import { ContactForm } from './ContactForm'
 
-// The public "Contact me" form: errors after the first try, then as you type; sent, thanks; why it wasn't, when it wasn't.
+// The public "Contact me" form: Send stays off until every field is right, a field's error shows once it's left; sent, thanks; why it wasn't, when it wasn't.
 
 const LONG = 'Hello Claudiu! I played the Space Game and loved the lighthouse level. Could we talk about how you built the beam? Thanks!'
 const field = (name: 'Name' | 'Email' | 'Message') => page.getByRole('textbox', { name })
@@ -31,33 +31,48 @@ describe('the contact form', () => {
     expect(counter.classList.contains('counter-short')).toBe(false)
   })
 
-  it('shows no errors before the first try, every one on it, focuses the first, and sends nothing', async () => {
+  it('keeps Send off until every field is right, saying why, and sends nothing', async () => {
     const send = vi.spyOn(api.contact, 'send').mockResolvedValue()
     await renderView(<ContactForm />)
-    await field('Message').fill('short')
-    expect(document.querySelectorAll('.field-error')).toHaveLength(0)
-
-    await submit().click()
-    await expect.element(field('Name')).toHaveAttribute('aria-invalid', 'true')
-    await expect.element(field('Email')).toHaveAttribute('aria-invalid', 'true')
-    await expect.element(field('Message')).toHaveAttribute('aria-invalid', 'true')
-    expect(document.activeElement).toBe(field('Name').element())
+    await expect.element(submit()).toBeDisabled()
+    await expect.element(submit()).toHaveAccessibleDescription('Fill in every field to send it.')
+    await fill('Ada', 'ada@example.com', 'Too short')
+    await expect.element(submit()).toBeDisabled()
+    await field('Message').fill(LONG)
+    await expect.element(submit()).toBeEnabled()
+    expect(page.getByText('Fill in every field to send it.').query()).toBeNull()
+    await field('Email').fill('not an email')
+    await expect.element(submit()).toBeDisabled()
     expect(send).not.toHaveBeenCalled()
   })
 
-  it('updates the errors as it is typed, once tried', async () => {
+  it("shows a field's error once it's left, not while it's first typed, then updates it as it's typed", async () => {
     await renderView(<ContactForm />)
-    await submit().click()
-    await expect.element(field('Name')).toHaveAttribute('aria-invalid', 'true')
-    await field('Name').fill('Ada')
-    await expect.element(field('Name')).not.toHaveAttribute('aria-invalid')
+    await field('Email').fill('ada@')
+    expect(field('Email').element().hasAttribute('aria-invalid')).toBe(false)
+    await field('Name').click()
+    await expect.element(field('Email')).toHaveAttribute('aria-invalid', 'true')
+    await expect.element(field('Email')).toHaveAccessibleDescription('Please enter a valid email address, like name@example.com.')
+    await field('Email').fill('ada@example.com')
+    await expect.element(field('Email')).not.toHaveAttribute('aria-invalid')
+    await field('Email').fill('')
+    await expect.element(field('Email')).toHaveAccessibleDescription('Please enter your email.')
+  })
+
+  it('says nothing about a field only tabbed through', async () => {
+    await renderView(<ContactForm />)
+    ;(field('Name').element() as HTMLElement).focus()
+    await userEvent.tab()
+    await userEvent.tab()
+    expect(document.querySelectorAll('.field-error')).toHaveLength(0)
   })
 
   it('takes a name of only spaces as no name', async () => {
     await renderView(<ContactForm />)
     await fill('   ')
-    await submit().click()
-    await expect.element(field('Name')).toHaveAttribute('aria-invalid', 'true')
+    await expect.element(submit()).toBeDisabled()
+    await field('Email').click()
+    await expect.element(field('Name')).toHaveAccessibleDescription('Please enter your name.')
   })
 
   it('sends it trimmed, then thanks them at their address, and can start again', async () => {
@@ -91,6 +106,11 @@ describe('the contact form', () => {
     await fill()
     await submit().click()
     await expect.element(field('Email')).toHaveAccessibleDescription('That address takes no email.')
+    // Until it's changed: then Send is back.
+    await expect.element(submit()).toBeDisabled()
+    await field('Email').fill('ada@example.org')
+    await expect.element(field('Email')).not.toHaveAttribute('aria-invalid')
+    await expect.element(submit()).toBeEnabled()
   })
 
   it('says to wait after several messages in a short while, and keeps what was typed', async () => {
@@ -129,8 +149,10 @@ describe('the contact form', () => {
   for (const theme of THEMES) {
     it(`${theme}: has no WCAG problems, errors showing too`, async () => {
       await renderView(<ContactForm />, { theme })
-      await submit().click()
-      await expect.element(field('Name')).toHaveAttribute('aria-invalid', 'true')
+      await fill(' ', 'ada@', 'short')
+      await field('Name').click()
+      await expect.element(field('Message')).toHaveAttribute('aria-invalid', 'true')
+      await expect.element(field('Email')).toHaveAttribute('aria-invalid', 'true')
       expect(await a11yViolations()).toEqual([])
     })
   }
@@ -195,4 +217,3 @@ describe('what the message is about', () => {
     expect(send.mock.calls[1][0]).toHaveProperty('topic', 'project')
   })
 })
-

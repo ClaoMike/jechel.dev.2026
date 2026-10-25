@@ -5,20 +5,28 @@ import { alerts, expect, test, unique, typeInto } from './fixtures.ts'
 
 const MESSAGE = 'Hello! I saw your apps and would like to talk about a project: a small web app with a booking calendar and payments.'
 
-test('says what each field is missing, and keeps the message to 100–1000 characters', async ({ page }) => {
+test('keeps Send off until every field is right, says what a field is missing once it is left, and keeps the message to 100–1000 characters', async ({ page }) => {
   await page.goto('/contact')
-  await page.getByRole('button', { name: 'Send message' }).click()
-  await expect(page.getByText('Please enter your name.')).toBeVisible()
-  await expect(page.getByText('Please enter your email.')).toBeVisible()
-  await expect(page.getByText('Please write a message.')).toBeVisible()
-  await expect(page.getByRole('textbox', { name: 'Name' })).toHaveAttribute('aria-invalid', 'true')
+  const send = page.getByRole('button', { name: 'Send message' })
+  await expect(send).toBeDisabled()
+  await expect(page.getByText('Fill in every field to send it.')).toBeVisible()
 
+  await typeInto(page.getByRole('textbox', { name: 'Email' }), 'not an email')
+  await page.getByRole('textbox', { name: 'Name' }).click()
+  await expect(page.getByText('Please enter a valid email address, like name@example.com.')).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Email' })).toHaveAttribute('aria-invalid', 'true')
+
+  await typeInto(page.getByRole('textbox', { name: 'Name' }), 'Ada')
   await typeInto(page.getByRole('textbox', { name: 'Message' }), 'Too short.')
   await expect(page.getByText('10 / 1000')).toBeVisible()
-  await typeInto(page.getByRole('textbox', { name: 'Email' }), 'not an email')
-  await page.getByRole('button', { name: 'Send message' }).click()
-  await expect(page.getByRole('textbox', { name: 'Email' })).toHaveAttribute('aria-invalid', 'true')
+  await page.getByRole('textbox', { name: 'Email' }).click()
   await expect(page.getByRole('textbox', { name: 'Message' })).toHaveAttribute('aria-invalid', 'true')
+  await expect(send).toBeDisabled()
+
+  await typeInto(page.getByRole('textbox', { name: 'Email' }), 'ada@e2e.test')
+  await typeInto(page.getByRole('textbox', { name: 'Message' }), MESSAGE)
+  await expect(send).toBeEnabled()
+  await expect(page.getByText('Fill in every field to send it.')).toBeHidden()
   await expect(page.getByRole('region', { name: 'Contact me' })).toBeVisible()
 })
 
