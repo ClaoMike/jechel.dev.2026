@@ -22,6 +22,7 @@ import type {
   RoleDef,
   Vocabulary,
 } from '../shared/types.ts'
+import { buildBoard } from './board.ts'
 import { hashFiles, hashSources, PluginCache, sha256 } from './cache.ts'
 import type { PluginConfig, RepoMapConfig } from './config.ts'
 import { classifyFiles, listRepoFiles, matcher } from './files.ts'
@@ -106,6 +107,8 @@ export async function buildGraph(config: RepoMapConfig, options: BuildOptions): 
 
   const { nodes, edges, unresolved } = assembler.finalize()
   const meta = buildMeta(config, nodes, edges, toolVersion, options.publicOutput)
+  // ---- The Board: tiers, features (set on the nodes), AI summaries, rule violations
+  const board = buildBoard(config, nodes, edges, meta.layers)
 
   // ---- Layout: warm-started from the previous graph so the picture stays put between builds
   const previous = readGraph(config.output)
@@ -128,7 +131,10 @@ export async function buildGraph(config: RepoMapConfig, options: BuildOptions): 
 
   // ---- Changes since the previous build
   const changes = computeChanges(previous, nodes, edges)
-  const changed = !previous || changes !== undefined
+  // Features and summaries change without the nodes or edges changing (config, repomap.ai.json).
+  const previousFeatures = new Map(previous?.nodes.map((n) => [n.id, n.feature]))
+  const boardChanged = JSON.stringify(previous?.board) !== JSON.stringify(board) || nodes.some((n) => previousFeatures.get(n.id) !== n.feature)
+  const changed = !previous || changes !== undefined || boardChanged
   meta.changes = changes ?? previous?.meta.changes
   meta.plugins = runs
   const durationMs = Math.round(performance.now() - started)
@@ -141,6 +147,7 @@ export async function buildGraph(config: RepoMapConfig, options: BuildOptions): 
     edges,
     unresolved,
     diagnostics: assembler.diagnostics.length > 0 ? assembler.diagnostics : undefined,
+    board,
   }
   if (!graph.diagnostics) delete graph.diagnostics
 
@@ -351,8 +358,9 @@ export function stringifyGraph(graph: RepoGraph): string {
   }
   list('nodes', graph.nodes)
   list('edges', graph.edges)
-  list('unresolved', graph.unresolved, !graph.diagnostics)
-  if (graph.diagnostics) list('diagnostics', graph.diagnostics, true)
+  list('unresolved', graph.unresolved, !graph.diagnostics && !graph.board)
+  if (graph.diagnostics) list('diagnostics', graph.diagnostics, !graph.board)
+  if (graph.board) lines.push(`"board": ${JSON.stringify(graph.board)}`)
   lines.push('}')
   return `${lines.join('\n')}\n`
 }

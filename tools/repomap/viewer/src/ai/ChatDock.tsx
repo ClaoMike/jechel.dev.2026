@@ -10,6 +10,7 @@ import { useGitActions } from '../git/actions.ts'
 import { relativeTime } from '../git/model.ts'
 import { useGit } from '../git/store.ts'
 import { useEditor } from '../model/editor.ts'
+import { useBoard } from '../board/store.ts'
 import { useViewer } from '../model/store.ts'
 import { ActionMenu, type MenuItem } from '../ui/ActionMenu.tsx'
 import { Icon, type IconName } from '../ui/icons.tsx'
@@ -27,7 +28,11 @@ const MODES: { value: PermissionMode; label: string; hint: string }[] = [
 export function useCurrentContext(): ContextItem[] {
   const tab = useViewer((s) => s.tab)
   const index = useViewer((s) => s.index)
-  const selected = useViewer((s) => s.selected)
+  const mapSelected = useViewer((s) => s.selected)
+  // On the Board, the selected chip (a node) is what you're looking at.
+  const boardChip = useBoard((s) => (s.selected && !s.selected.startsWith('wire:') ? s.selected : null))
+  const boardNode = boardChip && index ? (index.byId.get(boardChip) ?? null) : null
+  const selected = tab === 'board' ? boardNode : mapSelected
   const editor = useEditor()
   const commit = useGit((s) => s.selected)
   const model = useGit((s) => s.model)

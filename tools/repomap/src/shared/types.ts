@@ -11,6 +11,8 @@ export const GRAPH_VERSION = 1
 /** Version of the plugin stdin/stdout protocol. */
 export const PROTOCOL_VERSION = 1
 
+import type { BoardData, FeatureSource } from './board.ts'
+
 export type Visibility = 'show' | 'dim' | 'hide'
 export type EdgeSource = 'static' | 'llm' | 'manual'
 
@@ -168,6 +170,10 @@ export interface GraphNode {
   roleReason?: string
   /** Layout position [x, y, z], baked by the builder. */
   pos?: [number, number, number]
+  /** The feature (vertical slice) the node belongs to, set by the builder (see shared/board.ts). */
+  feature?: string
+  /** How it got it: its folder, config, the AI, its neighbours or parent, or nothing (shared). */
+  featureSource?: FeatureSource
 }
 
 export interface GraphEdge {
@@ -206,6 +212,8 @@ export interface RepoGraph {
   edges: GraphEdge[]
   unresolved: UnresolvedLink[]
   diagnostics?: Diagnostic[]
+  /** Tiers, features, AI summaries and rule violations for the Board tab. */
+  board?: BoardData
 }
 
 // ---------- Plugin protocol (stdin request → stdout output) ----------

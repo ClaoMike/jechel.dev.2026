@@ -10,6 +10,10 @@
  *   POST /api/files       create / delete / rename a file or folder (JSON FileOperation)
  *   /api/ai/…             the assistant: settings, models, chats, a message (streamed), approvals, stop
  *   POST /api/git         run one GitAction (JSON)
+ *   GET  /api/board/ai    the Board's AI job (summaries): running, progress, last result
+ *   POST /api/board/summarize · /api/board/stop · /api/board/briefing · /api/board/suggest-rules
+ *
+ * (GET /api/review, the read-only diff for review mode, is served by serve.ts on every server.)
  *
  * Only served when enabled (by default: `repomap serve` of your own repository on a loopback
  * address). Every request must come from the viewer itself: a loopback Host (no DNS rebinding), the
@@ -20,6 +24,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AiSettingsUpdate, ApprovalDecision, ChatEvent } from '../shared/ai.ts'
 import { WRITE_HEADER, type GitAction } from '../shared/git-actions.ts'
 import type { RepoGraph } from '../shared/types.ts'
+import { BoardAiError, reviewBriefing, suggestRules, summarizeBoard, type BriefingInput, type SummarizeProgress } from './ai/board-ai.ts'
+import type { RepoMapConfig } from './config.ts'
+import { readReviewDiff, ReviewError } from './review.ts'
 import { apiError, AssistantError, type Assistant, type SendRequest } from './ai/assistant.ts'
 import { publicConversation, type ConversationStore } from './ai/conversations.ts'
 import { SettingsError, type SettingsStore } from './ai/settings.ts'
@@ -39,8 +46,20 @@ export interface ApiContext {
   /** The layer and role the build would give a path (undefined: excluded from the map). */
   classify?(path: string): { layer: string; role: string; reason: string } | undefined
   /** The AI assistant (absent: not offered). */
-  ai?: { assistant: Assistant; settings: SettingsStore; conversations: ConversationStore }
+  ai?: { assistant: Assistant; settings: SettingsStore; conversations: ConversationStore; baseURL?: string }
+  /** The Board's AI work: the config (ai file, models), a rebuild, and a way to tell the viewers. */
+  board?: { config: RepoMapConfig; rebuild(): Promise<RepoGraph>; broadcast(event: string, data: unknown): void }
 }
+
+/** The one summaries run a server does at a time. */
+interface BoardJob {
+  running: boolean
+  progress?: SummarizeProgress
+  result?: { placed: number; written: number; failed: number; remaining: number }
+  error?: string
+  controller?: AbortController
+}
+const boardJobs = new WeakMap<object, BoardJob>()
 
 /** On a writable server the code panel may open every file git lists, not only the graph's. */
 export function workspaceAllows(repoRoot: string): (path: string) => boolean {
@@ -58,7 +77,7 @@ export function isLoopbackHost(host: string): boolean {
 export async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL, context: ApiContext): Promise<boolean> {
   const route = `${req.method} ${url.pathname}`
   if (route === 'GET /api/info') {
-    sendJson(res, 200, { writable: true, ai: !!context.ai })
+    sendJson(res, 200, { writable: true, ai: !!context.ai, boardAi: !!(context.ai && context.board) })
     return true
   }
   if (url.pathname === '/source' && req.method === 'PUT') {
@@ -112,6 +131,11 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, url: 
       return true
     }
     await aiRoute(req, res, url, context.ai)
+    return true
+  }
+  if (url.pathname.startsWith('/api/board/')) {
+    if (!allowed(req, res, req.method !== 'GET')) return true
+    await boardRoute(req, res, url, context)
     return true
   }
   if (url.pathname.startsWith('/api/')) {
@@ -242,6 +266,77 @@ async function aiRoute(req: IncomingMessage, res: ServerResponse, url: URL, ai: 
     const failure = apiError(error)
     if (!res.headersSent) sendJson(res, failure.status, { error: failure.message })
   }
+}
+
+/** The Board's AI routes (the guard has run). */
+async function boardRoute(req: IncomingMessage, res: ServerResponse, url: URL, context: ApiContext): Promise<void> {
+  const { board, ai } = context
+  if (!board || !ai) return sendJson(res, 404, { error: 'The AI is not available on this server' })
+  let job = boardJobs.get(board)
+  if (!job) boardJobs.set(board, (job = { running: false }))
+  const status = () => ({ running: job.running, progress: job.progress, result: job.result, error: job.error })
+  const path = url.pathname.slice('/api/board/'.length)
+  const options = { settings: ai.settings, baseURL: ai.baseURL }
+  try {
+    if (req.method === 'GET' && path === 'ai') return sendJson(res, 200, status())
+    if (req.method === 'POST' && path === 'summarize') {
+      if (job.running) return sendJson(res, 409, { error: 'Summaries are already being written' })
+      const body = await jsonBody<{ limit?: number; place?: boolean }>(req)
+      if (!ai.settings.apiKey()) return sendJson(res, 400, { error: 'No API key: add one in the settings' })
+      const controller = new AbortController()
+      Object.assign(job, { running: true, progress: undefined, result: undefined, error: undefined, controller })
+      board.broadcast('board-ai', status())
+      void summarizeBoard(board.config, {
+        ...options,
+        signal: controller.signal,
+        limit: typeof body.limit === 'number' && body.limit > 0 ? body.limit : undefined,
+        place: body.place !== false,
+        rebuild: board.rebuild,
+        onProgress: (progress) => {
+          job.progress = progress
+          board.broadcast('board-ai', status())
+        },
+      })
+        .then((result) => (job.result = result))
+        .catch((error: Error) => (job.error = controller.signal.aborted ? 'Stopped' : error.message))
+        .finally(() => {
+          job.running = false
+          job.controller = undefined
+          board.broadcast('board-ai', status())
+        })
+      return sendJson(res, 202, status())
+    }
+    if (req.method === 'POST' && path === 'stop') {
+      job.controller?.abort()
+      return sendJson(res, 200, { ok: true })
+    }
+    if (req.method === 'POST' && path === 'briefing') {
+      const body = await jsonBody<{ base?: string; head?: string; touched?: string[]; impacted?: string[]; tests?: string[] }>(req)
+      const graph = context.graph()
+      if (!graph) return sendJson(res, 409, { error: 'The map is not built yet' })
+      const diff = await readReviewDiff(context.repoRoot(), body.base ?? null, body.head ?? null)
+      const input: BriefingInput = { diff, touched: strings(body.touched), impacted: strings(body.impacted), tests: strings(body.tests) }
+      const controller = new AbortController()
+      res.on('close', () => {
+        if (!res.writableEnded) controller.abort()
+      })
+      return sendJson(res, 200, { markdown: await reviewBriefing(board.config, graph, input, { ...options, signal: controller.signal }) })
+    }
+    if (req.method === 'POST' && path === 'suggest-rules') {
+      const graph = context.graph()
+      if (!graph) return sendJson(res, 409, { error: 'The map is not built yet' })
+      return sendJson(res, 200, { rules: await suggestRules(board.config, graph, options) })
+    }
+    sendJson(res, 404, { error: 'Not found' })
+  } catch (error) {
+    if (error instanceof BoardAiError || error instanceof ReviewError || error instanceof SettingsError || error instanceof SyntaxError) return sendJson(res, 400, { error: error.message })
+    const failure = apiError(error)
+    if (!res.headersSent) sendJson(res, failure.status, { error: failure.message })
+  }
+}
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string').slice(0, 500) : []
 }
 
 /** One message: the reply streams back as JSON lines (ChatEvent), until "done". */

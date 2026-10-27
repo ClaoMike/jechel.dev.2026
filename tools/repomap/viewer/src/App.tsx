@@ -1,7 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { ChatDock } from './ai/ChatDock.tsx'
 import { SettingsDialog } from './ai/SettingsDialog.tsx'
-import { FILES_CHANGED_EVENT, useAssistant } from './ai/store.ts'
+import { BOARD_FOCUS_EVENT, FILES_CHANGED_EVENT, useAssistant } from './ai/store.ts'
+import { indexBoard, parentPath, pathOfNode } from './board/model.ts'
+import { useBoard } from './board/store.ts'
 import { useGitActions } from './git/actions.ts'
 import { ensureGitHistory, reloadServerHistory } from './git/load.ts'
 import { useGit } from './git/store.ts'
@@ -22,6 +24,7 @@ import { TopBar } from './ui/TopBar.tsx'
 // The editor (CodeMirror + grammars) loads only when code is first opened, the history tab when first shown.
 const CodeViewer = lazy(() => import('./ui/code/CodeViewer.tsx'))
 const GitView = lazy(() => import('./git/GitView.tsx'))
+const BoardView = lazy(() => import('./board/BoardView.tsx'))
 
 const COLOR_CYCLE: ColorBy[] = ['kind', 'layer', 'role', 'feature']
 const LABEL_CYCLE: LabelMode[] = ['auto', 'all', 'none']
@@ -35,6 +38,7 @@ export function App() {
   const searchExpanded = useViewer((s) => s.searchExpanded)
   const narrow = useMediaQuery(NARROW)
   const [gitShown, setGitShown] = useState(tab === 'git')
+  const [boardShown, setBoardShown] = useState(tab === 'board')
 
   useEffect(() => {
     void loadInitialGraph().then(() => {
@@ -47,6 +51,7 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    if (tab === 'board') setBoardShown(true)
     if (tab !== 'git') return
     setGitShown(true)
     ensureGitHistory()
@@ -65,6 +70,26 @@ export function App() {
     }
     window.addEventListener(FILES_CHANGED_EVENT, refresh)
     return () => window.removeEventListener(FILES_CHANGED_EVENT, refresh)
+  }, [])
+
+  // The assistant pointed at parts of the app: open the board on them.
+  useEffect(() => {
+    const onFocus = (event: Event) => {
+      const refs = (event as CustomEvent<unknown>).detail
+      const index = useViewer.getState().index
+      if (!index || !Array.isArray(refs)) return
+      const nodes = refs.map((ref) => (typeof ref === 'string' ? (index.byId.get(ref) ?? index.nodes.findIndex((n) => n.label === ref)) : -1)).filter((i) => i >= 0)
+      if (nodes.length === 0) return
+      const bi = indexBoard(index)
+      useViewer.getState().setTab('board')
+      const board = useBoard.getState()
+      const path = pathOfNode(bi, nodes[0], board.options)
+      if (bi.hidden[bi.rootOf[nodes[0]]] && !board.options.showHidden) board.setOption('showHidden', true)
+      if (path.level === 'chip') board.navigate({ level: 'chips', tier: path.tier, feature: path.feature, ...(path.group !== undefined ? { group: path.group } : {}) }, 'in', path.chip)
+      board.setFocus(nodes)
+    }
+    window.addEventListener(BOARD_FOCUS_EVENT, onFocus)
+    return () => window.removeEventListener(BOARD_FOCUS_EVENT, onFocus)
   }, [])
 
   // Keep the URL hash (and localStorage) in sync with the view, so links are shareable.
@@ -98,6 +123,10 @@ export function App() {
       const typing = target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
       if (store.tab === 'git') {
         onGitKey(event, !!typing)
+        return
+      }
+      if (store.tab === 'board') {
+        if (!store.codeView && !target?.closest('[role="dialog"], [role="menu"]')) onBoardKey(event, !!typing)
         return
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -171,6 +200,20 @@ export function App() {
           </div>
           <DetailsPanel />
         </div>
+        <div className={`workspace board-tab${tab === 'board' ? '' : ' inactive'}`} id="panel-board" role="tabpanel" aria-labelledby="tab-board" inert={tab !== 'board'} data-testid="board-view">
+          {boardShown && (
+            <Suspense
+              fallback={
+                <div className="status">
+                  <div className="spinner" aria-hidden="true" />
+                  <p>Loading the board…</p>
+                </div>
+              }
+            >
+              <BoardView />
+            </Suspense>
+          )}
+        </div>
         <div className={`workspace git-workspace${tab === 'git' ? '' : ' inactive'}`} id="panel-git" role="tabpanel" aria-labelledby="tab-git" inert={tab !== 'git'} data-testid="git-view">
           {gitShown && (
             <Suspense
@@ -207,6 +250,48 @@ export function App() {
       <Toast />
     </div>
   )
+}
+
+/** Board tab: Esc goes up a level (or clears the selection), F fits, / finds a chip. */
+function onBoardKey(event: KeyboardEvent, typing: boolean): void {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    document.querySelector<HTMLInputElement>('[data-testid="board-search"]')?.focus()
+    return
+  }
+  if (typing || event.metaKey || event.ctrlKey || event.altKey) return
+  const viewer = useViewer.getState()
+  const board = useBoard.getState()
+  const command = (detail: string) => window.dispatchEvent(new CustomEvent('repomap:board', { detail }))
+  switch (event.key) {
+    case 'Escape': {
+      if (viewer.helpOpen) viewer.setHelp(false)
+      else if (board.selected) board.select(null)
+      else {
+        const up = parentPath(board.path)
+        if (up) board.navigate(up, 'out')
+      }
+      break
+    }
+    case '/':
+      event.preventDefault()
+      document.querySelector<HTMLInputElement>('[data-testid="board-search"]')?.focus()
+      break
+    case 'f':
+    case 'F':
+      command('fit')
+      break
+    case '+':
+    case '=':
+      command('in')
+      break
+    case '-':
+      command('out')
+      break
+    case '?':
+      viewer.setHelp(!viewer.helpOpen)
+      break
+  }
 }
 
 function focusGitSearch(): void {

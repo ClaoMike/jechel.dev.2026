@@ -83,7 +83,7 @@ export function changesContext(files: LiveFile[], branch?: string): ContextItem 
 }
 
 export interface ContextSources {
-  tab: 'map' | 'git'
+  tab: 'map' | 'git' | 'board'
   index: GraphIndex | null
   selectedNode: number | null
   editor: { file: string | null; cursorLine: number | null; selection: { from: number; to: number; text: string } | null }
@@ -100,7 +100,7 @@ export function gatherContext(sources: ContextSources): ContextItem[] {
     if (editor.selection && editor.selection.text.trim()) items.push(selectionContext(editor.file, editor.selection))
     items.push(fileContext(editor.file, editor.cursorLine))
   }
-  if (sources.tab === 'map' && sources.index && sources.selectedNode !== null && sources.index.nodes[sources.selectedNode]) {
+  if ((sources.tab === 'map' || sources.tab === 'board') && sources.index && sources.selectedNode !== null && sources.index.nodes[sources.selectedNode]) {
     items.push(nodeContext(sources.index, sources.selectedNode))
   }
   if (sources.tab === 'git') {

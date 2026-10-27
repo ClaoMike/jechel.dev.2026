@@ -134,13 +134,12 @@ export function indexGraph(graph: RepoGraph): GraphIndex {
   const typeOrder = new Map([...edgeTypes.keys()].map((t, i) => [t, i]))
   const presentEdgeTypes = [...new Set(edges.map((e) => e.type))].sort((a, b) => typeOrder.get(a)! - typeOrder.get(b)!)
 
-  // Features from `feature:x` tags.
+  // Features: the builder's (node.feature, shared left out), or `feature:x` tags in older graphs.
   const featureList: string[] = []
   const featureOf = new Int16Array(n).fill(-1)
   nodes.forEach((node, i) => {
-    const tag = node.tags?.find((t) => t.startsWith('feature:'))
-    if (!tag) return
-    const feature = tag.slice(8)
+    const feature = node.feature ? (node.feature === 'shared' ? undefined : node.feature) : node.tags?.find((t) => t.startsWith('feature:'))?.slice(8)
+    if (!feature) return
     let index = featureList.indexOf(feature)
     if (index < 0) {
       featureList.push(feature)

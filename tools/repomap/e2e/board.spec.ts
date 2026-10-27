@@ -1,0 +1,132 @@
+import { expect, test, type Page } from '@playwright/test'
+import { BOOK_CARD, DEMO, mapLoaded, serveSource, violations, watchErrors } from './helpers.ts'
+
+const chip = (page: Page, id: string) => page.locator(`[data-chip="${id}"]`)
+const trail = (page: Page) => page.locator('.board-trail')
+
+/** Wheel-zooms on the middle of a chip until the board opens it. */
+async function zoomInto(page: Page, id: string): Promise<void> {
+  const box = (await chip(page, id).boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  for (let k = 0; k < 12; k++) await page.mouse.wheel(0, -260)
+}
+
+test.describe('board', () => {
+  test('zooms from the app to its tiers, a feature, its chips and one chip', async ({ page }) => {
+    const errors = watchErrors(page)
+    await page.goto('/#tab=board')
+    await mapLoaded(page)
+    await expect(chip(page, 'app')).toBeVisible()
+    await chip(page, 'app').dblclick()
+    await expect(trail(page)).toContainText('Tiers')
+    await expect(chip(page, 'frontend')).toBeVisible()
+    await expect(chip(page, 'backend')).toBeVisible()
+    expect(page.url()).toContain('board=tiers')
+
+    // A tap selects: the panel describes it; Open goes in.
+    await chip(page, 'frontend').click()
+    await expect(page.getByTestId('board-chip-details')).toContainText('Frontend')
+    await page.getByTestId('board-open').click()
+    await expect(chip(page, 'f:book')).toBeVisible()
+    await expect(chip(page, 'out:backend')).toBeVisible()
+
+    await chip(page, 'f:book').dblclick()
+    await expect(trail(page)).toContainText('Book')
+    await expect(chip(page, BOOK_CARD)).toBeVisible()
+    await chip(page, BOOK_CARD).click()
+    await expect(page.getByTestId('board-chip-details')).toContainText('BookCard')
+    await page.getByTestId('board-open').click()
+    await expect(trail(page).locator('button').last()).toHaveText('BookCard')
+    // On its own board the chip is described without selecting it.
+    await expect(page.getByTestId('board-chip-details')).toContainText('BookCard')
+
+    // Esc goes back up, one level at a time.
+    await page.locator('.board-canvas').click({ position: { x: 5, y: 300 } })
+    await page.keyboard.press('Escape')
+    await expect(chip(page, BOOK_CARD)).toBeVisible()
+    await page.getByTestId('board-trail-1').click()
+    await expect(chip(page, 'frontend')).toBeVisible()
+    expect(errors).toEqual([])
+  })
+
+  test('zooming far into a chip opens it; far out goes up', async ({ page }) => {
+    await page.goto('/#tab=board&board=tiers')
+    await mapLoaded(page)
+    await zoomInto(page, 'backend')
+    await expect(trail(page)).toContainText('Backend', { timeout: 5000 })
+    await expect(chip(page, 'out:database')).toBeVisible()
+    const stage = (await page.getByTestId('board-svg').boundingBox())!
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2)
+    for (let k = 0; k < 8; k++) await page.mouse.wheel(0, 300)
+    await expect(chip(page, 'frontend')).toBeVisible({ timeout: 5000 })
+  })
+
+  test('a wire lists the connections it carries and opens their code', async ({ page }) => {
+    await serveSource(page)
+    await page.goto('/#tab=board&board=tiers')
+    await mapLoaded(page)
+    const wire = page.locator('[data-wire^="frontend|"]').first()
+    await wire.locator('.wire-hit').click({ force: true })
+    const details = page.getByTestId('board-wire-details')
+    await expect(details).toContainText('Frontend → Backend')
+    await expect(details).toContainText('http')
+  })
+
+  test('finds a chip and reads its code', async ({ page }) => {
+    await serveSource(page)
+    await page.goto('/#tab=board')
+    await mapLoaded(page)
+    await page.getByTestId('board-search').fill('BookCard')
+    await page.getByTestId('board-search').press('Enter')
+    await expect(chip(page, BOOK_CARD)).toHaveClass(/selected/)
+    await page.getByTestId('board-read-code').click()
+    await expect(page.getByTestId('code-viewer').locator('.cm-content')).toContainText('export function BookCard')
+  })
+
+  test('reviews a commit: changed chips, what may be affected', async ({ page }) => {
+    await page.goto('/#tab=board&board=features~frontend')
+    await mapLoaded(page)
+    await page.getByTestId('board-tool-review').click()
+    const review = page.getByTestId('board-review')
+    await expect(review.getByTestId('board-review-choice').locator('option', { hasText: 'Wishlist button' })).toHaveCount(1)
+    const value = await review.getByTestId('board-review-choice').locator('option', { hasText: 'Wishlist button' }).getAttribute('value')
+    await review.getByTestId('board-review-choice').selectOption(value!)
+    await review.getByTestId('board-review-start').click()
+    await expect(review).toContainText(`${DEMO.wishlistButton} Wishlist button on book cards`)
+    await expect(review).toContainText('BookCard')
+    await expect(chip(page, 'f:book')).toHaveClass(/touched/)
+    await expect(page.getByTestId('board-panel-review')).toContainText(/\d/)
+    await review.getByRole('button', { name: /BookCard/ }).first().click()
+    await expect(chip(page, BOOK_CARD)).toHaveClass(/touched/)
+  })
+
+  test('tests and tooling show when asked', async ({ page }) => {
+    await page.goto('/#tab=board&board=tiers')
+    await mapLoaded(page)
+    const before = await page.locator('[data-chip]').count()
+    await page.getByTestId('board-show-hidden').check()
+    await expect.poll(() => page.locator('[data-chip]').count()).toBeGreaterThanOrEqual(before)
+    await page.getByTestId('board-show-hidden').uncheck()
+  })
+})
+
+for (const theme of ['dark', 'light'] as const) {
+  test.describe(`board accessibility, ${theme} theme`, () => {
+    test.use({ colorScheme: theme, reducedMotion: 'reduce' })
+    test('levels, a chip and the panels', async ({ page }) => {
+      await page.goto('/#tab=board')
+      await mapLoaded(page)
+      await expect(chip(page, 'app')).toBeVisible()
+      expect(await violations(page)).toEqual([])
+      await page.goto('/#tab=board&board=chips~frontend~book~')
+      await page.reload()
+      await expect(chip(page, BOOK_CARD)).toBeVisible()
+      await chip(page, BOOK_CARD).click()
+      expect(await violations(page)).toEqual([])
+      for (const panel of ['review', 'rules', 'ai'] as const) {
+        await page.getByTestId(`board-panel-${panel}`).click()
+        expect(await violations(page)).toEqual([])
+      }
+    })
+  })
+}

@@ -23,7 +23,7 @@ import { computeTrace, type TraceResult } from './trace.ts'
 import { readHashParam, readPref, writeHashParams, writePref, type ViewState } from './url.ts'
 
 export type Theme = 'dark' | 'light'
-export type Tab = 'map' | 'git'
+export type Tab = 'map' | 'git' | 'board'
 export type LabelMode = 'auto' | 'all' | 'none'
 
 export type CameraCommand =
@@ -162,7 +162,7 @@ export const useViewer = create<State & Actions>((set, get) => {
   }
 
   return {
-    tab: readHashParam('tab') === 'git' ? 'git' : 'map',
+    tab: (['git', 'board'] as const).find((t) => t === readHashParam('tab')) ?? 'map',
     graph: null,
     index: null,
     source: null,

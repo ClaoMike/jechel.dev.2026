@@ -3,20 +3,24 @@
  * pushes live reloads over Server-Sent Events, and (with --watch) rebuilds when the repository changes.
  * When writable (see api.ts), the code panel saves files and the History tab runs git commands.
  */
+/// <reference path="./qrcode-terminal.d.ts" />
 import { spawn } from 'node:child_process'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync, watch } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { networkInterfaces } from 'node:os'
 import { dirname, extname, join, normalize, relative, sep } from 'node:path'
 import type { RepoGraph } from '../shared/types.ts'
 import { Assistant } from './ai/assistant.ts'
 import { ConversationStore } from './ai/conversations.ts'
 import { SettingsStore } from './ai/settings.ts'
 import { handleApi, isLoopbackHost, workspaceAllows, type ApiContext } from './api.ts'
-import { buildGraph } from './build.ts'
+import { buildGraph, readGraph } from './build.ts'
 import { TOOL_ROOT, type RepoMapConfig } from './config.ts'
 import { classifyFiles, matcher } from './files.ts'
 import { gitHistoryPath, historyBeside, updateGitHistory } from './git-history.ts'
 import { color, type Logger } from './log.ts'
+import { readReviewDiff, ReviewError } from './review.ts'
 import { readSource } from './source.ts'
 import { workspaceFiles } from './workspace.ts'
 
@@ -34,6 +38,8 @@ export interface ServeOptions {
   gitPath?: string
   /** Never save files or run git commands. */
   readOnly?: boolean
+  /** Off a loopback host: don't ask for the access token (anyone on the network can open it). */
+  noToken?: boolean
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -72,6 +78,13 @@ export interface ServerOptions {
   classify?(path: string): { layer: string; role: string; reason: string } | undefined
   /** The AI assistant (writable servers only): where settings and chats live; tests set a fake API. */
   ai?: { settingsPath?: string; conversationsDir: string; baseURL?: string }
+  /** The Board's AI work (writable servers with the assistant): the config and a rebuild. */
+  board?: { config: RepoMapConfig; rebuild(): Promise<RepoGraph> }
+  /**
+   * Required (once, as ?token=…, then a cookie) from every browser that isn't on this machine:
+   * a server on the network serves your code to whoever has the link.
+   */
+  token?: string
 }
 
 export interface ServerHandle {
@@ -112,14 +125,20 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       filesChanged: () => options.onFilesChanged?.(),
       gitChanged: () => options.onGitChanged?.() ?? Promise.resolve(),
     })
-    ai = { assistant, settings, conversations }
+    ai = { assistant, settings, conversations, baseURL: options.ai.baseURL }
   }
+  const board = options.board && { ...options.board, broadcast: (event: string, data: unknown) => broadcast(event, data) }
   const server: Server = createServer((req, res) => {
     let url: URL
     try {
       url = new URL(req.url ?? '/', 'http://localhost')
     } catch {
       res.writeHead(400).end()
+      return
+    }
+    if (options.token && !tokenAccepted(req, res, url, options.token)) return
+    if (url.pathname === '/api/review' && req.method === 'GET') {
+      void review(res, url)
       return
     }
     if (options.writable) {
@@ -131,6 +150,7 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
         onFilesChanged: options.onFilesChanged,
         classify: options.classify,
         ai,
+        board,
       })
         .then((handled) => handled || route(req, res, url))
         .catch((error: Error) => {
@@ -141,6 +161,21 @@ export async function startServer(options: ServerOptions): Promise<ServerHandle>
       route(req, res, url)
     }
   })
+
+  /** Review mode's diff: read-only, so every server answers it (phones on the network too). */
+  const review = async (res: ServerResponse, url: URL): Promise<void> => {
+    const json = (status: number, value: unknown): void => {
+      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(JSON.stringify(value))
+    }
+    // A --graph file may describe another checkout: its diff isn't ours to read.
+    if (!currentGraph()?.meta.repo.root && !options.writable) return json(404, { error: 'Review needs the repository: serve it with `npm start`' })
+    try {
+      const diff = await readReviewDiff(repoRoot(), url.searchParams.get('base'), url.searchParams.get('head'))
+      json(200, url.searchParams.get('patch') === '1' ? diff : { ...diff, patch: undefined })
+    } catch (error) {
+      json(error instanceof ReviewError ? 400 : 500, { error: (error as Error).message })
+    }
+  }
 
   const route = (req: IncomingMessage, res: ServerResponse, url: URL): void => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -226,6 +261,9 @@ export async function serve(options: ServeOptions): Promise<void> {
   }
   // Only your own repository, only on this machine: a --graph file may describe another checkout.
   const writable = !options.graphPath && !options.readOnly && isLoopbackHost(options.host)
+  // Served to the network (a phone): read-only, behind a token in the link.
+  const lan = !isLoopbackHost(options.host)
+  const token = lan && !options.noToken ? randomBytes(12).toString('base64url') : undefined
   let handle: ServerHandle | undefined
   const announce = (event: 'graph' | 'git') => handle?.broadcast(event, { at: Date.now() })
   const watcher = options.watch && !options.graphPath ? startWatcher(config, log, announce) : undefined
@@ -253,14 +291,75 @@ export async function serve(options: ServeOptions): Promise<void> {
     onFilesChanged: watcher ? undefined : () => void rebuild().catch((error: Error) => log.error(`rebuild failed: ${error.message}`)),
     classify: (path) => classifyPath(config, path),
     ai: { conversationsDir: join(dirname(config.output), 'ai', 'conversations') },
+    board: options.graphPath
+      ? undefined
+      : {
+          config,
+          rebuild: async () => {
+            await rebuild()
+            const graph = readGraph(graphPath)
+            if (!graph) throw new Error('The map could not be rebuilt')
+            return graph
+          },
+        },
+    token,
   })
   log.info(`\n  ${color.bold('repomap')} viewer running at ${color.cyan(handle.url)}`)
+  if (lan) printNetworkUrls(log, options.host, handle.port, token)
   log.info(
     color.dim(
       `  graph: ${relative(process.cwd(), graphPath) || graphPath}${options.watch ? ' · watching for changes' : ''}${writable ? ' · editing on' : ' · read-only'} · Ctrl+C to stop\n`,
     ),
   )
   if (options.open) openBrowser(handle.url)
+}
+
+/** Lets a browser in once it brings the token (then remembers it in a cookie); false: answered with 401. */
+function tokenAccepted(req: IncomingMessage, res: ServerResponse, url: URL, token: string): boolean {
+  const host = (req.headers.host ?? '').replace(/:\d+$/, '').toLowerCase()
+  if (isLoopbackHost(host)) return true
+  const same = (value: string | undefined | null) => {
+    if (!value) return false
+    const a = Buffer.from(value)
+    const b = Buffer.from(token)
+    return a.length === b.length && timingSafeEqual(a, b)
+  }
+  const cookie = /(?:^|;\s*)repomap_token=([^;]+)/.exec(req.headers.cookie ?? '')?.[1]
+  if (same(cookie)) return true
+  if (same(url.searchParams.get('token'))) {
+    url.searchParams.delete('token')
+    res.writeHead(302, {
+      'Set-Cookie': `repomap_token=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${30 * 86_400}`,
+      Location: `${url.pathname}${url.search}`,
+      'Cache-Control': 'no-store',
+    })
+    res.end()
+    return false
+  }
+  res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' })
+  res.end('Open the link repomap printed in the terminal (it ends with ?token=…).')
+  return false
+}
+
+/** The addresses a phone on the same network can open, with the token, and a QR code of the first. */
+function printNetworkUrls(log: Logger, host: string, port: number, token: string | undefined): void {
+  const addresses =
+    host === '0.0.0.0' || host === '::'
+      ? Object.values(networkInterfaces())
+          .flat()
+          .filter((a): a is NonNullable<typeof a> => !!a && a.family === 'IPv4' && !a.internal)
+          .map((a) => a.address)
+      : [host]
+  const urls = addresses.map((address) => `http://${address}:${port}/${token ? `?token=${token}` : ''}`)
+  if (urls.length === 0) {
+    log.warn('no network address found: is this machine on Wi-Fi?')
+    return
+  }
+  log.info(`  ${color.bold('On your phone')} (same Wi-Fi), read-only:`)
+  for (const url of urls) log.info(`    ${color.cyan(url)}`)
+  void import('qrcode-terminal')
+    .then(({ default: qrcode }) => qrcode.generate(urls[0], { small: true }, (code: string) => log.info(`\n${code}`)))
+    .catch(() => undefined)
 }
 
 /** The layer and role a (possibly new) file gets, from the config's rules; undefined when excluded. */

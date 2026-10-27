@@ -5,6 +5,12 @@ every route, component, API call, endpoint, service, entity, table and column is
 they connect — inside a layer and across layers. Click anything to trace its full chain, e.g.
 `HomePage → api.profile.getFirstName → GET /api/firstname → Profile.FirstName → profiles.first_name`.
 
+The **Board** tab shows the same graph as circuit boards you zoom through: the app → its tiers
+(frontend, backend, database) → a tier's features → a feature's chips → one chip, whose pins are its
+functions, props, state and fields, wired to the chips they call. Claude summarizes every level, a
+review mode lights up what a change touches and what depends on it, and architecture rules mark the
+wires that break them. It works on a phone too (`npm run phone`).
+
 A second tab shows the **git history** as a graph: every branch, merge, tag and pull request, the
 uncommitted changes, and for any commit the files it changed — linked both ways with the map. Served
 from your checkout, it is also a git client (commit, push, pull, fetch, branches, merges, stashes…),
@@ -53,11 +59,64 @@ Other commands:
 | `npm start` | `map` + `view` + watch the repo and live-reload the browser |
 | `npm run dev` | Viewer development (Vite, port 5198), serving the last built graph (no assistant: use `npm start`) |
 | `npm run build:viewer` | Static site in `viewer/dist` (deploy anywhere) |
+| `npm run phone` | `start` on your network, read-only, behind a token: open the printed link (or scan the QR code) on a phone on the same Wi-Fi |
+| `npm run summarize` | AI: place unplaced chips in features, then summarize chips → features → tiers → app, only what changed (`-- --limit 50`) |
+| `npm run check` | Build, then list the architecture rules' violations (exit 1 on an `error` rule) |
+| `npm run review` | Where the uncommitted changes land, per feature (`-- <base> <head>`, `-- --brief` for the AI briefing) |
 | `npm run demo` | Regenerate the bundled demo graph and demo history |
 | `npm run diff` | Structural diff of the last two builds |
 | `npm test` · `npm run test:e2e` · `npm run typecheck` | Unit + whole-repo pipeline tests · browser tests · types |
 
 The CLI is `node src/cli.ts <command>` (`node src/cli.ts help` lists the options).
+
+## The board
+
+The Board tab (first tab) draws the map as nested circuit boards. Zoom with the wheel, a trackpad or
+two fingers; zoom far into a chip and it opens (the level below), far out and you go up a level. A tap
+selects a chip (the panel describes it), a second tap or **Open** goes in, Esc or the trail at the top
+goes back.
+
+| Level | Chips | Wires |
+| --- | --- | --- |
+| App | the repository, its tiers | — |
+| Tiers | frontend, backend, database, infra (`board.tiers` groups layers) | every connection between them, by type |
+| A tier | its features (folder, then config, AI or neighbours; the rest is *Shared*) | between features; connectors lead to the other tiers |
+| A feature | its chips (top-level nodes); a big feature shows its folders first | pin to pin: a wire leaves from the function its code is in |
+| A chip | one chip with every member (`attrs.members`: functions, props, state, values, fields, methods) | to each chip it uses or is used by |
+
+Wire thickness is the number of connections; red wires break a rule. Tap a wire for the edges it
+carries (each opens its code at the line). **Read the code** opens the chip (or a member) in the code
+panel; **In the 3D map** selects it there. The panel's search finds any chip.
+
+**Features.** Each node gets one: config `board.featureOverrides` (globs or ids), then its folder
+(`features/<x>`, `Features/<X>`), then the AI's placement (`repomap.ai.json`), then its parent, then the
+feature most of its neighbours share (≥ 60 %); the rest is `shared`. `board.featureLabels` names them,
+`board.featureAliases` merges them.
+
+**AI summaries** (`npm run summarize`, or the AI panel when served with `npm start`). Claude first
+places the chips nothing placed, then summarizes each chip from its code, each feature (per tier) from
+its chips, each tier from its features and the app from its tiers. Results live in `repomap.ai.json`
+(commit it) with a hash of what was read: a run only redoes what changed, and a summary whose code moved
+on is marked *the code changed since*. Models: `ai.summaryModel` (default `claude-haiku-5-5`) and
+`ai.reviewModel` (`claude-opus-5-5`); the key is the assistant's.
+
+**Review mode** (the Review panel). Pick the uncommitted changes, a branch (against the default branch)
+or a commit: changed chips turn orange, what depends on them (two steps) yellow, and the tests that
+cover them are listed. **Brief me** asks Claude for a briefing — what it does, where it lands, ripple
+effects, what to check, tests, questions — from the diff and the map. Without the repository (a
+`--graph` file, a static site) a commit's files from git.json are used instead (whole files).
+
+**Rules** (`rules` in the config, checked on every build, listed by `npm run check`). A rule selects
+edges (`from` / `to`: tiers, layers, features, kinds, roles; `edgeTypes`) and either denies them
+(`deny`) or keeps them inside one feature (`sameFeature`, with `allowFeatures` reachable from anywhere).
+The AI can suggest rules the code already mostly follows (Rules panel, `node src/cli.ts suggest-rules`).
+
+**The assistant** can point at the board: its `show_on_board` tool opens the feature and lights the
+chips up.
+
+**On a phone.** `npm run phone` serves on your network (read-only: no editing, git or AI) and prints a
+link with a one-time token (also as a QR code); the phone keeps it in a cookie. Anyone on the network
+without the link gets a 401. `--no-token` turns that off.
 
 ## Reading the map
 
@@ -384,6 +443,8 @@ used for "Open in VS Code" links) and your uncommitted changes out of git.json.
   route source would cover them.
 - The database layer comes from the EF Core snapshot. A PostgreSQL catalog extractor would support non-EF
   projects and detect drift.
-- Not yet built: an optional LLM enrichment plugin (descriptions for undocumented nodes, classifying files of
-  unknown stacks, suggested edges marked `source: "llm"`) — the schema and viewer already support it.
+- The AI summarizes chips and places unplaced ones in features (the Board); not yet: classifying files of
+  unknown stacks, or suggesting edges marked `source: "llm"` (the schema and viewer support them).
+- The pipeline test on this repository has 4 failures that predate the Board: the app gained calls the
+  extractors don't resolve (dynamic URLs in tests) and a test whose `tests` edge is lost.
 - Standalone packaging (an `npx` CLI + a published .NET tool + `repomap init`) comes when this moves out of the repo.

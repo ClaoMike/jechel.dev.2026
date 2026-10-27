@@ -11,6 +11,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { RuleDef, TierDef } from '../shared/board.ts'
 import type { EdgeTypeDef, KindDef, LayerDef, PresetDef, RoleDef } from '../shared/types.ts'
 
 export interface LayerRule {
@@ -65,6 +66,28 @@ export interface HistoryConfig {
   maxPullRequests: number
 }
 
+/** The Board tab. */
+export interface BoardConfig {
+  /** Groups of layers shown as one board (layers no tier names get their own). */
+  tiers?: TierDef[]
+  /** Feature key → display name (keys are folder names lowercased, without separators: workWithMe → workwithme). */
+  featureLabels: Record<string, string>
+  /** Feature key → the feature it belongs to (e.g. "whatsnew": "updates"). */
+  featureAliases: Record<string, string>
+  /** Globs (repo-relative file paths) or node ids → feature. Wins over folders and the AI. */
+  featureOverrides: Record<string, string>
+}
+
+/** Where AI results (feature placements, summaries, suggested rules) are kept: committed, so they're reused. */
+export interface AiConfig {
+  /** Absolute path (config: relative to the config file). */
+  file: string
+  /** Model for summaries and placements (cheap and fast: many small calls). */
+  summaryModel: string
+  /** Model for review briefings and rule suggestions. */
+  reviewModel: string
+}
+
 export const DEFAULT_HISTORY: HistoryConfig = {
   enabled: true,
   maxCommits: 2000,
@@ -97,6 +120,10 @@ export interface RepoMapConfig {
   layout: { layerGap: number; seed: number }
   history: HistoryConfig
   plugins: PluginConfig[]
+  board: BoardConfig
+  /** Architecture rules checked on every build (the Board shows what breaks them; `check` fails on errors). */
+  rules: RuleDef[]
+  ai: AiConfig
 }
 
 export const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -104,6 +131,9 @@ export const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 
 type Json = Record<string, unknown>
 
 const CONCAT_KEYS = new Set(['exclude', 'layerRules', 'roleRules'])
+
+const DEFAULT_SUMMARY_MODEL = 'claude-haiku-5-5'
+const DEFAULT_REVIEW_MODEL = 'claude-opus-5-5'
 
 export function loadConfig(configPath: string): RepoMapConfig {
   const absolute = resolve(configPath)
@@ -134,6 +164,19 @@ export function loadConfig(configPath: string): RepoMapConfig {
     layout: { layerGap: 90, seed: 7, ...((merged.layout as Json | undefined) ?? {}) } as RepoMapConfig['layout'],
     history: { ...DEFAULT_HISTORY, ...((merged.history as Json | undefined) ?? {}) } as HistoryConfig,
     plugins,
+    board: {
+      featureLabels: {},
+      featureAliases: {},
+      featureOverrides: {},
+      ...((merged.board as Json | undefined) ?? {}),
+    } as BoardConfig,
+    rules: (merged.rules as RuleDef[] | undefined) ?? [],
+    ai: {
+      summaryModel: DEFAULT_SUMMARY_MODEL,
+      reviewModel: DEFAULT_REVIEW_MODEL,
+      ...((merged.ai as Json | undefined) ?? {}),
+      file: resolve(baseDir, String((merged.ai as Json | undefined)?.file ?? 'repomap.ai.json')),
+    } as AiConfig,
   }
   for (const item of [...config.layers, ...config.roles, ...config.kinds, ...config.edgeTypes]) item.color = normalizeColor(item.color)
   validateConfig(config)
@@ -205,6 +248,16 @@ function validateConfig(config: RepoMapConfig): void {
   ids(config.kinds, 'kind')
   ids(config.edgeTypes, 'edge type')
   ids(config.plugins, 'plugin')
+  ids(config.rules, 'rule')
+  for (const rule of config.rules) {
+    if (!rule.deny && !rule.sameFeature) problems.push(`rule "${rule.id}" needs "deny": true or "sameFeature": true`)
+    if (rule.severity && rule.severity !== 'error' && rule.severity !== 'warn') problems.push(`rule "${rule.id}": severity must be "error" or "warn"`)
+  }
+  for (const tier of config.board.tiers ?? []) {
+    if (!Array.isArray(tier.layers) || tier.layers.length === 0) problems.push(`board tier "${tier.id}" has no layers`)
+    tier.color = normalizeColor(tier.color)
+    if (!/^#[0-9a-f]{6}$/i.test(tier.color ?? '')) problems.push(`board tier "${tier.id}": color must look like #1e90ff`)
+  }
   for (const plugin of config.plugins) {
     if (!Array.isArray(plugin.command) || plugin.command.length === 0) problems.push(`plugin "${plugin.id}" has no command`)
     if (plugin.kind !== 'extractor' && plugin.kind !== 'linker') problems.push(`plugin "${plugin.id}" kind must be extractor or linker`)

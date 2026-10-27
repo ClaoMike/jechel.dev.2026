@@ -1025,6 +1025,8 @@ class Extractor {
       if (!decl.kind) continue
       const attrs = { ...decl.attrs }
       if (decl.exported && decl.kind !== 'api-call') attrs.exported = true
+      const members = membersOf(decl)
+      if (members.length > 0) attrs.members = members
       nodes.push({
         id: decl.id,
         label: decl.label,
@@ -1058,6 +1060,89 @@ function defaultName(path: string): string {
 }
 
 /** The function behind a variable initializer: arrow/function expression, or memo/forwardRef(fn). */
+interface Member {
+  name: string
+  kind: 'prop' | 'param' | 'state' | 'function' | 'value' | 'method' | 'property' | 'constructor' | 'field'
+  line: number
+  endLine: number
+  type?: string
+}
+
+const MAX_MEMBERS = 60
+
+/**
+ * What a declaration holds, for the board's chip pins: a function's props or parameters, and the state,
+ * inner functions and values its body declares; a class's members; an interface's or object type's fields.
+ */
+function membersOf(decl: Decl): Member[] {
+  const members: Member[] = []
+  const add = (name: string, kind: Member['kind'], at: Node, type?: string) => {
+    if (members.length < MAX_MEMBERS) members.push({ name, kind, line: at.getStartLineNumber(), endLine: at.getEndLineNumber(), ...(type ? { type: shorten(type) } : {}) })
+  }
+  const node = decl.decl
+  if (Node.isClassDeclaration(node)) {
+    for (const ctor of node.getConstructors()) add('constructor', 'constructor', ctor, `(${ctor.getParameters().map((p) => p.getName()).join(', ')})`)
+    for (const member of node.getMembers()) {
+      if (Node.isMethodDeclaration(member)) add(member.getName(), 'method', member, `(${member.getParameters().map((p) => p.getName()).join(', ')})`)
+      else if (Node.isPropertyDeclaration(member)) add(member.getName(), 'property', member, member.getTypeNode()?.getText())
+    }
+    return members
+  }
+  const fields = (owner: Node) => {
+    if (!Node.isInterfaceDeclaration(owner) && !Node.isTypeLiteral(owner)) return
+    for (const property of owner.getProperties()) add(property.getName(), 'field', property, property.getTypeNode()?.getText())
+    for (const method of owner.getMethods()) add(method.getName(), 'method', method, `(${method.getParameters().map((p) => p.getName()).join(', ')})`)
+  }
+  if (Node.isInterfaceDeclaration(node)) {
+    fields(node)
+    return members
+  }
+  if (Node.isTypeAliasDeclaration(node)) {
+    const type = node.getTypeNode()
+    if (type) fields(type)
+    return members
+  }
+  const fn = decl.fn ?? (Node.isFunctionDeclaration(node) ? node : undefined)
+  if (!fn || !(Node.isFunctionDeclaration(fn) || Node.isArrowFunction(fn) || Node.isFunctionExpression(fn))) return members
+  const component = decl.kind === 'component' || decl.kind === 'page' || decl.kind === 'provider'
+  for (const parameter of fn.getParameters()) {
+    const binding = parameter.getNameNode()
+    if (Node.isObjectBindingPattern(binding)) {
+      for (const element of binding.getElements()) add(element.getName(), component ? 'prop' : 'param', element)
+    } else add(parameter.getName(), component ? 'prop' : 'param', parameter, parameter.getTypeNode()?.getText())
+  }
+  const body = fn.getBody()
+  if (!body || !Node.isBlock(body)) return members
+  for (const statement of body.getStatements()) {
+    if (Node.isFunctionDeclaration(statement)) {
+      add(statement.getName() ?? 'function', 'function', statement)
+      continue
+    }
+    if (!Node.isVariableStatement(statement)) continue
+    for (const declaration of statement.getDeclarations()) {
+      const name = declaration.getNameNode()
+      const initializer = unwrap(declaration.getInitializer())
+      const callee = initializer && Node.isCallExpression(initializer) ? initializer.getExpression().getText() : undefined
+      if (Node.isArrayBindingPattern(name) && callee && /(^|\.)use(State|Reducer)$/.test(callee)) {
+        const first = name.getElements()[0]
+        if (first && Node.isBindingElement(first)) add(first.getName(), 'state', declaration, callee)
+      } else if (Node.isObjectBindingPattern(name) || Node.isArrayBindingPattern(name)) {
+        for (const element of name.getElements()) if (Node.isBindingElement(element)) add(element.getName(), 'value', element, callee)
+      } else if (functionOf(initializer) || (callee && /(^|\.)useCallback$/.test(callee))) {
+        add(name.getText(), 'function', declaration)
+      } else {
+        add(name.getText(), 'value', declaration, callee)
+      }
+    }
+  }
+  return members
+}
+
+function shorten(text: string): string {
+  const flat = text.replace(/\s+/g, ' ')
+  return flat.length > 60 ? `${flat.slice(0, 57)}…` : flat
+}
+
 function functionOf(initializer: Node | undefined): Node | undefined {
   if (!initializer) return undefined
   if (Node.isArrowFunction(initializer) || Node.isFunctionExpression(initializer)) return initializer

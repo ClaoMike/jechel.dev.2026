@@ -929,6 +929,11 @@ public sealed class CodeExtractor
                     .Select(p => $"{p.Name}: {((INamedTypeSymbol)p.Type).TypeArguments[0].Name}")
                     .ToList();
             }
+            if (node.Kind is not "entity" and not "entrypoint")
+            {
+                var members = MembersOf(symbol);
+                if (members.Count > 0) attrs["members"] = members;
+            }
             var description = Syntax.DocSummary(symbol);
             if (node.Kind == "entrypoint") description ??= "Composition root: registers services and maps the API";
             _out.AddNode(new OutNode
@@ -970,6 +975,54 @@ public sealed class CodeExtractor
                 });
             }
         }
+    }
+
+    /// <summary>
+    /// What a type declares in source, for the board's chip pins: constructors, methods, properties and fields
+    /// (name, kind, line, type or signature, accessibility). Entities list their properties as nodes instead.
+    /// </summary>
+    private static List<Dictionary<string, object?>> MembersOf(INamedTypeSymbol symbol)
+    {
+        var members = new List<Dictionary<string, object?>>();
+        foreach (var member in symbol.GetMembers())
+        {
+            if (member.IsImplicitlyDeclared) continue;
+            var syntax = member.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
+            if (syntax is null) continue;
+            string? kind = null;
+            string? type = null;
+            switch (member)
+            {
+                case IMethodSymbol { MethodKind: MethodKind.Constructor } ctor:
+                    kind = "constructor";
+                    type = $"({string.Join(", ", ctor.Parameters.Select(p => $"{p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)} {p.Name}"))})";
+                    break;
+                case IMethodSymbol { MethodKind: MethodKind.Ordinary } method:
+                    kind = "method";
+                    type = $"({string.Join(", ", method.Parameters.Select(p => p.Name))}): {method.ReturnType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}";
+                    break;
+                case IPropertySymbol property when !property.IsIndexer:
+                    kind = "property";
+                    type = property.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                    break;
+                case IFieldSymbol field when !field.Name.StartsWith('<'):
+                    kind = "field";
+                    type = field.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                    break;
+            }
+            if (kind is null) continue;
+            members.Add(new()
+            {
+                ["name"] = kind == "constructor" ? symbol.Name : member.Name,
+                ["kind"] = kind,
+                ["line"] = Syntax.Line(syntax),
+                ["endLine"] = Syntax.EndLine(syntax),
+                ["type"] = type,
+                ["access"] = member.DeclaredAccessibility.ToString().ToLowerInvariant(),
+            });
+            if (members.Count >= 60) break;
+        }
+        return members;
     }
 
     private void EmitEndpointNodes()

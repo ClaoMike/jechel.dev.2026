@@ -95,6 +95,18 @@ const CUSTOM_TOOLS: CustomTool[] = [
     },
   },
   {
+    name: 'show_on_board',
+    description:
+      'Point at parts of the app on the Board tab (the zoomable circuit-board view of the map) the user is looking at: it opens the board of the first one\'s feature and lights the others up. Give node ids or exact names (from map_query). Use it whenever an answer is about where things are or how they connect.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nodes: { type: 'array', items: { type: 'string' }, description: 'Node ids or exact names' },
+      },
+      required: ['nodes'],
+    },
+  },
+  {
     name: 'git_info',
     description: 'Read the git state (never changes anything): status, diff of unstaged or staged changes, log, a commit, or the branches.',
     input_schema: {
@@ -187,6 +199,25 @@ export function planCall(name: string, input: unknown, context: ToolContext): Pl
       const node = optionalText(args, 'node')
       if (!query && !node) throw new ToolInputError('Give "query" or "node".')
       return { class: 'read', title: node ? `Look up ${node} in the map` : `Search the map for “${query}”`, run: async () => mapQuery(context.graph(), query, node) }
+    }
+    case 'show_on_board': {
+      const refs = Array.isArray(args.nodes) ? args.nodes.filter((n): n is string => typeof n === 'string').slice(0, 40) : []
+      if (refs.length === 0) throw new ToolInputError('Give "nodes": ids or names.')
+      return {
+        class: 'read',
+        title: `Show ${refs.length === 1 ? refs[0] : `${refs.length} parts`} on the board`,
+        run: async () => {
+          const graph = context.graph()
+          if (!graph) return { content: 'The map is not built yet.', isError: true }
+          const found = refs.map((ref) => graph.nodes.find((n) => n.id === ref) ?? graph.nodes.find((n) => n.label === ref))
+          const missing = refs.filter((_, k) => !found[k])
+          const shown = found.filter(Boolean).map((n) => `${n!.label} (${n!.feature ?? 'shared'}, ${n!.layer})`)
+          return {
+            content: `${shown.length ? `Shown on the board: ${shown.join(', ')}.` : 'Nothing shown.'}${missing.length ? ` Not in the map: ${missing.join(', ')} (look them up with map_query).` : ''}`,
+            isError: shown.length === 0,
+          }
+        },
+      }
     }
     case 'git_info':
       return planGitInfo(args, context)

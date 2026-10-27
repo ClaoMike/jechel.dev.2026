@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { useAssistant } from '../ai/store.ts'
 import { GitMenu, GitSearch, GitTools } from '../git/GitBar.tsx'
+import { useBoard } from '../board/store.ts'
 import { useGit } from '../git/store.ts'
 import type { ColorBy } from '../model/colors.ts'
 import { loadGraphFile } from '../model/load.ts'
@@ -32,6 +33,7 @@ export function TopBar() {
   const meta = index?.graph.meta
   const openFile = () => file.current?.click()
   const map = tab === 'map'
+  const board = tab === 'board'
 
   return (
     <header className="topbar">
@@ -39,9 +41,9 @@ export function TopBar() {
         <button
           type="button"
           className="icon-button"
-          onClick={() => (map ? useViewer.getState().toggleSidebar() : useGit.getState().togglePanel())}
-          aria-label={map ? 'Toggle filters' : 'Toggle branches panel'}
-          title={map ? 'Filters  [' : 'Branches & pull requests  ['}
+          onClick={() => (board ? useBoard.getState().setSheetOpen(!useBoard.getState().sheetOpen) : map ? useViewer.getState().toggleSidebar() : useGit.getState().togglePanel())}
+          aria-label={board ? 'Toggle the board panel' : map ? 'Toggle filters' : 'Toggle branches panel'}
+          title={board ? 'Board panel' : map ? 'Filters  [' : 'Branches & pull requests  ['}
         >
           <Icon name="menu" />
         </button>
@@ -67,10 +69,10 @@ export function TopBar() {
         )}
       </div>
 
-      {map ? <SearchBox /> : <GitSearch />}
+      {board ? <div className="search-spacer" /> : map ? <SearchBox /> : <GitSearch />}
 
       <div className="toolbar">
-        {map ? <MapTools onOpenFile={openFile} /> : <GitTools onOpenFile={openFile} />}
+        {board ? <BoardTools /> : map ? <MapTools onOpenFile={openFile} /> : <GitTools onOpenFile={openFile} />}
         <AssistantButtons />
       </div>
 
@@ -86,7 +88,7 @@ export function TopBar() {
           e.target.value = ''
         }}
       />
-      {viewMenuOpen && (map ? <ViewMenu onOpenFile={openFile} /> : <GitMenu onOpenFile={openFile} />)}
+      {viewMenuOpen && !board && (map ? <ViewMenu onOpenFile={openFile} /> : <GitMenu onOpenFile={openFile} />)}
     </header>
   )
 }
@@ -164,6 +166,36 @@ function MapTools({ onOpenFile }: { onOpenFile: () => void }) {
           <MoreIcon />
         </button>
       </div>
+    </>
+  )
+}
+
+/** Board tab: the panels, the theme and help (zoom is on the board itself). */
+function BoardTools() {
+  const theme = useViewer((s) => s.theme)
+  const panel = useBoard((s) => s.panel)
+  const violations = useViewer((s) => s.index?.graph.board?.violations?.length ?? 0)
+  const { setTheme, setHelp } = useViewer.getState()
+  const open = (id: 'review' | 'rules' | 'ai') => useBoard.getState().setPanel(id)
+  return (
+    <>
+      <div className="segmented" role="group" aria-label="Board panels">
+        <button type="button" className={panel === 'review' ? 'active' : ''} onClick={() => open('review')} title="Review a change on the board" data-testid="board-tool-review">
+          <Icon name="commit" size={15} /> <span className="hide-md">Review</span>
+        </button>
+        <button type="button" className={panel === 'rules' ? 'active' : ''} onClick={() => open('rules')} title="Architecture rules" data-testid="board-tool-rules">
+          <Icon name="warn" size={15} /> <span className="hide-md">Rules{violations ? ` (${violations})` : ''}</span>
+        </button>
+        <button type="button" className={panel === 'ai' ? 'active' : ''} onClick={() => open('ai')} title="AI summaries">
+          <Icon name="sparkle" size={15} /> <span className="hide-md">AI</span>
+        </button>
+      </div>
+      <button type="button" className="icon-button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="Toggle theme" title="Light/dark">
+        <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+      </button>
+      <button type="button" className="icon-button wide-only-inline" onClick={() => setHelp(true)} aria-label="Help" title="Help & shortcuts  (?)">
+        <Icon name="help" />
+      </button>
     </>
   )
 }
