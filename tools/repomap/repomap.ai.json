@@ -1,0 +1,423 @@
+{
+ "version": 1,
+ "features": {
+  "frontend-viewmodels:symbol:frontend/src/pages/CommunityPage/CommunityPage.viewModel.ts#useDonationsViewModel": {
+   "feature": "support",
+   "reason": "the Community tab's donations list (Buy Me a Coffee)"
+  },
+  "frontend-viewmodels:symbol:frontend/src/pages/ContactPage/ContactPage.viewModel.ts#useContactPageViewModel": {
+   "feature": "contact",
+   "reason": "the Contact page's view model"
+  },
+  "frontend-views:symbol:frontend/src/pages/ConfirmSubscriptionPage/ConfirmSubscriptionPage.tsx#ConfirmSubscriptionPage": {
+   "feature": "updates",
+   "reason": "lands the email-updates confirmation link"
+  },
+  "frontend-views:symbol:frontend/src/pages/EngagementPage/EngagementPage.tsx#EngagementPage": {
+   "feature": "analytics",
+   "reason": "the visitor analytics dashboard"
+  },
+  "frontend:symbol:frontend/src/store/api/analyticsApi.ts#analyticsApi": {
+   "feature": "analytics",
+   "reason": "calls /api/analytics only"
+  },
+  "frontend:symbol:frontend/src/store/api/meetingsApi.ts#meetingsApi": {
+   "feature": "meetings",
+   "reason": "calls /api/meetings only"
+  },
+  "frontend:symbol:frontend/src/store/api/resumeApi.ts#resumeApi": {
+   "feature": "resume",
+   "reason": "calls /api/resume only"
+  },
+  "frontend:symbol:frontend/src/store/api/sessionsApi.ts#sessionsApi": {
+   "feature": "auth",
+   "reason": "the admin's signed-in devices (/api/auth/sessions)"
+  }
+ },
+ "summaries": {
+  "app": {
+   "text": "jechel.dev is a personal portfolio site with an admin back office. Visitors see About Me, Apps, YouTube, What's new, Work with me, Contact and the terms; the signed-in admin (Google sign-in) also gets System's tabs: Engagement analytics, Community (subscribers, update emails, donations), Notifications, Settings, Terms and Feature Testing. A React + Vite frontend (views, view models, a Redux/RTK Query model) calls an ASP.NET Core minimal API organised in feature folders, which stores everything in PostgreSQL through EF Core and talks to outside services: Resend (email in and out), Cal.com (meetings), YouTube, LeetCode, Buy Me a Coffee, ntfy and Web Push.",
+   "hash": "3ac0b2c3f01eb17e",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:about@backend": {
+   "text": "Serves and saves the About Me page (GET/PUT /api/about) as one JSON document: AboutJson reads it (upgrading older shapes), AboutRules validates and normalises it with errors keyed by JSON path, and AboutDefaults stands in until the admin first saves. The other classes are the fixed vocabularies the page uses: language levels, licence categories, NeetCode lists, skill uses and kinds of place visit.",
+   "hash": "86ba997bb9703f65",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:about@database": {
+   "text": "about_page: a single row holding the whole About Me page as JSON, with when it was last saved.",
+   "hash": "e033ae4afe1c2db8",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:about@frontend": {
+   "text": "The About Me page and its in-place editor: sections for experience, skills, languages, licences, papers, hackathons, places visited (with a city search) and LeetCode stats, each with editable lists (add, move, remove), month and colour fields, link insertion and file uploads for the photo and papers. aboutApi loads and saves the page and the LeetCode stats; the résumé generator sits on the same page. It is by far the biggest feature, and it also pulls in many small icons and inputs it alone uses.",
+   "hash": "ebd3763eed450f12",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:admin@frontend": {
+   "text": "The admin's sign-in page (/admin): a Sign in with Google button that goes through the API, a skeleton while the session is checked, and why the last attempt failed.",
+   "hash": "d1e49bf43de6e1a1",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:alerts@backend": {
+   "text": "Phone alerts for the admin: PhoneAlerts queues them, AlertWorker sends them through ntfy and Web Push unless their kind or channel is switched off (AlertPreferences, kept in memory), and every alert is logged. CrashAlertHandler raises one for an unhandled API error (at most hourly per kind). The Notifications endpoints switch kinds and channels on or off, list the history and register push devices, with the site's own VAPID keys.",
+   "hash": "d057e6e4e5817a5a",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:alerts@database": {
+   "text": "Alert switches (alert_preferences per kind, alert_channels per channel), the log of every alert raised (phone_alerts), the browsers registered for Web Push (push_devices) and the site's VAPID key pair (web_push_keys).",
+   "hash": "ac7a216a1498da2d",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:alerts@frontend": {
+   "text": "One view model: every kind of phone alert, grouped as the API orders them, each with an on/off switch (used by the Notifications tab).",
+   "hash": "05daf4fe4584646f",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:analytics@backend": {
+   "text": "First-party visitor analytics, no cookies or third parties: the browser's tracker posts events, AnalyticsRules decides what may be recorded and tidies it, VisitorHasher turns IP and User-Agent into a daily visitor id, and AnalyticsRetention deletes visits past the retention the terms promise. The admin reads summaries, lists visits and replays or deletes one.",
+   "hash": "441cf47c01e4757c",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:analytics@database": {
+   "text": "visit_sessions (one per browser tab visit: device, browser, country, entry page, counts) and visit_events (each page view, click or error in it, in order).",
+   "hash": "706fc771c9750a6e",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:analytics@frontend": {
+   "text": "The tracker that records page views, theme switches and errors once a visitor accepted the terms, and the admin's Engagement tab: headline tiles, a time-series chart for any period, top-10 lists, and a table of visits that each open a step-by-step replay.",
+   "hash": "2ba06a9ec5336de7",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:apps@backend": {
+   "text": "The Apps page's data: list, create, edit, reorder and delete apps and their categories, plus what What's new? shows. AppRules validates an app (errors keyed by JSON path, YouTube links recognised as in the frontend); deleting an app also clears its pending update announcement and unused uploads.",
+   "hash": "46eb3a31a0d5f091",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:apps@database": {
+   "text": "apps (title, description, categories, platforms, links, media) and app_categories (the kinds the admin defined, in order).",
+   "hash": "4770e33b07170dab",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:apps@frontend": {
+   "text": "The Apps grid and each app's popup: a media slider of images and YouTube videos, description, platforms and store links. The admin adds and edits apps in the same popup (with drag-to-reorder, category management and a discard-changes guard). appsApi loads apps, categories, the order and the YouTube channel.",
+   "hash": "fc6d374335131bc0",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:auth@backend": {
+   "text": "Google sign-in for the single admin: GoogleSignIn accepts only allowed, verified accounts; AdminSessionService keeps one session per device, the cookie carrying a random token whose hash is stored. Endpoints report who is signed in, list the signed-in devices and sign one or all others out; SameOriginWrites adds a second guard against cross-site writes.",
+   "hash": "4bbaafbf10ca9081",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:auth@database": {
+   "text": "admin_sessions: one row per signed-in device (hashed token, email, browser, country, when it started and expires).",
+   "hash": "c418d25322dfcb76",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:auth@frontend": {
+   "text": "Who is signed in (authSlice), SignedIn/SignedOut wrappers, the tab bar and System's row of admin pages, the admin bar, and Settings → Signed-in devices with signing devices out (sessionsApi).",
+   "hash": "392cf630d92b7a67",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:contact@backend": {
+   "text": "Conversations with visitors: the public contact form posts a message (ContactRules, mirrored by the frontend), emails to the site's address arrive through Resend's inbound webhook and join their conversation, and the admin lists, reads, replies to (by email) and deletes them. Meetings also read and write these messages, which the rules flag as a cross-feature write.",
+   "hash": "bb48728a1718048d",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:contact@database": {
+   "text": "contact_messages (the first message of each conversation, from the form or an email) and contact_replies (every message after it, either way).",
+   "hash": "518a192c5b558d58",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:contact@frontend": {
+   "text": "The public Contact me form, which keeps Send off until every field is valid, and the admin's inbox: a paged list of conversations, a message dialog with copy buttons that marks it read, and the replies thread with an answer box that emails the visitor.",
+   "hash": "a2c5efe9f84bc22b",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:featuretesting@frontend": {
+   "text": "The admin-only Feature Testing tab (BETA): new features tried out on the real site before visitors get them, one page per feature with its own navigation.",
+   "hash": "885dc0aabb56c8e4",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:files@backend": {
+   "text": "Uploads by the admin (the About Me photo, papers, app media) stored as database rows: FileRules checks the type and prepares photos, the endpoints upload and serve them, and FileCleanup deletes files nothing references any more (it reads apps to know, a cross-feature read the rules flag).",
+   "hash": "25a54ff892a30460",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:files@database": {
+   "text": "stored_files: the uploaded files themselves (bytes, type, name, when).",
+   "hash": "4285370bd5335a64",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:leetcode@backend": {
+   "text": "LeetCode stats for About Me without hitting LeetCode on every view: LeetCodeClient reads the public GraphQL profile data, cached in memory and as a database snapshot that survives restarts and is shown when LeetCode is down.",
+   "hash": "808702fd5bc8353d",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:leetcode@database": {
+   "text": "leetcode_stats: the last stats fetched per username, as JSON, with when.",
+   "hash": "fce06662fd786f8f",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:meetings@backend": {
+   "text": "Meetings by invitation through Cal.com: the admin sends the booking link in a reply, Cal.com's webhook reports bookings, and the admin accepts, declines or cancels with an optional emailed note (PersonalEmails). MeetingReminders sends phone reminders a day, two hours and five minutes before, and at the start.",
+   "hash": "af07e4e8e327e12c",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:meetings@database": {
+   "text": "meetings: each booking as Cal.com reported it (attendee, times, status, the decision token's hash).",
+   "hash": "6f54e6c17a5e2c7a",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:meetings@frontend": {
+   "text": "The admin's meetings calendar above the inbox: a month with each day's meetings, accept/decline/cancel with an optional message behind a confirm dialog, and meetingsApi for the list, decisions and the booking link.",
+   "hash": "7ced895c29c4f908",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:notifications@frontend": {
+   "text": "The admin-only Notifications tab: where alerts go (ntfy and the site's own Web Push notifications, each on or off, plus this browser's subscription) and the history of alerts raised, filterable by kind, through notificationsApi.",
+   "hash": "f1929750a847379b",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:places@backend": {
+   "text": "City search for About Me's places: CityIndex loads every place with 1,000+ people from GeoNames into memory and searches them by name.",
+   "hash": "8177613ac0f83b28",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:preview@frontend": {
+   "text": "The admin's preview switch (in development): see the site normally, while loading, or when loading fails, by holding or failing GET requests; and the admin bar it sits in.",
+   "hash": "3d8ae1024912f88e",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:profile@backend": {
+   "text": "The first-name endpoint (GET /api/firstname), from the original template: one Profile row.",
+   "hash": "194ca7379b715a63",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:profile@database": {
+   "text": "profiles: the owner's first name.",
+   "hash": "60e6b92d45991fa0",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:resume@backend": {
+   "text": "A résumé generated from the About Me page: the admin picks sections, skills and the private header (email, phone, headline), and generating lays it out with QuestPDF as two PDFs, a public one and a private one with contact details, stored until the next run.",
+   "hash": "3bcc8f228e6c8042",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:resume@database": {
+   "text": "resume: the admin's choices, private contact details and the two generated PDFs.",
+   "hash": "f1a3ea9255e6162b",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:resume@frontend": {
+   "text": "The résumé generator on About Me: section and skill choices as a draft, saving and generating, and download links for both PDFs, through resumeApi.",
+   "hash": "9ce0af1aa78e12ee",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:settings@backend": {
+   "text": "The Settings tab's connections: keys and links for every outside service, grouped by SettingsCatalog, encrypted at rest and kept in memory by SettingsStore, which overrides the configuration and tells options to reload. Each service can be tested from the tab.",
+   "hash": "def2ed23c2a30290",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:settings@database": {
+   "text": "site_settings: each saved setting (key, value, whether it's encrypted, when).",
+   "hash": "7ddd0ee18518796f",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:settings@frontend": {
+   "text": "Each connection setting with a box for a new value, save, remove and test, through settingsApi.",
+   "hash": "b8cae80ebe4fa83c",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:shared@backend": {
+   "text": "What every feature stands on: Program (the composition root), PortfolioDbContext, proxy-header handling behind Cloudflare, the Redis key prefix, webhook body limits, and encryption of the Data Protection key ring.",
+   "hash": "860cd2bbbc8532e1",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:shared@database": {
+   "text": "data_protection_keys: the encrypted keys that protect the sign-in cookie and the saved secrets.",
+   "hash": "03397b349c123ceb",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:shared@frontend": {
+   "text": "The common kit: baseApi (RTK Query) under every feature API, Modal, PagedGrid and Pagination, error and empty states, skeletons, copy and delete buttons, form fields, AdminOnly guards and most icons; plus pages and view models no single feature owns.",
+   "hash": "0b65ed7b57be4afe",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:site@backend": {
+   "text": "What visitors can see: one SiteState row with each page and feature switched on or off, and maintenance mode with a message (GET/PUT /api/site).",
+   "hash": "90a2b417e6315ab8",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:site@database": {
+   "text": "site_state: visible pages and features, and maintenance on/off with its message.",
+   "hash": "63ae50090681ba53",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:site@frontend": {
+   "text": "The app shell: App and its view model keep the session and visibility current and show the maintenance screen when needed; VisiblePage and Coming soon send visitors to pages they may see; the Settings page with Visitor pages switches; siteSlice.",
+   "hash": "1ce4621ee5ab23e0",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:support@backend": {
+   "text": "Buy Me a Coffee: the header button's link (configurable in Settings), and the webhook that records each donation or membership for the Community tab.",
+   "hash": "076e0ff5493051b6",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:support@database": {
+   "text": "donations: each payment Buy Me a Coffee reported (amount, currency, who, test or not).",
+   "hash": "58d4ffb6639b6a24",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:support@frontend": {
+   "text": "The header's Buy me a coffee button with its animated cup, and the Community tab's donations list.",
+   "hash": "ecd359c23e6dca3d",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:terms@backend": {
+   "text": "The terms and conditions as one JSON document (GET/PUT /api/terms): TermsRules validates, TermsDefaults is the starting text, block kinds define paragraphs and lists.",
+   "hash": "f90d0e9e6b169dd7",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:terms@database": {
+   "text": "terms_page: a single row holding the whole terms document as JSON.",
+   "hash": "76ac6b51ba56e6df",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:terms@frontend": {
+   "text": "The Terms tab (view and in-place editor) and the site-wide gate: the welcome popup visitors accept before using the site, and the terms popup. termsApi loads them once; terms, theme and preview slices live here too.",
+   "hash": "b2b8e174198e3cb1",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:updates@backend": {
+   "text": "Email updates: visitors subscribe with double opt-in, and UpdatesAnnouncer (run by UpdatesWorker, or at once via UpdatesTrigger) emails confirmed subscribers about new apps and videos; new apps wait for the admin's send-or-ignore decision. The admin edits the emails' wording with a preview and a test send; sending goes through Resend, or the log in development.",
+   "hash": "d938e8e578a3e111",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:updates@database": {
+   "text": "subscribers, announcements (what to email, its decision and recipients), update_emails (the wording as JSON) and updates_state (from when announcing started).",
+   "hash": "ce0092360062de09",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:updates@frontend": {
+   "text": "Get updates in the header (subscribe popup, confirmation, unsubscribe page) and the admin's Community tab: subscribers, pending announcements to send or ignore, and the update-emails editor with previews, through communityApi.",
+   "hash": "79a7f2b30d21a048",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:whatsnew@frontend": {
+   "text": "What's new: the newest app or YouTube video, whichever came last among the sections visitors may see, shown in full in one card.",
+   "hash": "570a52b3e8ab92c4",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:workwithme@backend": {
+   "text": "Work with me's hourly price: anyone reads it, the admin sets the amount and currency (WorkWithMePrices lists the allowed currencies); €25 until first saved.",
+   "hash": "9db116e8b11cf8c8",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:workwithme@database": {
+   "text": "work_with_me_price: one row with the amount, currency and when it was set.",
+   "hash": "da2e66d11fdee6d5",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:workwithme@frontend": {
+   "text": "The Work with me page (offer, process, price) and the admin's price editor with a currency picker showing flags (EUR, RON, GBP first), with parsing and formatting of amounts.",
+   "hash": "36f45fd3361d8b6a",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:youtube@backend": {
+   "text": "The channel's videos via the YouTube Data API: YouTubeVideoStore keeps them in memory and as a database snapshot, YouTubeRefreshWorker refreshes them on start and periodically, and the admin can refresh on demand (errors kept for the refresh popup).",
+   "hash": "0bd22ebf8d282bc5",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:youtube@database": {
+   "text": "youtube_videos: the last list fetched per channel, as JSON.",
+   "hash": "4cd7cb1a65e22c0b",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "feature:youtube@frontend": {
+   "text": "The YouTube page: a paged grid of videos (prefetching neighbours), a player using YouTube's privacy-enhanced embed, links in descriptions, the channel button and the admin's refresh button.",
+   "hash": "a37d452738120c6b",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "tier:backend": {
+   "text": "An ASP.NET Core minimal API with one folder per feature: each maps its endpoints, validates with a *Rules class and reads or writes its own EF Core entities. Background workers send alerts, update emails and meeting reminders, and refresh YouTube videos. Secrets saved in the Settings tab are encrypted and override the configuration; the admin is identified by a session cookie backed by the admin_sessions table.",
+   "hash": "6c2d206e5c1d116a",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "tier:database": {
+   "text": "PostgreSQL, generated from the EF Core model: a table or two per feature. Editable pages (About Me, terms, update emails) are single JSON documents; outside data (LeetCode stats, YouTube videos) is cached as snapshots that survive restarts; contact messages, meetings, subscribers, visits and alerts are ordinary rows.",
+   "hash": "dac184956e227ab5",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  },
+  "tier:frontend": {
+   "text": "The React app, in MVVM: views (.tsx) render and call their own view model (*.viewModel.ts), which holds state, effects and store access; the model is a Redux store (site, auth, terms, theme and preview slices) and RTK Query APIs per feature over one baseApi. Most of the code is About Me's editable sections, the Apps grid and the admin's tabs; a shared kit (Modal, PagedGrid, skeletons, icons, buttons) sits under them all. The tab bar shows visitors only the pages switched on in Settings.",
+   "hash": "5caea12cf7a81699",
+   "model": "Claude Code session",
+   "at": "2026-10-27T23:36:50.443Z"
+  }
+ }
+}
