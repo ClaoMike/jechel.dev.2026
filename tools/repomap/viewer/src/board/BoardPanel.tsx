@@ -683,7 +683,7 @@ function AiTab({ bi }: { bi: BoardIndex }) {
           </div>
         )
       ) : (
-        <p className="muted small">Run npm run summarize in tools/repomap (it uses the assistant's API key), or open the board with npm start on this computer.</p>
+        <p className="muted small">Run npm run summarize in tools/repomap (through Claude Code or an API key, as Settings say), or open the board with npm start on this computer.</p>
       )}
       {job?.result && !job.running && (
         <p className="small">

@@ -1,5 +1,5 @@
 /**
- * The Board's AI work (Claude, with the assistant's key):
+ * The Board's AI work (Claude: through Claude Code on this machine, or the API with the assistant's key):
  *
  * - place: chips nothing placed in a feature (no folder, neighbours disagree) → a feature, or shared
  * - summarize, bottom-up: each chip from its code, each feature (per tier) from its chips, each tier from
@@ -8,6 +8,7 @@
  * - brief: a review briefing for a diff (what it does, where it lands, ripple effects, risks, tests)
  * - suggest rules: architecture rules in the config's format, from how the features actually connect
  */
+import { tmpdir } from 'node:os'
 import Anthropic from '@anthropic-ai/sdk'
 import { roleCovers, BOARD_HIDDEN_ROLES, SHARED_FEATURE, type RuleDef, type Summary } from '../../shared/board.ts'
 import type { ReviewDiff } from '../../shared/review.ts'
@@ -15,6 +16,7 @@ import type { GraphNode, RepoGraph } from '../../shared/types.ts'
 import { codeReader, readAiFile, summaryTargets, writeAiFile, type AiFile, type SummaryTarget } from '../board.ts'
 import type { RepoMapConfig } from '../config.ts'
 import type { Logger } from '../log.ts'
+import { askClaudeCode } from './claude-code.ts'
 import type { SettingsStore } from './settings.ts'
 
 export interface BoardAiOptions {
@@ -47,15 +49,24 @@ const CHIPS_PER_CALL = 10
 const CODE_PER_CHIP = 6000
 const CONCURRENCY = 4
 
-function client(options: BoardAiOptions): Anthropic {
-  const apiKey = options.settings.apiKey()
-  if (!apiKey) throw new BoardAiError('No API key: add one in the assistant settings (or set ANTHROPIC_API_KEY)')
-  return new Anthropic({ apiKey, ...(options.baseURL ? { baseURL: options.baseURL } : {}), maxRetries: 3 })
-}
+/** One prompt to one answer, through the provider the settings pick. */
+type Ask = (model: string, system: string, prompt: string, maxTokens: number, signal?: AbortSignal) => Promise<string>
 
-async function ask(api: Anthropic, model: string, system: string, prompt: string, maxTokens: number, signal?: AbortSignal): Promise<string> {
-  const message = await api.messages.stream({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] }, { signal }).finalMessage()
-  return message.content.map((block) => (block.type === 'text' ? block.text : '')).join('')
+/** Claude Code (the `claude` CLI, your subscription) or the API with a key. */
+function asker(options: BoardAiOptions): Ask {
+  const settings = options.settings.read()
+  const problem = options.settings.notReady(settings)
+  if (problem) throw new BoardAiError(problem)
+  if (settings.provider === 'claude-code') {
+    const binary = options.settings.claudeBinary()!
+    const cwd = tmpdir()
+    return (model, system, prompt, _maxTokens, signal) => askClaudeCode({ binary, model, system, prompt, cwd, signal })
+  }
+  const api = new Anthropic({ apiKey: options.settings.apiKey(settings)!, ...(options.baseURL ? { baseURL: options.baseURL } : {}), maxRetries: 3 })
+  return async (model, system, prompt, maxTokens, signal) => {
+    const message = await api.messages.stream({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] }, { signal }).finalMessage()
+    return message.content.map((block) => (block.type === 'text' ? block.text : '')).join('')
+  }
 }
 
 /** The JSON object or array in a reply (models sometimes wrap it in prose or a code fence). */
@@ -84,13 +95,13 @@ const SUMMARY_SYSTEM = `You write short summaries for an architecture map of a w
 
 /** Places, then summarizes what changed; returns how many summaries were written. */
 export async function summarizeBoard(config: RepoMapConfig, options: SummarizeOptions): Promise<{ placed: number; written: number; failed: number; remaining: number }> {
-  const api = client(options)
+  const ask = asker(options)
   const model = config.ai.summaryModel
   const progress = options.onProgress ?? (() => undefined)
   let graph = await options.rebuild()
   let placed = 0
   if (options.place !== false) {
-    placed = await placeFeatures(config, graph, api, model, options, progress)
+    placed = await placeFeatures(config, graph, ask, model, options, progress)
     if (placed > 0) graph = await options.rebuild()
   }
   const ai = readAiFile(config.ai.file)
@@ -124,7 +135,6 @@ export async function summarizeBoard(config: RepoMapConfig, options: SummarizeOp
     })
     try {
       const reply = await ask(
-        api,
         model,
         SUMMARY_SYSTEM,
         `Summarize each of these ${batch.length} parts of the app in 1–2 sentences (at most 45 words each).\nReply with a JSON object: {"<id after ###>": "summary", …}.\n\n${items.join('\n\n')}`,
@@ -158,7 +168,6 @@ export async function summarizeBoard(config: RepoMapConfig, options: SummarizeOp
     })
     try {
       const reply = await ask(
-        api,
         model,
         SUMMARY_SYSTEM,
         `Each block is one feature of the app on one tier, with its parts. Write 2–4 sentences per feature (at most 80 words): what it does for the user or admin, its main parts, and the data it reads or writes.\nReply with a JSON object: {"<key after ###>": "summary", …}.\n\n${items.join('\n\n')}`,
@@ -184,7 +193,6 @@ export async function summarizeBoard(config: RepoMapConfig, options: SummarizeOp
     const what = t.level === 'app' ? 'the whole app, from its tiers' : `the ${tierLabel(t.tier!)} tier, from its features`
     try {
       const reply = await ask(
-        api,
         model,
         SUMMARY_SYSTEM,
         `Summarize ${what} in 3–5 sentences (at most 110 words): what it is, how it is organized, what flows through it.\nReply with a JSON object: {"summary": "…"}.\n\n${parts.join('\n')}`,
@@ -230,7 +238,7 @@ function neighbourLabels(graph: RepoGraph): { in: Map<string, string[]>; out: Ma
 }
 
 /** Asks where the chips nothing placed belong; returns how many it placed in a feature. */
-async function placeFeatures(config: RepoMapConfig, graph: RepoGraph, api: Anthropic, model: string, options: SummarizeOptions, progress: (p: SummarizeProgress) => void): Promise<number> {
+async function placeFeatures(config: RepoMapConfig, graph: RepoGraph, ask: Ask, model: string, options: SummarizeOptions, progress: (p: SummarizeProgress) => void): Promise<number> {
   const ai: AiFile = readAiFile(config.ai.file)
   const features = (graph.board?.features ?? []).filter((f) => f.id !== SHARED_FEATURE)
   if (features.length === 0) return 0
@@ -244,7 +252,6 @@ async function placeFeatures(config: RepoMapConfig, graph: RepoGraph, api: Anthr
     const items = batch.map((n: GraphNode) => `- ${n.id} | ${n.kind} | ${n.file ?? ''} | uses: ${neighbours.out.get(n.id)?.slice(0, 6).join(', ') || '-'} | used by: ${neighbours.in.get(n.id)?.slice(0, 6).join(', ') || '-'}`)
     try {
       const reply = await ask(
-        api,
         model,
         'You sort the parts of a web app into its features (vertical slices). A part used by several features, or by none in particular (UI kit, icons, infrastructure, app shell), stays "shared". Reply with JSON only.',
         `Features: ${features.map((f) => `${f.id} (${f.label})`).join(', ')}.\nFor each part below, give the one feature it belongs to, or "shared".\nReply with a JSON object: {"<id>": "<feature id or shared>", …}.\n\n${items.join('\n')}`,
@@ -280,7 +287,7 @@ export interface BriefingInput {
 
 /** A review briefing (Markdown) for a diff, from the map and the patch. */
 export async function reviewBriefing(config: RepoMapConfig, graph: RepoGraph, input: BriefingInput, options: BoardAiOptions): Promise<string> {
-  const api = client(options)
+  const ask = asker(options)
   const byId = new Map(graph.nodes.map((n) => [n.id, n]))
   const summaries = graph.board?.summaries ?? {}
   const describe = (id: string) => {
@@ -300,9 +307,7 @@ export async function reviewBriefing(config: RepoMapConfig, graph: RepoGraph, in
     violations.length ? `## Architecture rules these parts break\n${violations.map((v) => `- ${v.rule}: ${v.message}`).join('\n')}` : '',
     `## The diff${input.diff.truncated ? ' (cut short)' : ''}\n\`\`\`diff\n${input.diff.patch ?? ''}\n\`\`\``,
   ].filter(Boolean)
-  return ask(
-    api,
-    config.ai.reviewModel,
+  return ask(config.ai.reviewModel,
     `You brief a developer before they review a change to their own web app. They built most of it with an AI assistant and don't remember every part, so connect the change to the system: say which features and tiers it lands in and what else it can affect. Be concrete and short; cite files as path:line. Write Markdown with these sections:\n## What it does\n## Where it lands\n## Ripple effects\n## Check carefully\n## Tests\n## Questions for the author\nUnder "Check carefully", list real risks you see in the diff (bugs, missing cases, security, data) — not style. Under "Tests", say which existing tests cover it and what is not covered.`,
     prompt.join('\n\n'),
     6000,
@@ -312,7 +317,7 @@ export async function reviewBriefing(config: RepoMapConfig, graph: RepoGraph, in
 
 /** Rules the AI suggests for the config, from how features connect today (kept in repomap.ai.json). */
 export async function suggestRules(config: RepoMapConfig, graph: RepoGraph, options: BoardAiOptions): Promise<RuleDef[]> {
-  const api = client(options)
+  const ask = asker(options)
   const byId = new Map(graph.nodes.map((n) => [n.id, n]))
   const tiers = graph.board?.tiers ?? []
   const tierOf = new Map<string, string>()
@@ -327,9 +332,7 @@ export async function suggestRules(config: RepoMapConfig, graph: RepoGraph, opti
     flows.set(key, (flows.get(key) ?? 0) + 1)
   }
   const top = [...flows].sort((a, b) => b[1] - a[1]).slice(0, 300).map(([k, n]) => `${n}× ${k}`)
-  const reply = await ask(
-    api,
-    config.ai.reviewModel,
+  const reply = await ask(config.ai.reviewModel,
     'You propose architecture rules for a web app, to be checked on every build so that code an AI assistant writes keeps to the architecture. Only propose rules the code mostly follows already (a rule broken everywhere is noise), each catching a mistake that matters. Reply with JSON only.',
     [
       `Tiers: ${tiers.map((t) => `${t.id} (layers ${t.layers.join(', ')})`).join('; ')}`,

@@ -7,6 +7,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { claudeBinary } from './claude-code.ts'
 import { AI_PROVIDERS, DEFAULT_MODEL, EFFORTS, keyHint, type AiProviderId, type AiSettingsUpdate, type AiSettingsView, type Effort, type PermissionMode } from '../../shared/ai.ts'
 
 export interface AiSettings {
@@ -53,12 +54,25 @@ export class SettingsStore {
     return undefined
   }
 
+  /** The `claude` CLI (Claude Code provider), or undefined. */
+  claudeBinary(): string | undefined {
+    return claudeBinary(this.env)
+  }
+
+  /** Why the current provider can't be used yet, or null when it can. */
+  notReady(settings = this.read()): string | null {
+    if (settings.provider === 'claude-code') return this.claudeBinary() ? null : 'Claude Code (the claude command) was not found on this computer. Install it and sign in, or use an API key in Settings.'
+    return this.apiKey(settings) ? null : 'Add an Anthropic API key in Settings first.'
+  }
+
   view(settings = this.read()): AiSettingsView {
     const stored = settings.apiKeys[settings.provider]?.trim()
     const key = this.apiKey(settings)
+    const cli = settings.provider === 'claude-code' ? (this.claudeBinary() ?? null) : undefined
     return {
       provider: settings.provider,
-      hasKey: !!key,
+      hasKey: settings.provider === 'claude-code' ? !!cli : !!key,
+      ...(cli !== undefined ? { cliPath: cli } : {}),
       keyHint: key ? keyHint(key) : null,
       keySource: stored ? 'settings' : key ? 'environment' : null,
       settingsPath: this.path,

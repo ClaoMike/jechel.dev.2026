@@ -17,6 +17,7 @@ import { join, relative, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { reviewBriefing, suggestRules, summarizeBoard } from './core/ai/board-ai.ts'
 import { SettingsStore } from './core/ai/settings.ts'
+import { mapQuery } from './core/ai/tools.ts'
 import { buildGraph, readGraph } from './core/build.ts'
 import { loadConfig, TOOL_ROOT } from './core/config.ts'
 import { diffGraphs, formatDiff } from './core/diff.ts'
@@ -44,6 +45,7 @@ Commands
                      the app (only what changed since the last run) → repomap.ai.json
   check              Build, then list the architecture rules' violations (exit 1 on an error)
   suggest-rules      AI: propose architecture rules for the config, from how the code connects
+  map-query <words> | --node <id or name>   Look nodes up in the map (what the assistant uses)
   review [base] [head]   The diff's touched chips per feature (default: uncommitted changes);
                      --brief adds the AI briefing
 
@@ -86,6 +88,7 @@ async function main(): Promise<number> {
       limit: { type: 'string' },
       'no-place': { type: 'boolean' },
       brief: { type: 'boolean' },
+      node: { type: 'string' },
       'read-only': { type: 'boolean' },
       graph: { type: 'string' },
       git: { type: 'string' },
@@ -175,6 +178,14 @@ async function main(): Promise<number> {
       process.stdout.write(`${JSON.stringify(rules, null, 2)}\n`)
       log.info(color.dim(`Saved in ${relativeTo(config.ai.file)} (suggestedRules). Copy the ones you want into "rules" in ${relativeTo(config.configPath)}.`))
       return 0
+    }
+    case 'map-query': {
+      // For Claude Code (the assistant's Claude Code provider): the map's nodes and their edges.
+      const config = loadConfig(configPath())
+      const graph = readGraph(config.output)
+      const outcome = mapQuery(graph, values.node ? undefined : rest.join(' '), values.node)
+      process.stdout.write(`${outcome.content}\n`)
+      return outcome.isError ? 1 : 0
     }
     case 'review': {
       const config = loadConfig(configPath())

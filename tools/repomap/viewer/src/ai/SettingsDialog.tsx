@@ -3,7 +3,7 @@
  * model, how hard it thinks, and what it may do without asking.
  */
 import { useEffect, useRef, useState } from 'react'
-import { AI_PROVIDERS, EFFORTS, type Effort, type PermissionMode } from '../../../src/shared/ai.ts'
+import { AI_PROVIDERS, EFFORTS, type AiProviderId, type Effort, type PermissionMode } from '../../../src/shared/ai.ts'
 import { Field } from '../ui/Dialog.tsx'
 import { Icon } from '../ui/icons.tsx'
 import { useAssistant } from './store.ts'
@@ -21,6 +21,13 @@ const MODES: { value: PermissionMode; label: string; hint: string }[] = [
   { value: 'edits', label: 'Accept edits', hint: 'File edits run by themselves; git and shell commands still ask.' },
   { value: 'auto', label: 'Auto', hint: 'Everything runs without asking. You still see every step.' },
 ]
+
+/** Claude Code can't stop and ask: each mode is what it may do on its own. */
+const CLAUDE_CODE_HINTS: Record<PermissionMode, string> = {
+  ask: 'Read only: it reads, searches and looks in the map; edits and commands are declined (you see which).',
+  edits: 'It also edits files; shell commands (git included) are declined.',
+  auto: 'Edits and shell commands, git included, all without asking. You still see every step.',
+}
 
 export function SettingsDialog() {
   const open = useAssistant((s) => s.settingsOpen)
@@ -87,8 +94,8 @@ function Settings() {
             <h3>
               <Icon name="sparkle" size={15} /> AI assistant
             </h3>
-            <Field label="Provider" hint="Claude for now; other providers come later.">
-              <select value={settings.provider} onChange={(e) => void saveSettings({ provider: e.target.value as 'anthropic' })} data-testid="provider-select">
+            <Field label="Provider" hint="Claude Code uses your Claude subscription through the claude command on this computer; the API bills a key per token.">
+              <select value={settings.provider} onChange={(e) => void saveSettings({ provider: e.target.value as AiProviderId })} data-testid="provider-select">
                 {AI_PROVIDERS.map((p) => (
                   <option key={p.id} value={p.id} disabled={!p.available}>
                     {p.label}
@@ -98,6 +105,27 @@ function Settings() {
               </select>
             </Field>
 
+            {settings.provider === 'claude-code' ? (
+              <div className="field" data-testid="claude-code-status">
+                <span className="field-label">Claude Code</span>
+                {settings.cliPath ? (
+                  <div className="key-status">
+                    <Icon name="check" size={14} />
+                    <span>
+                      Found <code>{settings.cliPath}</code>
+                    </span>
+                  </div>
+                ) : (
+                  <p className="field-error" role="alert">
+                    The <code>claude</code> command isn't on this computer's PATH. Install Claude Code and sign in (run <code>claude</code> once), then reopen Settings.
+                  </p>
+                )}
+                <span className="field-hint">
+                  The assistant runs Claude Code in your repository with its own tools, and the Board's summaries and briefings go through it too: all on your subscription, signed in as you are in the terminal. It can't stop to ask, so the
+                  choice below decides what it may do — on top of your own Claude Code permissions for this repository (<code>.claude/settings*.json</code>), which can allow more.
+                </span>
+              </div>
+            ) : (
             <div className="field">
               <span className="field-label">API key</span>
               {settings.hasKey && (
@@ -142,6 +170,7 @@ function Settings() {
                 . repomap keeps it in <code>{settings.settingsPath}</code> on this machine (readable only by you) and sends it only to Anthropic; this page never sees it again.
               </span>
             </div>
+            )}
 
             {settings.hasKey && (
               <>
@@ -176,7 +205,7 @@ function Settings() {
                     <label key={mode.value} className={`radio-field${mode.value === 'auto' ? ' danger' : ''}`}>
                       <input type="radio" name="permission-mode" checked={settings.permissionMode === mode.value} onChange={() => void saveSettings({ permissionMode: mode.value })} />
                       <span>
-                        <strong>{mode.label}</strong> — {mode.hint}
+                        <strong>{mode.label}</strong> — {settings.provider === 'claude-code' ? CLAUDE_CODE_HINTS[mode.value] : mode.hint}
                       </span>
                     </label>
                   ))}

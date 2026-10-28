@@ -5,7 +5,8 @@
 
 /** Providers the settings page offers; only the available ones can be chosen. */
 export const AI_PROVIDERS = [
-  { id: 'anthropic', label: 'Anthropic (Claude)', available: true },
+  { id: 'claude-code', label: 'Claude Code (your subscription)', available: true },
+  { id: 'anthropic', label: 'Anthropic API (key)', available: true },
   { id: 'openai', label: 'OpenAI', available: false },
   { id: 'google', label: 'Google Gemini', available: false },
 ] as const
@@ -28,8 +29,10 @@ export const DEFAULT_MODEL = 'claude-opus-5-5'
 /** The settings as the viewer sees them: never the key itself. */
 export interface AiSettingsView {
   provider: AiProviderId
-  /** A key is configured (in the settings file, or ANTHROPIC_API_KEY for the server). */
+  /** Ready to use: a key is configured (settings file or ANTHROPIC_API_KEY), or, for Claude Code, the CLI was found. */
   hasKey: boolean
+  /** Claude Code: the `claude` executable repomap runs (null: not found on the server's PATH). */
+  cliPath?: string | null
   /** e.g. "sk-ant-…a1b2". */
   keyHint: string | null
   keySource: 'settings' | 'environment' | null

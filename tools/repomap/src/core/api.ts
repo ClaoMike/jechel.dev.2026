@@ -282,7 +282,8 @@ async function boardRoute(req: IncomingMessage, res: ServerResponse, url: URL, c
     if (req.method === 'POST' && path === 'summarize') {
       if (job.running) return sendJson(res, 409, { error: 'Summaries are already being written' })
       const body = await jsonBody<{ limit?: number; place?: boolean }>(req)
-      if (!ai.settings.apiKey()) return sendJson(res, 400, { error: 'No API key: add one in the settings' })
+      const problem = ai.settings.notReady()
+      if (problem) return sendJson(res, 400, { error: problem })
       const controller = new AbortController()
       Object.assign(job, { running: true, progress: undefined, result: undefined, error: undefined, controller })
       board.broadcast('board-ai', status())

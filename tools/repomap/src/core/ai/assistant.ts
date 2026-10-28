@@ -24,6 +24,7 @@ import {
   type ToolStep,
 } from '../../shared/ai.ts'
 import type { RepoGraph } from '../../shared/types.ts'
+import { claudeCodeSystemPrompt, claudeCodeTurn } from './claude-code-chat.ts'
 import { ConversationStore, summary, type StoredConversation } from './conversations.ts'
 import { SettingsStore } from './settings.ts'
 import { ShellSession } from './shell.ts'
@@ -95,6 +96,7 @@ export class Assistant {
   }
 
   async models(): Promise<AiModel[]> {
+    if (this.options.settings.read().provider === 'claude-code') return CLAUDE_CODE_MODELS
     const client = this.client()
     const models: AiModel[] = []
     try {
@@ -144,6 +146,7 @@ export class Assistant {
     const text = typeof request.text === 'string' ? request.text.trim() : ''
     if (!text) throw new AssistantError(400, 'Write a message.')
     const settings = this.options.settings.read()
+    if (settings.provider === 'claude-code') return this.sendViaClaudeCode(request, text, emit, signal)
     const client = this.client()
     const store = this.options.conversations
     let conversation = request.conversationId ? store.get(request.conversationId) : undefined
@@ -267,6 +270,74 @@ export class Assistant {
       signal?.removeEventListener('abort', abort)
       this.running.delete(conversation.id)
       if (stopReason === 'stopped') notice('info', 'Stopped.')
+      store.save(conversation)
+      emit({ type: 'done', stopReason })
+    }
+  }
+
+  /** The Claude Code provider: Claude Code itself works in the repository (see claude-code-chat.ts). */
+  private async sendViaClaudeCode(request: SendRequest, text: string, emit: (event: ChatEvent) => void, signal?: AbortSignal): Promise<void> {
+    const settings = this.options.settings.read()
+    const binary = this.options.settings.claudeBinary()
+    if (!binary) throw new AssistantError(412, this.options.settings.notReady(settings) ?? 'Claude Code was not found.')
+    const store = this.options.conversations
+    let conversation = request.conversationId ? store.get(request.conversationId) : undefined
+    if (request.conversationId && !conversation) throw new AssistantError(404, 'That chat no longer exists.')
+    if (conversation && this.running.has(conversation.id)) throw new AssistantError(409, 'The assistant is still working on this chat.')
+    const model = request.model || conversation?.model || settings.model || DEFAULT_MODEL
+    conversation ??= store.create(model, claudeCodeSystemPrompt(this.options.graph()?.meta.repo.name ?? 'repository'))
+    conversation.model = model
+    if (conversation.title === 'New chat') conversation.title = text.split('\n')[0].slice(0, 70)
+    const run: Running = { controller: new AbortController(), approvals: new Map() }
+    const abort = () => run.controller.abort()
+    signal?.addEventListener('abort', abort)
+    this.running.set(conversation.id, run)
+    const record = (item: ChatItem) => conversation!.items.push(item)
+    const update = (step: ToolStep) => {
+      const item = conversation!.items.find((i) => i.type === 'tool' && i.id === step.id)
+      if (item && item.type === 'tool') item.step = { ...step }
+      else record({ type: 'tool', id: step.id, step: { ...step } })
+    }
+    const notice = (level: 'info' | 'warn' | 'error', noticeText: string) => {
+      const item = { type: 'notice' as const, id: randomUUID(), level, text: noticeText }
+      record(item)
+      emit({ type: 'notice', item })
+    }
+    const context = sanitizeContext(request.context)
+    const user: ChatItem = { type: 'user', id: randomUUID(), text, context }
+    record(user)
+    store.save(conversation)
+    emit({ type: 'start', conversation: summary(conversation), user })
+    let stopReason = 'end_turn'
+    try {
+      const outcome = await claudeCodeTurn(
+        {
+          binary,
+          root: this.options.root(),
+          prompt: userMessage(text, context),
+          model,
+          effort: request.effort ?? settings.effort,
+          mode: request.mode ?? settings.permissionMode,
+          resume: conversation.claudeSession,
+          system: conversation.system,
+          signal: run.controller.signal,
+        },
+        { emit, record, update, notice, filesChanged: (paths) => this.options.filesChanged(paths) },
+      )
+      if (outcome.sessionId) conversation.claudeSession = outcome.sessionId
+      stopReason = outcome.stopReason
+    } catch (error) {
+      if (run.controller.signal.aborted) stopReason = 'stopped'
+      else {
+        notice('error', (error as Error).message)
+        stopReason = 'error'
+      }
+    } finally {
+      signal?.removeEventListener('abort', abort)
+      this.running.delete(conversation.id)
+      if (stopReason === 'stopped') notice('info', 'Stopped.')
+      // Claude Code may have run git or changed files with its shell.
+      await this.options.gitChanged().catch(() => undefined)
       store.save(conversation)
       emit({ type: 'done', stopReason })
     }
@@ -455,6 +526,13 @@ export class Assistant {
 }
 
 // ---------------------------------------------------------------- helpers
+
+/** What the Claude Code provider offers (its aliases follow the newest models). */
+const CLAUDE_CODE_MODELS: AiModel[] = [
+  { id: 'opus', name: 'Opus (newest, via Claude Code)', contextWindow: null, maxOutput: null, efforts: [...EFFORTS] },
+  { id: 'sonnet', name: 'Sonnet (newest, via Claude Code)', contextWindow: null, maxOutput: null, efforts: [...EFFORTS] },
+  { id: 'haiku', name: 'Haiku (newest, via Claude Code)', contextWindow: null, maxOutput: null, efforts: [] },
+]
 
 export function systemPrompt(root: string, graph: RepoGraph | undefined): string {
   const layers = graph?.meta.layers.map((l) => `${l.label}${l.description ? ` (${l.description})` : ''}`).join('; ')

@@ -94,7 +94,7 @@ feature most of its neighbours share (≥ 60 %); the rest is `shared`. `board.fe
 `board.featureAliases` merges them.
 
 **AI summaries** (`npm run summarize`, or the AI panel when served with `npm start`). Claude first
-places the chips nothing placed, then summarizes each chip from its code, each feature (per tier) from
+places the chips nothing placed (through Claude Code or the API, as the assistant's settings say), then summarizes each chip from its code, each feature (per tier) from
 its chips, each tier from its features and the app from its tiers. Results live in `repomap.ai.json`
 (commit it) with a hash of what was read: a run only redoes what changed, and a summary whose code moved
 on is marked *the code changed since*. Models: `ai.summaryModel` (default `claude-haiku-5-5`) and
@@ -176,7 +176,16 @@ Served from your checkout (`npm start`), a chat docked at the bottom of every vi
 history, the code editor — lets you ask Claude about the repository and have it change things.
 **⌘J** (Ctrl+J) shows and hides it; drag its top edge to resize it.
 
-- **Settings** (the gear in the top bar): provider (Anthropic; others are planned), the API key, the
+- **Claude Code instead of a key**: pick the provider *Claude Code (your subscription)* and repomap runs
+  the `claude` CLI installed on this machine (`claude -p`, signed in as you are in the terminal; found
+  on the server's PATH, or `REPOMAP_CLAUDE`). The chat then is Claude Code itself working in the
+  repository with its own tools (streamed into the dock: text, each step, edited files; chats continue
+  their Claude Code session), and the Board's summaries, briefings and rule suggestions go through it too
+  (one-shot prompts: no tools, no session, only your user settings). It can't stop to ask: *Ask* lets it
+  only read (and look in the map with `node src/cli.ts map-query`), *Accept edits* adds file edits,
+  *Auto* adds shell commands — on top of your own Claude Code permissions for the repository. It points
+  at the board by ending an answer with `show-on-board: <names>`.
+- **Settings** (the gear in the top bar): provider (Claude Code, or the Anthropic API with a key), the API key, the
   model (listed live from the API), the effort, and what Claude may do without asking. The key is kept
   by `repomap serve` in `~/.config/repomap/settings.json` (`REPOMAP_SETTINGS` moves it), readable only by
   you; the page never sees it again (only `sk-ant-…abcd`), and it is sent only to Anthropic. Without a

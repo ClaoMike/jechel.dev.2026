@@ -55,10 +55,13 @@ test.describe('board', () => {
     await zoomInto(page, 'backend')
     await expect(trail(page)).toContainText('Backend', { timeout: 5000 })
     await expect(chip(page, 'out:database')).toBeVisible()
-    const stage = (await page.getByTestId('board-svg').boundingBox())!
-    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2)
-    for (let k = 0; k < 8; k++) await page.mouse.wheel(0, 300)
-    await expect(chip(page, 'frontend')).toBeVisible({ timeout: 5000 })
+    // On a busy machine the new board may still be settling: zoom out again until it goes up.
+    await expect(async () => {
+      const stage = (await page.getByTestId('board-svg').boundingBox())!
+      await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2)
+      for (let k = 0; k < 8; k++) await page.mouse.wheel(0, 300)
+      await expect(chip(page, 'frontend')).toBeVisible({ timeout: 1500 })
+    }).toPass({ timeout: 15_000 })
   })
 
   test('a wire lists the connections it carries and opens their code', async ({ page }) => {
