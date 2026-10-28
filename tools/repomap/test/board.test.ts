@@ -167,6 +167,28 @@ describe('features', () => {
   })
 })
 
+describe('an API service as its own feature', () => {
+  it('a hub feature keeps its nodes but pulls none of its neighbours in', () => {
+    // A store hook that only the API's call and contact's form use: it joins contact, not the API.
+    const graph = sample()
+    graph.nodes.push(n('model:c:contactApi', 'store-api', 'model', { file: 'web/src/store/contactApi.ts', line: 1, endLine: 9 }))
+    graph.edges.push(e('model:c:contactApi', 'calls', 'model:c:api.contact.send'), e('views:c:ContactForm', 'uses', 'model:c:contactApi'))
+    const manual = new Map(graph.nodes.filter((x) => x.file === 'web/src/services/api.ts').map((x) => [x.id, 'api']))
+    const pulled = assignFeatures(graph.nodes, graph.edges, { manual })
+    assert.equal(pulled.get('model:c:api.contact.send')?.feature, 'api')
+    const hub = assignFeatures(graph.nodes, graph.edges, { manual, hubs: ['api'] })
+    assert.equal(hub.get('model:c:api.contact.send')?.feature, 'api')
+    assert.equal(hub.get('model:c:contactApi')?.feature, 'contact')
+  })
+
+  it('a rule can name every feature but some: only the API calls the backend', () => {
+    const rule: RuleDef = { id: 'only-the-api', description: '', from: { tiers: ['web'], notFeatures: ['contact'] }, to: { tiers: ['server'] }, edgeTypes: ['http'], deny: true }
+    const graph = withBoard(sample(), [rule])
+    // contact.send is contact's (allowed); orders.list is orders' (not).
+    assert.deepEqual(graph.board!.violations!.map((v) => v.from), ['model:c:api.orders.list'])
+  })
+})
+
 describe('rules', () => {
   it('denies edges, and keeps calls inside a feature', () => {
     const rules: RuleDef[] = [

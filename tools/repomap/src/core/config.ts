@@ -76,6 +76,8 @@ export interface BoardConfig {
   featureAliases: Record<string, string>
   /** Globs (repo-relative file paths) or node ids → feature. Wins over folders and the AI. */
   featureOverrides: Record<string, string>
+  /** Features everything uses (an API service): their nodes don't pull neighbours into them. */
+  hubFeatures?: string[]
 }
 
 /** Where AI results (feature placements, summaries, suggested rules) are kept: committed, so they're reused. */

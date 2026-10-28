@@ -72,6 +72,8 @@ export interface RuleSelector {
   tiers?: string[]
   layers?: string[]
   features?: string[]
+  /** Any feature but these. */
+  notFeatures?: string[]
   kinds?: string[]
   /** Role ids; a parent role covers its children (`test` covers `test/unit`). */
   roles?: string[]
@@ -154,6 +156,8 @@ export interface AssignOptions {
   manual?: Map<string, string>
   /** Set by the AI for nodes nothing else placed. */
   llm?: Map<string, string>
+  /** Features whose nodes don't vote (used by everything, like an API service): neighbours aren't pulled into them. */
+  hubs?: string[]
   /** Share of a node's neighbours that must agree before it joins their feature (default 0.6). */
   agreement?: number
 }
@@ -222,7 +226,7 @@ export function assignFeatures(nodes: GraphNode[], edges: GraphEdge[], options: 
       let total = 0
       for (const { id, weight } of neighbours.get(node.id) ?? []) {
         const assigned = result.get(id)
-        if (!assigned || assigned.feature === SHARED_FEATURE) continue
+        if (!assigned || assigned.feature === SHARED_FEATURE || options.hubs?.includes(assigned.feature)) continue
         votes.set(assigned.feature, (votes.get(assigned.feature) ?? 0) + weight)
         total += weight
       }
@@ -291,6 +295,7 @@ function matchesSelector(selector: RuleSelector | undefined, node: GraphNode, ti
     any(selector.tiers, tier) &&
     any(selector.layers, node.layer) &&
     any(selector.features, feature) &&
+    !(selector.notFeatures && feature !== undefined && selector.notFeatures.includes(feature)) &&
     any(selector.kinds, node.kind) &&
     (!selector.roles || roleCovers(selector.roles, node.role))
   )
