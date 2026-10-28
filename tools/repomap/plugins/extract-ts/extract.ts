@@ -17,7 +17,7 @@
 import { relative } from 'node:path'
 import { Node, SyntaxKind, type Project, type SourceFile, type ts } from 'ts-morph'
 import { normalizeUrl } from '../../src/shared/routes.ts'
-import { renderCase, type RenderCase } from './conditions.ts'
+import { directlyConditional, renderCase, shownElement, type RenderCase, type ShownElement } from './conditions.ts'
 import { fileNodeId } from '../../src/shared/types.ts'
 import type { Diagnostic, Fact, FileEntry, PluginEdge, PluginNode } from '../../src/shared/types.ts'
 
@@ -91,6 +91,8 @@ class Extractor {
   private readonly consumedStrings = new Set<ts.Node>()
 
   private readonly edges = new Map<string, PluginEdge>()
+  /** Plain elements each component shows only under a condition (its `attrs.shows`). */
+  private readonly shown = new Map<string, ShownElement[]>()
   private readonly facts: Fact[] = []
   private readonly diagnostics: Diagnostic[] = []
 
@@ -786,6 +788,12 @@ class Extractor {
           if (type === 'renders') this.addRenderCase(`${ownerId}|${type}|${target.id}`, renderCase(container ?? node, root))
         } else {
           this.referenceToSupport(tag, ownerId, node)
+          // A plain element a condition picks (`adminNote && <p>…</p>`): the component shows it in that state.
+          if (mode === 'production' && /^[a-z]/.test(tagText) && container && directlyConditional(container, root)) {
+            const list = this.shown.get(ownerId) ?? []
+            this.shown.set(ownerId, list)
+            if (list.length < MAX_SHOWN) list.push(shownElement(container, root))
+          }
         }
         return
       }
@@ -1037,6 +1045,8 @@ class Extractor {
       if (decl.exported && decl.kind !== 'api-call') attrs.exported = true
       const members = membersOf(decl)
       if (members.length > 0) attrs.members = members
+      const shown = this.shown.get(decl.id)
+      if (shown?.length) attrs.shows = shown
       nodes.push({
         id: decl.id,
         label: decl.label,
@@ -1080,6 +1090,7 @@ interface Member {
 
 const MAX_MEMBERS = 60
 const MAX_RENDER_CASES = 6
+const MAX_SHOWN = 20
 
 /**
  * What a declaration holds, for the board's chip pins: a function's props or parameters, and the state,

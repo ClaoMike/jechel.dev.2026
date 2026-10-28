@@ -27,7 +27,7 @@ import {
   type TierDef,
   type Violation,
 } from '../../../src/shared/board.ts'
-import { edgeKey } from '../../../src/shared/types.ts'
+import { edgeKey, type RenderCase, type ShownElement } from '../../../src/shared/types.ts'
 import type { GraphIndex } from '../model/graph.ts'
 
 export type BoardPath =
@@ -128,6 +128,8 @@ export const MAX_CHIPS = 40
 const MAX_PINS = 10
 const MAX_CONNECTORS = 16
 const NEVER_WIRED = new Set(['contains'])
+/** Chips from other features a feature's board shows because its components render them. */
+const MAX_BORROWED = 12
 
 /** Lookups the levels share, computed once per graph. */
 export interface BoardIndex {
@@ -353,6 +355,8 @@ type Place = { chip: string; pin?: string } | undefined
 interface Collector {
   wires: Map<string, BoardWire>
   add(e: number, from: Place, to: Place): void
+  /** A wire that isn't an edge: a component to the state chip that lists what it shows then. */
+  link(from: Place, to: Place): void
 }
 
 function collector(bi: BoardIndex, marks: ReviewMarks | undefined): Collector {
@@ -375,6 +379,12 @@ function collector(bi: BoardIndex, marks: ReviewMarks | undefined): Collector {
       if (bi.violationsByEdge.has(e)) wire.violation = true
       if (marks && (marks.touched.has(bi.index.edgeFrom[e]) || marks.touched.has(bi.index.edgeTo[e]))) wire.touched = true
     },
+    link(from, to) {
+      if (!from || !to) return
+      const key = `${from.chip}|${from.pin ?? ''}>${to.chip}|${to.pin ?? ''}`
+      if (wires.has(key)) return
+      wires.set(key, { id: key, from: from.chip, to: to.chip, fromPin: from.pin, toPin: to.pin, count: 1, types: { shows: 1 }, edges: [], violation: false, touched: false, conditional: true })
+    },
   }
 }
 
@@ -384,35 +394,56 @@ const STATE_COLOR = '#facc15'
  * Wires one edge; a render that happens only in some state goes through that state's chip:
  * WhatsNewPage → [state.status === 'loading'] → WhatsNewSkeleton. One state chip per component and condition.
  */
+/** The chip of one of a component's states (one per component and condition), made on first use. */
+function stateChip(chips: Map<string, BoardChip>, ownerChip: string, rc: RenderCase): string {
+  const owner = chips.get(ownerChip)
+  const label = caseLabel(rc)
+  const id = `state:${ownerChip}:${label}`
+  if (!chips.has(id)) {
+    chips.set(
+      id,
+      blankChip({
+        id,
+        label,
+        sub: rc.reads?.length ? rc.reads.map((r) => `${r.name} ← ${r.from}`).join(', ') : 'state',
+        kind: 'state',
+        color: STATE_COLOR,
+        owner: owner?.node,
+        description: `${owner?.label ?? 'It'} shows what's wired to the right, and what's listed on the chip, when ${label}.`,
+        partition: owner?.partition,
+        line: rc.line,
+      }),
+    )
+  }
+  return id
+}
+
 function addWire(bi: BoardIndex, c: Collector, chips: Map<string, BoardChip>, options: BoardOptions, e: number, from: Place, to: Place): void {
   const cases = options.states === false || !from || !to ? [] : renderCases(bi.index.edges[e])
   if (cases.length === 0) return c.add(e, from, to)
-  const owner = chips.get(from!.chip)
   for (const rc of cases) {
     if (rc.if.length === 0 && !rc.each) {
       c.add(e, from, to)
       continue
     }
-    const label = caseLabel(rc)
-    const id = `state:${from!.chip}:${label}`
-    if (!chips.has(id)) {
-      chips.set(
-        id,
-        blankChip({
-          id,
-          label,
-          sub: rc.reads?.length ? rc.reads.map((r) => `${r.name} ← ${r.from}`).join(', ') : 'state',
-          kind: 'state',
-          color: STATE_COLOR,
-          owner: owner?.node,
-          description: `${owner?.label ?? 'It'} shows what's wired to the right when ${label === 'always' ? 'it renders' : label}.`,
-          partition: owner?.partition,
-          line: rc.line,
-        }),
-      )
-    }
+    const id = stateChip(chips, from!.chip, rc)
     c.add(e, from, { chip: id })
     c.add(e, { chip: id }, to)
+  }
+}
+
+/** The plain elements a component shows in a state (`adminNote && <p>…</p>`): listed on that state's chip. */
+function addShownElements(bi: BoardIndex, c: Collector, chips: Map<string, BoardChip>, options: BoardOptions, root: number): void {
+  if (options.states === false) return
+  const node = bi.index.nodes[root]
+  const shown = Array.isArray(node.attrs?.shows) ? (node.attrs.shows as ShownElement[]) : []
+  for (const [k, element] of shown.entries()) {
+    if (element.case.if.length === 0 && !element.case.each) continue
+    const id = stateChip(chips, node.id, element.case)
+    const chip = chips.get(id)!
+    const label = `<${element.tag}${element.className ? `.${element.className}` : ''}>${element.content ? ` ${element.content}` : ''}`
+    chip.pins.push({ id: `el:${k}`, label, kind: 'element', in: false, out: false })
+    c.link({ chip: node.id }, { chip: id })
   }
 }
 
@@ -615,7 +646,19 @@ function chipsScene(bi: BoardIndex, path: Extract<BoardPath, { level: 'chips' }>
   const all = chipsIn(bi, path.tier, path.feature, options)
   const groups = grouped(bi, all, path.feature)
   if (groups && path.group === undefined) return groupsScene(bi, path, all, groups, options, marks)
-  const roots = groups ? all.filter((c) => groups.get(c) === path.group) : all
+  const own = groups ? all.filter((c) => groups.get(c) === path.group) : all
+  const ownSet = new Set(own)
+  // What this feature's components render from elsewhere (ErrorState, Loading…) is part of how it looks: drawn faded
+  // on its board, wired only to this feature's chips.
+  const borrowed = new Set<number>()
+  for (const r of own) {
+    for (const e of bi.index.outEdges[r]) {
+      if (bi.index.edges[e].type !== 'renders') continue
+      const target = bi.rootOf[bi.index.edgeTo[e]]
+      if (!ownSet.has(target) && bi.tierOf[target] === path.tier && visible(bi, target, options) && borrowed.size < MAX_BORROWED) borrowed.add(target)
+    }
+  }
+  const roots = [...own, ...borrowed]
   const rootSet = new Set(roots)
   const chips = new Map<string, BoardChip>()
   const pinMaps = new Map<number, Map<string, BoardPin>>()
@@ -630,7 +673,7 @@ function chipsScene(bi: BoardIndex, path: Extract<BoardPath, { level: 'chips' }>
       blankChip({
         id: node.id,
         label: node.label,
-        sub: bi.index.kinds.get(node.kind)?.label ?? node.kind,
+        sub: borrowed.has(root) ? `${bi.index.kinds.get(node.kind)?.label ?? node.kind} · ${featureLabel(bi, bi.featureOf[root])}` : (bi.index.kinds.get(node.kind)?.label ?? node.kind),
         kind: 'node',
         color: bi.index.kinds.get(node.kind)?.color ?? '#94a3b8',
         ghost: !home,
@@ -670,8 +713,12 @@ function chipsScene(bi: BoardIndex, path: Extract<BoardPath, { level: 'chips' }>
     const from = bi.index.edgeFrom[e]
     const to = bi.index.edgeTo[e]
     if (!inView(from) && !inView(to)) return
+    // A borrowed chip shows only its wires to this feature's own chips.
+    if (borrowed.has(bi.rootOf[from]) && !ownSet.has(bi.rootOf[to])) return
+    if (borrowed.has(bi.rootOf[to]) && !ownSet.has(bi.rootOf[from])) return
     addWire(bi, c, chips, options, e, place(from, e, 'from'), place(to, e, 'to'))
   })
+  for (const root of own) addShownElements(bi, c, chips, options, root)
   const wires = [...c.wires.values()]
   const note = trimConnectors(chips, wires)
   pruneStates(chips, wires)
@@ -729,10 +776,10 @@ function groupsScene(
   return { path, direction: 'RIGHT', chips: [...chips.values()], wires: wires.filter((w) => chips.has(w.from) && chips.has(w.to)), note }
 }
 
-/** State chips left with nothing to show (what they led to wasn't drawn) go too. */
+/** State chips left with nothing to show (what they led to wasn't drawn, and no elements of their own) go too. */
 function pruneStates(chips: Map<string, BoardChip>, wires: BoardWire[]): void {
   for (const chip of [...chips.values()]) {
-    if (chip.kind === 'state' && !wires.some((w) => w.from === chip.id && chips.has(w.to))) chips.delete(chip.id)
+    if (chip.kind === 'state' && chip.pins.length === 0 && !wires.some((w) => w.from === chip.id && chips.has(w.to))) chips.delete(chip.id)
   }
 }
 
@@ -838,6 +885,7 @@ function chipScene(bi: BoardIndex, path: Extract<BoardPath, { level: 'chip' }>, 
     const here = (i: number, side: 'from' | 'to'): Place => ({ chip: node.id, pin: pinFor(bi, i, e, pins, side) })
     addWire(bi, c, chips, options, e, fromHere ? here(from, 'from') : other(from, 'in'), toHere ? here(to, 'to') : other(to, 'out'))
   })
+  addShownElements(bi, c, chips, options, root)
   const wires = [...c.wires.values()]
   const note = trimConnectors(chips, wires, 24)
   pruneStates(chips, wires)

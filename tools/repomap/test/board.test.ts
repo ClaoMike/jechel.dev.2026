@@ -41,7 +41,13 @@ function sample(): RepoGraph {
     n('model:c:api.contact.send', 'api-call', 'model', { parent: 'model:c:api', file: 'web/src/services/api.ts', line: 3, endLine: 5, tags: ['feature:contact'] }),
     n('model:c:api.orders.list', 'api-call', 'model', { parent: 'model:c:api', file: 'web/src/services/api.ts', line: 7, endLine: 9, tags: ['feature:orders'] }),
     n('views:c:Button', 'component', 'views', { file: 'web/src/components/Button.tsx', line: 1, endLine: 5 }),
-    n('views:c:OrdersPage', 'page', 'views', { file: 'web/src/features/orders/OrdersPage.tsx', line: 1, endLine: 10, tags: ['feature:orders'] }),
+    n('views:c:OrdersPage', 'page', 'views', {
+      file: 'web/src/features/orders/OrdersPage.tsx',
+      line: 1,
+      endLine: 10,
+      tags: ['feature:orders'],
+      attrs: { shows: [{ tag: 'p', className: 'muted', content: '{texts.empty}', case: { if: ['rows.length === 0'], line: 6 } }] },
+    }),
     n('views:c:OrderRow', 'component', 'views', { file: 'web/src/features/orders/OrderRow.tsx', line: 1, endLine: 10 }),
     n('api:g:ContactEndpoints', 'endpoint-group', 'api', { file: 'api/Features/Contact/ContactEndpoints.cs', line: 1, endLine: 30, tags: ['feature:contact'] }),
     n('api:e:POST /api/contact', 'endpoint', 'api', { parent: 'api:g:ContactEndpoints', file: 'api/Features/Contact/ContactEndpoints.cs', line: 5, endLine: 12, tags: ['feature:contact'] }),
@@ -275,7 +281,12 @@ describe('board levels', () => {
   it('a feature shows its chips; shared parents only with this feature’s pins; wires leave from the member', () => {
     const contact = scene({ level: 'chips', tier: 'web', feature: 'contact' })
     const ids = contact.chips.filter((c) => c.kind === 'node').map((c) => c.label).sort()
-    assert.deepEqual(ids, ['ContactForm', 'api'])
+    // Button is Shared's, but ContactForm renders it: it's on Contact's board too, faded, saying where it lives.
+    assert.deepEqual(ids, ['Button', 'ContactForm', 'api'])
+    const button = contact.chips.find((c) => c.label === 'Button')!
+    assert.equal(button.ghost, true)
+    assert.match(button.sub ?? '', /Shared/)
+    assert.ok(contact.wires.some((w) => w.from === 'views:c:ContactForm' && w.to === 'views:c:Button'))
     const api = contact.chips.find((c) => c.label === 'api')!
     assert.equal(api.ghost, true)
     assert.deepEqual(api.pins.map((p) => p.label), ['contact.send'])
@@ -283,7 +294,6 @@ describe('board levels', () => {
     assert.ok(call.fromPin?.startsWith('m:submit'), 'the call is in submit()')
     assert.ok(call.toPin?.startsWith('n:'))
     assert.equal(call.violation, true)
-    assert.ok(contact.chips.some((c) => c.kind === 'connector' && c.label === 'Shared'))
     // The test is hidden unless asked for.
     assert.ok(!contact.chips.some((c) => c.label === 'ContactForm.test.tsx'))
     const all = buildScene(bi, { level: 'chips', tier: 'web', feature: 'contact' }, { showHidden: true, typeLinks: false })
@@ -314,6 +324,10 @@ describe('board levels', () => {
     assert.ok(orders.wires.some((w) => w.from === 'views:c:OrdersPage' && w.to === state.id))
     assert.ok(orders.wires.some((w) => w.from === state.id && w.to === 'views:c:OrderRow'))
     assert.ok(!orders.wires.some((w) => w.from === 'views:c:OrdersPage' && w.to === 'views:c:OrderRow'))
+    // A plain element it shows only then is listed on its state's chip.
+    const empty = orders.chips.find((c) => c.kind === 'state' && c.label === 'rows.length === 0')!
+    assert.deepEqual(empty.pins.map((p) => p.label), ['<p.muted> {texts.empty}'])
+    assert.ok(orders.wires.some((w) => w.from === 'views:c:OrdersPage' && w.to === empty.id))
     const flat = buildScene(bi, { level: 'chips', tier: 'web', feature: 'orders' }, { ...options, states: false })
     assert.ok(!flat.chips.some((c) => c.kind === 'state'))
     assert.ok(flat.wires.some((w) => w.from === 'views:c:OrdersPage' && w.to === 'views:c:OrderRow'))
