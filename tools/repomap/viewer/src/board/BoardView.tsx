@@ -12,7 +12,7 @@ import { useViewer } from '../model/store.ts'
 import { Icon } from '../ui/icons.tsx'
 import { BoardPanel } from './BoardPanel.tsx'
 import { chipSize, HEADER, layoutScene, pinY, wirePath, type BoardLayout, type ChipBox } from './layout.ts'
-import { buildScene, indexBoard, parentPath, pathTrail, type BoardChip, type BoardScene, type BoardWire } from './model.ts'
+import { buildScene, indexBoard, parentPath, trailOf, type BoardChip, type BoardScene, type BoardWire } from './model.ts'
 import { useBoard, type AiJob } from './store.ts'
 
 const elk = new ELK()
@@ -31,6 +31,7 @@ export default function BoardView() {
   const index = useViewer((s) => s.index)
   const theme = useViewer((s) => s.theme)
   const path = useBoard((s) => s.path)
+  const history = useBoard((s) => s.history)
   const options = useBoard((s) => s.options)
   const review = useBoard((s) => s.review)
   const selected = useBoard((s) => s.selected)
@@ -61,7 +62,7 @@ export default function BoardView() {
   }, [scene, portrait])
 
   if (!index || !bi) return null
-  const trail = pathTrail(bi, path, index.graph.meta.repo.name)
+  const trail = trailOf(bi, history, path, index.graph.meta.repo.name)
   const current = layout && layout.scene === scene ? layout : null
   return (
     <div className="board-workspace">
@@ -74,7 +75,7 @@ export default function BoardView() {
                 type="button"
                 className={k === trail.length - 1 ? 'current' : ''}
                 aria-current={k === trail.length - 1 ? 'location' : undefined}
-                onClick={() => useBoard.getState().navigate(step.path, k < trail.length - 1 ? 'out' : null)}
+                onClick={() => k < trail.length - 1 && useBoard.getState().goToStep(step.path, step.history)}
                 data-testid={`board-trail-${k}`}
               >
                 {step.label}
@@ -150,6 +151,7 @@ interface BoardProps {
 }
 
 function Board({ scene, layout, selected, focusIds, motion }: BoardProps) {
+  const history = useBoard((s) => s.history)
   const stage = useRef<HTMLDivElement>(null)
   const group = useRef<SVGGElement>(null)
   const grid = useRef<SVGPatternElement>(null)
@@ -243,8 +245,7 @@ function Board({ scene, layout, selected, focusIds, motion }: BoardProps) {
         const chip = chipAt(width / 2, height / 2)
         if (chip?.enter && chip.kind !== 'connector') store.navigate(chip.enter, 'in')
       } else if (relative <= LEAVE_AT) {
-        const up = parentPath(scene.path)
-        if (up) store.navigate(up, 'out')
+        store.back()
       }
     }, 220)
   }
@@ -426,11 +427,8 @@ function Board({ scene, layout, selected, focusIds, motion }: BoardProps) {
           className="icon-button"
           aria-label="Up a level"
           title="Up a level (Esc)"
-          disabled={!parentPath(scene.path)}
-          onClick={() => {
-            const up = parentPath(scene.path)
-            if (up) useBoard.getState().navigate(up, 'out')
-          }}
+          disabled={!history.length && !parentPath(scene.path)}
+          onClick={() => useBoard.getState().back()}
           data-testid="board-up"
         >
           <Icon name="up" />

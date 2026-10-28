@@ -5,7 +5,7 @@
 import { create } from 'zustand'
 import type { ReviewFile } from '../../../src/shared/review.ts'
 import { readHashParam, readPref, writeHashParams, writePref } from '../model/url.ts'
-import type { BoardOptions, BoardPath } from './model.ts'
+import { parentPath, samePath, type BoardOptions, type BoardPath } from './model.ts'
 
 export type BoardPanel = 'details' | 'review' | 'rules' | 'ai'
 
@@ -32,6 +32,8 @@ export interface AiJob {
 
 interface State {
   path: BoardPath
+  /** The boards you came through to get here, oldest first: going up retraces them. */
+  history: BoardPath[]
   /** A chip id, or `wire:<id>`. */
   selected: string | null
   options: BoardOptions
@@ -52,6 +54,10 @@ interface State {
 
 interface Actions {
   navigate(path: BoardPath, motion?: 'in' | 'out' | null, select?: string | null): void
+  /** Back to the board you came from (its parent when you didn't come from one); false when there's nowhere to go. */
+  back(): boolean
+  /** A step of the trail: that board, with the boards before it as its history. */
+  goToStep(path: BoardPath, history: BoardPath[]): void
   select(id: string | null): void
   setOption(option: keyof BoardOptions, value: boolean): void
   setPanel(panel: BoardPanel): void
@@ -91,8 +97,11 @@ export function decodePath(text: string | null): BoardPath {
   }
 }
 
+const MAX_HISTORY = 50
+
 export const useBoard = create<State & Actions>((set, get) => ({
   path: decodePath(readHashParam('board')),
+  history: [],
   selected: null,
   options: { showHidden: readPref<string>('board.hidden', '0') === '1', typeLinks: readPref<string>('board.types', '0') === '1', states: readPref<string>('board.states', '1') === '1' },
   panel: 'details',
@@ -106,7 +115,22 @@ export const useBoard = create<State & Actions>((set, get) => ({
   aiAvailable: false,
 
   navigate(path, motion = null, select = null) {
-    set({ path, motion, selected: select })
+    const { path: from, history } = get()
+    set({ path, motion, selected: select, history: samePath(from, path) ? history : [...history, from].slice(-MAX_HISTORY) })
+    writeHashParams({ board: encodePath(path) })
+  },
+  back() {
+    const { path, history } = get()
+    // The chip you're leaving is selected where you land, so you see where you were.
+    const leaving = path.level === 'chip' ? path.chip : null
+    const previous = history.at(-1) ?? parentPath(path)
+    if (!previous) return false
+    set({ path: previous, motion: 'out', selected: leaving, history: history.slice(0, -1) })
+    writeHashParams({ board: encodePath(previous) })
+    return true
+  },
+  goToStep(path, history) {
+    set({ path, motion: 'out', selected: null, history })
     writeHashParams({ board: encodePath(path) })
   },
   select(id) {
