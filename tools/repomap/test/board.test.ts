@@ -399,6 +399,20 @@ describe('board levels', () => {
     assert.deepEqual(levels, ['chip+group', 'chips+group', 'chips', 'features', 'tiers', 'app'])
   })
 
+  it('every feature board is one level: its entry chips and their own wires, whatever the link', () => {
+    // Backend: the endpoint group is the entry, what it writes is shown, what that maps to (another tier) is a connector.
+    const server = buildScene(bi, { level: 'chips', tier: 'server', feature: 'contact' }, options)
+    assert.ok(server.chips.some((c) => c.id === 'api:g:ContactEndpoints'))
+    // Frontend: a chip the page's child uses, but not the page, is on that child's board.
+    const deep = sample()
+    deep.nodes.push(n('views:c:useRowFormat', 'hook', 'views', { file: 'web/src/features/orders/useRowFormat.ts', line: 1, endLine: 5, tags: ['feature:orders'] }))
+    deep.edges.push(e('views:c:OrderRow', 'uses', 'views:c:useRowFormat'))
+    const dbi = indexBoard(indexGraph(withBoard(deep)))
+    const orders = buildScene(dbi, { level: 'chips', tier: 'web', feature: 'orders' }, options)
+    assert.ok(!orders.chips.some((c) => c.label === 'useRowFormat'))
+    assert.ok(orders.wires.every((w) => w.from === 'views:c:OrdersPage' || w.to === 'views:c:OrdersPage' || w.from.startsWith('state:') || w.to.startsWith('state:')), 'only the page\'s own wires')
+  })
+
   it('opens a big feature on its page when what it shows (the page and what that renders) fits', () => {
     const big = sample()
     for (let k = 0; k < 45; k++) {
