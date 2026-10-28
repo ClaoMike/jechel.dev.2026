@@ -558,6 +558,8 @@ class Extractor {
       } else if (Node.isVariableDeclaration(node)) {
         const init = node.getInitializer()
         if (init && Node.isCallExpression(init) && /(^|\.)createContext$/.test(init.getExpression().getText())) decl.kind = 'context'
+        // An exported table of values (the site's strings, its tabs, labels by key): a constant others read.
+        else if (decl.exported && init && isLiteralTable(init)) decl.kind = 'constant'
       }
     }
     // Providers: components that render <Ctx.Provider> or <Ctx value>.
@@ -1124,6 +1126,19 @@ function membersOf(decl: Decl): Member[] {
     if (type) fields(type)
     return members
   }
+  // A constant object: its keys (the strings' groups, a table's entries).
+  if (decl.kind === 'constant' && Node.isVariableDeclaration(node)) {
+    const init = unwrap(node.getInitializer())
+    if (init && Node.isObjectLiteralExpression(init)) {
+      for (const property of init.getProperties()) {
+        if (Node.isPropertyAssignment(property) || Node.isShorthandPropertyAssignment(property) || Node.isMethodDeclaration(property)) {
+          const value = Node.isPropertyAssignment(property) ? unwrap(property.getInitializer()) : undefined
+          add(property.getName().replace(/^['"]|['"]$/g, ''), value && functionOf(value) ? 'function' : 'value', property)
+        }
+      }
+    }
+    return members
+  }
   const fn = decl.fn ?? (Node.isFunctionDeclaration(node) ? node : undefined)
   if (!fn || !(Node.isFunctionDeclaration(fn) || Node.isArrowFunction(fn) || Node.isFunctionExpression(fn))) return members
   const component = decl.kind === 'component' || decl.kind === 'page' || decl.kind === 'provider'
@@ -1428,4 +1443,10 @@ function docComment(node: Node | undefined): string | undefined {
     .replace(/\s+/g, ' ')
     .trim()
   return text ? text.slice(0, 400) : undefined
+}
+
+/** An object or array literal (`{ … }`, `[ … ]`, with `as const` / `satisfies`), not a computed value. */
+function isLiteralTable(init: Node): boolean {
+  const value = unwrap(init)
+  return !!value && (Node.isObjectLiteralExpression(value) || Node.isArrayLiteralExpression(value))
 }

@@ -34,13 +34,15 @@
       "leetcode": "LeetCode",
       "featuretesting": "Feature Testing",
       "site": "Site",
-      "api": "API"
+      "api": "API",
+      "strings": "Strings"
     },
     "featureAliases": {},
     // The API service (services/: the one axios instance and every call to the backend, grouped by feature) is its own
     // feature: every other one reaches the backend through it.
-    "featureOverrides": { "frontend/src/services/**": "api" },
-    "hubFeatures": ["api"]
+    // Every text the site shows (src/strings.ts) is its own feature too: every component reads from it.
+    "featureOverrides": { "frontend/src/services/**": "api", "frontend/src/strings.ts": "strings" },
+    "hubFeatures": ["api", "strings"]
   },
 
   // Checked on every build: the Board marks the edges that break them, `npm run check` lists them.

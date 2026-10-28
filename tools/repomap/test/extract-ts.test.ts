@@ -116,6 +116,10 @@ describe('TypeScript extractor: Redux Toolkit', () => {
 const STATES: Record<string, string> = {
   'src/useThings.ts': `
     export function useThings() { return { status: 'loading' as 'loading' | 'error' | 'loaded', items: [] as string[] } }`,
+  'src/strings.ts': `
+    export const strings = { page: { empty: 'Nothing yet', count: (n: number) => \`\${n} things\` }, common: { save: 'Save' } } as const
+    const local = { not: 'exported' }
+    export const LIMIT = 3`,
   'src/Parts.tsx': `
     export function Skeleton() { return <i /> }
     export function Failed() { return <b /> }
@@ -125,6 +129,7 @@ const STATES: Record<string, string> = {
   'src/Page.tsx': `
     import { useThings } from './useThings'
     import { Empty, Failed, Frame, Skeleton, Thing } from './Parts'
+    import { strings } from './strings'
     export function Page({ compact }: { compact: boolean }) {
       const query = useThings()
       const state = query
@@ -133,6 +138,7 @@ const STATES: Record<string, string> = {
         <Frame>
           {state.status === 'loading' && <Skeleton />}
           {compact && <p className="note small">{state.status}</p>}
+          <i>{strings.common.save}</i>
           <div className="always"><span>{compact ? <b>yes</b> : null}</span></div>
           {state.items.length > 0 ? state.items.map((name) => <Thing key={name} name={name} />) : !compact && <Empty />}
         </Frame>
@@ -175,6 +181,14 @@ describe('TypeScript extractor: when a component renders a child', () => {
         ['b', undefined, 'yes', ["state.status !== 'error'", 'compact']],
       ],
     )
+  })
+
+  it('maps an exported table of values as a constant, its keys as members, read by who uses it', () => {
+    const strings = result.nodes.find((n) => n.label === 'strings')!
+    assert.equal(strings.kind, 'constant')
+    assert.deepEqual((strings.attrs?.members as { name: string }[]).map((m) => m.name), ['page', 'common'])
+    assert.ok(!result.nodes.some((n) => n.label === 'local' || n.label === 'LIMIT'), 'only exported objects and arrays')
+    assert.ok(result.edges.some((e) => e.from === id('Page') && e.to === strings.id))
   })
 
   it('traces what a condition reads back to the hook or prop it comes from', () => {

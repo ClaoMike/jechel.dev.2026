@@ -72,6 +72,7 @@
     { "id": "action", "label": "Action", "color": "#f9a8d4", "shape": "tetrahedron", "size": 0.7, "labelPriority": 3, "description": "A Redux action a slice defines" },
     { "id": "thunk", "label": "Thunk", "color": "#e879f9", "shape": "cone", "size": 0.9, "labelPriority": 5, "description": "An async Redux action (createAsyncThunk)" },
     { "id": "function", "label": "Function", "color": "#93c5fd", "shape": "sphere", "size": 0.7, "labelPriority": 3 },
+    { "id": "constant", "label": "Constant", "color": "#fde047", "shape": "tile", "size": 0.8, "labelPriority": 3, "description": "An exported table of values: the site's strings, its tabs, labels by key" },
     { "id": "class", "label": "Class", "color": "#cbd5e1", "shape": "box", "size": 0.85, "labelPriority": 3 },
     { "id": "type", "label": "Type", "color": "#94a3b8", "shape": "tile", "size": 0.75, "labelPriority": 2 },
     { "id": "interface", "label": "Interface", "color": "#a5b4fc", "shape": "tile", "size": 0.75, "labelPriority": 2 },
