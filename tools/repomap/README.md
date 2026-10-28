@@ -123,11 +123,10 @@ without the link gets a 401. `--no-token` turns that off.
 - **Planes are layers** (from config): Frontend, Backend, Database, Infra & tooling. Tests, config, migrations
   and generated code of a layer float on thin sub-planes just **below** it, right under what they test or
   configure — so hiding them never leaves holes.
-- **This repository's frontend is three planes** (its MVVM, `repomap.config.json`): **Views** (`*.tsx`) on top,
-  **View models** (`*.viewModel.ts`) under them, then **Model & the rest** (Redux store, RTK Query, the API
-  service, utilities). The three are laid out together as one **radial tree**: `main.tsx` in the centre, each
-  ring one step further along renders/uses/calls, so a page's view model sits one ring out on the plane below,
-  and its query hooks and API calls further out below that. Only the tree's own links are drawn there
+- **This repository's frontend is two planes** (`repomap.config.json`): **Components** (`*.tsx`) on top, then
+  **Store & the rest** (Redux store, RTK Query, the API service, shared hooks, utilities) under them. The two are
+  laid out together as one **radial tree**: `main.tsx` in the centre, each ring one step further along
+  renders/uses/calls, so a page's query hooks and API calls sit further out on the plane below. Only the tree's own links are drawn there
   (*Display → Tree edges only*); hover or click a node to see all its edges.
 - **Shapes and colours are kinds** (◆ routes/endpoints, ● pages/components, ▲ hooks/API calls, ■ services,
   classes, cylinders for tables, rings for tests…). The side menu doubles as the legend.

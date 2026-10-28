@@ -66,12 +66,10 @@ describe('pipeline on this repository', { skip: !hasDotnet && 'dotnet SDK not fo
     assert.equal(me.attrs?.auth, 'required')
   })
 
-  it('links the chain view → view model → query hook → API call → endpoint → entity → table', () => {
-    const view = node('frontend-views', 'AppsPage')
-    const viewModel = node('frontend-viewmodels', 'useAppsPageViewModel')
+  it('links the chain component → query hook → API call → endpoint → entity → table', () => {
+    const page = node('frontend-views', 'AppsPage')
     const edge = (from: string, type: string, to: string) => graph.edges.some((e) => e.from === from && e.type === type && e.to === to)
-    assert.ok(edge(view.id, 'uses', viewModel.id))
-    assert.ok(edge(viewModel.id, 'uses', node('frontend', 'useListAppCategoriesQuery').id))
+    assert.ok(edge(page.id, 'uses', node('frontend', 'useListAppCategoriesQuery').id))
     assert.ok(hasEdge('useListAppsQuery', 'calls', 'api.apps.list'))
     assert.ok(hasEdge('api.apps.list', 'http', 'GET /api/apps'))
     assert.ok(hasEdge('GET /api/apps', 'reads', 'AppEntry.CreatedAt'))
@@ -79,16 +77,16 @@ describe('pipeline on this repository', { skip: !hasDotnet && 'dotnet SDK not fo
     assert.ok(hasEdge('Profile', 'maps-to', 'profiles'))
   })
 
-  it('puts views, view models and the rest of the frontend on their own planes, as one tree from main.tsx', () => {
+  it('puts the components and the rest of the frontend on their own planes, as one tree from main.tsx', () => {
     for (const n of graph.nodes.filter((n) => n.file?.startsWith('frontend/src/') && n.kind !== 'route')) {
-      const expected = n.file!.endsWith('.viewModel.ts') ? 'frontend-viewmodels' : n.file!.endsWith('.tsx') ? 'frontend-views' : 'frontend'
+      const expected = n.file!.endsWith('.tsx') ? 'frontend-views' : 'frontend'
       assert.equal(n.layer, expected, n.id)
     }
     const main = node('frontend-views', 'main.tsx')
     assert.deepEqual([main.pos![0], main.pos![2]], [0, 0])
     const r = (n: { pos?: number[] }) => Math.hypot(n.pos![0], n.pos![2])
     assert.ok(r(node('frontend-views', 'App')) < r(node('frontend-views', 'AppsPage')))
-    assert.ok(r(node('frontend-views', 'AppsPage')) < r(node('frontend-viewmodels', 'useAppsPageViewModel')))
+    assert.ok(r(node('frontend-views', 'AppsPage')) < r(node('frontend', 'useListAppsQuery')))
     assert.equal(node('frontend', 'useListAppsQuery').kind, 'hook')
     assert.equal(node('frontend', 'authSlice').kind, 'slice')
   })

@@ -1,28 +1,66 @@
+import { useState } from 'react'
 import { ErrorState } from '../../../../components/ErrorState/ErrorState'
+import { failureOf } from '../../../../services/api'
+import { useGetLeetCodeQuery } from '../../../../store/api/aboutApi'
 import { DifficultyBreakdown } from '../DifficultyBreakdown/DifficultyBreakdown'
 import { LeetCodeProfileLink } from '../LeetCodeProfileLink/LeetCodeProfileLink'
 import { LeetCodeSkeleton } from '../LeetCodeSkeleton/LeetCodeSkeleton'
+import { DIFFICULTIES, DIFFICULTY_LABELS, leetCodeProfileUrl, STALE_AFTER_MS } from '../problemSolving'
 import { SolvedRing } from '../SolvedRing/SolvedRing'
-import { useLeetCodeCardViewModel } from './LeetCodeCard.viewModel'
 
-/** The LeetCode stats: solved overall (a ring) and by difficulty. Keyed by username, so a new one starts afresh. */
-export function LeetCodeCard(props: { username: string; canEdit: boolean }) {
-  const vm = useLeetCodeCardViewModel(props)
+const count = (n: number) => n.toLocaleString('en-GB')
 
-  if (vm.status === 'hidden') return null
-  if (vm.status === 'not-found') return <p className="field-error">{vm.notFound}</p>
+/**
+ * The LeetCode stats: solved overall (a ring) and by difficulty. Keyed by username, so a new one starts afresh.
+ * LeetCode may not know the user (404: the admin is told, visitors see nothing), or not answer (then a retry).
+ */
+export function LeetCodeCard({ username, canEdit }: { username: string; canEdit: boolean }) {
+  const query = useGetLeetCodeQuery(username)
+  // When the card first showed: "stale" is judged against it.
+  const [now] = useState(Date.now)
+  const { currentData: stats, error, isError, isFetching } = query
+
+  const loading = isFetching && (isError || stats === undefined)
+  const status = loading
+    ? 'loading'
+    : isError
+      ? failureOf(error).status === 404
+        ? 'not-found'
+        : 'unavailable'
+      : stats === undefined
+        ? 'loading'
+        : stats
+          ? 'loaded'
+          : 'unavailable'
+
+  if (status === 'not-found') return canEdit ? <p className="field-error">LeetCode has no user called {username}. Check the username with Edit.</p> : null
   return (
     <div className="leetcode">
-      <LeetCodeProfileLink href={vm.profile.href} username={vm.profile.username} />
-      {vm.status === 'loading' && <LeetCodeSkeleton />}
-      {vm.status === 'unavailable' && <ErrorState compact message={vm.unavailable} onRetry={vm.retry} />}
-      {vm.status === 'loaded' && vm.solved && (
+      <LeetCodeProfileLink href={leetCodeProfileUrl(username)} username={stats?.username ?? username} />
+      {status === 'loading' && <LeetCodeSkeleton />}
+      {status === 'unavailable' && <ErrorState compact message="LeetCode stats can't be loaded right now." onRetry={() => void query.refetch()} />}
+      {status === 'loaded' && stats && (
         <>
           <div className="leetcode-body">
-            <SolvedRing solved={vm.solved} />
-            <DifficultyBreakdown rows={vm.difficulties} />
+            <SolvedRing solved={stats.solved} />
+            <DifficultyBreakdown
+              rows={DIFFICULTIES.map((difficulty) => {
+                const solved = stats.solved[difficulty]
+                const total = stats.total[difficulty]
+                return {
+                  key: difficulty,
+                  label: DIFFICULTY_LABELS[difficulty],
+                  solved: count(solved),
+                  total: count(total),
+                  percent: total ? Math.min(100, (solved / total) * 100) : 0,
+                }
+              })}
+            />
           </div>
-          {vm.asOf && <p className="muted leetcode-stale">{vm.asOf}</p>}
+          {/* Stats older than two days: the API couldn't reach LeetCode since, so say when they're from. */}
+          {now - new Date(stats.fetchedAt).getTime() > STALE_AFTER_MS && (
+            <p className="muted leetcode-stale">As of {new Date(stats.fetchedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.</p>
+          )}
         </>
       )}
     </div>

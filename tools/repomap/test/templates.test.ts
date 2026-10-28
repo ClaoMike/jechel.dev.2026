@@ -45,7 +45,7 @@ describe('where a new file lands', () => {
 
   it("follows this repository's config", () => {
     assert.equal(classifyPath(config, 'frontend/src/pages/NewPage/NewPage.tsx')?.layer, 'frontend-views')
-    assert.equal(classifyPath(config, 'frontend/src/pages/NewPage/NewPage.viewModel.ts')?.layer, 'frontend-viewmodels')
+    assert.equal(classifyPath(config, 'frontend/src/pages/NewPage/useNewThing.ts')?.layer, 'frontend')
     assert.equal(classifyPath(config, 'frontend/src/store/newSlice.ts')?.layer, 'frontend')
     assert.equal(classifyPath(config, 'frontend/src/pages/NewPage.test.tsx')?.role.startsWith('test'), true)
     assert.equal(classifyPath(config, 'README-new.md')?.layer, config.defaultLayer)

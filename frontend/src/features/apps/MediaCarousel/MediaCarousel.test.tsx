@@ -6,7 +6,7 @@ import { renderView, textOf } from '../../../test/render'
 import forest from '../../../test/fixtures/tile-forest.svg?url'
 import sunset from '../../../test/fixtures/tile-sunset.svg?url'
 import { MediaCarousel } from './MediaCarousel'
-import { ARRIVAL_TIMEOUT_MS } from './MediaCarousel.viewModel'
+import { ARRIVAL_TIMEOUT_MS } from './MediaCarousel'
 
 const MEDIA: AppMedia[] = [
   { url: sunset, kind: 'image' },
@@ -22,7 +22,10 @@ describe('the image and video slider', () => {
   it('shows one slide at a time, named "n of total", with the first image named after the app', async () => {
     await renderView(<MediaCarousel media={MEDIA} title="Game" />)
     await expect.element(carousel()).toHaveAttribute('aria-roledescription', 'carousel')
-    const slides = carousel().getByRole('group').elements().filter((g) => g.getAttribute('aria-roledescription') === 'slide')
+    const slides = carousel()
+      .getByRole('group')
+      .elements()
+      .filter((g) => g.getAttribute('aria-roledescription') === 'slide')
     expect(slides.map((s) => s.getAttribute('aria-label'))).toEqual(['1 of 4', '2 of 4', '3 of 4', '4 of 4'])
     await expect.element(page.getByRole('img', { name: 'Game, image 1 of 4' })).toBeVisible()
     expect(document.querySelector('video')?.getAttribute('aria-label')).toBe('Game, video 4 of 4')
@@ -100,7 +103,7 @@ describe('the image and video slider', () => {
     expect(count()).toBe('2 / 4')
   })
 
-  describe('while an arrow\'s smooth scroll is on its way', () => {
+  describe("while an arrow's smooth scroll is on its way", () => {
     /** The track, its scrolls taken over by the test: each position is set by hand, as a smooth scroll's frames would. */
     async function slider() {
       const real = window.matchMedia.bind(window)
@@ -143,7 +146,7 @@ describe('the image and video slider', () => {
       await expect.poll(count).toBe('3 / 4')
     })
 
-    it("counts where the track is if the scroll never arrives (a swipe took over)", async () => {
+    it('counts where the track is if the scroll never arrives (a swipe took over)', async () => {
       const { at } = await slider()
       await page.getByRole('button', { name: 'Show 4 of 4' }).click()
       await expect.poll(count).toBe('4 / 4')

@@ -391,7 +391,7 @@ html {
 
 /*
  * A paged grid's pages (PagedGrid) slide the same way as the tabs' pages. While the grid's height
- * follows (an animation from PagedGrid.viewModel), what's past its bottom is cut off rather than drawn
+ * follows (an animation from PagedGrid), what's past its bottom is cut off rather than drawn
  * over Previous / Next; sideways, the pages still slide past the screen's edges.
  */
 .paged-grid-stage.grid-resizing {
@@ -694,7 +694,7 @@ html {
 
 /*
  * The tabs fade out under an arrow, so it's clear the bar goes on. The fade is on this wrapper, not on the bar that
- * scrolls inside it, and it changes only once the bar has stopped (TabNav.viewModel.ts): Safari on iPhone drew the tabs
+ * scrolls inside it, and it changes only once the bar has stopped (TabNav.tsx): Safari on iPhone drew the tabs
  * far past either end, with a gap beside them, when the scrolling bar's own fade changed mid-scroll.
  */
 .tabs-frame[data-more-left] > .tabs-window {

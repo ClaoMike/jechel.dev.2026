@@ -1,16 +1,23 @@
-import { usePreviewSwitchViewModel } from './PreviewSwitch.viewModel'
+import { useId, type CSSProperties } from 'react'
+import { useAppDispatch, useAppSelector } from '../../../store'
+import { PREVIEW_MODES, previewModeChanged, type PreviewMode } from '../../../store/previewSlice'
+
+const LABELS: Record<PreviewMode, string> = { normal: 'Normal', loading: 'Loading', error: 'Error' }
 
 /** The admin's three-way slider, like the theme switch: see the site normally, while loading, or when loading fails. */
 export function PreviewSwitch() {
-  const vm = usePreviewSwitchViewModel()
+  const dispatch = useAppDispatch()
+  const mode = useAppSelector((state) => state.preview.mode)
+  const name = useId()
+  const options = PREVIEW_MODES.map((option) => ({ value: option, label: LABELS[option], checked: mode === option, choose: () => dispatch(previewModeChanged(option)) }))
 
   return (
-    <fieldset className="preview-switch" data-mode={vm.mode} style={vm.style}>
+    <fieldset className="preview-switch" data-mode={mode} style={{ '--preview-index': PREVIEW_MODES.indexOf(mode) } as CSSProperties}>
       <legend className="visually-hidden">Preview the site as</legend>
       <span className="preview-switch-thumb" aria-hidden="true" />
-      {vm.options.map((option) => (
+      {options.map((option) => (
         <label key={option.value} className="preview-switch-option">
-          <input type="radio" name={vm.name} value={option.value} checked={option.checked} onChange={option.choose} className="visually-hidden" />
+          <input type="radio" name={name} value={option.value} checked={option.checked} onChange={option.choose} className="visually-hidden" />
           {option.label}
         </label>
       ))}

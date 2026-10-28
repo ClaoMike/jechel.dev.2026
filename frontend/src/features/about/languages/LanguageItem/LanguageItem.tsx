@@ -1,4 +1,9 @@
-import type { LanguageView } from '../LanguagesSection/LanguagesSection.viewModel'
+export interface LanguageView {
+  name: string
+  level: string
+  /** One per level, filled up to this language's (5 for native, 1 for beginner). */
+  steps: boolean[]
+}
 
 /** A language: its name, its level as steps (decoration), and as a word. */
 export function LanguageItem({ language }: { language: LanguageView }) {

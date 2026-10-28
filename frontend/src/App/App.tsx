@@ -1,10 +1,12 @@
-import { Navigate, Route, Routes } from 'react-router'
-import { useAppViewModel } from './App.viewModel'
+import { Navigate, Route, Routes, useLocation } from 'react-router'
+import { useSessionKeeper } from '../auth'
 import { AnalyticsTracker } from '../features/analytics'
+import { useLoadSite } from '../features/site/useSite'
 import { ComingSoonPage } from '../features/site/ComingSoonPage/ComingSoonPage'
 import { VisiblePage } from '../features/site/VisiblePage/VisiblePage'
 import { TermsHost } from '../features/terms'
-import { AppLayout } from '../layout/AppLayout/AppLayout'
+import { AppLayout, type Downtime } from '../layout/AppLayout/AppLayout'
+import { useAppManifest } from '../layout/manifest'
 import { AppsPage } from '../pages/AppsPage/AppsPage'
 import { AboutPage } from '../pages/AboutPage/AboutPage'
 import { AdminPage } from '../pages/AdminPage/AdminPage'
@@ -19,10 +21,32 @@ import { ConfirmSubscriptionPage } from '../pages/ConfirmSubscriptionPage/Confir
 import { UnsubscribePage } from '../pages/UnsubscribePage/UnsubscribePage'
 import { WhatsNewPage } from '../pages/WhatsNewPage/WhatsNewPage'
 import { YouTubePage } from '../pages/YouTubePage/YouTubePage'
+import { useAppSelector } from '../store'
 
+/** Pages that work during maintenance too. */
+const ALWAYS_OPEN = ['/admin', '/updates/confirm', '/updates/unsubscribe']
+
+/**
+ * Keeps the session and what visitors may see up to date, and decides whether visitors get the site
+ * or the maintenance screen: when it's on, or when the API can't be reached. The admin always gets
+ * the site; signing in (/admin) and the links in emails (confirm, unsubscribe) always work. The sign-in and
+ * the admin get the admin's own web app for the Home Screen.
+ */
 function App() {
-  const vm = useAppViewModel()
-  if (vm.downtime) return <AppLayout downtime={vm.downtime} />
+  useSessionKeeper()
+  useLoadSite()
+  const site = useAppSelector((state) => state.site)
+  const auth = useAppSelector((state) => state.auth.status)
+  // "/admin/" is "/admin" too.
+  const path = useLocation().pathname.replace(/\/+$/, '') || '/'
+  useAppManifest(path === '/admin' || auth === 'authenticated')
+
+  let downtime: Downtime | null = null
+  if (auth !== 'authenticated' && !ALWAYS_OPEN.includes(path)) {
+    if (site.status === 'unreachable') downtime = { reason: 'unreachable' }
+    else if (site.status === 'loaded' && site.site.maintenance && auth === 'anonymous') downtime = { reason: 'maintenance', message: site.site.maintenanceMessage }
+  }
+  if (downtime) return <AppLayout downtime={downtime} />
 
   return (
     <>

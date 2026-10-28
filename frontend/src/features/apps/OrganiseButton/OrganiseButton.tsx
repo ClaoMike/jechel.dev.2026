@@ -1,16 +1,16 @@
+import { useState } from 'react'
 import { OrganiseDialog } from '../OrganiseDialog/OrganiseDialog'
-import { useOrganiseButtonViewModel } from './OrganiseButton.viewModel'
 
 /** The admin's Organise button above the Apps grid, and the popup it opens to order the apps. */
 export function OrganiseButton() {
-  const vm = useOrganiseButtonViewModel()
+  const [organising, setOrganising] = useState(false)
 
   return (
     <>
-      <button type="button" className="button button-secondary button-small" onClick={vm.open}>
+      <button type="button" className="button button-secondary button-small" onClick={() => setOrganising(true)}>
         Organise
       </button>
-      {vm.organising && <OrganiseDialog onClose={vm.close} />}
+      {organising && <OrganiseDialog onClose={() => setOrganising(false)} />}
     </>
   )
 }

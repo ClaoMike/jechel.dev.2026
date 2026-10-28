@@ -8,7 +8,7 @@ Personal portfolio website of Claudiu Mihai Jechel.
 | Backend  | .NET 10 minimal API + EF Core 10 + Npgsql (`backend/`)          |
 | Database | PostgreSQL 16 (Docker Compose for local dev)                    |
 | Hosting  | Cloudflare Pages (site + `/api` proxy), Sliplane in Germany (API + PostgreSQL + backups) |
-| State    | Redux Toolkit + RTK Query; views in MVVM (View + `*.viewModel.ts`) |
+| State    | Redux Toolkit + RTK Query; components call hooks directly (see State and caching) |
 | Tests    | Backend: xUnit, Testcontainers. Frontend: Vitest in headless Chromium (coverage, screenshots). End to end: Playwright in Chrome, Edge, Firefox and Safari (`e2e/`) |
 | CI       | GitHub Actions (`.github/workflows/ci.yml`)                     |
 
@@ -46,7 +46,7 @@ How it all works is in [`docs/`](docs/):
 │   │   ├── store/                         # the Model: Redux store, slices, RTK Query endpoints (store/api/)
 │   │   ├── auth/                          # useAuth, useSessionKeeper, <SignedIn>/<SignedOut> (state in store/authSlice)
 │   │   ├── layout/                        # site frame: greeting, session bar, section tabs
-│   │   ├── pages/                         # one folder per route: X/X.tsx + X/X.viewModel.ts
+│   │   ├── pages/                         # one folder per route: X/X.tsx (with its test)
 │   │   ├── features/<feature>/            # a feature's components and rules (e.g. contact form + inbox)
 │   │   └── components/                    # shared UI: Modal, CopyButton, icons
 ├── e2e/                               # end-to-end tests: the whole site in four browsers (./e2e/run.sh)
@@ -181,7 +181,7 @@ docker exec -it portfolio-db psql -U portfolio -d portfolio
 
 - Git: work happens on `develop` (or `feature/*` / `chore/*` branches merged into it). `main` is production and only takes pull requests from `develop` that passed CI (see Deployment).
 - Backend: all routes under `/api`; minimal APIs grouped per feature (`Features/<Feature>/<Feature>Endpoints.cs` with a `Map<Feature>Endpoints` extension). Handlers are public static methods with typed results (`Results<Ok<T>, NotFound>`), so unit tests can call them directly.
-- Frontend: all HTTP goes through the `api` object in `src/services/api.ts`, called from RTK Query endpoints (`src/store/api/`); views are MVVM (`X.tsx` + `X.viewModel.ts`, see State and caching); auth-dependent UI uses `useAuth()` (in view models) / `<SignedIn>` / `<SignedOut>` from `src/auth`. Routes are declared in `src/App/App.tsx` (React Router), with one folder per page in `src/pages/` (`X/X.tsx` + `X/X.viewModel.ts`).
+- Frontend: all HTTP goes through the `api` object in `src/services/api.ts`, called from RTK Query endpoints (`src/store/api/`); components hold their own state and call hooks directly (see State and caching); auth-dependent UI uses `useAuth()` / `<SignedIn>` / `<SignedOut>` from `src/auth`. Routes are declared in `src/App/App.tsx` (React Router), with one folder per page in `src/pages/` (`X/X.tsx`).
 
 ## Troubleshooting
 

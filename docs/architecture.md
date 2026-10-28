@@ -104,7 +104,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
 ## State and caching
 
-### Frontend: Redux (the Model) and MVVM views
+### Frontend: Redux and components
 
 - **Redux Toolkit** (`src/store/`). `makeStore()` builds the store in `main.tsx`; use the typed `useAppSelector` / `useAppDispatch`.
   - **Server data: RTK Query** (`store/baseApi.ts`, endpoints per feature in `store/api/*Api.ts` via `injectEndpoints`). Each
@@ -118,16 +118,18 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
   - **Side effects in `store/listeners.ts`** (listener middleware), never in reducers: remembering the theme and `<html data-theme>`,
     the accepted terms, the preview mode; applying the preview to requests and reloading everything when it changes; dropping
     admin-only data on sign-out.
-  - Uploads (`api.files.*`) are called from view models directly: their progress isn't the store's to keep.
-- **MVVM.** Every view `X.tsx` that has state or logic has a view model, `X.viewModel.ts`, exporting `useXViewModel(props)`; the two
-  live in their own folder named after the view (`features/contact/ContactForm/ContactForm.tsx` + `ContactForm.viewModel.ts`).
-  Views without a view model stay as plain files (`features/about/list.viewModel.ts` is shared by the list sections, so it stays too).
-  The view model holds the state, effects, store access and handlers, and returns what the view shows and the commands it calls;
-  the view only renders. **Rule: a `.tsx` file calls no hook except its own `use…ViewModel`.** Views without state or logic
-  (`Skeleton`, `MediaCard`, `Pagination`, `TermsDocumentView`, …) need none. Ephemeral UI state (drafts, open popups, drag, hover)
-  stays in the view model's own `useState`; anything shared or from the server goes in the store. Pass refs out of a view model
-  under a `…Ref` name and destructure them first (`const { dialogRef, ...vm } = useModalViewModel(…)`), or the React Compiler lint
-  rule takes every `vm.x` for a ref read.
+  - Uploads (`api.files.*`) are called from components directly: their progress isn't the store's to keep.
+- **Components.** A component with state or logic keeps it itself: it calls the store's hooks, RTK Query's, `useState`,
+  `useEffect` and the rest directly, works out what it shows, and renders it. A component that has a test, styles or parts of
+  its own lives in a folder named after it (`features/contact/ContactForm/ContactForm.tsx`). Ephemeral UI state (drafts, open
+  popups, drag, hover) stays in the component's own `useState`; anything shared or from the server goes in the store.
+  - **Custom hooks** only where they earn it: logic used by more than one component (`usePagedQuery`, `useAuth`, `useTerms`,
+    `useMediaQuery`), or a self-contained piece of a component, kept in its file and named for what it does (`useCollapsed` in
+    `EditableSection`, `usePagedList` in `CommunityPage`, `useSettledPreview` in `UpdateEmailsEditor`).
+  - **Plain functions in `.ts` modules** (no React): rules and formatting that are tested on their own (`licences.ts`,
+    `places.ts`, `skills.ts`, `format.ts`). A `.tsx` file exports only components, types and simple constants, so Fast Refresh
+    keeps working (oxlint's `only-export-components`); anything else it shares goes in a `.ts` module next to it
+    (`components/PagedGrid/slide.ts`).
 - **Backend: HybridCache** (`Microsoft.Extensions.Caching.Hybrid`): values are kept in memory, and in **Redis** too when
   `ConnectionStrings:Redis` is set (shared by every API instance, kept across restarts). Keys start with
   `portfolio:{database}:` (`CachePrefix`), so APIs on different databases sharing one Redis (yours and the E2E tests') never

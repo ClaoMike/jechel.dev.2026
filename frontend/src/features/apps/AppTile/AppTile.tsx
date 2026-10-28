@@ -1,18 +1,28 @@
 import { MediaCard } from '../../../components/MediaCard'
+import type { AppDetails } from '../../../services/api'
+import { plainText } from '../../about/textLinks'
 import { CategoryLabels } from '../CategoryLabels/CategoryLabels'
-import { useAppTileViewModel, type AppTileProps } from './AppTile.viewModel'
+import { tileImage } from '../media'
 
-/** An app on the Apps grid: picture, title, categories and the start of its description; opens its popup. */
-export function AppTile(props: AppTileProps) {
-  const vm = useAppTileViewModel(props)
+export interface AppTileProps {
+  item: AppDetails
+  /** Clicking the tile: opens the app's popup. */
+  onOpen: (app: AppDetails) => void
+}
+
+/**
+ * An app on the Apps grid: picture (its first image, or a YouTube thumbnail), title, categories and the start of its
+ * description without link markup; opens its popup.
+ */
+export function AppTile({ item, onOpen }: AppTileProps) {
   return (
     <MediaCard
-      onClick={vm.open}
-      imageUrl={vm.imageUrl}
-      title={vm.title}
+      onClick={() => onOpen(item)}
+      imageUrl={tileImage(item)}
+      title={item.title}
       translateTitle={false}
-      meta={vm.categories.length > 0 && <CategoryLabels categories={vm.categories} />}
-      description={vm.description}
+      meta={item.categories.length > 0 && <CategoryLabels categories={item.categories} />}
+      description={plainText(item.description)}
     />
   )
 }

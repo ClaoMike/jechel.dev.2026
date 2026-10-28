@@ -1,7 +1,7 @@
 import type { TermsDocument } from '../../../services/api'
 import { RichText } from '../../about/RichText'
 import { TermsSectionView } from '../TermsSectionView/TermsSectionView'
-import { useTermsDocumentViewViewModel } from './TermsDocumentView.viewModel'
+import { formatDate } from '../../../utils/formatDate'
 
 interface TermsDocumentViewProps {
   terms: TermsDocument
@@ -12,11 +12,10 @@ interface TermsDocumentViewProps {
 /** The terms as a document: the title and date, the introduction, then the numbered sections. */
 export function TermsDocumentView(props: TermsDocumentViewProps) {
   const { terms, hideTitle = false } = props
-  const vm = useTermsDocumentViewViewModel(props)
   return (
     <article className="terms-document">
       {!hideTitle && <h2 className="terms-title">{terms.title}</h2>}
-      {vm.updated && <p className="terms-updated">{vm.updated}</p>}
+      {props.terms.updatedAt && <p className="terms-updated">Last updated {formatDate(props.terms.updatedAt)}</p>}
       {terms.intro && (
         <p className="terms-intro">
           <RichText text={terms.intro} />

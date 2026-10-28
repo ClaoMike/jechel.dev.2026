@@ -1,6 +1,5 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
-import { useDeleteButtonViewModel } from './DeleteButton.viewModel'
 import { TrashIcon } from '../icons/icons'
 
 export interface DeleteButtonProps {
@@ -31,14 +30,15 @@ export function DeleteButton({
   disabled,
   children,
 }: DeleteButtonProps) {
-  const vm = useDeleteButtonViewModel()
+  // Whether the confirmation popup is up.
+  const [asking, setAsking] = useState(false)
   return (
     <>
-      <button type="button" className={className} aria-label={label ?? `${action} ${what}`} title={action} disabled={disabled} onClick={vm.ask}>
+      <button type="button" className={className} aria-label={label ?? `${action} ${what}`} title={action} disabled={disabled} onClick={() => setAsking(true)}>
         {children ?? <TrashIcon />}
       </button>
-      {vm.asking && (
-        <ConfirmDialog title={`${action} ${what}?`} confirmLabel={action} onConfirm={onDelete} onClose={vm.stopAsking}>
+      {asking && (
+        <ConfirmDialog title={`${action} ${what}?`} confirmLabel={action} onConfirm={onDelete} onClose={() => setAsking(false)}>
           {detail && <p>{detail}</p>}
         </ConfirmDialog>
       )}

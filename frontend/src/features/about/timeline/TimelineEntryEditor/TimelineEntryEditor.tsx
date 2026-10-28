@@ -1,35 +1,67 @@
-import { ItemControls, MonthField, TextField } from '../../../../components/fields'
+import { useId } from 'react'
+import { ItemControls, MonthField, TextField, type FieldErrors } from '../../../../components/fields'
 import { BulletsEditor } from '../../section/BulletsEditor/BulletsEditor'
-import { useTimelineEntryEditorViewModel, type TimelineEntryEditorProps } from './TimelineEntryEditor.viewModel'
+import type { TimelineConfig, TimelineEntry } from '../timeline'
 
-/** One role or course: what, where, from when to when (or ongoing), and (work only) what was done. */
-export function TimelineEntryEditor<T>(props: TimelineEntryEditorProps<T>) {
-  const { index, count, entry, onMove, onRemove } = props
-  const vm = useTimelineEntryEditorViewModel(props)
+export interface TimelineEntryEditorProps<T> {
+  config: TimelineConfig<T>
+  index: number
+  count: number
+  entry: TimelineEntry
+  errors: FieldErrors
+  onChange: (entry: TimelineEntry) => void
+  onMove: (from: number, to: number) => void
+  onRemove: () => void
+}
+
+/**
+ * One role or course: what, where, from when to when (or ongoing), and (work only) what was done. Its errors are keyed
+ * like the API's: "experience[0].company".
+ */
+export function TimelineEntryEditor<T>({ config, index, count, entry, errors, onChange, onMove, onRemove }: TimelineEntryEditorProps<T>) {
+  const ongoingId = useId()
+  const name = `${config.itemName} ${index + 1}`
+  const prefix = `${config.key}[${index}]`
+  const errorAt = (field: string) => errors[`${prefix}.${field}`]
+  const set = (patch: Partial<TimelineEntry>) => onChange({ ...entry, ...patch })
 
   return (
     <fieldset className="editor-item">
-      <legend>{vm.legend}</legend>
+      <legend>{name.charAt(0).toUpperCase() + name.slice(1)}</legend>
       <div className="editor-item-toolbar">
-        <ItemControls name={vm.name} index={index} count={count} onMove={onMove} onRemove={onRemove} />
+        <ItemControls name={name} index={index} count={count} onMove={onMove} onRemove={onRemove} />
       </div>
       <div className="editor-grid">
-        <TextField label={vm.titleLabel} value={entry.title} required onChange={vm.setTitle} error={vm.errors.title} allowLinks />
-        <TextField label={vm.organizationLabel} value={entry.organization} required onChange={vm.setOrganization} error={vm.errors.organization} allowLinks />
-        <TextField label="Location (optional)" value={entry.location} onChange={vm.setLocation} error={vm.errors.location} allowLinks />
+        <TextField label={config.titleLabel} value={entry.title} required onChange={(title) => set({ title })} error={errorAt('title')} allowLinks />
+        <TextField
+          label={config.organizationLabel}
+          value={entry.organization}
+          required
+          onChange={(organization) => set({ organization })}
+          error={errorAt(config.organizationKey)}
+          allowLinks
+        />
+        <TextField label="Location (optional)" value={entry.location} onChange={(location) => set({ location })} error={errorAt('location')} allowLinks />
       </div>
       <div className="editor-period">
-        <MonthField label="Start" value={entry.start} onChange={vm.setStart} error={vm.errors.start} />
-        {entry.end !== null && <MonthField label="End" value={entry.end} onChange={vm.setEnd} error={vm.errors.end} />}
+        <MonthField label="Start" value={entry.start} onChange={(start) => set({ start })} error={errorAt('start')} />
+        {entry.end !== null && <MonthField label="End" value={entry.end} onChange={(end) => set({ end })} error={errorAt('end')} />}
         <div className="checkbox-field">
-          <input id={vm.ongoingId} type="checkbox" checked={vm.ongoing} onChange={(e) => vm.setOngoing(e.target.checked)} />
-          <label htmlFor={vm.ongoingId}>Ongoing (no end date)</label>
+          {/* Unticking "Ongoing" ends it where it started; the admin moves the end from there. */}
+          <input id={ongoingId} type="checkbox" checked={entry.end === null} onChange={(e) => set({ end: e.target.checked ? null : entry.start })} />
+          <label htmlFor={ongoingId}>Ongoing (no end date)</label>
         </div>
       </div>
       {entry.bullets && (
         <div className="editor-bullets">
           <span className="field-label">What you did</span>
-          <BulletsEditor itemName="bullet point" value={entry.bullets} onChange={vm.setBullets} errorFor={vm.bulletError} listError={vm.errors.bullets} />
+          <BulletsEditor
+            itemName="bullet point"
+            value={entry.bullets}
+            onChange={(bullets) => set({ bullets })}
+            errorFor={(i) => errors[`${prefix}.bullets[${i}]`]}
+            listError={errorAt('bullets')}
+          />
         </div>
       )}
     </fieldset>

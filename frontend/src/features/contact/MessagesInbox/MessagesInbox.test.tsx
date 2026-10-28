@@ -9,7 +9,7 @@ import { BOOKING_LINK, todayAt, todaysMeetings } from '../../../test/fixtures/me
 import { ADMIN, forever, renderView, textOf } from '../../../test/render'
 import { formatDateTime } from '../../../utils/formatDate'
 import { MessagesInbox } from './MessagesInbox'
-import { INBOX_REFRESH_MS } from './MessagesInbox.viewModel'
+import { INBOX_REFRESH_MS } from './MessagesInbox'
 
 // The admin's inbox: conversations, the latest first, and one opened: every message, who wrote it, and the next answer.
 
