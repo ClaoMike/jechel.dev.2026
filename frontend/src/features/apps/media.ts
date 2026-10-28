@@ -1,5 +1,6 @@
 import type { AppDetails, AppMedia } from '../../services/api'
 import { isSafeUrl } from '../about/format'
+import { strings } from '../../strings'
 
 const YOUTUBE_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com']
 
@@ -35,10 +36,10 @@ export const youTubeThumbnail = (id: string) => `https://i.ytimg.com/vi/${encode
  */
 export function mediaFromLink(link: string): AppMedia | string {
   const url = link.trim()
-  if (!url) return 'Paste a link first.'
+  if (!url) return strings.media.pasteLinkFirst
   const id = youTubeIdIn(url)
   if (id) return { url: youTubeWatchUrl(id), kind: 'youtube' }
-  if (!/^https?:\/\//i.test(url) || !isSafeUrl(url)) return 'That should be a link starting with https://.'
+  if (!/^https?:\/\//i.test(url) || !isSafeUrl(url)) return strings.media.shouldLinkStartingHttps
   return { url, kind: VIDEO_EXTENSION.test(new URL(url).pathname) ? 'video' : 'image' }
 }
 

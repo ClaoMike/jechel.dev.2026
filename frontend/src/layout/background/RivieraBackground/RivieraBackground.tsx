@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppDispatch } from '../../../store'
 import { reportSlowScene } from '../../../store/themeSlice'
 import { plate1920Url, startRiviera } from '../riviera'
+import { strings } from '../../../strings'
 
 /** What the plane's banner says. */
-const BANNER_TEXT = ['JECHEL.DEV', 'Thanks for stopping by!'] as const
+const BANNER_TEXT = ['JECHEL.DEV', strings.rivieraBackground.thanksStopping] as const
 
 /**
  * The Vice theme's backdrop: the Riviera picture, animated (palms, sea, clouds, birds, the banner

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { EyeIcon, EyeOffIcon } from '../../components/icons/icons'
 import { NARROW, useMediaQuery } from '../useMediaQuery'
+import { strings } from '../../strings'
 
 /** How long without the pointer moving (or a key) before the button and the cursor fade away. */
 const IDLE_MS = 5000
@@ -65,7 +66,7 @@ export function ContentToggle({ hidden, onToggle, slot }: ContentToggleProps) {
   const compact = narrow && slot != null
   // While the page is hidden, a phone's button waits in the bottom-right corner, within thumb's reach.
   const cornered = compact && hidden
-  const label = hidden ? 'Show page' : 'Hide page'
+  const label = hidden ? strings.contentToggle.showPage : strings.contentToggle.hidePage
   const className = `button button-secondary content-toggle${compact ? ' content-toggle-compact' : ''}${cornered ? ' content-toggle-cornered' : ''}${idle ? ' content-toggle-idle' : ''}`
   const toggle = () => {
     refocus.current = document.activeElement === buttonRef.current

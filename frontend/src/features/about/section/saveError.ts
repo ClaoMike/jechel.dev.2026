@@ -1,24 +1,25 @@
 import { failureOf } from '../../../services/api'
 import type { FieldErrors } from '../../../components/fields'
+import { strings } from '../../../strings'
 
 /** Section titles by the first part of an API error key, for errors raised by another section. */
 export const SECTION_TITLES: Record<string, string> = {
-  photoUrl: 'Photo and links',
-  statuses: 'Photo and links',
-  links: 'Photo and links',
-  contact: 'Photo and links',
-  places: "Where I've been",
-  'colors.places': "Where I've been",
-  problemSolving: 'Problem solving',
-  skills: 'Skills',
-  'colors.skills': 'Skills',
-  experience: 'Work experience',
-  education: 'Education',
-  papers: 'Academic papers',
-  qualifications: 'Qualifications',
-  languages: 'Languages',
-  licences: 'Licences',
-  hackathons: 'Hackathons',
+  photoUrl: strings.saveError.photoLinks,
+  statuses: strings.saveError.photoLinks,
+  links: strings.saveError.photoLinks,
+  contact: strings.saveError.photoLinks,
+  places: strings.saveError.whereIveBeen,
+  'colors.places': strings.saveError.whereIveBeen,
+  problemSolving: strings.saveError.problemSolving,
+  skills: strings.common.skills,
+  'colors.skills': strings.common.skills,
+  experience: strings.common.workExperience,
+  education: strings.common.education,
+  papers: strings.common.academicPapers,
+  qualifications: strings.common.qualifications,
+  languages: strings.common.languages,
+  licences: strings.common.licences,
+  hackathons: strings.common.hackathons,
 }
 
 /** Whether an API error key belongs to one of the prefixes: "skills" owns "skills", "skills[2].name" and "skills.x". */
@@ -29,7 +30,7 @@ export function describeErrorKey(key: string): string {
   const section = Object.keys(SECTION_TITLES).find((prefix) => owns([prefix], key))
   const title = section ? SECTION_TITLES[section] : key
   const index = /^[a-z]+\[(\d+)\]/i.exec(key)?.[1]
-  return index === undefined ? title : `${title}, item ${Number(index) + 1}`
+  return index === undefined ? title : strings.saveError.item(title, Number(index) + 1)
 }
 
 /**
@@ -47,10 +48,10 @@ export function describeSaveError(error: unknown, errorKeys: string[]): { errors
     }
     if (elsewhere.length > 0) {
       const more = elsewhere.length > 3 ? ` (and ${elsewhere.length - 3} more)` : ''
-      return { errors, message: `Couldn't save, because another section needs fixing first. ${elsewhere.slice(0, 3).join(' ')}${more}` }
+      return { errors, message: strings.saveError.couldntSaveBecauseAnother(elsewhere.slice(0, 3).join(' '), more) }
     }
-    return { errors, message: 'Some fields need fixing; see the messages above.' }
+    return { errors, message: strings.saveError.someFieldsNeedFixing }
   }
-  if (status === 401) return { errors: {}, message: 'Your session has ended. Sign in again, then save.' }
-  return { errors: {}, message: "Couldn't save. Please try again." }
+  if (status === 401) return { errors: {}, message: strings.common.sessionHasEndedSign }
+  return { errors: {}, message: strings.common.couldntSavePleaseTry }
 }

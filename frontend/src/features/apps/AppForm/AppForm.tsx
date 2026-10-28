@@ -8,6 +8,7 @@ import { CategoryPicker } from '../CategoryPicker/CategoryPicker'
 import { LinksEditor } from '../LinksEditor/LinksEditor'
 import { MediaListEditor } from '../MediaListEditor/MediaListEditor'
 import { PlatformsEditor } from '../PlatformsEditor/PlatformsEditor'
+import { strings } from '../../../strings'
 
 export interface AppFormProps {
   draft: AppRequest
@@ -35,15 +36,22 @@ export function AppForm({ draft, categories, errors, mediaError, message, saving
   return (
     // The API's messages show under the fields, as everywhere else on the site.
     <form className="app-form" noValidate onSubmit={submit}>
-      <TextField label="Title" value={draft.title} required onChange={(title) => change({ title })} error={errors.title} />
+      <TextField label={strings.common.title} value={draft.title} required onChange={(title) => change({ title })} error={errors.title} />
       <CategoryPicker categories={categories} value={draft.categoryIds} onChange={(categoryIds) => change({ categoryIds })} error={errors.categoryIds} />
       <div className="switch-field">
         <span className="switch-field-text">
-          <span className="field-label">Show in What's new?</span>
+          <span className="field-label">{strings.appForm.showWhatsNew}</span>
         </span>
-        <OnOffSwitch label="Show in What's new?" on={draft.showInWhatsNew} onChange={(showInWhatsNew) => change({ showInWhatsNew })} />
+        <OnOffSwitch label={strings.appForm.showWhatsNew} on={draft.showInWhatsNew} onChange={(showInWhatsNew) => change({ showInWhatsNew })} />
       </div>
-      <TextField label="Description" multiline allowLinks value={draft.description} onChange={(description) => change({ description })} error={errors.description} />
+      <TextField
+        label={strings.appForm.description}
+        multiline
+        allowLinks
+        value={draft.description}
+        onChange={(description) => change({ description })}
+        error={errors.description}
+      />
       <PlatformsEditor value={draft.platforms} onChange={(platforms) => change({ platforms })} error={errors.platforms} />
       <LinksEditor value={draft.links} onChange={(links) => change({ links })} errors={errors} />
       <MediaListEditor value={draft.media} update={updateMedia} error={mediaError} />
@@ -56,17 +64,17 @@ export function AppForm({ draft, categories, errors, mediaError, message, saving
         {deletable && (
           <DeleteButton
             what={deletable.title}
-            detail="It's removed from the Apps page, with its images and videos. This can't be undone."
+            detail={strings.appForm.removedAppsPageImages}
             onDelete={deletable.remove}
             className="button button-secondary button-small app-delete"
-            label="Delete app"
+            label={strings.appForm.deleteApp}
           >
             <TrashIcon size={16} />
-            Delete app
+            {strings.appForm.deleteApp}
           </DeleteButton>
         )}
         <button type="button" className="button button-secondary" onClick={cancel} disabled={saving}>
-          Cancel
+          {strings.common.cancel}
         </button>
         <button type="submit" className="button" disabled={saving}>
           {saveLabel}

@@ -1,5 +1,6 @@
 import { useAppDispatch } from '../../../store'
 import { fetchSite } from '../../../store/siteSlice'
+import { strings } from '../../../strings'
 
 /**
  * What visitors see while the site is under maintenance (switched on in Settings, with an optional
@@ -9,18 +10,15 @@ import { fetchSite } from '../../../store/siteSlice'
  */
 export function MaintenanceScreen({ reason, message }: { reason: 'maintenance' | 'unreachable'; message?: string }) {
   const dispatch = useAppDispatch()
-  const title = reason === 'maintenance' ? "We'll be right back" : "Can't reach the site right now"
-  const text =
-    reason === 'maintenance'
-      ? message || 'The site is having some work done. Please check back soon.'
-      : 'It may be down for a moment. This page checks again every half a minute and comes back by itself.'
+  const title = reason === 'maintenance' ? strings.maintenanceScreen.wellRightBack : strings.maintenanceScreen.cantReachSiteRight
+  const text = reason === 'maintenance' ? message || strings.maintenanceScreen.siteHavingSomeWork : strings.maintenanceScreen.mayDownMomentPage
   return (
     <section className="maintenance" aria-labelledby="maintenance-title">
       <div className="card maintenance-card">
         <h2 id="maintenance-title">{title}</h2>
         <p>{text}</p>
         <button type="button" className="button button-secondary" onClick={() => void dispatch(fetchSite())}>
-          Try again
+          {strings.maintenanceScreen.tryAgain}
         </button>
       </div>
     </section>

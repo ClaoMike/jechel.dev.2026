@@ -2,6 +2,7 @@ import { AddButton, type FieldErrors } from '../../../../components/fields'
 import type { Status } from '../../../../services/api'
 import { move, removeAt, replaceAt } from '../../list'
 import { StatusEditor } from '../StatusEditor/StatusEditor'
+import { strings } from '../../../../strings'
 
 export interface StatusesEditorProps {
   value: Status[]
@@ -26,7 +27,7 @@ export function StatusesEditor({ value, onChange, errors }: StatusesEditorProps)
         />
       ))}
       {errors.statuses && <p className="field-error">{errors.statuses}</p>}
-      <AddButton onClick={() => onChange([...value, { text: '', flag: '' }])}>Add label</AddButton>
+      <AddButton onClick={() => onChange([...value, { text: '', flag: '' }])}>{strings.statusesEditor.addLabel}</AddButton>
     </div>
   )
 }

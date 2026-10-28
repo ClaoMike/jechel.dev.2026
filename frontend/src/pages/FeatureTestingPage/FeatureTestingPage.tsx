@@ -3,6 +3,7 @@ import { AdminOnly } from '../../components/AdminOnly/AdminOnly'
 import { EmptyState } from '../../components/EmptyState/EmptyState'
 import { FlaskIcon } from '../../components/icons/icons'
 import { TEST_FEATURES, type TestFeature } from '../../features/featureTesting/testFeatures'
+import { strings } from '../../strings'
 
 /**
  * Feature Testing (an admin-only tab, BETA): new features, tried out here on the real site before visitors get them
@@ -28,10 +29,10 @@ function FeatureTesting({ features }: { features: readonly TestFeature[] }) {
 
   return (
     <div className="feature-testing">
-      <h2 className="visually-hidden">Feature Testing</h2>
+      <h2 className="visually-hidden">{strings.featureTestingPage.featureTesting}</h2>
       {current ? (
         <>
-          <nav className="pill-nav" aria-label="Features">
+          <nav className="pill-nav" aria-label={strings.featureTestingPage.features}>
             <ul>
               {features.map((feature) => (
                 <li key={feature.slug}>
@@ -48,11 +49,7 @@ function FeatureTesting({ features }: { features: readonly TestFeature[] }) {
         </>
       ) : (
         <section className="card">
-          <EmptyState
-            icon={<FlaskIcon size={40} />}
-            message="No features to test right now"
-            hint="New features show up here first, for you to try on the site before visitors see them."
-          />
+          <EmptyState icon={<FlaskIcon size={40} />} message={strings.featureTestingPage.noFeaturesTestRight} hint={strings.featureTestingPage.newFeaturesShowUp} />
         </section>
       )}
     </div>

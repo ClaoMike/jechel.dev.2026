@@ -1,4 +1,5 @@
 import { failureOf } from '../services/api'
+import { strings } from '../strings'
 
 /** Field errors, keyed like the API's (e.g. "experience[0].title"): the first message each. */
 export type FieldErrors = Record<string, string>
@@ -11,5 +12,5 @@ export function fieldErrorsOf(error: unknown): FieldErrors | null {
 
 /** What to say when a save failed for another reason than the fields. */
 export function saveFailedMessage(error: unknown): string {
-  return failureOf(error).status === 401 ? 'Your session has ended. Sign in again, then save.' : "Couldn't save. Please try again."
+  return failureOf(error).status === 401 ? strings.common.sessionHasEndedSign : strings.common.couldntSavePleaseTry
 }

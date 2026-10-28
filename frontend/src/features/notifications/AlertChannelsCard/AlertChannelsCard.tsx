@@ -15,13 +15,14 @@ import {
 } from '../../../store/api/notificationsApi'
 import { toLoadable } from '../../../store/loadable'
 import { webPush } from '../webPush'
+import { strings } from '../../../strings'
 
-const CHANNEL_LABELS: Record<AlertChannel, string> = { ntfy: 'The ntfy app', push: "This site's notifications" }
+const CHANNEL_LABELS: Record<AlertChannel, string> = { ntfy: strings.alertChannelsCard.ntfyApp, push: strings.alertChannelsCard.sitesNotifications }
 
 /** Why a way that's on can't deliver yet, and what to do. */
 const NOT_READY: Record<AlertChannel, string> = {
-  ntfy: 'Not set up: add a topic in Settings → ntfy.',
-  push: 'No device yet: allow them on one below.',
+  ntfy: strings.alertChannelsCard.notSetUpAdd,
+  push: strings.alertChannelsCard.noDeviceYetAllow,
 }
 
 /** What this browser can do about the site's own notifications. */
@@ -81,7 +82,7 @@ export function AlertChannelsCard() {
     try {
       await saveChannel({ channel, enabled }).unwrap()
     } catch {
-      setOutcome({ ok: false, text: "That couldn't be saved. Please try again." })
+      setOutcome({ ok: false, text: strings.common.couldntSavedPleaseTry })
     }
   }
 
@@ -95,11 +96,11 @@ export function AlertChannelsCard() {
       const subscription = await webPush.subscribe(publicKey)
       await addDevice({ subscription, label: webPush.deviceLabel() }).unwrap()
       setHere(subscription.endpoint)
-      setOutcome({ ok: true, text: 'This device gets them now. Send it a test to check.' })
+      setOutcome({ ok: true, text: strings.alertChannelsCard.deviceGetsThemNow })
     } catch {
       const now = webPush.permission()
       setPermission(now)
-      setOutcome({ ok: false, text: now === 'denied' ? 'Notifications are blocked here: see below.' : "That didn't work. Please try again." })
+      setOutcome({ ok: false, text: now === 'denied' ? strings.alertChannelsCard.notificationsAreBlockedHere : strings.common.didntWorkPleaseTry })
     } finally {
       setBusy(false)
     }
@@ -120,9 +121,9 @@ export function AlertChannelsCard() {
     setTesting(device.id)
     try {
       await testDevice(device.id).unwrap()
-      setOutcome({ ok: true, text: `Sent to ${device.label}: it should show in a moment.` })
+      setOutcome({ ok: true, text: strings.alertChannelsCard.sentShouldShowMoment(device.label) })
     } catch {
-      setOutcome({ ok: false, text: `It couldn't be sent to ${device.label}. If it was removed from the Home Screen, allow them there again.` })
+      setOutcome({ ok: false, text: strings.alertChannelsCard.couldntSentIfWas(device.label) })
     } finally {
       setTesting(null)
     }
@@ -138,11 +139,11 @@ export function AlertChannelsCard() {
   return (
     <section className="card notifications-card" aria-labelledby="alert-channels-title">
       <div>
-        <h3 id="alert-channels-title">Where they go</h3>
-        <p className="muted notification-intro">Each alert goes every way that's on.</p>
+        <h3 id="alert-channels-title">{strings.alertChannelsCard.whereTheyGo}</h3>
+        <p className="muted notification-intro">{strings.alertChannelsCard.eachAlertGoesEvery}</p>
       </div>
       {channels.status === 'loading' && (
-        <Loading label="Loading where they go…">
+        <Loading label={strings.alertChannelsCard.loadingWhereTheyGo}>
           {[44, 52].map((width, i) => (
             <div key={i} className="notification-kind">
               <Skeleton width={`${width}%`} height={16} />
@@ -151,7 +152,7 @@ export function AlertChannelsCard() {
           ))}
         </Loading>
       )}
-      {channels.status === 'error' && <ErrorState message="Where they go couldn't be loaded." onRetry={retry} />}
+      {channels.status === 'error' && <ErrorState message={strings.alertChannelsCard.whereTheyGoCouldnt} onRetry={retry} />}
       {channelItems.length > 0 && (
         <div className="notification-group">
           {channelItems.map((channel) => (
@@ -168,9 +169,9 @@ export function AlertChannelsCard() {
 
       {devicesLoaded && (
         <section className="push-devices" aria-labelledby="push-devices-title">
-          <h4 id="push-devices-title">Devices with this site's notifications</h4>
+          <h4 id="push-devices-title">{strings.alertChannelsCard.devicesSitesNotifications}</h4>
           {devices.length === 0 ? (
-            <p className="muted">None yet.</p>
+            <p className="muted">{strings.alertChannelsCard.noneYet}</p>
           ) : (
             <ul className="push-device-list">
               {devices.map((device) => (
@@ -178,21 +179,22 @@ export function AlertChannelsCard() {
                   <span className="notification-kind-text">
                     <span className="notification-kind-label">
                       {device.label}
-                      {device.id === thisDeviceId && <span className="chip push-device-here">This device</span>}
+                      {device.id === thisDeviceId && <span className="chip push-device-here">{strings.alertChannelsCard.device}</span>}
                     </span>
                     <span className="muted notification-kind-meta">
-                      Added {formatDate(device.createdAt)}
-                      {device.lastSentAt ? ` · last sent ${formatDateTime(device.lastSentAt)}` : ' · nothing sent yet'}
+                      {strings.alertChannelsCard.added}
+                      {formatDate(device.createdAt)}
+                      {device.lastSentAt ? strings.alertChannelsCard.lastSent(formatDateTime(device.lastSentAt)) : strings.alertChannelsCard.nothingSentYet}
                     </span>
                   </span>
                   <span className="push-device-actions">
                     <button type="button" className="button button-secondary button-small" disabled={testing === device.id} onClick={() => test(device)}>
-                      {testing === device.id ? 'Sending…' : 'Send a test'}
+                      {testing === device.id ? strings.common.sending : strings.alertChannelsCard.sendTest}
                     </button>
                     <DeleteButton
-                      what={`notifications on ${device.label}`}
-                      action="Remove"
-                      detail="It stops getting them. Allow them on it again to have them back."
+                      what={strings.alertChannelsCard.notifications(device.label)}
+                      action={strings.common.remove}
+                      detail={strings.alertChannelsCard.stopsGettingThemAllow}
                       onDelete={() => remove(device)}
                     />
                   </span>
@@ -218,28 +220,20 @@ export function AlertChannelsCard() {
 function Here({ state, busy, onAllow }: { state: HereState; busy: boolean; onAllow: () => void }) {
   switch (state.kind) {
     case 'on':
-      return <p className="muted push-here">This device gets them. Remove it above to stop.</p>
+      return <p className="muted push-here">{strings.alertChannelsCard.deviceGetsThemRemove}</p>
     case 'off':
       return (
         <div className="push-here">
           <button type="button" className="button button-small" disabled={busy} onClick={onAllow}>
-            {busy ? 'Allowing…' : 'Get them on this device'}
+            {busy ? strings.alertChannelsCard.allowing : strings.alertChannelsCard.getThemDevice}
           </button>
         </div>
       )
     case 'blocked':
-      return (
-        <p className="muted push-here">
-          Notifications are blocked for this site here. Allow them in the settings (on an iPhone: Settings → Notifications → jechel.dev), then come back.
-        </p>
-      )
+      return <p className="muted push-here">{strings.alertChannelsCard.notificationsAreBlockedSite}</p>
     case 'needs-home-screen':
-      return (
-        <p className="muted push-here">
-          On an iPhone or iPad, they come to the site on the Home Screen: in Safari, Share → Add to Home Screen, open it from there, and allow them here.
-        </p>
-      )
+      return <p className="muted push-here">{strings.alertChannelsCard.iphoneIpadTheyCome}</p>
     case 'unsupported':
-      return <p className="muted push-here">This browser can't get notifications.</p>
+      return <p className="muted push-here">{strings.alertChannelsCard.browserCantGetNotifications}</p>
   }
 }

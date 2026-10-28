@@ -1,3 +1,5 @@
+import { strings } from '../../../strings'
+
 export interface Consent {
   text: string
   ticked: boolean
@@ -8,7 +10,7 @@ export interface Consent {
 export function ConsentList({ consents }: { consents: Consent[] }) {
   return (
     <fieldset className="terms-consents">
-      <legend className="visually-hidden">{consents.length === 1 ? 'Confirm this' : 'Confirm each of these'}</legend>
+      <legend className="visually-hidden">{consents.length === 1 ? strings.consentList.confirm : strings.consentList.confirmEachThese}</legend>
       {consents.map((consent) => (
         <label key={consent.text} className="terms-consent">
           <input type="checkbox" checked={consent.ticked} onChange={(event) => consent.setTicked(event.target.checked)} />

@@ -1,5 +1,6 @@
 import { CopyButton } from '../../../../components/CopyButton/CopyButton'
 import { PhoneIcon } from '../../../../components/icons/icons'
+import { strings } from '../../../../strings'
 
 export interface PrivateContactItem {
   key: 'email' | 'phone'
@@ -14,7 +15,7 @@ export function PrivateContact({ items, emptyText }: { items: PrivateContactItem
     <div className="profile-private">
       <PhoneIcon size={16} />
       <div>
-        <strong>Only you see this:</strong>
+        <strong>{strings.privateContact.onlySee}</strong>
         {items.length === 0 ? (
           <span> {emptyText}</span>
         ) : (

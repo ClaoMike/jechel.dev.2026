@@ -1,4 +1,5 @@
 import { ArrowDownIcon, PencilIcon } from '../../../../components/icons/icons'
+import { strings } from '../../../../strings'
 
 export interface SectionHeaderProps {
   title: string
@@ -29,7 +30,8 @@ export function SectionHeader({ title, headingId, bodyId, floating, editLabel, c
         {canEdit && (
           <button type="button" className="button button-secondary button-small" onClick={edit}>
             <PencilIcon size={16} />
-            Edit <span className="visually-hidden">{editLabel}</span>
+            {strings.common.edit}
+            <span className="visually-hidden">{editLabel}</span>
           </button>
         )}
         {canCollapse && (
@@ -38,8 +40,8 @@ export function SectionHeader({ title, headingId, bodyId, floating, editLabel, c
             className="icon-button collapse-button"
             aria-expanded={open}
             aria-controls={bodyId}
-            aria-label={`${open ? 'Collapse' : 'Expand'} ${title}`}
-            title={open ? 'Collapse' : 'Expand'}
+            aria-label={`${open ? strings.sectionHeader.collapse : strings.sectionHeader.expand} ${title}`}
+            title={open ? strings.sectionHeader.collapse : strings.sectionHeader.expand}
             onClick={toggleCollapsed}
           >
             <ArrowDownIcon />

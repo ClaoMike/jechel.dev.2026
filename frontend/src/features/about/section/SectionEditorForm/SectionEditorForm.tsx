@@ -1,4 +1,5 @@
 import type { FormEvent, ReactNode } from 'react'
+import { strings } from '../../../../strings'
 
 export interface SectionEditorFormProps {
   /** Names the form: "Edit Skills". */
@@ -24,10 +25,10 @@ export function SectionEditorForm({ label, saving, message, submit, cancel, chil
       )}
       <div className="about-editor-actions">
         <button type="submit" className="button" disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? strings.common.saving : strings.common.save}
         </button>
         <button type="button" className="button button-secondary" disabled={saving} onClick={cancel}>
-          Cancel
+          {strings.common.cancel}
         </button>
       </div>
     </form>

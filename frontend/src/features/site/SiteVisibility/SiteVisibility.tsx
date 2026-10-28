@@ -5,10 +5,17 @@ import { SITE_FEATURES, SITE_PAGES, type SaveSiteRequest, type SiteFeature, type
 import { useAppDispatch, useAppSelector } from '../../../store'
 import { useGetSupportQuery } from '../../../store/api/communityApi'
 import { fetchSite, saveSite } from '../../../store/siteSlice'
+import { strings } from '../../../strings'
 
-const PAGE_LABELS: Record<SitePage, string> = { whatsNew: "What's new?", apps: 'Apps', youtube: 'YouTube', about: 'About Me', contact: 'Contact' }
+const PAGE_LABELS: Record<SitePage, string> = {
+  whatsNew: strings.common.whatsNew,
+  apps: strings.common.apps,
+  youtube: 'YouTube',
+  about: strings.common.aboutMe,
+  contact: strings.siteVisibility.contact,
+}
 
-const FEATURE_LABELS: Record<SiteFeature, string> = { coffee: 'Buy me a coffee', updates: 'Get updates', workWithMe: 'Work with me' }
+const FEATURE_LABELS: Record<SiteFeature, string> = { coffee: strings.siteVisibility.buyMeCoffee, updates: strings.common.getUpdates, workWithMe: strings.siteVisibility.workMe }
 
 /** One switch as the view shows it. */
 interface SwitchItem {
@@ -22,7 +29,7 @@ interface SwitchItem {
 }
 
 /** Buy me a coffee, on, needs its page link too: until then visitors get no button. */
-const NO_COFFEE_LINK = "Visitors don't see the button yet: it needs a page link (Buy Me a Coffee, below)."
+const NO_COFFEE_LINK = strings.siteVisibility.visitorsDontSeeButton
 
 /**
  * Settings → Visitor pages: what visitors can see, switched on one by one as each part is ready
@@ -46,7 +53,7 @@ export function SiteVisibility() {
       await dispatch(saveSite(changes)).unwrap()
       return true
     } catch {
-      setError("That couldn't be saved. Please try again.")
+      setError(strings.common.couldntSavedPleaseTry)
       return false
     } finally {
       setSaving(null)
@@ -56,13 +63,13 @@ export function SiteVisibility() {
   if (state.status === 'loading')
     return (
       <section className="card site-visibility">
-        <Loading label="Loading the visitor pages…">
+        <Loading label={strings.siteVisibility.loadingVisitorPages}>
           <Skeleton width="30%" height={20} />
           <SkeletonList rows={5} />
         </Loading>
       </section>
     )
-  if (state.status === 'unreachable') return <ErrorState message="The visitor pages couldn't be loaded." onRetry={() => void dispatch(fetchSite())} />
+  if (state.status === 'unreachable') return <ErrorState message={strings.siteVisibility.visitorPagesCouldntLoaded} onRetry={() => void dispatch(fetchSite())} />
 
   const { site } = state
   const draftMessage = message ?? site.maintenanceMessage
@@ -81,8 +88,8 @@ export function SiteVisibility() {
 
   return (
     <section className="card site-visibility" aria-labelledby={`${id}-title`}>
-      <h3 id={`${id}-title`}>Visitor pages</h3>
-      {SITE_PAGES.every((page) => !site.pages[page]) && <p className="muted">With every page off, visitors get "Coming soon".</p>}
+      <h3 id={`${id}-title`}>{strings.siteVisibility.visitorPages}</h3>
+      {SITE_PAGES.every((page) => !site.pages[page]) && <p className="muted">{strings.siteVisibility.everyPageOffVisitors}</p>}
       {error && (
         <p role="alert" className="field-error">
           {error}
@@ -90,33 +97,40 @@ export function SiteVisibility() {
       )}
 
       <fieldset className="switch-list">
-        <legend className="field-label">Pages</legend>
+        <legend className="field-label">{strings.siteVisibility.pages}</legend>
         {SITE_PAGES.map((page) => (
           <Switch key={page} item={item(page, PAGE_LABELS[page], site.pages[page], (on) => ({ pages: { [page]: on } }))} />
         ))}
       </fieldset>
 
       <fieldset className="switch-list">
-        <legend className="field-label">Features</legend>
+        <legend className="field-label">{strings.siteVisibility.features}</legend>
         {features.map((item) => (
           <Switch key={item.key} item={item} />
         ))}
       </fieldset>
 
       <fieldset className="switch-list">
-        <legend className="field-label">Maintenance</legend>
-        <Switch item={item('maintenance', 'Under maintenance', site.maintenance, (on) => ({ maintenance: on }))} />
+        <legend className="field-label">{strings.siteVisibility.maintenance}</legend>
+        <Switch item={item('maintenance', strings.siteVisibility.underMaintenance, site.maintenance, (on) => ({ maintenance: on }))} />
         <div className="field">
-          <label htmlFor={`${id}-message`}>Message on the maintenance page (optional)</label>
+          <label htmlFor={`${id}-message`}>{strings.siteVisibility.messageMaintenancePageOptional}</label>
           <div className="settings-input-row">
-            <input id={`${id}-message`} type="text" maxLength={300} value={draftMessage} placeholder="Back by 18:00" onChange={(e) => setMessage(e.target.value)} />
+            <input
+              id={`${id}-message`}
+              type="text"
+              maxLength={300}
+              value={draftMessage}
+              placeholder={strings.siteVisibility.back1800}
+              onChange={(e) => setMessage(e.target.value)}
+            />
             <button
               type="button"
               className="button"
               disabled={saving === 'message' || draftMessage.trim() === site.maintenanceMessage}
               onClick={() => void save('message', { maintenanceMessage: draftMessage.trim() }).then((saved) => saved && setMessage(null))}
             >
-              Save
+              {strings.common.save}
             </button>
           </div>
         </div>
@@ -150,7 +164,7 @@ function Switch({ item }: { item: SwitchItem }) {
       >
         <span className="switch-thumb" aria-hidden="true" />
         <span className="switch-state" aria-hidden="true">
-          {item.on ? 'On' : 'Off'}
+          {item.on ? strings.siteVisibility.on : strings.siteVisibility.off}
         </span>
       </button>
     </div>

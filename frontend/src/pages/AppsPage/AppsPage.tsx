@@ -8,12 +8,13 @@ import { OrganiseButton } from '../../features/apps/OrganiseButton/OrganiseButto
 import { useListAppsQuery, usePrefetchApps, useListAppCategoriesQuery } from '../../store/api/appsApi'
 import { useAuth } from '../../auth'
 import type { AppDetails } from '../../services/api'
+import { strings } from '../../strings'
 
 const TEXTS: PagedGridTexts = {
-  label: 'Apps',
-  loading: 'Loading apps…',
-  empty: 'No apps yet.',
-  error: "The apps can't be loaded right now.",
+  label: strings.common.apps,
+  loading: strings.appsPage.loadingApps,
+  empty: strings.appsPage.noAppsYet,
+  error: strings.appsPage.appsCantLoadedRight,
 }
 
 /**
@@ -37,7 +38,7 @@ export function AppsPage() {
   const saved = (app: AppDetails) => setOpen(app)
 
   return (
-    <section className="apps" aria-label="Apps">
+    <section className="apps" aria-label={strings.common.apps}>
       {isAuthenticated && (
         <div className="page-actions">
           <OrganiseButton />

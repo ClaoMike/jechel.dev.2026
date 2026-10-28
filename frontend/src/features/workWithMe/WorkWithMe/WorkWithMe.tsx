@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { AutomateIcon, CodeIcon, GlobeIcon } from '../../../components/icons/icons'
 import { WorkWithMePrice } from '../WorkWithMePrice/WorkWithMePrice'
 import { SERVICES, STEPS, type ServiceIcon } from '../workWithMe'
+import { strings } from '../../../strings'
 
 const ICONS: Record<ServiceIcon, ReactNode> = {
   website: <GlobeIcon size={24} />,
@@ -14,7 +15,7 @@ export function WorkWithMe() {
   return (
     <div className="work-with-me">
       <section aria-labelledby="work-services-title">
-        <h4 id="work-services-title">What I do</h4>
+        <h4 id="work-services-title">{strings.workWithMe.whatIDo}</h4>
         <ul className="work-services">
           {SERVICES.map((service) => (
             <li key={service.icon} className="work-service">
@@ -27,7 +28,7 @@ export function WorkWithMe() {
       </section>
 
       <section aria-labelledby="work-steps-title">
-        <h4 id="work-steps-title">How it works</h4>
+        <h4 id="work-steps-title">{strings.workWithMe.howWorks}</h4>
         <ol className="work-steps">
           {STEPS.map((step) => (
             <li key={step.title} className="work-step">

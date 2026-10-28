@@ -5,6 +5,7 @@ import { WorldMap } from '../WorldMap/WorldMap'
 import { VISIT_KINDS } from '../../../../services/api'
 import { VISIT_LABELS } from '../../legend'
 import type { PlacesValue } from '../places'
+import { strings } from '../../../../strings'
 
 export type { PlacesValue }
 
@@ -13,10 +14,10 @@ export function PlacesSection({ value, canEdit, onSave }: { value: PlacesValue; 
   // The legend: a coloured dot for each kind of visit.
   const legend = VISIT_KINDS.map((kind) => ({ key: kind, label: VISIT_LABELS[kind], color: value.colors[kind] }))
   return (
-    <EditableSection title="Where I've been" errorKeys={['places', 'colors.places']} value={value} canEdit={canEdit} onSave={onSave} editor={PlacesEditor}>
-      <ColorLegend items={legend} round hint="Pinch or Ctrl + scroll to zoom" />
+    <EditableSection title={strings.placesSection.whereIveBeen} errorKeys={['places', 'colors.places']} value={value} canEdit={canEdit} onSave={onSave} editor={PlacesEditor}>
+      <ColorLegend items={legend} round hint={strings.placesSection.pinchCtrlScrollZoom} />
       <WorldMap places={value.places} colors={value.colors} />
-      {value.places.length === 0 && <p className="muted">No places yet.</p>}
+      {value.places.length === 0 && <p className="muted">{strings.placesSection.noPlacesYet}</p>}
     </EditableSection>
   )
 }

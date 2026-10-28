@@ -7,6 +7,7 @@ import type { AppCategory, AppCategoryRequest } from '../../../services/api'
 import { useSaveAppCategoriesMutation } from '../../../store/api/appsApi'
 import { fieldErrorsOf, saveFailedMessage, type FieldErrors } from '../../../utils/saveErrors'
 import { move, removeAt, replaceAt } from '../../about/list'
+import { strings } from '../../../strings'
 
 export interface CategoriesDialogProps {
   categories: AppCategory[]
@@ -36,14 +37,14 @@ export function CategoriesDialog(props: CategoriesDialogProps) {
     } catch (error) {
       const fields = fieldErrorsOf(error)
       setErrors(fields ?? {})
-      setMessage(fields ? (fields[''] ?? 'Some names need fixing.') : saveFailedMessage(error))
+      setMessage(fields ? (fields[''] ?? strings.categoriesDialog.someNamesNeedFixing) : saveFailedMessage(error))
     }
   }
   const titleId = useId()
   const rows = draft.map((category, i) => ({
     key: category.id ?? `new-${i}`,
-    label: `Category ${i + 1}`,
-    name: category.name.trim() || `category ${i + 1}`,
+    label: strings.categoriesDialog.category(i + 1),
+    name: category.name.trim() || strings.categoriesDialog.category2(i + 1),
     value: category.name,
     error: errors[`[${i}].name`] ?? errors[`[${i}].id`],
     index: i,
@@ -58,25 +59,25 @@ export function CategoriesDialog(props: CategoriesDialogProps) {
     event.preventDefault()
     void save()
   }
-  const saveLabel = saving ? 'Saving…' : 'Save'
+  const saveLabel = saving ? strings.common.saving : strings.common.save
   const stopAskingDiscard = () => setAskDiscard(false)
 
   return (
     <Modal labelledBy={titleId} onClose={requestClose}>
       <div className="modal-header">
-        <h2 id={titleId}>App categories</h2>
-        <button type="button" className="icon-button" onClick={requestClose} aria-label="Close">
+        <h2 id={titleId}>{strings.categoriesDialog.appCategories}</h2>
+        <button type="button" className="icon-button" onClick={requestClose} aria-label={strings.common.close}>
           <span aria-hidden="true">×</span>
         </button>
       </div>
       <form className="app-form" noValidate onSubmit={submit}>
-        <p className="muted editor-note">Apps show their categories as labels, in this order. Removing one takes it off every app.</p>
+        <p className="muted editor-note">{strings.categoriesDialog.appsShowTheirCategories}</p>
         <ol className="category-list">
           {rows.map(({ key, ...row }) => (
             <CategoryRow key={key} {...row} />
           ))}
         </ol>
-        <AddButton onClick={add}>Add category</AddButton>
+        <AddButton onClick={add}>{strings.categoriesDialog.addCategory}</AddButton>
         {message && (
           <p className="field-error" role="alert">
             {message}
@@ -84,14 +85,14 @@ export function CategoriesDialog(props: CategoriesDialogProps) {
         )}
         <div className="app-form-actions">
           <button type="button" className="button button-secondary" onClick={props.onClose} disabled={saving}>
-            Cancel
+            {strings.common.cancel}
           </button>
           <button type="submit" className="button" disabled={saving}>
             {saveLabel}
           </button>
         </div>
       </form>
-      {askDiscard && <DiscardChangesDialog detail="Your changes to the categories aren't saved." onDiscard={props.onClose} onClose={stopAskingDiscard} />}
+      {askDiscard && <DiscardChangesDialog detail={strings.categoriesDialog.changesCategoriesArentSaved} onDiscard={props.onClose} onClose={stopAskingDiscard} />}
     </Modal>
   )
 }

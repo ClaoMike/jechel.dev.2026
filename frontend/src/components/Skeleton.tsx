@@ -1,10 +1,23 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { strings } from '../strings'
 
 /**
  * Placeholders shaped like the content that's on its way (no spinners). Each is a shimmering block;
  * <Loading> wraps them so screen readers hear "Loading …" once instead of a pile of empty boxes.
  */
-export function Skeleton({ width = '100%', height = 14, radius = 6, className = '', style }: { width?: number | string; height?: number | string; radius?: number | string; className?: string; style?: CSSProperties }) {
+export function Skeleton({
+  width = '100%',
+  height = 14,
+  radius = 6,
+  className = '',
+  style,
+}: {
+  width?: number | string
+  height?: number | string
+  radius?: number | string
+  className?: string
+  style?: CSSProperties
+}) {
   return <span className={`skeleton ${className}`} style={{ width, height, borderRadius: radius, ...style }} />
 }
 
@@ -101,7 +114,7 @@ export function SkeletonChips({ count = 4 }: { count?: number }) {
 }
 
 /** A page whose content isn't known yet (e.g. while the session is checked): two cards. */
-export function PageSkeleton({ label = 'Loading…' }: { label?: string }) {
+export function PageSkeleton({ label = strings.common.loading }: { label?: string }) {
   return (
     <Loading label={label}>
       <SkeletonCard lines={4} />

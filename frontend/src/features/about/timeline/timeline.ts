@@ -1,5 +1,6 @@
 import type { EducationItem, ExperienceItem } from '../../../services/api'
 import { currentMonth, formatPeriod, isUpcoming } from '../format'
+import { strings } from '../../../strings'
 
 /** What experience and education have in common; `organization` is the company or the institution. */
 export interface TimelineEntry {
@@ -40,10 +41,10 @@ export interface TimelineConfig<T> {
 
 export const EXPERIENCE: TimelineConfig<ExperienceItem> = {
   key: 'experience',
-  title: 'Work experience',
+  title: strings.common.workExperience,
   itemName: 'role',
-  titleLabel: 'Job title',
-  organizationLabel: 'Company',
+  titleLabel: strings.timeline.jobTitle,
+  organizationLabel: strings.timeline.company,
   organizationKey: 'company',
   withBullets: true,
   toEntry: ({ company, ...rest }) => ({ ...rest, organization: company }),
@@ -52,10 +53,10 @@ export const EXPERIENCE: TimelineConfig<ExperienceItem> = {
 
 export const EDUCATION: TimelineConfig<EducationItem> = {
   key: 'education',
-  title: 'Education',
+  title: strings.common.education,
   itemName: 'education',
-  titleLabel: 'Degree or course',
-  organizationLabel: 'Institution',
+  titleLabel: strings.timeline.degreeCourse,
+  organizationLabel: strings.timeline.institution,
   organizationKey: 'institution',
   withBullets: false,
   toEntry: ({ institution, ...rest }) => ({ ...rest, organization: institution }),

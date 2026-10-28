@@ -1,12 +1,13 @@
 import type { Status } from '../../../../services/api'
 import { Flag } from '../../Flag'
 import { RichText } from '../../RichText'
+import { strings } from '../../../../strings'
 
 /** The citizenship and residence labels under the photo, each with its flag. */
 export function StatusChips({ statuses, showEmpty }: { statuses: Status[]; showEmpty: boolean }) {
-  if (statuses.length === 0) return showEmpty ? <p className="muted profile-statuses-empty">No citizenship or residence labels yet. Use Edit to add them.</p> : null
+  if (statuses.length === 0) return showEmpty ? <p className="muted profile-statuses-empty">{strings.statusChips.noCitizenshipResidenceLabels}</p> : null
   return (
-    <ul className="chips profile-statuses" aria-label="Citizenship and residence">
+    <ul className="chips profile-statuses" aria-label={strings.common.citizenshipResidence}>
       {statuses.map((status, i) => (
         <li key={i} className="chip">
           <Flag code={status.flag} />

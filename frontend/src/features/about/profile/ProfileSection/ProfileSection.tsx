@@ -8,6 +8,7 @@ import { ProfileEditor } from '../ProfileEditor/ProfileEditor'
 import { ProfileLinks } from '../ProfileLinks/ProfileLinks'
 import { ProfilePhoto } from '../ProfilePhoto/ProfilePhoto'
 import { StatusChips } from '../StatusChips/StatusChips'
+import { strings } from '../../../../strings'
 
 export interface ProfileSectionProps {
   value: Profile
@@ -30,25 +31,25 @@ export interface ProfileSectionProps {
  */
 export function ProfileSection({ value, headline = '', leetCodeUsername = '', youTubeChannelUrl, canEdit, onSave, onRetryContact }: ProfileSectionProps) {
   const candidates: Omit<ProfileLinkItem, 'external'>[] = [
-    { href: value.links.resumeUrl, label: 'Download résumé', icon: 'resume', download: true },
+    { href: value.links.resumeUrl, label: strings.profileSection.downloadRSum, icon: 'resume', download: true },
     { href: value.links.gitHubUrl, label: 'GitHub', icon: 'github', download: false },
     { href: leetCodeUsername ? leetCodeProfileUrl(leetCodeUsername) : '', label: 'LeetCode', icon: 'leetcode', download: false },
     { href: value.links.linkedInUrl, label: 'LinkedIn', icon: 'linkedin', download: false },
-    { href: value.links.instagramUrl, label: 'Instagram', icon: 'instagram', download: false },
+    { href: value.links.instagramUrl, label: strings.profileSection.instagram, icon: 'instagram', download: false },
     { href: youTubeChannelUrl ?? '', label: 'YouTube', icon: 'youtube', download: false },
   ]
   const links = candidates.filter((link) => isSafeUrl(link.href)).map((link) => ({ ...link, external: !link.href.startsWith('/') }))
   const contact = value.contact
   const privateItems: PrivateContactItem[] = contact
     ? [
-        { key: 'email' as const, label: 'email', value: contact.email.trim() },
-        { key: 'phone' as const, label: 'phone number', value: contact.phone.trim() },
+        { key: 'email' as const, label: strings.profileSection.email, value: contact.email.trim() },
+        { key: 'phone' as const, label: strings.profileSection.phoneNumber, value: contact.phone.trim() },
       ].filter((item) => item.value.length > 0)
     : []
 
   return (
     <EditableSection
-      title="Photo and links"
+      title={strings.profileSection.photoLinks}
       hideTitle
       errorKeys={['photoUrl', 'statuses', 'links', 'contact']}
       className="profile-card"
@@ -61,15 +62,15 @@ export function ProfileSection({ value, headline = '', leetCodeUsername = '', yo
         <ProfilePhoto url={isSafeUrl(value.photoUrl) ? value.photoUrl : null} />
         <div className="profile-heading">
           <p className="profile-name" translate="no">
-            Claudiu Mihai Jechel
+            {strings.profileSection.claudiuMihaiJechel}
           </p>
           {headline.trim() && <p className="profile-headline">{headline.trim()}</p>}
         </div>
         {/* Visitors see nothing without labels; the admin sees where they go. */}
         <StatusChips statuses={value.statuses} showEmpty={value.statuses.length === 0 && canEdit} />
         <ProfileLinks links={links} />
-        {contact && <PrivateContact items={privateItems} emptyText="no email or phone for the résumé yet. Use Edit to add them." />}
-        {onRetryContact && <ErrorState compact message="Your résumé's phone, email and headline couldn't be loaded." onRetry={onRetryContact} />}
+        {contact && <PrivateContact items={privateItems} emptyText={strings.profileSection.noEmailPhoneR} />}
+        {onRetryContact && <ErrorState compact message={strings.profileSection.rSumSPhone} onRetry={onRetryContact} />}
       </div>
     </EditableSection>
   )

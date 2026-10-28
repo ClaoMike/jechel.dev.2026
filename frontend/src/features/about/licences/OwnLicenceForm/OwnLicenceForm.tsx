@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { AddButton, TextField } from '../../../../components/fields'
 import { LICENCE_CATEGORIES, type Licence, type LicenceCategory } from '../../../../services/api'
 import { LICENCE_CATEGORY_LABELS } from '../licences'
+import { strings } from '../../../../strings'
 
 /** A licence that isn't offered: kind, optional code, and what it's for. */
 export function OwnLicenceForm({ onAdd }: { onAdd: (licence: Licence) => void }) {
@@ -11,7 +12,7 @@ export function OwnLicenceForm({ onAdd }: { onAdd: (licence: Licence) => void })
 
   function add() {
     if (!draft.name.trim()) {
-      setError('Enter what the licence is for.')
+      setError(strings.ownLicenceForm.enterWhatLicence)
       return
     }
     onAdd({ category: draft.category, code: draft.code.trim(), name: draft.name.trim() })
@@ -31,7 +32,7 @@ export function OwnLicenceForm({ onAdd }: { onAdd: (licence: Licence) => void })
       }}
     >
       <div className="field">
-        <label htmlFor={categoryId}>Kind</label>
+        <label htmlFor={categoryId}>{strings.ownLicenceForm.kind}</label>
         <select id={categoryId} className="select" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as LicenceCategory })}>
           {LICENCE_CATEGORIES.map((category) => (
             <option key={category} value={category}>
@@ -40,18 +41,18 @@ export function OwnLicenceForm({ onAdd }: { onAdd: (licence: Licence) => void })
           ))}
         </select>
       </div>
-      <TextField label="Code (optional)" value={draft.code} onChange={(code) => setDraft({ ...draft, code })} placeholder="e.g. T" />
+      <TextField label={strings.ownLicenceForm.codeOptional} value={draft.code} onChange={(code) => setDraft({ ...draft, code })} placeholder="e.g. T" />
       <TextField
-        label="For"
+        label={strings.ownLicenceForm.for}
         value={draft.name}
         onChange={(name) => {
           setDraft({ ...draft, name })
           setError(null)
         }}
-        placeholder="e.g. Tractor"
+        placeholder={strings.ownLicenceForm.eGTractor}
         error={error ?? undefined}
       />
-      <AddButton onClick={add}>Add licence</AddButton>
+      <AddButton onClick={add}>{strings.ownLicenceForm.addLicence}</AddButton>
     </div>
   )
 }

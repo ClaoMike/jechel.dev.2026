@@ -14,17 +14,18 @@ import { baseApi } from '../../store/baseApi'
 import { toLoadable } from '../../store/loadable'
 import { usePagedQuery } from '../../store/usePagedQuery'
 import { formatDateTime } from '../../utils/formatDate'
+import { strings } from '../../strings'
 
 const NOTIFICATIONS_PAGE_SIZE = 20
 
-const SENT_TO: Record<AlertChannel, string> = { ntfy: 'ntfy', push: "this site's notifications" }
+const SENT_TO: Record<AlertChannel, string> = { ntfy: 'ntfy', push: strings.notificationsPage.sitesNotifications }
 
 const STATUS_TEXT: Record<NotificationStatus, string> = {
-  sent: 'Sent',
-  off: 'Off: not sent',
-  'not-set-up': 'Not set up: not sent',
-  failed: 'Failed',
-  'no-channel': 'Both ways off: not sent',
+  sent: strings.notificationsPage.sent,
+  off: strings.notificationsPage.offNotSent,
+  'not-set-up': strings.notificationsPage.notSetUpNot,
+  failed: strings.notificationsPage.failed,
+  'no-channel': strings.notificationsPage.bothWaysOffNot,
 }
 
 /** A page on this site, to link the title to; null for anything else (only the API's own paths are links). */
@@ -39,7 +40,7 @@ export function NotificationsPage() {
   return (
     <AdminOnly>
       <div className="notifications">
-        <h2 className="visually-hidden">Notifications</h2>
+        <h2 className="visually-hidden">{strings.notificationsPage.notifications}</h2>
         <AlertChannelsCard />
         <Kinds />
         <History />
@@ -69,15 +70,15 @@ function Kinds() {
     try {
       await save({ kind, enabled }).unwrap()
     } catch {
-      setFailed("That couldn't be saved. Please try again.")
+      setFailed(strings.common.couldntSavedPleaseTry)
     }
   }
 
   return (
     <section className="card notifications-card" aria-labelledby="notification-kinds-title">
-      <h3 id="notification-kinds-title">On your phone</h3>
+      <h3 id="notification-kinds-title">{strings.notificationsPage.phone}</h3>
       {state.status === 'loading' && (
-        <Loading label="Loading the notifications…">
+        <Loading label={strings.notificationsPage.loadingNotifications}>
           {[52, 40, 46, 36, 44, 30].map((width, i) => (
             <div key={i} className="notification-kind">
               <Skeleton width={`${width}%`} height={16} />
@@ -86,7 +87,7 @@ function Kinds() {
           ))}
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="The notifications couldn't be loaded." onRetry={() => void query.refetch()} />}
+      {state.status === 'error' && <ErrorState message={strings.notificationsPage.notificationsCouldntLoaded} onRetry={() => void query.refetch()} />}
       {failed && <p role="alert">{failed}</p>}
       {groups.map((group) => (
         <fieldset key={group.name} className="notification-group">
@@ -95,7 +96,9 @@ function Kinds() {
             <div key={kind.kind} className="notification-kind">
               <span className="notification-kind-text">
                 <span className="notification-kind-label">{kind.label}</span>
-                <span className="muted notification-kind-meta">{kind.lastAt ? `${kind.last30Days} in 30 days · last ${formatDateTime(kind.lastAt)}` : 'None yet'}</span>
+                <span className="muted notification-kind-meta">
+                  {kind.lastAt ? strings.notificationsPage.n30DaysLast(kind.last30Days, formatDateTime(kind.lastAt)) : strings.notificationsPage.noneYet}
+                </span>
               </span>
               <OnOffSwitch label={kind.label} on={kind.enabled} onChange={(on) => void toggle(kind.kind, on)} />
             </div>
@@ -117,17 +120,25 @@ function History() {
   return (
     <section className="card notifications-card" aria-labelledby="notification-history-title">
       <div className="inbox-header">
-        <h3 id="notification-history-title">History</h3>
+        <h3 id="notification-history-title">{strings.notificationsPage.history}</h3>
         <span className="notification-history-actions">
-          {state.status === 'loaded' && <span className="muted">{state.data.totalCount} in all</span>}
+          {state.status === 'loaded' && (
+            <span className="muted">
+              {state.data.totalCount} {strings.notificationsPage.all}
+            </span>
+          )}
           {/* What came while the page was open: the history, and the kinds' counts. */}
-          <button type="button" className="button button-secondary button-small" onClick={() => void dispatch(baseApi.util.invalidateTags(['Notifications', 'NotificationKinds']))}>
-            Refresh
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            onClick={() => void dispatch(baseApi.util.invalidateTags([strings.notificationsPage.notifications, 'NotificationKinds']))}
+          >
+            {strings.notificationsPage.refresh}
           </button>
         </span>
       </div>
       <div className="field notification-filter">
-        <label htmlFor="notification-kind">Kind</label>
+        <label htmlFor="notification-kind">{strings.notificationsPage.kind}</label>
         <select
           id="notification-kind"
           className="select"
@@ -137,7 +148,7 @@ function History() {
             setPage(1)
           }}
         >
-          <option value="">Every kind</option>
+          <option value="">{strings.notificationsPage.everyKind}</option>
           {kinds.map((kind) => (
             <option key={kind.kind} value={kind.kind}>
               {kind.label}
@@ -146,11 +157,11 @@ function History() {
         </select>
       </div>
       {state.status === 'loading' && (
-        <Loading label="Loading the history…">
+        <Loading label={strings.notificationsPage.loadingHistory}>
           <SkeletonList rows={5} pill />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="The history couldn't be loaded." onRetry={retry} />}
+      {state.status === 'error' && <ErrorState message={strings.notificationsPage.historyCouldntLoaded} onRetry={retry} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <EmptyState />}
       {state.status === 'loaded' && state.data.items.length > 0 && (
         <ul className="notification-list">
@@ -160,7 +171,12 @@ function History() {
                 <span className="chip">{kinds.find((k) => k.kind === notification.kind)?.label ?? notification.kind}</span>
                 <strong>{linkOf(notification.path) ? <Link to={linkOf(notification.path)!}>{notification.title}</Link> : notification.title}</strong>
                 <span className={notification.status === 'sent' ? 'chip chip-muted' : 'chip notification-status-held'}>{STATUS_TEXT[notification.status]}</span>
-                {notification.sentTo.length > 0 && <span className="muted notification-sent-to">to {notification.sentTo.map((c) => SENT_TO[c]).join(' and ')}</span>}
+                {notification.sentTo.length > 0 && (
+                  <span className="muted notification-sent-to">
+                    {strings.notificationsPage.to}
+                    {notification.sentTo.map((c) => SENT_TO[c]).join(' and ')}
+                  </span>
+                )}
               </div>
               <p className="notification-message">{notification.message}</p>
               <time className="muted" dateTime={notification.createdAt}>

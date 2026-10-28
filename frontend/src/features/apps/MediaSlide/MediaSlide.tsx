@@ -3,6 +3,7 @@ import { PlayIcon } from '../../../components/icons/icons'
 import type { AppMedia } from '../../../services/api'
 import { YouTubePlayer } from '../../youtube/YouTubePlayer/YouTubePlayer'
 import { youTubeEmbedUrl, youTubeIdIn, youTubeThumbnail } from '../media'
+import { strings } from '../../../strings'
 
 export interface MediaSlideProps {
   item: AppMedia
@@ -22,7 +23,7 @@ export function MediaSlide({ item, index, active, label, show }: MediaSlideProps
   if (!id) return null
   if (active) return <YouTubePlayer src={youTubeEmbedUrl(id)} title={label} />
   return (
-    <button type="button" className="carousel-youtube-thumb" aria-label={`Show ${label}`} onClick={show}>
+    <button type="button" className="carousel-youtube-thumb" aria-label={strings.mediaSlide.show(label)} onClick={show}>
       <img src={youTubeThumbnail(id)} alt="" loading="lazy" />
       <PlayIcon size={40} />
     </button>

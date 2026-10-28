@@ -3,6 +3,7 @@ import { Skeleton } from '../../../components/Skeleton'
 import { useGetSupportQuery } from '../../../store/api/communityApi'
 import { trackEvent } from '../../analytics'
 import { useFeature } from '../../site/useSite'
+import { strings } from '../../../strings'
 
 /**
  * "Buy me a coffee" in the header: a link to the donation page set in the API's configuration
@@ -24,11 +25,11 @@ export function SupportButton() {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Buy me a coffee (opens in a new tab)"
+      aria-label={strings.supportButton.buyMeCoffeeOpens}
       onClick={() => trackEvent('Support clicked')}
     >
       <CoffeeIcon />
-      <span className="header-button-label">Buy me a coffee</span>
+      <span className="header-button-label">{strings.supportButton.buyMeCoffee}</span>
     </a>
   )
 }

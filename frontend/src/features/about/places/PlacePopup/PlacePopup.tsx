@@ -6,6 +6,7 @@ import { VISIT_KINDS, type AboutColors, type Place, type PlaceVisit, type VisitK
 import { VISIT_LABELS } from '../../legend'
 import { placeLabel } from '../placeLabel'
 import type { Editing } from '../places'
+import { strings } from '../../../../strings'
 
 export interface PlacePopupProps {
   editing: Editing
@@ -17,7 +18,11 @@ export interface PlacePopupProps {
   onCancel: () => void
 }
 
-const NOTE_PLACEHOLDERS: Record<VisitKind, string> = { studied: 'BSc Computer Science at …', worked: 'Software Engineer at …', visited: 'Holiday, 2023' }
+const NOTE_PLACEHOLDERS: Record<VisitKind, string> = {
+  studied: strings.placePopup.bscComputerScience,
+  worked: strings.placePopup.softwareEngineer,
+  visited: strings.placePopup.holiday2023,
+}
 
 /** Over the map: ticks for worked / studied / visited, each with an optional note that may hold links. */
 export function PlacePopup({ editing, colors, errors, onApply, onRemove, onCancel }: PlacePopupProps) {
@@ -33,7 +38,7 @@ export function PlacePopup({ editing, colors, errors, onApply, onRemove, onCance
 
   function apply() {
     if (visits.length === 0) {
-      setError('Tick at least one: worked, studied or visited.')
+      setError(strings.placePopup.tickLeastOneWorked)
       return
     }
     onApply({ ...editing.place, visits })
@@ -43,7 +48,7 @@ export function PlacePopup({ editing, colors, errors, onApply, onRemove, onCance
     <div className="place-popup" role="dialog" aria-label={title} onKeyDown={(e) => e.key === 'Escape' && onCancel()}>
       <div className="place-popup-header">
         <strong>{title}</strong>
-        <button type="button" className="icon-button" aria-label="Close" onClick={onCancel}>
+        <button type="button" className="icon-button" aria-label={strings.common.close} onClick={onCancel}>
           <CloseIcon size={16} />
         </button>
       </div>
@@ -59,7 +64,7 @@ export function PlacePopup({ editing, colors, errors, onApply, onRemove, onCance
             </label>
             {visit && (
               <TextField
-                label={`${VISIT_LABELS[kind]}: note (optional)`}
+                label={strings.placePopup.noteOptional(VISIT_LABELS[kind])}
                 value={visit.note}
                 onChange={(note) => setVisits(visits.map((v) => (v.kind === kind ? { ...v, note } : v)))}
                 error={errors[`visits[${index}].note`]}
@@ -73,22 +78,22 @@ export function PlacePopup({ editing, colors, errors, onApply, onRemove, onCance
       {(error ?? errors.visits) && <p className="field-error">{error ?? errors.visits}</p>}
       <div className="place-popup-actions">
         <button type="button" className="button button-small" onClick={apply}>
-          {editing.kind === 'new' ? 'Add to map' : 'Update place'}
+          {editing.kind === 'new' ? strings.placePopup.addMap : strings.placePopup.updatePlace}
         </button>
         {onRemove && (
           <DeleteButton
-            what={`${editing.place.name} from the map`}
-            action="Remove"
+            what={strings.placePopup.map(editing.place.name)}
+            action={strings.common.remove}
             detail={REMOVE_DETAIL}
             onDelete={onRemove}
             className="button button-secondary button-small"
-            label="Remove from map"
+            label={strings.placePopup.removeMap}
           >
-            Remove from map
+            {strings.placePopup.removeMap}
           </DeleteButton>
         )}
       </div>
-      <p className="muted editor-note">Changes show on the page once you save this section.</p>
+      <p className="muted editor-note">{strings.placePopup.changesShowPageOnce}</p>
     </div>
   )
 }

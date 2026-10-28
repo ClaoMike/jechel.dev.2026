@@ -1,3 +1,5 @@
+import { strings } from '../../strings'
+
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' })
 
 /** "2023-01-01" → "Jan 2023" (in the viewer's locale). */
@@ -17,7 +19,7 @@ export function isUpcoming(start: string, now = new Date()): boolean {
 
 /** "Jan 2020 – Mar 2022", "Jan 2020 – Present", or "Starting Mar 2030" for an open-ended future start. */
 export function formatPeriod(start: string, end: string | null, now = new Date()): string {
-  if (end === null) return isUpcoming(start, now) ? `Starting ${formatMonth(start)}` : `${formatMonth(start)} – Present`
+  if (end === null) return isUpcoming(start, now) ? strings.aboutFormat.starting(formatMonth(start)) : strings.aboutFormat.present(formatMonth(start))
   if (start.slice(0, 7) === end.slice(0, 7)) return formatMonth(start)
   return `${formatMonth(start)} – ${formatMonth(end)}`
 }
@@ -51,5 +53,5 @@ export function fileNameOf(url: string): string {
 /** 20971520 → "20 MB", 25500000 → "24.3 MB". */
 export function formatMegabytes(bytes: number): string {
   const megabytes = bytes / 1024 / 1024
-  return `${Number.isInteger(megabytes) ? megabytes : megabytes.toFixed(1)} MB`
+  return strings.aboutFormat.mb(Number.isInteger(megabytes) ? megabytes : megabytes.toFixed(1))
 }

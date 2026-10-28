@@ -8,6 +8,7 @@ import { ColorsFieldset } from '../../section/ColorsFieldset/ColorsFieldset'
 import { SortableListHeader } from '../../section/SortableListHeader/SortableListHeader'
 import { SkillEditor } from '../SkillEditor/SkillEditor'
 import { sortByExperience, type SkillsValue } from '../skills'
+import { strings } from '../../../../strings'
 
 function swapped(open: ReadonlySet<number>, from: number, to: number): ReadonlySet<number> {
   return new Set([...open].map((n) => (n === from ? to : n === to ? from : n)))
@@ -32,8 +33,8 @@ export function SkillsEditor({ value, onChange, errors }: EditorProps<SkillsValu
   return (
     <div className="editor-list">
       <SortableListHeader
-        sortLabel="Sort by experience"
-        sortedMessage="Sorted by experience, most first. Save to keep this order, or Cancel to undo."
+        sortLabel={strings.skillsEditor.sortExperience}
+        sortedMessage={strings.skillsEditor.sortedExperienceMostFirst}
         canSort={skills.length >= 2}
         sorted={sorted}
         sort={() => {
@@ -67,7 +68,7 @@ export function SkillsEditor({ value, onChange, errors }: EditorProps<SkillsValu
         />
       ))}
       {errors.skills && <p className="field-error">{errors.skills}</p>}
-      <AddButton onClick={() => setSkills([...skills, newSkill()], new Set([...open, skills.length]))}>Add skill</AddButton>
+      <AddButton onClick={() => setSkills([...skills, newSkill()], new Set([...open, skills.length]))}>{strings.skillsEditor.addSkill}</AddButton>
     </div>
   )
 }

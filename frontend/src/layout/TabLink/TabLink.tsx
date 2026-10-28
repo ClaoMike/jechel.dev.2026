@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { EyeOffIcon } from '../../components/icons/icons'
+import { strings } from '../../strings'
 
 /**
  * One tab: a link marked current (aria-current="page") on its page, the pages under it, or the pages it groups (the tab
@@ -27,7 +28,7 @@ export function TabLink({
       aria-current={current ? 'page' : undefined}
       className={adminOnly ? 'tab tab-admin' : 'tab'}
       draggable={false}
-      title={hiddenFromVisitors ? 'Hidden from visitors' : undefined}
+      title={hiddenFromVisitors ? strings.tabLink.hiddenVisitors : undefined}
     >
       {label}
       {badge && (
@@ -41,7 +42,7 @@ export function TabLink({
           {' '}
           <span className="tab-hidden">
             <EyeOffIcon size={14} />
-            <span className="visually-hidden">(hidden from visitors)</span>
+            <span className="visually-hidden">{strings.tabLink.hiddenVisitors2}</span>
           </span>
         </>
       )}

@@ -4,18 +4,19 @@ import { PaperItem } from '../PaperItem/PaperItem'
 import { PapersEditor } from '../PapersEditor/PapersEditor'
 import { isSafeUrl } from '../../format'
 import { plainText } from '../../textLinks'
+import { strings } from '../../../../strings'
 
 /** Academic papers: each title downloads its PDF (the title as plain text), when one was uploaded; its rich title otherwise. */
 export function PapersSection({ value, canEdit, onSave }: { value: Paper[]; canEdit: boolean; onSave: (value: Paper[]) => Promise<void> }) {
   const papers = value.map((paper) =>
     paper.fileUrl && isSafeUrl(paper.fileUrl)
-      ? { kind: 'download' as const, href: paper.fileUrl, title: plainText(paper.title), label: `${plainText(paper.title)} (PDF)` }
+      ? { kind: 'download' as const, href: paper.fileUrl, title: plainText(paper.title), label: strings.papersSection.pdf(plainText(paper.title)) }
       : { kind: 'text' as const, title: paper.title },
   )
   return (
-    <EditableSection title="Academic papers" errorKeys={['papers']} value={value} canEdit={canEdit} onSave={onSave} editor={PapersEditor}>
+    <EditableSection title={strings.common.academicPapers} errorKeys={['papers']} value={value} canEdit={canEdit} onSave={onSave} editor={PapersEditor}>
       {papers.length === 0 ? (
-        <p className="muted">Nothing here yet.</p>
+        <p className="muted">{strings.common.nothingHereYet}</p>
       ) : (
         <ul className="papers">
           {papers.map((paper, i) => (

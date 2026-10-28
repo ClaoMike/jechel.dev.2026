@@ -3,6 +3,7 @@ import { TimelineItem } from '../TimelineItem/TimelineItem'
 import type { ComponentType } from 'react'
 import type { EditorProps } from '../../../../components/fields'
 import { toItemView, type TimelineConfig } from '../timeline'
+import { strings } from '../../../../strings'
 
 export interface TimelineSectionProps<T> {
   config: TimelineConfig<T>
@@ -19,7 +20,7 @@ export function TimelineSection<T>({ config, editor, value, canEdit, onSave }: T
   return (
     <EditableSection title={config.title} errorKeys={[config.key]} value={value} canEdit={canEdit} onSave={onSave} editor={editor}>
       {items.length === 0 ? (
-        <p className="muted">Nothing here yet.</p>
+        <p className="muted">{strings.common.nothingHereYet}</p>
       ) : (
         <ol className="timeline">
           {items.map((item, i) => (

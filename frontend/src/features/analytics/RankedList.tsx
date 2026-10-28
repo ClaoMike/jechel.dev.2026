@@ -1,8 +1,9 @@
 import type { NamedCount } from '../../services/api'
 import { formatCount } from './format'
+import { strings } from '../../strings'
 
 /** A top-10 list with a bar per row, scaled to the first (biggest) one. */
-export function RankedList({ title, items, empty = 'Nothing yet.' }: { title: string; items: NamedCount[]; empty?: string }) {
+export function RankedList({ title, items, empty = strings.rankedList.nothingYet }: { title: string; items: NamedCount[]; empty?: string }) {
   const max = items[0]?.count ?? 0
   return (
     <section className="card ranked-list" aria-label={title}>

@@ -1,4 +1,5 @@
 import { ArrowLeftIcon, ArrowRightIcon } from '../../../components/icons/icons'
+import { strings } from '../../../strings'
 
 export interface CarouselControlsProps {
   dots: { key: number; label: string; current: boolean; show: () => void }[]
@@ -14,7 +15,7 @@ export interface CarouselControlsProps {
 export function CarouselControls({ dots, count, canGoBack, canGoOn, previous, next }: CarouselControlsProps) {
   return (
     <div className="carousel-controls">
-      <button type="button" className="icon-button" aria-label="Previous" disabled={!canGoBack} onClick={previous}>
+      <button type="button" className="icon-button" aria-label={strings.carouselControls.previous} disabled={!canGoBack} onClick={previous}>
         <ArrowLeftIcon />
       </button>
       <div className="carousel-dots">
@@ -25,7 +26,7 @@ export function CarouselControls({ dots, count, canGoBack, canGoOn, previous, ne
       <span className="carousel-count" aria-live="polite">
         {count}
       </span>
-      <button type="button" className="icon-button" aria-label="Next" disabled={!canGoOn} onClick={next}>
+      <button type="button" className="icon-button" aria-label={strings.carouselControls.next} disabled={!canGoOn} onClick={next}>
         <ArrowRightIcon />
       </button>
     </div>

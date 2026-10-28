@@ -1,4 +1,5 @@
 import type { AppCategory } from '../../../services/api'
+import { strings } from '../../../strings'
 
 export interface CategoryPickerProps {
   categories: AppCategory[]
@@ -16,9 +17,9 @@ export function CategoryPicker({ categories, value, onChange, error }: CategoryP
 
   return (
     <fieldset className="app-field">
-      <legend className="field-label">Kind of app</legend>
+      <legend className="field-label">{strings.categoryPicker.kindApp}</legend>
       {categories.length === 0 ? (
-        <p className="field-hint">No categories yet: add them with Categories, above the apps.</p>
+        <p className="field-hint">{strings.categoryPicker.noCategoriesYetAdd}</p>
       ) : (
         <div className="licence-toggles">
           {categories.map((category) => (
