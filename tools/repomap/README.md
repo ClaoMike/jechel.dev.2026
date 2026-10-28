@@ -91,7 +91,8 @@ panel; **In the 3D map** selects it there. The panel's search finds any chip.
 **Features.** Each node gets one: config `board.featureOverrides` (globs or ids), then its folder
 (`features/<x>`, `Features/<X>`), then the AI's placement (`repomap.ai.json`), then its parent, then the
 feature most of its neighbours share (≥ 60 %); the rest is `shared`. `board.featureLabels` names them,
-`board.featureAliases` merges them.
+`board.featureAliases` merges them; `board.hubFeatures` lists features everything uses (an API service), which
+don't pull their neighbours in.
 
 **AI summaries** (`npm run summarize`, or the AI panel when served with `npm start`). Claude first
 places the chips nothing placed (through Claude Code or the API, as the assistant's settings say), then summarizes each chip from its code, each feature (per tier) from
@@ -108,7 +109,8 @@ effects, what to check, tests, questions — from the diff and the map. Without 
 
 **Rules** (`rules` in the config, checked on every build, listed by `npm run check`). A rule selects
 edges (`from` / `to`: tiers, layers, features, kinds, roles; `edgeTypes`) and either denies them
-(`deny`) or keeps them inside one feature (`sameFeature`, with `allowFeatures` reachable from anywhere).
+(`deny`) or keeps them inside one feature (`sameFeature`, with `allowFeatures` reachable from anywhere); a selector's
+`notFeatures` matches every feature but those.
 The AI can suggest rules the code already mostly follows (Rules panel, `node src/cli.ts suggest-rules`).
 
 **The assistant** can point at the board: its `show_on_board` tool opens the feature and lights the

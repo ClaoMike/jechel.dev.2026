@@ -155,6 +155,7 @@ export function buildBoard(config: RepoMapConfig, nodes: GraphNode[], edges: Gra
   const assigned = assignFeatures(nodes, edges, {
     aliases: config.board.featureAliases,
     manual: manualFeatures(nodes, config.board.featureOverrides),
+    hubs: config.board.hubFeatures,
     llm,
   })
   for (const node of nodes) {

@@ -21,7 +21,7 @@
   // backend Features/* (folder names lowercased: workWithMe → workwithme).
   "board": {
     "tiers": [
-      { "id": "frontend", "label": "Frontend", "color": "#38bdf8", "layers": ["frontend-views", "frontend-viewmodels", "frontend"], "description": "React + Vite app: views, view models, the Redux store and the API service" },
+      { "id": "frontend", "label": "Frontend", "color": "#38bdf8", "layers": ["frontend-views", "frontend"], "description": "React + Vite app: components, the Redux store and the API service" },
       { "id": "backend", "label": "Backend", "color": "#4ade80", "layers": ["backend"], "description": "ASP.NET Core minimal API: endpoints, services, EF Core" },
       { "id": "database", "label": "Database", "color": "#fb923c", "layers": ["database"], "description": "PostgreSQL: tables and columns from the EF Core model" },
       { "id": "infra", "label": "Infra & tooling", "color": "#a78bfa", "layers": ["infra"] }
@@ -33,32 +33,26 @@
       "youtube": "YouTube",
       "leetcode": "LeetCode",
       "featuretesting": "Feature Testing",
-      "site": "Site"
+      "site": "Site",
+      "api": "API"
     },
     "featureAliases": {},
-    "featureOverrides": {}
+    // The API service (services/: the one axios instance and every call to the backend, grouped by feature) is its own
+    // feature: every other one reaches the backend through it.
+    "featureOverrides": { "frontend/src/services/**": "api" },
+    "hubFeatures": ["api"]
   },
 
   // Checked on every build: the Board marks the edges that break them, `npm run check` lists them.
   "rules": [
     {
-      "id": "views-use-their-view-model",
-      "description": "MVVM: a view reaches the store and the API only through its view model",
+      "id": "backend-only-through-the-api",
+      "description": "The frontend reaches the backend only through the API service (services/): no feature calls it on its own",
       "severity": "warn",
-      "from": { "layers": ["frontend-views"], "roles": ["production"] },
-      "to": { "kinds": ["slice", "thunk", "store-api", "api-client", "api-call"] },
-      "edgeTypes": ["uses", "calls"],
-      "deny": true
-    },
-    {
-      "id": "frontend-calls-its-own-feature",
-      "description": "A feature's frontend calls only its own feature's endpoints (shared, auth and site may be called from anywhere)",
-      "severity": "warn",
-      "from": { "tiers": ["frontend"], "roles": ["production"] },
+      "from": { "tiers": ["frontend"], "roles": ["production"], "notFeatures": ["api"] },
       "to": { "tiers": ["backend"] },
       "edgeTypes": ["http"],
-      "sameFeature": true,
-      "allowFeatures": ["auth", "site"]
+      "deny": true
     },
     {
       "id": "features-dont-share-tables",
