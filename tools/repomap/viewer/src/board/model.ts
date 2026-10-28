@@ -275,7 +275,7 @@ export function landingOf(bi: BoardIndex, i: number, options: BoardOptions): { p
   const opts = { ...options, showHidden: options.showHidden || !!bi.hidden[root] }
   const all = chipsIn(bi, path.tier, path.feature, opts)
   const groups = grouped(bi, all, path.feature, path.tier, opts)
-  const { own } = renderLevels(bi, groups ? all.filter((c) => groups.get(c) === path.group) : all, path.tier, opts)
+  const { own } = boardLevels(bi, groups ? all.filter((c) => groups.get(c) === path.group) : all, path.tier, path.feature, opts)
   if (!own.includes(root)) return { path, select: id }
   return { path: { level: 'chips', tier: path.tier, feature: path.feature, ...(path.group !== undefined ? { group: path.group } : {}) }, select: id }
 }
@@ -355,7 +355,7 @@ export function chipGroups(bi: BoardIndex, chips: number[], feature?: string): M
  */
 function grouped(bi: BoardIndex, chips: number[], feature: string, tier: string, options: BoardOptions): Map<number, string> | null {
   if (chips.length <= MAX_CHIPS) return null
-  const shown = renderLevels(bi, chips, tier, options)
+  const shown = boardLevels(bi, chips, tier, feature, options)
   if (shown.own.length + shown.borrowed.length <= MAX_CHIPS) return null
   const groups = chipGroups(bi, chips, feature)
   return new Set(groups.values()).size >= 2 ? groups : null
@@ -414,61 +414,54 @@ function collector(bi: BoardIndex, marks: ReviewMarks | undefined): Collector {
 const STATE_COLOR = '#facc15'
 
 /**
- * Wires one edge; a render that happens only in some state goes through that state's chip:
- * WhatsNewPage → [state.status === 'loading'] → WhatsNewSkeleton. One state chip per component and condition.
+ * A feature's board is one level: its entry chips (those nothing else in the feature points to: its page, an endpoint
+ * group) and what they connect to directly, renders, uses or calls, from this feature or, for what they render, another
+ * (ErrorState from Shared: drawn faded). What those use in turn is on their own boards, opened one at a time, where it
+ * also says who uses them. Chips with no links at all (types, when type links are off) aren't drawn.
  */
-/**
- * A feature's board shows its top components (those no other component of the feature renders, e.g. its page) and what
- * they render directly, from this feature or another (ErrorState from Shared: drawn faded, wired only to them). What
- * those render in turn is on their own boards, where they lead to it, and where it says who renders it. Chips that
- * don't render or get rendered (hooks, types) stay, unless they only connect to what's left for deeper boards.
- */
-function renderLevels(bi: BoardIndex, chips: number[], tier: string, options: BoardOptions): { own: number[]; borrowed: number[]; top: Set<number>; deeper: Set<number> } {
+function boardLevels(bi: BoardIndex, chips: number[], tier: string, feature: string, options: BoardOptions): { own: number[]; borrowed: number[]; top: Set<number>; deeper: Set<number> } {
   const chipSet = new Set(chips)
+  const home = (r: number) => bi.featureOf[r] === feature
+  const out = new Map<number, Set<number>>()
+  const pointedAt = new Set<number>()
+  const linked = new Set<number>()
   const renders = new Map<number, Set<number>>()
-  const renderedBy = new Map<number, Set<number>>()
-  for (const r of chips) {
-    for (const e of bi.index.outEdges[r]) {
-      if (bi.index.edges[e].type !== 'renders') continue
-      const target = bi.rootOf[bi.index.edgeTo[e]]
-      if (target === r) continue
-      ;(renders.get(r) ?? renders.set(r, new Set()).get(r)!).add(target)
-      if (chipSet.has(target)) (renderedBy.get(target) ?? renderedBy.set(target, new Set()).get(target)!).add(r)
-    }
+  bi.index.edges.forEach((edge, e) => {
+    if (!wired(bi, e, options)) return
+    const from = bi.index.edgeFrom[e]
+    const to = bi.index.edgeTo[e]
+    if (!visible(bi, from, options) || !visible(bi, to, options)) return
+    const a = bi.rootOf[from]
+    const b = bi.rootOf[to]
+    if (a === b) return
+    if (chipSet.has(a)) linked.add(a)
+    if (chipSet.has(b)) linked.add(b)
+    if (!chipSet.has(a)) return
+    if (edge.type === 'renders') (renders.get(a) ?? renders.set(a, new Set()).get(a)!).add(b)
+    if (!chipSet.has(b)) return
+    ;(out.get(a) ?? out.set(a, new Set()).get(a)!).add(b)
+    // Only the feature's own chips decide what's an entry: a shared parent shown for its parts here (the app's route
+    // table, the API client) doesn't make the page it leads to any less of one.
+    if (home(a) && home(b)) pointedAt.add(b)
+  })
+  const connected = chips.filter((r) => linked.has(r) && home(r))
+  if (connected.length === 0) return { own: chips, borrowed: [], top: new Set(chips), deeper: new Set() }
+  let top = connected.filter((r) => !pointedAt.has(r))
+  // Everything points at something else in the feature (a ring): start from what points at the most.
+  if (top.length === 0) {
+    const most = Math.max(...connected.map((r) => out.get(r)?.size ?? 0))
+    top = connected.filter((r) => (out.get(r)?.size ?? 0) === most)
   }
-  const renderers = chips.filter((r) => renders.has(r) || renderedBy.has(r))
-  if (renderers.length === 0) return { own: chips, borrowed: [], top: new Set(), deeper: new Set() }
-  let top = renderers.filter((r) => !renderedBy.has(r))
-  // Rendering each other in a ring: no top; show them all.
-  if (top.length === 0) top = renderers
   const shown = new Set(top)
   const borrowed: number[] = []
   for (const r of top) {
+    for (const next of out.get(r) ?? []) shown.add(next)
     for (const target of renders.get(r) ?? []) {
-      if (chipSet.has(target)) shown.add(target)
-      else if (bi.tierOf[target] === tier && visible(bi, target, options) && borrowed.length < MAX_BORROWED && !borrowed.includes(target)) borrowed.push(target)
+      if (!chipSet.has(target) && bi.tierOf[target] === tier && visible(bi, target, options) && borrowed.length < MAX_BORROWED && !borrowed.includes(target)) borrowed.push(target)
     }
   }
-  const deeper = new Set(renderers.filter((r) => !shown.has(r)))
-  if (deeper.size === 0) return { own: chips, borrowed, top: new Set(top), deeper }
-  // A hook or type used only by what's on deeper boards goes there with it.
-  const neighbours = new Map<number, Set<number>>()
-  bi.index.edges.forEach((_, e) => {
-    const a = bi.rootOf[bi.index.edgeFrom[e]]
-    const b = bi.rootOf[bi.index.edgeTo[e]]
-    if (a === b || !chipSet.has(a) || !chipSet.has(b)) return
-    ;(neighbours.get(a) ?? neighbours.set(a, new Set()).get(a)!).add(b)
-    ;(neighbours.get(b) ?? neighbours.set(b, new Set()).get(b)!).add(a)
-  })
-  const own = chips.filter((r) => {
-    if (deeper.has(r)) return false
-    if (shown.has(r)) return true
-    const next = neighbours.get(r)
-    return !next || [...next].some((n) => !deeper.has(n))
-  })
-  // Gone with them: whatever else only they led to.
-  for (const r of chips) if (!own.includes(r)) deeper.add(r)
-  return { own, borrowed, top: new Set(top), deeper }
+  const own = chips.filter((r) => shown.has(r))
+  return { own, borrowed, top: new Set(top), deeper: new Set(chips.filter((r) => !shown.has(r))) }
 }
 
 /** The chip of one of a component's states (one per component and condition), made on first use. */
@@ -495,6 +488,10 @@ function stateChip(chips: Map<string, BoardChip>, ownerChip: string, rc: RenderC
   return id
 }
 
+/**
+ * Wires one edge; a render that happens only in some state goes through that state's chip:
+ * WhatsNewPage → [state.status === 'loading'] → WhatsNewSkeleton. One state chip per component and condition.
+ */
 function addWire(bi: BoardIndex, c: Collector, chips: Map<string, BoardChip>, options: BoardOptions, e: number, from: Place, to: Place): void {
   const cases = options.states === false || !from || !to ? [] : renderCases(bi.index.edges[e])
   if (cases.length === 0) return c.add(e, from, to)
@@ -729,8 +726,7 @@ function chipsScene(bi: BoardIndex, path: Extract<BoardPath, { level: 'chips' }>
   const all = chipsIn(bi, path.tier, path.feature, options)
   const groups = grouped(bi, all, path.feature, path.tier, options)
   if (groups && path.group === undefined) return groupsScene(bi, path, all, groups, options, marks)
-  const { own, borrowed: borrowedList, top, deeper } = renderLevels(bi, groups ? all.filter((c) => groups.get(c) === path.group) : all, path.tier, options)
-  const ownSet = new Set(own)
+  const { own, borrowed: borrowedList, top, deeper } = boardLevels(bi, groups ? all.filter((c) => groups.get(c) === path.group) : all, path.tier, path.feature, options)
   const borrowed = new Set(borrowedList)
   const roots = [...own, ...borrowed]
   const rootSet = new Set(roots)
@@ -787,15 +783,12 @@ function chipsScene(bi: BoardIndex, path: Extract<BoardPath, { level: 'chips' }>
     const from = bi.index.edgeFrom[e]
     const to = bi.index.edgeTo[e]
     if (!inView(from) && !inView(to)) return
-    // What's left for deeper boards isn't wired here, nor what the components under the top ones render.
+    // One level: only the entry chips' own wires (what the chips they lead to use is on those chips' boards).
     if (deeper.has(bi.rootOf[from]) || deeper.has(bi.rootOf[to])) return
-    if (bi.index.edges[e].type === 'renders' && top.size > 0 && !top.has(bi.rootOf[from]) && !rootSet.has(bi.rootOf[to])) return
-    // A borrowed chip shows only its wires to this feature's own chips.
-    if (borrowed.has(bi.rootOf[from]) && !ownSet.has(bi.rootOf[to])) return
-    if (borrowed.has(bi.rootOf[to]) && !ownSet.has(bi.rootOf[from])) return
+    if (!top.has(bi.rootOf[from]) && !top.has(bi.rootOf[to])) return
     addWire(bi, c, chips, options, e, place(from, e, 'from'), place(to, e, 'to'))
   })
-  for (const root of own) addShownElements(bi, c, chips, options, root)
+  for (const root of top) addShownElements(bi, c, chips, options, root)
   const wires = [...c.wires.values()]
   const note = trimConnectors(chips, wires)
   pruneStates(chips, wires)
