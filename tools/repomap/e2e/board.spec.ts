@@ -75,6 +75,21 @@ test.describe('board', () => {
     await expect(details).toContainText('http')
   })
 
+  test('a component says what it shows in which state; pointing at a state lights those chips', async ({ page }) => {
+    const page_ = 'frontend:symbol:web/src/features/books/BooksPage.tsx#BooksPage'
+    const list = 'frontend:symbol:web/src/features/books/BookList.tsx#BookList'
+    await page.goto('/#tab=board&board=chips~frontend~book~')
+    await mapLoaded(page)
+    await expect(page.locator(`[data-wire="${page_}|>${list}|"], [data-wire^="${page_}|"][data-wire*="${list}"]`).first()).toHaveClass(/conditional/)
+    await chip(page, page_).click()
+    const states = page.getByTestId('board-render-states')
+    await expect(states).toContainText("state.status === 'loaded'")
+    await expect(states).toContainText('useBooks')
+    await expect(states).toContainText('BookList')
+    await states.locator('li').first().hover()
+    await expect(chip(page, list)).toHaveClass(/focused/)
+  })
+
   test('finds a chip and reads its code', async ({ page }) => {
     await serveSource(page)
     await page.goto('/#tab=board')

@@ -4,7 +4,7 @@
  */
 import { useMemo, useState, type ReactNode } from 'react'
 import { WRITE_HEADER } from '../../../src/shared/git-actions.ts'
-import { membersOf, type Member, type Summary } from '../../../src/shared/board.ts'
+import { caseLabel, membersOf, renderCases, type Member, type Summary } from '../../../src/shared/board.ts'
 import { Markdown } from '../ai/Markdown.tsx'
 import { ensureGitHistory } from '../git/load.ts'
 import { useGit } from '../git/store.ts'
@@ -319,6 +319,7 @@ function ChipDetails({ bi, scene, chip }: { bi: BoardIndex; scene: BoardScene; c
           </Section>
         )
       })}
+      {node && <RenderStates bi={bi} scene={scene} node={chip.node!} />}
       {connections.inc.length > 0 && <Connections title="Wires in" items={connections.inc} />}
       {connections.out.length > 0 && <Connections title="Wires out" items={connections.out} />}
       {violations.length > 0 && (
@@ -333,6 +334,82 @@ function ChipDetails({ bi, scene, chip }: { bi: BoardIndex; scene: BoardScene; c
         </Section>
       )}
     </div>
+  )
+}
+
+interface StateGroup {
+  label: string
+  reads: { name: string; from: string }[]
+  line: number
+  targets: number[]
+}
+
+/**
+ * What a component shows, grouped by the state it shows it in: "state.status === 'loading'" → the skeleton,
+ * "always" → the frame. Pointing at a group lights its children up on the board.
+ */
+function RenderStates({ bi, scene, node }: { bi: BoardIndex; scene: BoardScene; node: number }) {
+  const setFocus = useBoard((s) => s.setFocus)
+  const groups = useMemo(() => {
+    const byLabel = new Map<string, StateGroup>()
+    for (const e of bi.index.outEdges[node]) {
+      const edge = bi.index.edges[e]
+      for (const c of renderCases(edge)) {
+        const label = caseLabel(c)
+        const group = byLabel.get(label) ?? { label, reads: [], line: c.line, targets: [] }
+        byLabel.set(label, group)
+        const target = bi.index.edgeTo[e]
+        if (!group.targets.includes(target)) group.targets.push(target)
+        for (const read of c.reads ?? []) if (!group.reads.some((r) => r.name === read.name)) group.reads.push(read)
+        group.line = Math.min(group.line, c.line)
+      }
+    }
+    // "always" first, then in the order they're written.
+    return [...byLabel.values()].sort((a, b) => (a.label === 'always' ? -1 : b.label === 'always' ? 1 : a.line - b.line))
+  }, [bi, node])
+  if (groups.length === 0) return null
+  const onBoard = new Set(scene.chips.map((c) => c.id))
+  const target = bi.index.nodes[node]
+  return (
+    <Section title={`Shows, and when (${groups.length})`}>
+      <ul className="board-states" data-testid="board-render-states" onMouseLeave={() => setFocus(null)}>
+        {groups.map((group) => (
+          <li key={group.label} onMouseEnter={() => setFocus(group.targets)} onFocus={() => setFocus(group.targets)} onBlur={() => setFocus(null)}>
+            <button
+              type="button"
+              className="board-state-when mono"
+              title={`Line ${group.line}`}
+              onClick={() => useViewer.setState({ codeView: { node: null, opened: { ...target, id: `${target.id}@${group.line}`, line: group.line, endLine: group.line } }, contextMenu: null })}
+            >
+              {group.label}
+            </button>
+            {group.reads.length > 0 && (
+              <p className="muted small">
+                {group.reads.map((r) => (
+                  <span key={r.name} className="board-state-read">
+                    <span className="mono">{r.name}</span> ← {r.from}
+                  </span>
+                ))}
+              </p>
+            )}
+            <ul className="board-list">
+              {group.targets.map((t) => {
+                const child = bi.index.nodes[t]
+                const chipId = bi.index.nodes[bi.rootOf[t]].id
+                return (
+                  <li key={t}>
+                    <button type="button" onClick={() => (onBoard.has(chipId) ? useBoard.getState().select(chipId) : openAt(bi, t))}>
+                      {child.label}
+                      <span className="muted"> {bi.index.kinds.get(child.kind)?.label}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </Section>
   )
 }
 
@@ -399,6 +476,12 @@ function WireDetails({ bi, scene, wireId }: { bi: BoardIndex; scene: BoardScene;
                 title={evidence ? `${evidence.file}:${evidence.line ?? ''}` : undefined}
               >
                 {a.label} <span className="muted">{edge.type}</span> {b.label}
+                {renderCases(edge).map((c) => (
+                  <span key={c.line} className="muted mono small board-wire-when">
+                    {' '}
+                    · {caseLabel(c)}
+                  </span>
+                ))}
                 {bad && <span className="muted"> · {bad.map((v) => v.rule).join(', ')}</span>}
               </button>
             </li>

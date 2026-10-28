@@ -15,7 +15,7 @@ import { SettingsStore } from '../src/core/ai/settings.ts'
 import { buildBoard, readAiFile, summaryTargets } from '../src/core/board.ts'
 import type { RepoMapConfig } from '../src/core/config.ts'
 import { startServer, type ServerHandle } from '../src/core/serve.ts'
-import { assignFeatures, checkRules, memberAt, resolveTiers, type RuleDef } from '../src/shared/board.ts'
+import { assignFeatures, caseLabel, checkRules, isConditional, memberAt, resolveTiers, type RuleDef } from '../src/shared/board.ts'
 import { parseUnifiedDiff, touchedNodes } from '../src/shared/review.ts'
 import type { GraphEdge, GraphNode, RepoGraph } from '../src/shared/types.ts'
 import { layoutScene, wirePath, type ElkLike } from '../viewer/src/board/layout.ts'
@@ -55,7 +55,7 @@ function sample(): RepoGraph {
     e('views:c:ContactForm', 'calls', 'model:c:api.contact.send', { evidence: [{ file: 'web/src/features/contact/ContactForm.tsx', line: 7 }] }),
     e('views:c:ContactForm', 'renders', 'views:c:Button'),
     e('views:c:OrdersPage', 'renders', 'views:c:Button'),
-    e('views:c:OrdersPage', 'renders', 'views:c:OrderRow'),
+    e('views:c:OrdersPage', 'renders', 'views:c:OrderRow', { attrs: { when: [{ if: ["state.status === 'loaded'"], each: 'rows', reads: [{ name: 'state', from: 'useOrders' }], line: 4 }] } }),
     e('views:c:OrdersPage', 'calls', 'model:c:api.orders.list'),
     e('model:c:api.contact.send', 'http', 'api:e:POST /api/contact'),
     e('model:c:api.orders.list', 'http', 'api:e:GET /api/orders'),
@@ -297,6 +297,17 @@ describe('board levels', () => {
     assert.deepEqual(out, ['Button', 'api'])
     const button = form.chips.find((c) => c.label === 'Button')!
     assert.deepEqual(button.enter, pathOfNode(bi, bi.index.byId.get('views:c:Button')!, options))
+  })
+
+  it('draws a render that happens only in some state as a conditional wire', () => {
+    const orders = scene({ level: 'chips', tier: 'web', feature: 'orders' })
+    assert.equal(orders.wires.find((w) => w.to === 'views:c:OrderRow')!.conditional, true)
+    assert.equal(orders.wires.find((w) => w.to.includes('Button') || w.to === 'in:f:shared' || w.to.endsWith('shared'))?.conditional ?? false, false)
+    const row = graph.edges.find((x) => x.to === 'views:c:OrderRow')!
+    assert.ok(isConditional(row))
+    assert.ok(!isConditional(graph.edges.find((x) => x.from === 'views:c:OrdersPage' && x.to === 'views:c:Button')!))
+    assert.equal(caseLabel({ if: [], line: 1 }), 'always')
+    assert.equal(caseLabel({ if: ['a', 'b'], each: 'rows', line: 1 }), 'for each of rows, when a && b')
   })
 
   it('goes up level by level', () => {

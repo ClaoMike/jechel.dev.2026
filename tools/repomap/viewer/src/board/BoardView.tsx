@@ -119,6 +119,9 @@ function Legend() {
         <i className="lg-wire" /> wire: thicker = more connections
       </span>
       <span>
+        <i className="lg-wire conditional" /> shown only when a condition holds
+      </span>
+      <span>
         <i className="lg-wire bad" /> breaks a rule
       </span>
       {review && (
@@ -442,7 +445,7 @@ function Wire({ wire, points, lit, dim }: { wire: BoardWire; points: { x: number
   if (!points) return null
   const d = wirePath(points)
   const width = wireWidth(wire.count)
-  const cls = `wire${wire.violation ? ' bad' : ''}${wire.touched ? ' touched' : ''}${lit ? ' lit' : ''}${dim ? ' dim' : ''}`
+  const cls = `wire${wire.conditional ? ' conditional' : ''}${wire.violation ? ' bad' : ''}${wire.touched ? ' touched' : ''}${lit ? ' lit' : ''}${dim ? ' dim' : ''}`
   const end = points[points.length - 1]
   const start = points[0]
   return (

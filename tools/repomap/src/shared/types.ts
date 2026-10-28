@@ -187,6 +187,19 @@ export interface GraphEdge {
   attrs?: Record<string, unknown>
 }
 
+/**
+ * One place a component renders a child, and when (`attrs.when` on a `renders` edge, from the TypeScript extractor).
+ * `if` empty: always, once the component itself renders.
+ */
+export interface RenderCase {
+  if: string[]
+  /** Once for each item of this list. */
+  each?: string
+  /** What the conditions read: a local of the component and where it comes from (a hook, a prop). */
+  reads?: { name: string; from: string }[]
+  line: number
+}
+
 /** A reference that could not be resolved to a node, e.g. a frontend call to a route that does not exist. */
 export interface UnresolvedLink {
   from: string
