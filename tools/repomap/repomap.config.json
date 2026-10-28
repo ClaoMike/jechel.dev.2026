@@ -40,8 +40,9 @@
     "featureAliases": {},
     // The API service (services/: the one axios instance and every call to the backend, grouped by feature) is its own
     // feature: every other one reaches the backend through it.
-    // Every text the site shows (src/strings.ts) is its own feature too: every component reads from it.
-    "featureOverrides": { "frontend/src/services/**": "api", "frontend/src/strings.ts": "strings" },
+    // Every text the site shows (src/strings.ts) is its own feature too: every component reads from it. The site's
+    // frame (layout/: header, tabs, page transitions, footer) is Site's.
+    "featureOverrides": { "frontend/src/services/**": "api", "frontend/src/strings.ts": "strings", "frontend/src/layout/**": "site" },
     "hubFeatures": ["api", "strings"]
   },
 

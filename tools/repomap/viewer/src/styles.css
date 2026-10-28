@@ -4618,11 +4618,6 @@ button.chip:hover {
   stroke-width: 1.5;
 }
 
-.state-element {
-  font-size: 10.5px;
-  fill: var(--chip-sub);
-}
-
 .state-caption {
   font: 700 9px var(--font-sans);
   letter-spacing: 0.08em;

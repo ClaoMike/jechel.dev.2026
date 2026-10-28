@@ -399,6 +399,21 @@ describe('board levels', () => {
     assert.deepEqual(levels, ['chip+group', 'chips+group', 'chips', 'features', 'tiers', 'app'])
   })
 
+  it('opens a big feature on its page when what it shows (the page and what that renders) fits', () => {
+    const big = sample()
+    for (let k = 0; k < 45; k++) {
+      big.nodes.push(n(`views:c:Deep${k}`, 'component', 'views', { file: `web/src/features/orders/parts/Deep${k}.tsx`, line: 1, endLine: 3, tags: ['feature:orders'] }))
+      big.edges.push(e('views:c:OrderRow', 'renders', `views:c:Deep${k}`))
+    }
+    const bbi = indexBoard(indexGraph(withBoard(big)))
+    const orders = buildScene(bbi, { level: 'chips', tier: 'web', feature: 'orders' }, options)
+    assert.ok(!orders.chips.some((c) => c.kind === 'group'), 'no folders')
+    assert.ok(orders.chips.some((c) => c.label === 'OrdersPage'))
+    assert.ok(!orders.chips.some((c) => c.label.startsWith('Deep')), 'what OrderRow renders is on its board')
+    assert.equal(pathOfNode(bbi, bbi.index.byId.get('views:c:Deep3')!, options).level, 'chip')
+    assert.equal((pathOfNode(bbi, bbi.index.byId.get('views:c:Deep3')!, options) as { group?: string }).group, undefined)
+  })
+
   it('splits a big feature by its own folders', () => {
     const chips = chipsIn(bi, 'web', 'orders', options)
     const groups = chipGroups(bi, chips, 'orders')
