@@ -529,17 +529,17 @@ function Chip({ chip, box, single, selected, dim, focused, onKeyDown }: ChipProp
           STATE
         </text>
         <text className="chip-label small mono" x={18} y={32}>
-          {truncate(chip.label, Math.floor((box.w - 30) / 6.6))}
+          {chip.label}
         </text>
         {chip.sub && chip.sub !== 'state' && (
           <text className="chip-sub" x={18} y={45}>
-            {truncate(chip.sub, Math.floor((box.w - 30) / 5.8))}
+            {chip.sub}
           </text>
         )}
         {/* The plain elements it shows then (a note, an empty message): not components, so listed here. */}
         {chip.pins.map((pin, k) => (
           <text key={pin.id} className="state-element mono" x={18} y={64 + k * 15}>
-            {truncate(pin.label, Math.floor((box.w - 30) / 6))}
+            {pin.label}
           </text>
         ))}
         <rect className="chip-focus-ring" x={-4} y={-4} width={box.w + 8} height={box.h + 8} rx={Math.min(box.h / 2, 26) + 4} />

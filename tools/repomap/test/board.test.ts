@@ -335,6 +335,32 @@ describe('board levels', () => {
     assert.equal(caseLabel({ if: ['a', 'b'], each: 'rows', line: 1 }), 'for each of rows, when a && b')
   })
 
+  it('a feature shows its top components and what they render; deeper ones are on the board of the one rendering them', () => {
+    const deep = sample()
+    deep.nodes.push(
+      n('views:c:OrderCell', 'component', 'views', { file: 'web/src/features/orders/OrderCell.tsx', line: 1, endLine: 5, tags: ['feature:orders'] }),
+      n('views:c:useCellFormat', 'hook', 'views', { file: 'web/src/features/orders/useCellFormat.ts', line: 1, endLine: 5, tags: ['feature:orders'] }),
+      n('views:c:Icon', 'component', 'views', { file: 'web/src/components/Icon.tsx', line: 1, endLine: 5 }),
+    )
+    deep.edges.push(
+      e('views:c:OrderRow', 'renders', 'views:c:OrderCell'),
+      e('views:c:OrderCell', 'uses', 'views:c:useCellFormat'),
+      e('views:c:OrderRow', 'renders', 'views:c:Icon'),
+    )
+    const dbi = indexBoard(indexGraph(withBoard(deep)))
+    const orders = buildScene(dbi, { level: 'chips', tier: 'web', feature: 'orders' }, options)
+    const labels = orders.chips.filter((c) => c.kind === 'node').map((c) => c.label)
+    assert.ok(labels.includes('OrdersPage') && labels.includes('OrderRow'), 'the page and what it renders')
+    for (const deeper of ['OrderCell', 'useCellFormat', 'Icon']) assert.ok(!labels.includes(deeper), `${deeper} is on OrderRow's board`)
+    assert.ok(!orders.chips.some((c) => c.id === 'out:orders' || c.id === 'in:orders'), 'no connector back into its own feature')
+    // OrderRow's board leads to them; OrderCell's says who renders it.
+    const row = buildScene(dbi, { level: 'chip', tier: 'web', feature: 'orders', chip: 'views:c:OrderRow' }, options)
+    assert.ok(row.chips.some((c) => c.label === 'OrderCell' && c.side === 'out'))
+    assert.ok(row.chips.some((c) => c.label === 'Icon' && c.side === 'out'))
+    const cell = buildScene(dbi, { level: 'chip', tier: 'web', feature: 'orders', chip: 'views:c:OrderCell' }, options)
+    assert.ok(cell.chips.some((c) => c.label === 'OrderRow' && c.side === 'in'))
+  })
+
   it('goes up level by level', () => {
     let path: BoardPath | null = { level: 'chip', tier: 'web', feature: 'contact', group: 'x', chip: 'views:c:ContactForm' }
     const levels: string[] = []

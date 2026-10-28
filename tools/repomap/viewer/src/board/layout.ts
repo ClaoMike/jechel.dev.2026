@@ -45,8 +45,9 @@ export function chipSize(chip: BoardChip, single = false): { w: number; h: numbe
     case 'group':
       return { w: Math.max(170, Math.min(280, chip.label.length * 8.4 + 56)), h: 78 }
     case 'state':
+      // As wide as its whole condition: it's the point of the chip, and the board zooms.
       return {
-        w: Math.max(150, Math.min(300, Math.max(chip.label.length * 7, (chip.sub ?? '').length * 6, ...chip.pins.map((p) => p.label.length * 6.2)) + 40)),
+        w: Math.max(150, Math.max(chip.label.length * 7.4, (chip.sub ?? '').length * 6.2, ...chip.pins.map((p) => p.label.length * 6.6)) + 44),
         h: 52 + (chip.pins.length ? chip.pins.length * 15 + 6 : 0),
       }
     case 'connector':
