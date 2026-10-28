@@ -1109,6 +1109,7 @@ export const strings = {
   // features/whatsNew/LatestVideo/LatestVideo.tsx
   latestVideo: {
     newVideo: 'New video',
+    watchYoutube: 'Watch on YouTube',
   },
   // features/workWithMe/currencies.ts
   currencies: {
@@ -1180,10 +1181,6 @@ export const strings = {
     couldntRefreshYoutube2: "Couldn't refresh from YouTube",
     details: 'Details',
     errorDetails: 'the error details',
-  },
-  // features/youtube/VideoDetailsView/VideoDetailsView.tsx
-  videoDetailsView: {
-    watchYoutube: 'Watch on YouTube',
   },
   // features/youtube/YouTubePlayer/YouTubePlayer.tsx
   youTubePlayer: {
