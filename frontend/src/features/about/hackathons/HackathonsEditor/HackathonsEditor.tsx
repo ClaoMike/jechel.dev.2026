@@ -4,6 +4,7 @@ import type { Hackathon } from '../../../../services/api'
 import { move, removeAt, replaceAt, sortByYear } from '../../list'
 import { SortableListHeader } from '../../section/SortableListHeader/SortableListHeader'
 import { HackathonEditor } from '../HackathonEditor/HackathonEditor'
+import { strings } from '../../../../strings'
 
 /** Every hackathon, reorderable and sortable by year; new ones go on top. */
 export function HackathonsEditor({ value, onChange, errors }: EditorProps<Hackathon[]>) {
@@ -16,8 +17,8 @@ export function HackathonsEditor({ value, onChange, errors }: EditorProps<Hackat
   return (
     <div className="editor-list">
       <SortableListHeader
-        sortLabel="Sort by year"
-        sortedMessage="Sorted by year, newest first. Save to keep this order, or Cancel to undo."
+        sortLabel={strings.hackathonsEditor.sortYear}
+        sortedMessage={strings.hackathonsEditor.sortedYearNewestFirst}
         canSort={value.length >= 2}
         sorted={sorted}
         sort={() => {
@@ -38,7 +39,7 @@ export function HackathonsEditor({ value, onChange, errors }: EditorProps<Hackat
         />
       ))}
       {errors.hackathons && <p className="field-error">{errors.hackathons}</p>}
-      <AddButton onClick={() => change([{ name: '', year: new Date().getFullYear(), bullets: [''] }, ...value])}>Add hackathon</AddButton>
+      <AddButton onClick={() => change([{ name: '', year: new Date().getFullYear(), bullets: [''] }, ...value])}>{strings.hackathonsEditor.addHackathon}</AddButton>
     </div>
   )
 }

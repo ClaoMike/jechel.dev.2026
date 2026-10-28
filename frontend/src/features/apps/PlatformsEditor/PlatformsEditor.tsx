@@ -1,6 +1,7 @@
 import { useState, type KeyboardEvent } from 'react'
 import { AddButton, TextField } from '../../../components/fields'
 import { hasPlatform, PLATFORM_PRESETS } from '../appOptions'
+import { strings } from '../../../strings'
 
 export interface PlatformsEditorProps {
   value: string[]
@@ -34,7 +35,7 @@ export function PlatformsEditor({ value, onChange, error }: PlatformsEditorProps
   }
   return (
     <fieldset className="app-field">
-      <legend className="field-label">Runs on</legend>
+      <legend className="field-label">{strings.platformsEditor.runs}</legend>
       <div className="licence-toggles">
         {platforms.map((platform) => (
           <button key={platform.name} type="button" className="licence-toggle" aria-pressed={platform.on} onClick={platform.toggle}>
@@ -43,8 +44,8 @@ export function PlatformsEditor({ value, onChange, error }: PlatformsEditorProps
         ))}
       </div>
       <div className="app-inline-add" onKeyDown={onKeyDown}>
-        <TextField label="Another platform" value={own} onChange={setOwn} placeholder="e.g. Meta Quest" />
-        <AddButton onClick={addOwn}>Add platform</AddButton>
+        <TextField label={strings.platformsEditor.anotherPlatform} value={own} onChange={setOwn} placeholder={strings.platformsEditor.eGMetaQuest} />
+        <AddButton onClick={addOwn}>{strings.platformsEditor.addPlatform}</AddButton>
       </div>
       {error && <p className="field-error">{error}</p>}
     </fieldset>

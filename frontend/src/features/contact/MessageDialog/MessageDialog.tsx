@@ -13,6 +13,7 @@ import { useGetMessageQuery, useMarkMessageReadMutation, useReplyToMessageMutati
 import { useGetBookingLinkQuery } from '../../../store/api/meetingsApi'
 import { toLoadable } from '../../../store/loadable'
 import { INBOX_REFRESH_MS } from '../MessagesInbox/MessagesInbox'
+import { strings } from '../../../strings'
 
 export interface MessageDialogProps {
   messageId: number
@@ -43,14 +44,17 @@ export function MessageDialog({ messageId, name, onClose, onDelete }: MessageDia
   return (
     <Modal labelledBy={titleId} onClose={onClose}>
       <div className="modal-header">
-        <h2 id={titleId}>Message from {state.status === 'loaded' ? state.data.name : name}</h2>
-        <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
+        <h2 id={titleId}>
+          {strings.messageDialog.message}
+          {state.status === 'loaded' ? state.data.name : name}
+        </h2>
+        <button type="button" className="icon-button" onClick={onClose} aria-label={strings.common.close}>
           <span aria-hidden="true">×</span>
         </button>
       </div>
 
       {state.status === 'loading' && (
-        <Loading label="Loading the message…">
+        <Loading label={strings.messageDialog.loadingMessage}>
           {[40, 55, 35].map((width, i) => (
             <div key={i} className="skeleton-text">
               <Skeleton width={70} height={11} />
@@ -60,19 +64,19 @@ export function MessageDialog({ messageId, name, onClose, onDelete }: MessageDia
           <SkeletonText lines={4} />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="This message couldn't be loaded." onRetry={() => void query.refetch()} />}
+      {state.status === 'error' && <ErrorState message={strings.messageDialog.messageCouldntLoaded} onRetry={() => void query.refetch()} />}
       {state.status === 'loaded' && (
         <dl className="message-details">
-          <DetailRow label="Name" value={state.data.name} />
-          <DetailRow label="Email" value={state.data.email} href={`mailto:${state.data.email}`} />
-          <DetailRow label="Received" value={formatDateTime(state.data.receivedAt)} />
-          {state.data.subject && <DetailRow label="Subject" value={state.data.subject} />}
-          <DetailRow label="Message" value={state.data.message} multiline />
+          <DetailRow label={strings.common.name} value={state.data.name} />
+          <DetailRow label={strings.common.email} value={state.data.email} href={`mailto:${state.data.email}`} />
+          <DetailRow label={strings.messageDialog.received} value={formatDateTime(state.data.receivedAt)} />
+          {state.data.subject && <DetailRow label={strings.messageDialog.subject} value={state.data.subject} />}
+          <DetailRow label={strings.common.message} value={state.data.message} multiline />
         </dl>
       )}
       {state.status === 'loaded' && state.data.meetings.length > 0 && (
-        <section className="message-meetings" aria-label="Meetings they booked">
-          <h3>Meetings they booked</h3>
+        <section className="message-meetings" aria-label={strings.messageDialog.meetingsTheyBooked}>
+          <h3>{strings.messageDialog.meetingsTheyBooked}</h3>
           <ul className="meetings-list">
             {state.data.meetings.map((meeting) => (
               <li key={meeting.id} className="meeting">
@@ -88,9 +92,14 @@ export function MessageDialog({ messageId, name, onClose, onDelete }: MessageDia
       {state.status === 'loaded' && <Replies messageId={messageId} name={state.data.name} replies={state.data.replies} />}
       {state.status === 'loaded' && (
         <div className="message-actions">
-          <DeleteButton what={`the message from ${state.data.name}`} onDelete={() => onDelete(messageId)} className="button button-secondary button-small" label="Delete message">
+          <DeleteButton
+            what={strings.messageDialog.message3(state.data.name)}
+            onDelete={() => onDelete(messageId)}
+            className="button button-secondary button-small"
+            label={strings.messageDialog.deleteMessage}
+          >
             <TrashIcon size={16} />
-            Delete
+            {strings.common.delete}
           </DeleteButton>
         </div>
       )}
@@ -140,7 +149,7 @@ function Replies({ messageId, name, replies }: { messageId: number; name: string
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!text.trim()) {
-      setError('Write the reply first.')
+      setError(strings.messageDialog.writeReplyFirst)
       return
     }
     setError('')
@@ -148,19 +157,19 @@ function Replies({ messageId, name, replies }: { messageId: number; name: string
       await reply({ id: messageId, text: text.trim() }).unwrap()
       setText('')
     } catch (e) {
-      setError(failureOf(e).status === 503 ? "The email couldn't be sent: check Resend in Settings (its test shows why)." : "That didn't work. Please try again.")
+      setError(failureOf(e).status === 503 ? strings.messageDialog.emailCouldntSentCheck : strings.common.didntWorkPleaseTry)
     }
   }
 
   return (
     <section className="message-replies" aria-labelledby={`${id}-title`}>
-      <h3 id={`${id}-title`}>{replies.length > 0 ? 'Conversation' : 'Reply'}</h3>
+      <h3 id={`${id}-title`}>{replies.length > 0 ? strings.messageDialog.conversation : strings.messageDialog.reply}</h3>
       {replies.length > 0 && (
         <ul className="replies-list">
           {replies.map((reply) => (
             <li key={reply.id} className={reply.fromVisitor ? 'reply reply-from-visitor' : 'reply'}>
               <p className="muted">
-                <strong>{reply.fromVisitor ? name : 'You'}</strong> · <time dateTime={reply.sentAt}>{formatDateTime(reply.sentAt)}</time>
+                <strong>{reply.fromVisitor ? name : strings.messageDialog.you}</strong> · <time dateTime={reply.sentAt}>{formatDateTime(reply.sentAt)}</time>
               </p>
               <p className="message-body">{reply.text}</p>
             </li>
@@ -169,7 +178,7 @@ function Replies({ messageId, name, replies }: { messageId: number; name: string
       )}
       <form className="reply-form" onSubmit={(event) => void send(event)} noValidate>
         <div className="field">
-          <label htmlFor={`${id}-text`}>{replies.length > 0 ? `Write to ${name} again` : `Reply to ${name}`}</label>
+          <label htmlFor={`${id}-text`}>{replies.length > 0 ? strings.messageDialog.writeAgain(name) : strings.messageDialog.reply2(name)}</label>
           <textarea
             id={`${id}-text`}
             rows={4}
@@ -185,17 +194,17 @@ function Replies({ messageId, name, replies }: { messageId: number; name: string
             </p>
           ) : (
             <p id={`${id}-hint`} className="field-hint">
-              Emailed to them: their answer lands here.
+              {strings.messageDialog.emailedThemTheirAnswer}
             </p>
           )}
         </div>
         <div className="reply-actions">
           <button type="submit" className="button button-small" disabled={busy}>
-            {busy ? 'Sending…' : 'Send reply'}
+            {busy ? strings.common.sending : strings.messageDialog.sendReply}
           </button>
           {bookingLink && (
             <button type="button" className="button button-small button-secondary" onClick={addBookingLink} disabled={text.includes(bookingLink)}>
-              Add booking link
+              {strings.messageDialog.addBookingLink}
             </button>
           )}
         </div>

@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { ItemControls, TextField, type FieldErrors } from '../../../../components/fields'
 import type { Hackathon } from '../../../../services/api'
 import { BulletsEditor } from '../../section/BulletsEditor/BulletsEditor'
+import { strings } from '../../../../strings'
 
 const YEAR = /^\d{4}$/
 
@@ -31,14 +32,17 @@ export function HackathonEditor({ index, count, hackathon, errors, onChange, onM
 
   return (
     <fieldset className="editor-item">
-      <legend>Hackathon {index + 1}</legend>
+      <legend>
+        {strings.hackathonEditor.hackathon}
+        {index + 1}
+      </legend>
       <div className="editor-item-toolbar">
         <ItemControls name={`hackathon ${index + 1}`} index={index} count={count} onMove={onMove} onRemove={onRemove} />
       </div>
       <div className="editor-grid">
-        <TextField label="Name" value={hackathon.name} required onChange={(name) => onChange({ ...hackathon, name })} error={errors[`${key}.name`]} allowLinks />
+        <TextField label={strings.common.name} value={hackathon.name} required onChange={(name) => onChange({ ...hackathon, name })} error={errors[`${key}.name`]} allowLinks />
         <div className="field">
-          <label htmlFor={yearId}>Year</label>
+          <label htmlFor={yearId}>{strings.hackathonEditor.year}</label>
           <input
             id={yearId}
             className="year-input"
@@ -61,9 +65,9 @@ export function HackathonEditor({ index, count, hackathon, errors, onChange, onM
         </div>
       </div>
       <div className="editor-bullets">
-        <span className="field-label">What happened</span>
+        <span className="field-label">{strings.hackathonEditor.whatHappened}</span>
         <BulletsEditor
-          itemName="bullet point"
+          itemName={strings.common.bulletPoint}
           value={hackathon.bullets}
           onChange={(bullets) => onChange({ ...hackathon, bullets })}
           errorFor={(b) => errors[`${key}.bullets[${b}]`]}

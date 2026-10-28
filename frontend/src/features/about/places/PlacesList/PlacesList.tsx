@@ -1,6 +1,7 @@
 import { DeleteButton } from '../../../../components/DeleteButton/DeleteButton'
 import { REMOVE_DETAIL } from '../../../../components/fields'
 import { PencilIcon, TrashIcon } from '../../../../components/icons/icons'
+import { strings } from '../../../../strings'
 
 export interface PlaceRow {
   key: string
@@ -19,7 +20,7 @@ export interface PlaceRow {
 export function PlacesList({ places }: { places: PlaceRow[] }) {
   if (places.length === 0) return null
   return (
-    <ul className="places-list" aria-label="Places on the map">
+    <ul className="places-list" aria-label={strings.placesList.placesMap}>
       {places.map((place) => (
         <li key={place.key}>
           <span className="places-list-dots" aria-hidden="true">
@@ -32,10 +33,10 @@ export function PlacesList({ places }: { places: PlaceRow[] }) {
             <span className="muted"> · {place.visits}</span>
             {place.error && <span className="field-error"> {place.error}</span>}
           </span>
-          <button type="button" className="icon-button" aria-label={`Edit ${place.name}`} title="Edit" onClick={place.edit}>
+          <button type="button" className="icon-button" aria-label={strings.placesList.edit(place.name)} title={strings.common.edit2} onClick={place.edit}>
             <PencilIcon size={16} />
           </button>
-          <DeleteButton what={place.name} action="Remove" detail={REMOVE_DETAIL} onDelete={place.remove}>
+          <DeleteButton what={place.name} action={strings.common.remove} detail={REMOVE_DETAIL} onDelete={place.remove}>
             <TrashIcon size={16} />
           </DeleteButton>
         </li>

@@ -3,6 +3,7 @@ import { PreviewSwitch } from '../../features/preview/PreviewSwitch/PreviewSwitc
 import { useAuth } from '../../auth'
 import { useAppSelector } from '../../store'
 import { PREVIEW_AVAILABLE } from '../../store/previewSlice'
+import { strings } from '../../strings'
 
 /** The admin's own bar above the header: "Admin", a maintenance warning, the preview switch (in development), who's signed in, Sign out. */
 export function AdminBar() {
@@ -12,16 +13,19 @@ export function AdminBar() {
   return (
     <div className="admin-bar">
       <div className="admin-bar-inner">
-        <span className="admin-bar-badge">Admin</span>
+        <span className="admin-bar-badge">{strings.adminBar.admin}</span>
         {maintenance && (
           <Link to="/settings" className="admin-bar-maintenance">
-            Maintenance on: visitors see the maintenance page
+            {strings.adminBar.maintenanceVisitorsSeeMaintenance}
           </Link>
         )}
         {PREVIEW_AVAILABLE && <PreviewSwitch />}
-        <span className="admin-bar-user">Signed in as {user.email}</span>
+        <span className="admin-bar-user">
+          {strings.adminBar.signed}
+          {user.email}
+        </span>
         <button type="button" className="button button-secondary button-small" onClick={() => void signOut()}>
-          Sign out
+          {strings.adminBar.signOut}
         </button>
       </div>
     </div>

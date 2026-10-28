@@ -1,10 +1,11 @@
 import type { Licence, LicenceCategory } from '../../../services/api'
+import { strings } from '../../../strings'
 
 export const LICENCE_CATEGORY_LABELS: Record<LicenceCategory, string> = {
-  driving: 'Driving',
-  flying: 'Flying',
-  boating: 'Boating',
-  other: 'Other',
+  driving: strings.licences.driving,
+  flying: strings.licences.flying,
+  boating: strings.licences.boating,
+  other: strings.licences.other,
 }
 
 type Offered = Pick<Licence, 'code' | 'name'>
@@ -16,36 +17,36 @@ type Offered = Pick<Licence, 'code' | 'name'>
  */
 export const OFFERED_LICENCES: Record<Exclude<LicenceCategory, 'other'>, Offered[]> = {
   driving: [
-    { code: 'AM', name: 'Moped' },
-    { code: 'A1', name: 'Light motorcycle' },
-    { code: 'A2', name: 'Medium motorcycle' },
-    { code: 'A', name: 'Motorcycle' },
-    { code: 'B', name: 'Car' },
-    { code: 'BE', name: 'Car with trailer' },
-    { code: 'C1', name: 'Medium truck' },
-    { code: 'C', name: 'Truck' },
-    { code: 'CE', name: 'Truck with trailer' },
-    { code: 'D1', name: 'Minibus' },
-    { code: 'D', name: 'Bus' },
+    { code: 'AM', name: strings.licences.moped },
+    { code: 'A1', name: strings.licences.lightMotorcycle },
+    { code: 'A2', name: strings.licences.mediumMotorcycle },
+    { code: 'A', name: strings.licences.motorcycle },
+    { code: 'B', name: strings.licences.car },
+    { code: 'BE', name: strings.licences.carTrailer },
+    { code: 'C1', name: strings.licences.mediumTruck },
+    { code: 'C', name: strings.licences.truck },
+    { code: 'CE', name: strings.licences.truckTrailer },
+    { code: 'D1', name: strings.licences.minibus },
+    { code: 'D', name: strings.licences.bus },
   ],
   flying: [
-    { code: 'A1/A3', name: 'Drone (open category)' },
-    { code: 'A2 CofC', name: 'Drone (A2 certificate)' },
-    { code: 'SPL', name: 'Glider pilot' },
-    { code: 'LAPL', name: 'Light aircraft pilot' },
-    { code: 'PPL(A)', name: 'Private pilot, aeroplanes' },
-    { code: 'PPL(H)', name: 'Private pilot, helicopters' },
-    { code: 'CPL', name: 'Commercial pilot' },
-    { code: 'ATPL', name: 'Airline transport pilot' },
+    { code: 'A1/A3', name: strings.licences.droneOpenCategory },
+    { code: strings.licences.a2Cofc, name: strings.licences.droneA2Certificate },
+    { code: 'SPL', name: strings.licences.gliderPilot },
+    { code: 'LAPL', name: strings.licences.lightAircraftPilot },
+    { code: 'PPL(A)', name: strings.licences.privatePilotAeroplanes },
+    { code: 'PPL(H)', name: strings.licences.privatePilotHelicopters },
+    { code: 'CPL', name: strings.licences.commercialPilot },
+    { code: 'ATPL', name: strings.licences.airlineTransportPilot },
   ],
   boating: [
-    { code: 'ICC', name: 'International Certificate of Competence' },
-    { code: 'PB2', name: 'Powerboat Level 2' },
-    { code: 'PWC', name: 'Personal watercraft (jet ski)' },
-    { code: 'SRC', name: 'VHF radio operator' },
-    { code: '', name: 'Day Skipper' },
-    { code: '', name: 'Coastal Skipper' },
-    { code: '', name: 'Yachtmaster' },
+    { code: 'ICC', name: strings.licences.internationalCertificateCompetence },
+    { code: 'PB2', name: strings.licences.powerboatLevel2 },
+    { code: 'PWC', name: strings.licences.personalWatercraftJetSki },
+    { code: 'SRC', name: strings.licences.vhfRadioOperator },
+    { code: '', name: strings.licences.daySkipper },
+    { code: '', name: strings.licences.coastalSkipper },
+    { code: '', name: strings.licences.yachtmaster },
   ],
 }
 

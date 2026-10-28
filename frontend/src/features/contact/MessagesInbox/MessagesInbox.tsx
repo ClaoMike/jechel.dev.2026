@@ -10,6 +10,7 @@ import { usePageParam } from '../../../components/usePageParam'
 import type { ContactMessageSummary } from '../../../services/api'
 import { useDeleteMessageMutation, useListMessagesQuery } from '../../../store/api/contactApi'
 import { usePagedQuery } from '../../../store/usePagedQuery'
+import { strings } from '../../../strings'
 
 export const PAGE_SIZE = 10
 
@@ -36,36 +37,32 @@ export function MessagesInbox() {
   return (
     <section className="card inbox" aria-labelledby="inbox-title">
       <div className="inbox-header">
-        <h2 id="inbox-title">Messages</h2>
-        {state.status === 'loaded' && (
-          <span className="muted">
-            {state.data.totalCount} {state.data.totalCount === 1 ? 'message' : 'messages'}
-          </span>
-        )}
+        <h2 id="inbox-title">{strings.messagesInbox.messages}</h2>
+        {state.status === 'loaded' && <span className="muted">{strings.messagesInbox.count(state.data.totalCount)}</span>}
       </div>
 
       {state.status === 'loading' && (
-        <Loading label="Loading messages…">
+        <Loading label={strings.messagesInbox.loadingMessages}>
           <SkeletonTable rows={5} columns={3} />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="Messages couldn't be loaded." onRetry={retry} />}
-      {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">No messages yet.</p>}
+      {state.status === 'error' && <ErrorState message={strings.messagesInbox.messagesCouldntLoaded} onRetry={retry} />}
+      {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">{strings.messagesInbox.noMessagesYet}</p>}
 
       {state.status === 'loaded' && state.data.items.length > 0 && (
         <>
           {/* Narrow screens scroll the table sideways inside the card, rather than the page. */}
-          <div className="table-scroll" role="region" aria-label="Messages table" tabIndex={0}>
+          <div className="table-scroll" role="region" aria-label={strings.messagesInbox.messagesTable} tabIndex={0}>
             <table className="messages-table">
               <thead>
                 <tr>
                   <th scope="col" className="col-status">
-                    <span className="visually-hidden">Status</span>
+                    <span className="visually-hidden">{strings.common.status}</span>
                   </th>
-                  <th scope="col">Name</th>
-                  <th scope="col">Last message</th>
+                  <th scope="col">{strings.common.name}</th>
+                  <th scope="col">{strings.messagesInbox.lastMessage}</th>
                   <th scope="col" className="col-actions">
-                    <span className="visually-hidden">Actions</span>
+                    <span className="visually-hidden">{strings.messagesInbox.actions}</span>
                   </th>
                 </tr>
               </thead>
@@ -74,8 +71,8 @@ export function MessagesInbox() {
                   <tr key={message.id} className={message.isRead ? 'message-row' : 'message-row message-row-unread'} onClick={(event) => rowClicked(event, message)}>
                     <td className="col-status">
                       {!message.isRead && (
-                        <span className="unread-dot" title="Unread">
-                          <span className="visually-hidden">Unread</span>
+                        <span className="unread-dot" title={strings.messagesInbox.unread}>
+                          <span className="visually-hidden">{strings.messagesInbox.unread}</span>
                         </span>
                       )}
                     </td>
@@ -86,16 +83,21 @@ export function MessagesInbox() {
                       {message.subject === PROJECT_ENQUIRY && (
                         <>
                           {' '}
-                          <span className="chip chip-project">Project enquiry</span>
+                          <span className="chip chip-project">{strings.messagesInbox.projectEnquiry}</span>
                         </>
                       )}
                     </td>
                     <td>
                       <time dateTime={message.lastActivityAt}>{formatDateTime(message.lastActivityAt)}</time>
-                      {message.count > 1 && <span className="muted"> · {message.count} messages</span>}
+                      {message.count > 1 && (
+                        <span className="muted">
+                          {' '}
+                          · {message.count} {strings.messagesInbox.messages2}
+                        </span>
+                      )}
                     </td>
                     <td className="col-actions">
-                      <DeleteButton what={`the message from ${message.name}`} onDelete={() => deleteMessage(message.id)} />
+                      <DeleteButton what={strings.messagesInbox.message(message.name)} onDelete={() => deleteMessage(message.id)} />
                     </td>
                   </tr>
                 ))}

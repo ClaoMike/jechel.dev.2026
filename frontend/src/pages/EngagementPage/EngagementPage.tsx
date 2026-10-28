@@ -12,16 +12,17 @@ import { countryName } from '../../features/analytics/format'
 import { useGetSummaryQuery } from '../../store/api/analyticsApi'
 import { baseApi } from '../../store/baseApi'
 import { toLoadable } from '../../store/loadable'
+import { strings } from '../../strings'
 
 const RANGES: { value: AnalyticsRange; label: string }[] = [
-  { value: '1h', label: '1 hour' },
-  { value: '24h', label: '1 day' },
-  { value: '7d', label: '7 days' },
-  { value: '30d', label: '30 days' },
-  { value: '90d', label: '90 days' },
-  { value: '1y', label: '1 year' },
-  { value: '5y', label: '5 years' },
-  { value: 'all', label: 'All time' },
+  { value: '1h', label: strings.engagementPage.n1Hour },
+  { value: '24h', label: strings.engagementPage.n1Day },
+  { value: '7d', label: strings.engagementPage.n7Days },
+  { value: '30d', label: strings.engagementPage.n30Days },
+  { value: '90d', label: strings.engagementPage.n90Days },
+  { value: '1y', label: strings.engagementPage.n1Year },
+  { value: '5y', label: strings.engagementPage.n5Years },
+  { value: 'all', label: strings.engagementPage.allTime },
 ]
 
 /**
@@ -46,27 +47,27 @@ function Dashboard() {
   const ranges = RANGES.map((r) => ({ ...r, pressed: range === r.value, choose: () => setRange(r.value) }))
   const state = toLoadable(query)
   const countries = (query.data?.countries ?? []).map((c) => ({ name: countryName(c.name), count: c.count }))
-  const refresh = () => dispatch(baseApi.util.invalidateTags(['Summary', 'Visits', 'Visit']))
+  const refresh = () => dispatch(baseApi.util.invalidateTags([strings.engagementPage.summary, strings.common.visits, strings.engagementPage.visit]))
   const retry = () => void query.refetch()
 
   return (
     <div className="engagement">
       <div className="engagement-header">
-        <h2 id="engagement-title">Engagement</h2>
-        <div className="engagement-toggle" role="group" aria-label="Period">
+        <h2 id="engagement-title">{strings.engagementPage.engagement}</h2>
+        <div className="engagement-toggle" role="group" aria-label={strings.engagementPage.period}>
           {ranges.map((range) => (
             <button key={range.value} type="button" className="licence-toggle" aria-pressed={range.pressed} onClick={range.choose}>
               {range.label}
             </button>
           ))}
           <button type="button" className="button button-secondary button-small" onClick={refresh}>
-            Refresh
+            {strings.engagementPage.refresh}
           </button>
         </div>
       </div>
 
       {state.status === 'loading' && (
-        <Loading label="Loading the numbers…">
+        <Loading label={strings.engagementPage.loadingNumbers}>
           <div className="skeleton-tiles">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="skeleton-tile">
@@ -90,23 +91,23 @@ function Dashboard() {
           </div>
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="The numbers couldn't be loaded." onRetry={retry} />}
+      {state.status === 'error' && <ErrorState message={strings.engagementPage.numbersCouldntLoaded} onRetry={retry} />}
       {state.status === 'loaded' && (
         <>
           <StatTiles totals={state.data.totals} />
           <SeriesChart series={state.data.series} bucketSize={state.data.bucketSize} />
           <div className="ranked-grid">
-            <RankedList title="Top pages" items={state.data.topPages} />
-            <RankedList title="Where visitors come from" items={state.data.referrers} />
-            <RankedList title="Most clicked" items={state.data.topClicks} />
-            <RankedList title="What visitors did" items={state.data.siteEvents} empty="Nothing reported yet." />
-            <RankedList title="Errors" items={state.data.topErrors} empty="No errors. 🎉" />
-            <RankedList title="Preferred theme" items={state.data.themes} />
-            <RankedList title="Theme switches" items={state.data.themeSwitches} empty="Nobody has switched yet." />
-            <RankedList title="Devices" items={state.data.devices} />
-            <RankedList title="Browsers" items={state.data.browsers} />
-            <RankedList title="Countries" items={countries} />
-            <RankedList title="Time zones" items={state.data.timeZones} />
+            <RankedList title={strings.engagementPage.topPages} items={state.data.topPages} />
+            <RankedList title={strings.engagementPage.whereVisitorsCome} items={state.data.referrers} />
+            <RankedList title={strings.engagementPage.mostClicked} items={state.data.topClicks} />
+            <RankedList title={strings.engagementPage.whatVisitorsDid} items={state.data.siteEvents} empty={strings.engagementPage.nothingReportedYet} />
+            <RankedList title={strings.common.errors} items={state.data.topErrors} empty={strings.engagementPage.noErrors} />
+            <RankedList title={strings.engagementPage.preferredTheme} items={state.data.themes} />
+            <RankedList title={strings.engagementPage.themeSwitches} items={state.data.themeSwitches} empty={strings.engagementPage.nobodyHasSwitchedYet} />
+            <RankedList title={strings.engagementPage.devices} items={state.data.devices} />
+            <RankedList title={strings.engagementPage.browsers} items={state.data.browsers} />
+            <RankedList title={strings.engagementPage.countries} items={countries} />
+            <RankedList title={strings.engagementPage.timeZones} items={state.data.timeZones} />
           </div>
         </>
       )}

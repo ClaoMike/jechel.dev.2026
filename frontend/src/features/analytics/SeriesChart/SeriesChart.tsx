@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BucketSize, SeriesPoint } from '../../../services/api'
 import { axisScale, BUCKET_NAMES, formatBucket, formatCount } from '../format'
+import { strings } from '../../../strings'
 
 const METRICS = [
-  { key: 'visitors', label: 'Visitors', one: 'visitor', many: 'visitors' },
-  { key: 'pageViews', label: 'Page views', one: 'page view', many: 'page views' },
-  { key: 'errors', label: 'Errors', one: 'error', many: 'errors' },
+  { key: 'visitors', label: strings.seriesChart.visitors, one: 'visitor', many: 'visitors' },
+  { key: 'pageViews', label: strings.seriesChart.pageViews, one: strings.seriesChart.pageView, many: strings.seriesChart.pageViews2 },
+  { key: 'errors', label: strings.common.errors, one: 'error', many: 'errors' },
 ] as const
 
 type Metric = (typeof METRICS)[number]['key']
@@ -60,8 +61,8 @@ export function SeriesChart({ series, bucketSize }: { series: SeriesPoint[]; buc
   const per = BUCKET_NAMES[bucketSize]
   const total = values.reduce((sum, value) => sum + value, 0)
   const hoveredPoint = hovered !== null ? series[hovered] : undefined
-  const title = `${info.label} per ${per}`
-  const summary = `${info.label} per ${per}: ${total} in total`
+  const title = strings.seriesChart.per(info.label, per)
+  const summary = strings.seriesChart.perTotal(info.label, per, total)
   const metricLabel = info.label
   const metrics = METRICS.map((m) => ({ key: m.key, label: m.label, pressed: metric === m.key, choose: () => setMetric(m.key) }))
   const ticks = tickValues.map((tick) => ({ value: tick, y: y(tick), label: formatCount(tick) }))
@@ -95,7 +96,7 @@ export function SeriesChart({ series, bucketSize }: { series: SeriesPoint[]; buc
     <section className="card engagement-chart" aria-labelledby="engagement-chart-title">
       <div className="engagement-card-header">
         <h3 id="engagement-chart-title">{title}</h3>
-        <div className="engagement-toggle" role="group" aria-label="Measure">
+        <div className="engagement-toggle" role="group" aria-label={strings.seriesChart.measure}>
           {metrics.map((m) => (
             <button key={m.key} type="button" className="licence-toggle" aria-pressed={m.pressed} onClick={m.choose}>
               {m.label}
@@ -145,7 +146,7 @@ export function SeriesChart({ series, bucketSize }: { series: SeriesPoint[]; buc
           <caption>{title}</caption>
           <thead>
             <tr>
-              <th scope="col">From</th>
+              <th scope="col">{strings.common.from}</th>
               <th scope="col">{metricLabel}</th>
             </tr>
           </thead>

@@ -1,5 +1,6 @@
 import { UpdatesCard, type UpdatesMessage } from '../../features/updates/UpdatesCard/UpdatesCard'
 import { useTokenAction } from '../../features/updates/useTokenAction'
+import { strings } from '../../strings'
 
 /** Where "Unsubscribe" in every update email lands (/updates/unsubscribe?token=…). */
 export function UnsubscribePage() {
@@ -7,14 +8,14 @@ export function UnsubscribePage() {
   const state = useTokenAction('unsubscribe')
   const message: UpdatesMessage =
     state.status === 'working'
-      ? { text: 'Unsubscribing…' }
+      ? { text: strings.unsubscribePage.unsubscribing }
       : state.status === 'done'
-        ? { role: 'status', text: "You're unsubscribed: no more emails. Sorry to see you go." }
+        ? { role: 'status', text: strings.unsubscribePage.youreUnsubscribedNoMore }
         : state.status === 'test'
-          ? { role: 'status', text: "This link is from a test email, so it changes nothing: you weren't subscribed when it was sent." }
+          ? { role: 'status', text: strings.unsubscribePage.linkTestEmailSo }
           : state.status === 'unknown'
-            ? { role: 'alert', text: "This link isn't complete. Open it again from the email." }
-            : { role: 'alert', text: "That didn't work. Please try the link again later." }
-  const back = 'Back to the site'
+            ? { role: 'alert', text: strings.unsubscribePage.linkIsntCompleteOpen }
+            : { role: 'alert', text: strings.unsubscribePage.didntWorkPleaseTry }
+  const back = strings.unsubscribePage.backSite
   return <UpdatesCard message={message} back={back} />
 }

@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { Modal } from '../Modal/Modal'
+import { strings } from '../../strings'
 
 export interface ConfirmDialogProps {
   /** The question, e.g. "Delete the message from Ana?" */
@@ -20,7 +21,7 @@ export interface ConfirmDialogProps {
 }
 
 /** Asks before doing something. Cancel has the focus, so Enter by mistake does nothing. */
-export function ConfirmDialog({ title, children, confirmLabel, cancelLabel = 'Cancel', failure, danger = true, onConfirm, onClose }: ConfirmDialogProps) {
+export function ConfirmDialog({ title, children, confirmLabel, cancelLabel = strings.common.cancel, failure, danger = true, onConfirm, onClose }: ConfirmDialogProps) {
   const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle')
   const titleId = useId()
   const cancelRef = useRef<HTMLButtonElement>(null)
@@ -45,7 +46,7 @@ export function ConfirmDialog({ title, children, confirmLabel, cancelLabel = 'Ca
         {children && <div className="confirm-dialog-body">{children}</div>}
         {state === 'failed' && (
           <p role="alert" className="field-error">
-            {failure || "That didn't work. Please try again."}
+            {failure || strings.common.didntWorkPleaseTry}
           </p>
         )}
         <div className="confirm-dialog-actions">
@@ -53,7 +54,7 @@ export function ConfirmDialog({ title, children, confirmLabel, cancelLabel = 'Ca
             {cancelLabel}
           </button>
           <button type="button" className={danger ? 'button button-danger' : 'button'} disabled={busy} onClick={() => void confirm()}>
-            {busy ? 'Working…' : confirmLabel}
+            {busy ? strings.confirmDialog.working : confirmLabel}
           </button>
         </div>
       </div>

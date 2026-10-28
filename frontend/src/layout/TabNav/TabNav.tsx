@@ -4,6 +4,7 @@ import { ArrowLeftIcon, ArrowRightIcon } from '../../components/icons/icons'
 import { TabLink } from '../TabLink/TabLink'
 import { isCurrent, linkOf } from '../tabs'
 import { useShownTabs, type ShownTab } from '../useShownTabs'
+import { strings } from '../../strings'
 
 /** Where the highlight is, in the tab bar's own coordinates (it scrolls with the tabs). */
 interface Box {
@@ -207,7 +208,7 @@ export function TabNav() {
         <nav
           ref={navRef}
           className="tabs"
-          aria-label="Sections"
+          aria-label={strings.tabNav.sections}
           data-dragging={dragBox ? '' : undefined}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

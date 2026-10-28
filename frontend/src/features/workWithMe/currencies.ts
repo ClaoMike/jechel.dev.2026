@@ -1,3 +1,5 @@
+import { strings } from '../../strings'
+
 /** The currencies Work with me's price can be in (the API's WorkWithMePrices.Currencies lists the same codes). */
 
 export interface Currency {
@@ -14,18 +16,18 @@ export interface Currency {
 
 /** At the top of the list. */
 export const FAVOURITE_CURRENCIES: readonly Currency[] = [
-  { code: 'EUR', name: 'Euro', symbol: '€', flag: 'EU' },
-  { code: 'RON', name: 'Romanian leu', symbol: 'lei', after: true, flag: 'RO' },
-  { code: 'GBP', name: 'British pound', symbol: '£', flag: 'GB' },
+  { code: 'EUR', name: strings.currencies.euro, symbol: '€', flag: 'EU' },
+  { code: 'RON', name: strings.currencies.romanianLeu, symbol: 'lei', after: true, flag: 'RO' },
+  { code: 'GBP', name: strings.currencies.britishPound, symbol: '£', flag: 'GB' },
 ]
 
 /** After the favourites: the other currencies of the EU's countries (those not on the euro). */
 export const OTHER_CURRENCIES: readonly Currency[] = [
-  { code: 'CZK', name: 'Czech koruna', symbol: 'Kč', after: true, flag: 'CZ' },
-  { code: 'DKK', name: 'Danish krone', symbol: 'kr.', after: true, flag: 'DK' },
-  { code: 'HUF', name: 'Hungarian forint', symbol: 'Ft', after: true, flag: 'HU' },
-  { code: 'PLN', name: 'Polish złoty', symbol: 'zł', after: true, flag: 'PL' },
-  { code: 'SEK', name: 'Swedish krona', symbol: 'kr', after: true, flag: 'SE' },
+  { code: 'CZK', name: strings.currencies.czechKoruna, symbol: 'Kč', after: true, flag: 'CZ' },
+  { code: 'DKK', name: strings.currencies.danishKrone, symbol: strings.currencies.kr, after: true, flag: 'DK' },
+  { code: 'HUF', name: strings.currencies.hungarianForint, symbol: strings.currencies.ft, after: true, flag: 'HU' },
+  { code: 'PLN', name: strings.currencies.polishZOty, symbol: 'zł', after: true, flag: 'PL' },
+  { code: 'SEK', name: strings.currencies.swedishKrona, symbol: 'kr', after: true, flag: 'SE' },
 ]
 
 export const CURRENCIES: readonly Currency[] = [...FAVOURITE_CURRENCIES, ...OTHER_CURRENCIES]

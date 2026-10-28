@@ -1,4 +1,5 @@
 import type { PushSubscriptionJson } from '../../services/api'
+import { strings } from '../../strings'
 
 /**
  * Whether this browser can get the site's own notifications: yes; on an iPhone or iPad, only the site added to the Home
@@ -9,7 +10,7 @@ export type PushSupport = 'supported' | 'needs-home-screen' | 'unsupported'
 /** Notifications allowed, blocked (only the browser's or the phone's settings undo it), or not asked yet. */
 export type PushPermission = NotificationPermission
 
-const isAppleTouch = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1)
+const isAppleTouch = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.userAgent.includes(strings.webPush.macintosh) && navigator.maxTouchPoints > 1)
 const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
 
 function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
@@ -61,7 +62,9 @@ export const webPush = {
     const existing = await ready.pushManager.getSubscription()
     // Subscribed with another key (made again): those notifications would be refused, so start over.
     if (existing && !sameKey(existing.options.applicationServerKey, key)) await existing.unsubscribe()
-    const subscription = (existing && sameKey(existing.options.applicationServerKey, key) ? existing : null) ?? (await ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }))
+    const subscription =
+      (existing && sameKey(existing.options.applicationServerKey, key) ? existing : null) ??
+      (await ready.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }))
     const json = subscription.toJSON()
     return { endpoint: subscription.endpoint, keys: { p256dh: json.keys?.p256dh ?? '', auth: json.keys?.auth ?? '' } }
   },
@@ -80,25 +83,25 @@ export const webPush = {
       : /iPad/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1)
         ? 'iPad'
         : /Android/.test(ua)
-          ? 'Android'
+          ? strings.webPush.android
           : /Mac OS X/.test(ua)
             ? 'Mac'
             : /Windows/.test(ua)
-              ? 'Windows'
+              ? strings.webPush.windows
               : /Linux/.test(ua)
-                ? 'Linux'
-                : 'A computer'
+                ? strings.webPush.linux
+                : strings.webPush.computer
     const browser = isStandalone()
-      ? 'Home Screen app'
+      ? strings.webPush.homeScreenApp
       : /Edg\//.test(ua)
-        ? 'Edge'
+        ? strings.webPush.edge
         : /Firefox\//.test(ua)
-          ? 'Firefox'
+          ? strings.webPush.firefox
           : /Chrome\//.test(ua)
-            ? 'Chrome'
+            ? strings.webPush.chrome
             : /Safari\//.test(ua)
-              ? 'Safari'
-              : 'a browser'
+              ? strings.webPush.safari
+              : strings.webPush.browser
     return `${device} · ${browser}`
   },
 }

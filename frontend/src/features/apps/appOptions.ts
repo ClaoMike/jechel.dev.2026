@@ -1,20 +1,33 @@
+import { strings } from '../../strings'
+
 /** Platforms the admin can switch on with one click; any other can be typed in. */
-export const PLATFORM_PRESETS = ['iOS', 'Android', 'Web', 'Windows', 'macOS', 'Linux', 'PlayStation', 'Xbox', 'Nintendo Switch', 'Steam Deck']
+export const PLATFORM_PRESETS = [
+  'iOS',
+  strings.appOptions.android,
+  strings.appOptions.web,
+  strings.appOptions.windows,
+  'macOS',
+  strings.appOptions.linux,
+  'PlayStation',
+  strings.appOptions.xbox,
+  strings.appOptions.nintendoSwitch,
+  strings.appOptions.steamDeck,
+]
 
 /** Suggested while typing a link's store; anything else can be typed. */
 export const STORE_SUGGESTIONS = [
-  'App Store',
-  'Google Play',
-  'Steam',
-  'PlayStation Store',
-  'Microsoft Store',
-  'Xbox Store',
-  'Nintendo eShop',
-  'Epic Games Store',
+  strings.appOptions.appStore,
+  strings.appOptions.googlePlay,
+  strings.appOptions.steam,
+  strings.appOptions.playstationStore,
+  strings.appOptions.microsoftStore,
+  strings.appOptions.xboxStore,
+  strings.appOptions.nintendoEshop,
+  strings.appOptions.epicGamesStore,
   'itch.io',
-  'Mac App Store',
+  strings.appOptions.macAppStore,
   'GitHub',
-  'the web',
+  strings.appOptions.web2,
 ]
 
 /** Same as the API's AppRules: a platform is added once, whatever its case. */

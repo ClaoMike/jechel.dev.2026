@@ -8,6 +8,7 @@ import { fieldErrorsOf, saveFailedMessage, type FieldErrors } from '../../../uti
 import { AppDetailsView } from '../AppDetailsView/AppDetailsView'
 import { AppDialogHeader } from '../AppDialogHeader/AppDialogHeader'
 import { AppForm } from '../AppForm/AppForm'
+import { strings } from '../../../strings'
 
 export interface AppDialogProps {
   /** Null: adding a new app. */
@@ -57,7 +58,7 @@ export function AppDialog({ app, categories, canEdit, onClose, onSaved, onDelete
     } catch (error) {
       const fields = fieldErrorsOf(error)
       setErrors(fields ?? {})
-      setMessage(fields ? 'Some fields need fixing.' : saveFailedMessage(error))
+      setMessage(fields ? strings.appDialog.someFieldsNeedFixing : saveFailedMessage(error))
     }
   }
 
@@ -81,7 +82,7 @@ export function AppDialog({ app, categories, canEdit, onClose, onSaved, onDelete
       <AppDialogHeader
         titleId={titleId}
         // A new app just saved has no draft for a moment, until the page shows it in its own popup.
-        heading={app ? (draft ? `Edit ${app.title}` : app.title) : 'Add an app'}
+        heading={app ? (draft ? strings.appDialog.edit(app.title) : app.title) : strings.appDialog.addApp}
         headingIsName={!!app && !draft}
         // The app's labels by its title while it's shown, not while it's edited.
         categories={draft === null && app ? app.categories : []}
@@ -93,7 +94,7 @@ export function AppDialog({ app, categories, canEdit, onClose, onSaved, onDelete
             <div className="app-actions">
               <button type="button" className="button button-secondary button-small" onClick={() => setDraft(toRequest(app))}>
                 <PencilIcon size={16} />
-                Edit
+                {strings.common.edit2}
               </button>
             </div>
           )}
@@ -107,7 +108,7 @@ export function AppDialog({ app, categories, canEdit, onClose, onSaved, onDelete
           mediaError={errors.media ?? Object.entries(errors).find(([key]) => key.startsWith('media['))?.[1]}
           message={message}
           saving={saving}
-          saveLabel={saving ? 'Saving…' : app === null ? 'Add app' : 'Save'}
+          saveLabel={saving ? strings.common.saving : app === null ? strings.appDialog.addApp2 : strings.common.save}
           deletable={app && { title: app.title, remove }}
           change={(patch) => setDraft((current) => current && { ...current, ...patch })}
           updateMedia={(change) => setDraft((current) => current && { ...current, media: change(current.media) })}
@@ -118,7 +119,7 @@ export function AppDialog({ app, categories, canEdit, onClose, onSaved, onDelete
           }}
         />
       )}
-      {askDiscard && <DiscardChangesDialog detail="What you changed in this app isn't saved." onDiscard={onClose} onClose={() => setAskDiscard(false)} />}
+      {askDiscard && <DiscardChangesDialog detail={strings.appDialog.whatChangedAppIsnt} onDiscard={onClose} onClose={() => setAskDiscard(false)} />}
     </Modal>
   )
 }

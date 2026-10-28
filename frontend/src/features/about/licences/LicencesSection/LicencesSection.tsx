@@ -3,6 +3,7 @@ import { EditableSection } from '../../section/EditableSection/EditableSection'
 import { LicenceGroup } from '../LicenceGroup/LicenceGroup'
 import { LicencesEditor } from '../LicencesEditor/LicencesEditor'
 import { inDisplayOrder, LICENCE_CATEGORY_LABELS } from '../licences'
+import { strings } from '../../../../strings'
 
 /** Driving, flying and boating licences, as labels grouped by kind. */
 export function LicencesSection({ value, canEdit, onSave }: { value: Licence[]; canEdit: boolean; onSave: (value: Licence[]) => Promise<void> }) {
@@ -13,9 +14,9 @@ export function LicencesSection({ value, canEdit, onSave }: { value: Licence[]; 
     licences: inDisplayOrder(value.filter((l) => l.category === category)),
   })).filter((group) => group.licences.length > 0)
   return (
-    <EditableSection title="Licences" errorKeys={['licences']} value={value} canEdit={canEdit} onSave={onSave} editor={LicencesEditor}>
+    <EditableSection title={strings.common.licences} errorKeys={['licences']} value={value} canEdit={canEdit} onSave={onSave} editor={LicencesEditor}>
       {groups.length === 0 ? (
-        <p className="muted">Nothing here yet.</p>
+        <p className="muted">{strings.common.nothingHereYet}</p>
       ) : (
         <div className="licence-groups">
           {groups.map((group) => (

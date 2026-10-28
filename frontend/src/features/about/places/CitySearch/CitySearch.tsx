@@ -4,6 +4,7 @@ import type { City } from '../../../../services/api'
 import { useSearchCitiesQuery } from '../../../../store/api/aboutApi'
 import { CityResults } from '../CityResults/CityResults'
 import { placeLabel } from '../placeLabel'
+import { strings } from '../../../../strings'
 
 /** Waits until typing pauses, so each key press doesn't send a request. */
 const SEARCH_DELAY_MS = 250
@@ -28,14 +29,14 @@ export function CitySearch({ onPick }: { onPick: (city: City) => void }) {
   return (
     <div className="city-search">
       <div className="field">
-        <label htmlFor={id}>Add a city</label>
+        <label htmlFor={id}>{strings.citySearch.addCity}</label>
         <div className="city-search-input">
           <SearchIcon size={16} />
           <input
             id={id}
             type="search"
             value={query}
-            placeholder="Manchester, or Manchester, England"
+            placeholder={strings.citySearch.manchesterManchesterEngland}
             autoComplete="off"
             aria-describedby={`${id}-hint`}
             onChange={(e) => setQuery(e.target.value)}
@@ -44,16 +45,16 @@ export function CitySearch({ onPick }: { onPick: (city: City) => void }) {
         </div>
         <p className="field-hint" id={`${id}-hint`}>
           <span>
-            Any place with 1,000+ people. City data:{' '}
+            {strings.citySearch.anyPlace1000}{' '}
             <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">
-              GeoNames
+              {strings.citySearch.geonames}
             </a>
             .
           </span>
         </p>
       </div>
-      {active && search.isFetching && <p className="muted city-search-status">Searching…</p>}
-      {active && search.isError && !search.isFetching && <p className="field-error">The search isn't working right now. Please try again.</p>}
+      {active && search.isFetching && <p className="muted city-search-status">{strings.citySearch.searching}</p>}
+      {active && search.isError && !search.isFetching && <p className="field-error">{strings.citySearch.searchIsntWorkingRight}</p>}
       {results && (
         <CityResults
           results={results.map((city) => ({

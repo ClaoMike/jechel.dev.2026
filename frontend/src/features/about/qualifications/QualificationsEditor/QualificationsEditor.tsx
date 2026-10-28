@@ -3,6 +3,7 @@ import type { Qualification } from '../../../../services/api'
 import { currentMonth } from '../../format'
 import { move, removeAt, replaceAt } from '../../list'
 import { QualificationEditor } from '../QualificationEditor/QualificationEditor'
+import { strings } from '../../../../strings'
 
 /** Every qualification, reorderable; a new one is dated this month. */
 export function QualificationsEditor({ value, onChange, errors }: EditorProps<Qualification[]>) {
@@ -24,7 +25,7 @@ export function QualificationsEditor({ value, onChange, errors }: EditorProps<Qu
         )
       })}
       {errors.qualifications && <p className="field-error">{errors.qualifications}</p>}
-      <AddButton onClick={() => onChange([...value, { title: '', issuer: '', obtained: currentMonth(), grade: '' }])}>Add qualification</AddButton>
+      <AddButton onClick={() => onChange([...value, { title: '', issuer: '', obtained: currentMonth(), grade: '' }])}>{strings.qualificationsEditor.addQualification}</AddButton>
     </div>
   )
 }

@@ -1,15 +1,20 @@
 import type { AnalyticsSummary } from '../../services/api'
 import { formatCount, formatDuration, formatPercent } from './format'
+import { strings } from '../../strings'
 
 /** The headline numbers for the period. */
 export function StatTiles({ totals }: { totals: AnalyticsSummary['totals'] }) {
   const tiles = [
-    { label: 'Visitors', value: formatCount(totals.visitors), hint: 'Unique per day' },
-    { label: 'Visits', value: formatCount(totals.sessions), hint: 'A tab, from opening to closing' },
-    { label: 'Page views', value: formatCount(totals.pageViews), hint: totals.sessions ? `${(totals.pageViews / totals.sessions).toFixed(1)} per visit` : '' },
-    { label: 'Average visit', value: formatDuration(totals.averageSessionSeconds), hint: 'First to last action' },
-    { label: 'Bounce rate', value: formatPercent(totals.bounceRate), hint: 'One page, then gone' },
-    { label: 'Errors', value: formatCount(totals.errors), hint: totals.errors ? 'See the visits below' : 'None' },
+    { label: strings.statTiles.visitors, value: formatCount(totals.visitors), hint: strings.statTiles.uniquePerDay },
+    { label: strings.common.visits, value: formatCount(totals.sessions), hint: strings.statTiles.tabOpeningClosing },
+    {
+      label: strings.statTiles.pageViews,
+      value: formatCount(totals.pageViews),
+      hint: totals.sessions ? strings.statTiles.perVisit((totals.pageViews / totals.sessions).toFixed(1)) : '',
+    },
+    { label: strings.statTiles.averageVisit, value: formatDuration(totals.averageSessionSeconds), hint: strings.statTiles.firstLastAction },
+    { label: strings.statTiles.bounceRate, value: formatPercent(totals.bounceRate), hint: strings.statTiles.onePageThenGone },
+    { label: strings.common.errors, value: formatCount(totals.errors), hint: totals.errors ? strings.statTiles.seeVisitsBelow : strings.statTiles.none },
   ]
   return (
     <dl className="stat-tiles">

@@ -2,6 +2,7 @@ import { AddButton, type EditorProps } from '../../../../components/fields'
 import type { Language } from '../../../../services/api'
 import { LanguageEditor } from '../LanguageEditor/LanguageEditor'
 import { move, removeAt, replaceAt } from '../../list'
+import { strings } from '../../../../strings'
 
 /** Every language and its level, reorderable; a new one starts as a beginner. */
 export function LanguagesEditor({ value, onChange, errors }: EditorProps<Language[]>) {
@@ -21,7 +22,7 @@ export function LanguagesEditor({ value, onChange, errors }: EditorProps<Languag
         />
       ))}
       {errors.languages && <p className="field-error">{errors.languages}</p>}
-      <AddButton onClick={() => onChange([...value, { name: '', level: 'beginner' }])}>Add language</AddButton>
+      <AddButton onClick={() => onChange([...value, { name: '', level: 'beginner' }])}>{strings.languagesEditor.addLanguage}</AddButton>
     </div>
   )
 }

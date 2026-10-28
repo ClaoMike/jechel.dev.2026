@@ -9,10 +9,11 @@ import { SiteVisibility } from '../../features/site/SiteVisibility/SiteVisibilit
 import { failureOf, type Setting, type TestResult } from '../../services/api'
 import { useGetSettingsQuery, useSaveSettingMutation, useTestServiceMutation, type TestableService } from '../../store/api/settingsApi'
 import { toLoadable } from '../../store/loadable'
+import { strings } from '../../strings'
 
 type ServiceStatus = 'ready' | 'partial' | 'off'
 
-const STATUS_TEXT: Record<ServiceStatus, string> = { ready: 'Set up', partial: 'Partly set up', off: 'Not set up' }
+const STATUS_TEXT: Record<ServiceStatus, string> = { ready: strings.settingsPage.setUp, partial: strings.settingsPage.partlySetUp, off: strings.settingsPage.notSetUp }
 
 function randomHex(bytes: number): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('')
@@ -22,9 +23,9 @@ function randomHex(bytes: number): string {
 const newNtfyTopic = () => `jechel-${randomHex(12)}`
 
 function sourceText(setting: Setting): string {
-  if (!setting.isSet) return 'not set'
-  const where = setting.source === 'settings' ? 'saved here' : 'from the server configuration'
-  return setting.isSecret && setting.hint ? `set, ends in ${setting.hint}, ${where}` : `set, ${where}`
+  if (!setting.isSet) return strings.settingsPage.notSet
+  const where = setting.source === 'settings' ? strings.settingsPage.savedHere : strings.settingsPage.serverConfiguration
+  return setting.isSecret && setting.hint ? strings.settingsPage.setEnds(setting.hint, where) : strings.settingsPage.set(where)
 }
 
 /**
@@ -36,7 +37,7 @@ export function SettingsPage() {
   return (
     <AdminOnly>
       <div className="settings">
-        <h2 className="visually-hidden">Settings</h2>
+        <h2 className="visually-hidden">{strings.settingsPage.settings}</h2>
         <SiteVisibility />
         <SignedInDevices />
         <Connections />
@@ -61,7 +62,7 @@ function Connections() {
     return (
       <ConnectionsCard>
         {/* The folded list of services, each a name and a status. */}
-        <Loading label="Loading the settings…" className="settings-connection-list">
+        <Loading label={strings.settingsPage.loadingSettings} className="settings-connection-list">
           {[46, 38, 42, 34, 40, 26, 36, 30].map((width, i) => (
             <div key={i} className="editor-item settings-card skeleton-settings-row">
               <Skeleton width={`${width}%`} height={18} />
@@ -74,7 +75,7 @@ function Connections() {
   if (state.status === 'error')
     return (
       <ConnectionsCard>
-        <ErrorState message="The settings couldn't be loaded." onRetry={() => void query.refetch()} />
+        <ErrorState message={strings.settingsPage.settingsCouldntLoaded} onRetry={() => void query.refetch()} />
       </ConnectionsCard>
     )
 
@@ -85,49 +86,59 @@ function Connections() {
     <ConnectionsCard>
       <div className="settings-connection-list">
         <ServiceCard
-          title="Buy Me a Coffee"
+          title={strings.settingsPage.buyMeCoffee}
           status={status('Support:Url', 'Support:BuyMeACoffeeWebhookSecret')}
           links={[
-            ['Your page', setting('Support:Url').value || 'https://buymeacoffee.com'],
-            ['Dashboard', 'https://studio.buymeacoffee.com'],
+            [strings.settingsPage.page, setting('Support:Url').value || 'https://buymeacoffee.com'],
+            [strings.settingsPage.dashboard, 'https://studio.buymeacoffee.com'],
           ]}
         >
           {field('Support:Url', { placeholder: 'https://buymeacoffee.com/you' })}
           <Steps>
             <li>
-              In the dashboard, open <strong>Integrations → Webhooks</strong> and add this link for donations:
+              {strings.settingsPage.dashboardOpen}
+              <strong>{strings.settingsPage.integrationsWebhooks}</strong> {strings.settingsPage.addLinkDonations}
               <Copyable value={`${data.siteUrl}/api/support/buymeacoffee`} />
             </li>
             <li>
-              Copy the webhook's secret into the field below and save. Then, on that webhook in Buy Me a Coffee's dashboard, press <strong>Send test</strong>: a coffee marked Test
-              should land in the Community tab and on your phone.
+              {strings.settingsPage.copyWebhooksSecretInto}
+              <strong>{strings.settingsPage.sendTest}</strong>
+              {strings.settingsPage.coffeeMarkedTestShould}
             </li>
           </Steps>
           {field('Support:BuyMeACoffeeWebhookSecret')}
         </ServiceCard>
 
         <ServiceCard
-          title="Cal.com (meetings)"
+          title={strings.settingsPage.calComMeetings}
           status={status('Cal:Link', 'Cal:ApiKey', 'Cal:WebhookSecret')}
-          what="By invitation: Add booking link in your answers, the calendar above your messages, accepting or declining requests (here or from your phone), and the reminders."
+          what={strings.settingsPage.invitationAddBookingLink}
           links={[
-            ['Event types', 'https://app.cal.com/event-types'],
-            ['Webhooks', 'https://app.cal.com/settings/developer/webhooks'],
-            ['API keys', 'https://app.cal.com/settings/developer/api-keys'],
+            [strings.settingsPage.eventTypes, 'https://app.cal.com/event-types'],
+            [strings.settingsPage.webhooks, 'https://app.cal.com/settings/developer/webhooks'],
+            [strings.settingsPage.apiKeys, 'https://app.cal.com/settings/developer/api-keys'],
           ]}
-          test={{ service: 'cal', label: 'Check the API key' }}
+          test={{ service: 'cal', label: strings.settingsPage.checkApiKey }}
         >
           <Steps>
             <li>
-              In <strong>Event types</strong>, make one (e.g. 30 minutes), set your availability, turn on <strong>Hidden</strong> (only people you send the link can book), and
-              under <strong>Advanced</strong> turn on <strong>Requires confirmation</strong>, so you accept each request. Paste its link below.
+              {strings.settingsPage.in}
+              <strong>{strings.settingsPage.eventTypes}</strong>
+              {strings.settingsPage.makeOneEG}
+              <strong>{strings.settingsPage.hidden}</strong> {strings.settingsPage.onlyPeopleSendLink}
+              <strong>{strings.settingsPage.advanced}</strong> {strings.settingsPage.turn}
+              <strong>{strings.settingsPage.requiresConfirmation}</strong>
+              {strings.settingsPage.soAcceptEachRequest}
             </li>
             <li>
-              In <strong>Webhooks</strong>, add this link, with a secret of your choice, for Booking requested, created, rescheduled, cancelled and rejected:
+              {strings.settingsPage.in}
+              <strong>{strings.settingsPage.webhooks}</strong>
+              {strings.settingsPage.addLinkSecretChoice}
               <Copyable value={`${data.siteUrl}/api/meetings/cal`} />
             </li>
             <li>
-              Paste the same secret below, then make an <strong>API key</strong> (Settings → Developer) and paste it too: it lets this site accept and decline for you.
+              {strings.settingsPage.pasteSameSecretBelow}
+              <strong>{strings.settingsPage.apiKey}</strong> {strings.settingsPage.settingsDeveloperPasteToo}
             </li>
           </Steps>
           {field('Cal:Link', { placeholder: 'https://cal.com/you/30min' })}
@@ -136,22 +147,25 @@ function Connections() {
         </ServiceCard>
 
         <ServiceCard
-          title="Google sign-in"
+          title={strings.settingsPage.googleSign}
           status={data.google.isConfigured ? 'ready' : 'off'}
-          links={[['Google Cloud: OAuth clients', 'https://console.cloud.google.com/auth/clients']]}
+          links={[[strings.settingsPage.googleCloudOauthClients, 'https://console.cloud.google.com/auth/clients']]}
         >
           <dl className="settings-facts">
-            <dt>Status</dt>
+            <dt>{strings.common.status}</dt>
             <dd>
               {data.google.isConfigured ? (
-                <span className="chip">Set up{data.google.clientIdHint ? ` · client ${data.google.clientIdHint}` : ''}</span>
+                <span className="chip">
+                  {strings.settingsPage.setUp}
+                  {data.google.clientIdHint ? strings.settingsPage.client(data.google.clientIdHint) : ''}
+                </span>
               ) : (
-                <span className="chip chip-muted">Not set up</span>
+                <span className="chip chip-muted">{strings.settingsPage.notSetUp}</span>
               )}
             </dd>
-            <dt>Admins</dt>
-            <dd>{data.google.adminEmailCount === 1 ? '1 email allowed' : `${data.google.adminEmailCount} emails allowed`}</dd>
-            <dt>Redirect URI to register</dt>
+            <dt>{strings.settingsPage.admins}</dt>
+            <dd>{data.google.adminEmailCount === 1 ? strings.settingsPage.n1EmailAllowed : strings.settingsPage.emailsAllowed(data.google.adminEmailCount)}</dd>
+            <dt>{strings.settingsPage.redirectUriRegister}</dt>
             <dd>
               <Copyable value={data.google.redirectUri} />
             </dd>
@@ -159,80 +173,94 @@ function Connections() {
         </ServiceCard>
 
         <ServiceCard
-          title="Hosting"
+          title={strings.settingsPage.hosting}
           links={[
-            ['Cloudflare', 'https://dash.cloudflare.com'],
-            ['Sliplane', 'https://sliplane.io'],
+            [strings.settingsPage.cloudflare, 'https://dash.cloudflare.com'],
+            [strings.settingsPage.sliplane, 'https://sliplane.io'],
           ]}
         />
 
         <ServiceCard
-          title="ntfy (phone alerts)"
+          title={strings.settingsPage.ntfyPhoneAlerts}
           status={status('Alerts:NtfyTopic')}
           links={[
             ['ntfy', 'https://ntfy.sh'],
-            ['Phone app guide', 'https://docs.ntfy.sh/subscribe/phone/'],
+            [strings.settingsPage.phoneAppGuide, 'https://docs.ntfy.sh/subscribe/phone/'],
           ]}
-          test={{ service: 'ntfy', label: 'Send a test alert' }}
+          test={{ service: 'ntfy', label: strings.settingsPage.sendTestAlert }}
         >
           <Steps>
             <li>
-              Press <strong>Generate</strong> below for a private topic name, and <strong>Save</strong>.
+              {strings.settingsPage.press}
+              <strong>{strings.settingsPage.generate}</strong> {strings.settingsPage.belowPrivateTopicName}
+              <strong>{strings.common.save}</strong>.
             </li>
             <li>
-              In the ntfy app, tap <strong>+</strong>, type the same topic (server: ntfy.sh), and <strong>Subscribe</strong>.
+              {strings.settingsPage.ntfyAppTap}
+              <strong>+</strong>
+              {strings.settingsPage.typeSameTopicServer}
+              <strong>{strings.settingsPage.subscribe}</strong>.
             </li>
             <li>
-              Press <strong>Send a test alert</strong>. Anyone who knows the topic can read it, so keep it long and random.
+              {strings.settingsPage.press}
+              <strong>{strings.settingsPage.sendTestAlert}</strong>
+              {strings.settingsPage.anyoneWhoKnowsTopic}
             </li>
           </Steps>
           {field('Alerts:NtfyTopic', { generate: newNtfyTopic })}
           <details className="settings-more">
-            <summary>Your own ntfy server, or a reserved topic</summary>
+            <summary>{strings.settingsPage.ownNtfyServerReserved}</summary>
             {field('Alerts:NtfyServer', { placeholder: 'https://ntfy.sh' })}
             {field('Alerts:NtfyToken')}
           </details>
         </ServiceCard>
 
-        <ServiceCard title="Porkbun (domain)" links={[['Porkbun', 'https://porkbun.com/account/domainsSpeedy']]} />
+        <ServiceCard title={strings.settingsPage.porkbunDomain} links={[[strings.settingsPage.porkbun, 'https://porkbun.com/account/domainsSpeedy']]} />
 
         <ServiceCard
-          title="Resend (email)"
+          title={strings.settingsPage.resendEmail}
           status={status('Email:ResendApiKey', 'Email:From')}
           links={[
-            ['API keys', 'https://resend.com/api-keys'],
-            ['Domains', 'https://resend.com/domains'],
-            ['Webhooks', 'https://resend.com/webhooks'],
+            [strings.settingsPage.apiKeys, 'https://resend.com/api-keys'],
+            [strings.settingsPage.domains, 'https://resend.com/domains'],
+            [strings.settingsPage.webhooks, 'https://resend.com/webhooks'],
           ]}
-          test={{ service: 'email', label: 'Send me a test email' }}
+          test={{ service: 'email', label: strings.settingsPage.sendMeTestEmail }}
         >
           {field('Email:ResendApiKey')}
-          {field('Email:From', { placeholder: 'Claudiu from jechel.dev <hello@jechel.dev>' })}
-          {field('Email:UpdatesFrom', { placeholder: 'jechel.dev <updates@jechel.dev>' })}
+          {field('Email:From', { placeholder: strings.settingsPage.claudiuJechelDevHello })}
+          {field('Email:UpdatesFrom', { placeholder: strings.settingsPage.jechelDevUpdatesJechel })}
           <details className="settings-more">
-            <summary>Receiving email</summary>
+            <summary>{strings.settingsPage.receivingEmail}</summary>
             <Steps>
               <li>
-                In <strong>Domains</strong>, open your domain, turn on <strong>Receiving</strong>, and add its MX record at Porkbun.
+                {strings.settingsPage.in}
+                <strong>{strings.settingsPage.domains}</strong>
+                {strings.settingsPage.openDomainTurn}
+                <strong>{strings.settingsPage.receiving}</strong>
+                {strings.settingsPage.addMxRecordPorkbun}
               </li>
               <li>
-                In <strong>Webhooks</strong>, add this link for <strong>email.received</strong>:
+                {strings.settingsPage.in}
+                <strong>{strings.settingsPage.webhooks}</strong>
+                {strings.settingsPage.addLink}
+                <strong>{strings.settingsPage.emailReceived}</strong>:
                 <Copyable value={`${data.siteUrl}/api/contact/inbound`} />
               </li>
-              <li>Paste its signing secret below. Emails to the sender's address then land in Contact.</li>
+              <li>{strings.settingsPage.pasteSigningSecretBelow}</li>
             </Steps>
             {field('Email:InboundWebhookSecret')}
           </details>
         </ServiceCard>
 
         <ServiceCard
-          title="YouTube Data API"
+          title={strings.settingsPage.youtubeDataApi}
           status={status('YouTube:Channel', 'YouTube:ApiKey')}
           links={[
-            ['Google Cloud: API keys', 'https://console.cloud.google.com/apis/credentials'],
-            ['YouTube Studio', 'https://studio.youtube.com'],
+            [strings.settingsPage.googleCloudApiKeys, 'https://console.cloud.google.com/apis/credentials'],
+            [strings.settingsPage.youtubeStudio, 'https://studio.youtube.com'],
           ]}
-          test={{ service: 'youtube', label: 'List my videos' }}
+          test={{ service: 'youtube', label: strings.settingsPage.listMyVideos }}
         >
           {field('YouTube:Channel', { placeholder: '@yourhandle' })}
           {field('YouTube:ApiKey')}
@@ -246,7 +274,7 @@ function Connections() {
 function ConnectionsCard({ children }: { children: ReactNode }) {
   return (
     <section className="card settings-connections" aria-labelledby="connections-title">
-      <h3 id="connections-title">Connections</h3>
+      <h3 id="connections-title">{strings.settingsPage.connections}</h3>
       {children}
     </section>
   )
@@ -308,7 +336,7 @@ function Copyable({ value }: { value: string }) {
   return (
     <span className="settings-copyable">
       <code>{value}</code>
-      <CopyButton value={value} label="link" />
+      <CopyButton value={value} label={strings.settingsPage.link} />
     </span>
   )
 }
@@ -322,14 +350,14 @@ function TestButton({ service, label }: { service: TestableService; label: strin
     try {
       setResult(await test(service).unwrap())
     } catch {
-      setResult({ ok: false, message: "The test couldn't run. Please try again." })
+      setResult({ ok: false, message: strings.settingsPage.testCouldntRunPlease })
     }
   }
 
   return (
     <div className="settings-test">
       <button type="button" className="button button-secondary" disabled={busy} onClick={() => void run()}>
-        {busy ? 'Testing…' : label}
+        {busy ? strings.settingsPage.testing : label}
       </button>
       {result && (
         <p role="status" className={result.ok ? 'settings-ok' : 'field-error'}>
@@ -366,9 +394,9 @@ function SettingField({ setting, placeholder, hint, generate }: FieldProps) {
       const next = await saveSetting({ key: setting.key, value }).unwrap()
       const updated = next.settings.find((s) => s.key === setting.key)
       setDraft(setting.isSecret ? '' : (updated?.value ?? ''))
-      setSaved(value ? 'Saved.' : 'Removed.')
+      setSaved(value ? strings.common.saved : strings.settingsPage.removed)
     } catch (e) {
-      setError(failureOf(e).validationErrors?.value?.[0] ?? "That couldn't be saved. Please try again.")
+      setError(failureOf(e).validationErrors?.value?.[0] ?? strings.common.couldntSavedPleaseTry)
     }
   }
 
@@ -385,23 +413,23 @@ function SettingField({ setting, placeholder, hint, generate }: FieldProps) {
           autoComplete="off"
           spellCheck={false}
           value={draft}
-          placeholder={setting.isSecret ? (setting.isSet ? 'Paste a new value to replace it' : 'Paste it here') : placeholder}
+          placeholder={setting.isSecret ? (setting.isSet ? strings.settingsPage.pasteNewValueReplace : strings.settingsPage.pasteHere) : placeholder}
           onChange={(e) => setDraft(e.target.value)}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
         />
         {generate && (
           <button type="button" className="button button-secondary" onClick={() => setDraft(generate())}>
-            Generate
+            {strings.settingsPage.generate}
           </button>
         )}
         {!setting.isSecret && draft && <CopyButton value={draft} label={setting.label.toLowerCase()} />}
         <button type="button" className="button" disabled={busy || !changed || (setting.isSecret && !draft.trim())} onClick={() => void save(draft.trim())}>
-          Save
+          {strings.common.save}
         </button>
         {setting.source === 'settings' && (
           <button type="button" className="button button-secondary" disabled={busy} onClick={() => void save('')}>
-            Remove
+            {strings.common.remove}
           </button>
         )}
       </div>

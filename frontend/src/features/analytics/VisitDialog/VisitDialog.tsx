@@ -10,6 +10,7 @@ import { describeDevice, describeEvent, describeTheme, formatDuration, formatOff
 import { useGetVisitQuery } from '../../../store/api/analyticsApi'
 import { toLoadable } from '../../../store/loadable'
 import { formatDateTime } from '../../../utils/formatDate'
+import { strings } from '../../../strings'
 
 /**
  * A visit replayed: what it ran on, then every step in order with its time. Errors open up to their
@@ -23,49 +24,49 @@ export function VisitDialog({ visitId, onClose, onDelete }: { visitId: string; o
   return (
     <Modal labelledBy={titleId} onClose={onClose} className="modal-wide">
       <div className="modal-header">
-        <h2 id={titleId}>{state.status === 'loaded' ? `Visit on ${formatDateTime(state.data.startedAt)}` : 'Visit'}</h2>
-        <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
+        <h2 id={titleId}>{state.status === 'loaded' ? strings.visitDialog.visit(formatDateTime(state.data.startedAt)) : strings.visitDialog.visit2}</h2>
+        <button type="button" className="icon-button" onClick={onClose} aria-label={strings.common.close}>
           <span aria-hidden="true">×</span>
         </button>
       </div>
 
       {state.status === 'loading' && (
-        <Loading label="Loading the visit…">
+        <Loading label={strings.visitDialog.loadingVisit}>
           <SkeletonChips count={5} />
           <SkeletonList rows={8} pill />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="This visit couldn't be loaded." onRetry={() => void query.refetch()} />}
+      {state.status === 'error' && <ErrorState message={strings.visitDialog.visitCouldntLoaded} onRetry={() => void query.refetch()} />}
       {state.status === 'loaded' && <VisitView visit={state.data} onDelete={() => onDelete(visitId)} />}
     </Modal>
   )
 }
 
 function VisitView({ visit, onDelete }: { visit: VisitDetails; onDelete: () => Promise<void> }) {
-  const from = visit.referrer ?? (visit.utmSource ? `utm_source=${visit.utmSource}` : 'Direct')
+  const from = visit.referrer ?? (visit.utmSource ? `utm_source=${visit.utmSource}` : strings.visitDialog.direct)
   return (
     <>
       <dl className="visit-facts">
-        <Fact label="Device" value={describeDevice(visit)} />
-        <Fact label="Window" value={`${visit.viewportWidth}×${visit.viewportHeight} (screen ${visit.screenWidth}×${visit.screenHeight})`} />
-        <Fact label="Theme" value={describeTheme(visit)} />
-        <Fact label="Length" value={formatDuration((Date.parse(visit.lastSeenAt) - Date.parse(visit.startedAt)) / 1000)} />
-        <Fact label="Came from" value={from} />
-        <Fact label="Where" value={[visit.country, visit.timeZone, visit.language].filter(Boolean).join(' · ') || '—'} />
+        <Fact label={strings.visitDialog.device} value={describeDevice(visit)} />
+        <Fact label={strings.visitDialog.window} value={`${visit.viewportWidth}×${visit.viewportHeight} (screen ${visit.screenWidth}×${visit.screenHeight})`} />
+        <Fact label={strings.visitDialog.theme} value={describeTheme(visit)} />
+        <Fact label={strings.visitDialog.length} value={formatDuration((Date.parse(visit.lastSeenAt) - Date.parse(visit.startedAt)) / 1000)} />
+        <Fact label={strings.visitDialog.came} value={from} />
+        <Fact label={strings.visitDialog.where} value={[visit.country, visit.timeZone, visit.language].filter(Boolean).join(' · ') || '—'} />
       </dl>
 
       <div className="visit-actions">
         <span className="visit-copy">
-          <CopyButton value={reproductionSteps(visit)} label="steps to reproduce" />
-          Copy steps to reproduce
+          <CopyButton value={reproductionSteps(visit)} label={strings.visitDialog.stepsReproduce} />
+          {strings.visitDialog.copyStepsReproduce}
         </span>
-        <DeleteButton what="this visit" onDelete={onDelete} className="button button-secondary button-small" label="Delete visit">
+        <DeleteButton what={strings.visitDialog.visit3} onDelete={onDelete} className="button button-secondary button-small" label={strings.visitDialog.deleteVisit}>
           <TrashIcon size={16} />
-          Delete
+          {strings.common.delete}
         </DeleteButton>
       </div>
 
-      <ol className="visit-timeline" aria-label="What happened">
+      <ol className="visit-timeline" aria-label={strings.visitDialog.whatHappened}>
         {visit.events.map((event) => (
           <li key={event.seq} className={`visit-step visit-step-${event.type}`}>
             <time className="visit-step-time" dateTime={event.occurredAt}>
@@ -76,7 +77,7 @@ function VisitView({ visit, onDelete }: { visit: VisitDetails; onDelete: () => P
               {event.type !== 'pageview' && <span className="visit-step-path">{event.path}</span>}
               {event.type === 'error' && event.detail && (
                 <details className="visit-step-detail">
-                  <summary>Details</summary>
+                  <summary>{strings.visitDialog.details}</summary>
                   <dl>
                     {Object.entries(event.detail).map(([key, value]) => (
                       <div key={key}>

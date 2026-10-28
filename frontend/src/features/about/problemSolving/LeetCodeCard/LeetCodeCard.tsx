@@ -7,6 +7,7 @@ import { LeetCodeProfileLink } from '../LeetCodeProfileLink/LeetCodeProfileLink'
 import { LeetCodeSkeleton } from '../LeetCodeSkeleton/LeetCodeSkeleton'
 import { DIFFICULTIES, DIFFICULTY_LABELS, leetCodeProfileUrl, STALE_AFTER_MS } from '../problemSolving'
 import { SolvedRing } from '../SolvedRing/SolvedRing'
+import { strings } from '../../../../strings'
 
 const count = (n: number) => n.toLocaleString('en-GB')
 
@@ -33,12 +34,19 @@ export function LeetCodeCard({ username, canEdit }: { username: string; canEdit:
           ? 'loaded'
           : 'unavailable'
 
-  if (status === 'not-found') return canEdit ? <p className="field-error">LeetCode has no user called {username}. Check the username with Edit.</p> : null
+  if (status === 'not-found')
+    return canEdit ? (
+      <p className="field-error">
+        {strings.leetCodeCard.leetcodeHasNoUser}
+        {username}
+        {strings.leetCodeCard.checkUsernameEdit}
+      </p>
+    ) : null
   return (
     <div className="leetcode">
       <LeetCodeProfileLink href={leetCodeProfileUrl(username)} username={stats?.username ?? username} />
       {status === 'loading' && <LeetCodeSkeleton />}
-      {status === 'unavailable' && <ErrorState compact message="LeetCode stats can't be loaded right now." onRetry={() => void query.refetch()} />}
+      {status === 'unavailable' && <ErrorState compact message={strings.leetCodeCard.leetcodeStatsCantLoaded} onRetry={() => void query.refetch()} />}
       {status === 'loaded' && stats && (
         <>
           <div className="leetcode-body">
@@ -59,7 +67,10 @@ export function LeetCodeCard({ username, canEdit }: { username: string; canEdit:
           </div>
           {/* Stats older than two days: the API couldn't reach LeetCode since, so say when they're from. */}
           {now - new Date(stats.fetchedAt).getTime() > STALE_AFTER_MS && (
-            <p className="muted leetcode-stale">As of {new Date(stats.fetchedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.</p>
+            <p className="muted leetcode-stale">
+              {strings.leetCodeCard.asOf}
+              {new Date(stats.fetchedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.
+            </p>
           )}
         </>
       )}

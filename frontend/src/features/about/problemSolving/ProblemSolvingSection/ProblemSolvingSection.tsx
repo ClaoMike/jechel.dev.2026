@@ -4,6 +4,7 @@ import { NeetCodeLists } from '../NeetCodeLists/NeetCodeLists'
 import { ProblemSolvingEditor } from '../ProblemSolvingEditor/ProblemSolvingEditor'
 import type { ProblemSolving } from '../../../../services/api'
 import { NEETCODE_LIST_LABELS } from '../problemSolving'
+import { strings } from '../../../../strings'
 
 export interface ProblemSolvingSectionProps {
   value: ProblemSolving
@@ -14,9 +15,16 @@ export interface ProblemSolvingSectionProps {
 /** LeetCode stats, fetched through the API, and the NeetCode lists completed. */
 export function ProblemSolvingSection({ value, canEdit, onSave }: ProblemSolvingSectionProps) {
   return (
-    <EditableSection title="Problem solving" errorKeys={['problemSolving']} value={value} canEdit={canEdit} onSave={onSave} editor={ProblemSolvingEditor}>
+    <EditableSection
+      title={strings.problemSolvingSection.problemSolving}
+      errorKeys={['problemSolving']}
+      value={value}
+      canEdit={canEdit}
+      onSave={onSave}
+      editor={ProblemSolvingEditor}
+    >
       {!value.leetCodeUsername && value.neetCodeLists.length === 0 ? (
-        <p className="muted">Nothing here yet.</p>
+        <p className="muted">{strings.common.nothingHereYet}</p>
       ) : (
         <div className="problem-solving">
           {value.leetCodeUsername && <LeetCodeCard key={value.leetCodeUsername} username={value.leetCodeUsername} canEdit={canEdit} />}

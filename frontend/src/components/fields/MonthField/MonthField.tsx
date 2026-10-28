@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { strings } from '../../../strings'
 
 export interface MonthFieldProps {
   label: string
@@ -41,7 +42,7 @@ export function MonthField({ label, value, onChange, error }: MonthFieldProps) {
         {label}
       </span>
       <div className="month-field">
-        <select aria-label={`${label} month`} value={month} onChange={(e) => emit(year, Number(e.target.value))}>
+        <select aria-label={strings.monthField.month(label)} value={month} onChange={(e) => emit(year, Number(e.target.value))}>
           {MONTHS.map((name, i) => (
             <option key={i + 1} value={i + 1}>
               {name}
@@ -49,7 +50,7 @@ export function MonthField({ label, value, onChange, error }: MonthFieldProps) {
           ))}
         </select>
         <input
-          aria-label={`${label} year`}
+          aria-label={strings.monthField.year(label)}
           inputMode="numeric"
           maxLength={4}
           value={year}

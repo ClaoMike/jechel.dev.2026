@@ -1,4 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { strings } from '../strings'
 
 type Drag = { from: number; to: number }
 
@@ -72,8 +73,8 @@ export function useDragSort(count: number, onMove: (from: number, to: number) =>
 
   const handleProps = (position: number, name: string) => ({
     'data-drag-handle': true,
-    'aria-label': `Reorder ${name}`,
-    title: 'Drag to reorder, or use the arrow keys',
+    'aria-label': strings.useDragSort.reorder(name),
+    title: strings.useDragSort.dragReorderUseArrow,
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
       const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[event.key]
       if (step === undefined) return
@@ -81,7 +82,7 @@ export function useDragSort(count: number, onMove: (from: number, to: number) =>
       const to = position + step
       if (to < 0 || to >= count) return
       onMove(position, to)
-      setAnnouncement(`Moved to position ${to + 1} of ${count}.`)
+      setAnnouncement(strings.useDragSort.movedPosition(to + 1, count))
     },
   })
 

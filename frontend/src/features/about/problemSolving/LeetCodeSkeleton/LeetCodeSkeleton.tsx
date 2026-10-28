@@ -1,9 +1,10 @@
 import { Loading, Skeleton } from '../../../../components/Skeleton'
+import { strings } from '../../../../strings'
 
 /** The stats' shape while they load: the ring, then three lines. */
 export function LeetCodeSkeleton() {
   return (
-    <Loading label="Loading LeetCode stats…">
+    <Loading label={strings.leetCodeSkeleton.loadingLeetcodeStats}>
       <div className="leetcode-body">
         <Skeleton width={120} height={120} radius="50%" />
         <div className="skeleton-text" style={{ flex: 1 }}>
