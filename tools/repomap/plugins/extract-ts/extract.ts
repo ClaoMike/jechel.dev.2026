@@ -824,7 +824,13 @@ class Extractor {
         if (Node.isIdentifier(node) && parent && isDeclarationName(node, parent)) return
         if (Node.isIdentifier(node) && parent && (Node.isImportSpecifier(parent) || Node.isImportClause(parent) || Node.isExportSpecifier(parent))) return
         const target = this.resolve(node) ?? this.resolveRoot(node)
-        if (target?.kind && target.id !== ownerId) {
+        // A component handed to another as a prop (`<PagedGrid Tile={AppTile} />`, `editor={SkillsEditor}`) is rendered
+        // through it: the one passing it renders it, when that element is.
+        const element = mode === 'production' && target && RENDERED_KINDS.has(target.kind ?? '') ? propElement(node) : undefined
+        if (target?.kind && target.id !== ownerId && element) {
+          this.addEdge(ownerId, target.id, 'renders', node)
+          this.addRenderCase(`${ownerId}|renders|${target.id}`, renderCase(element, root))
+        } else if (target?.kind && target.id !== ownerId) {
           this.addEdge(ownerId, target.id, refEdge(target.kind, target.kind === 'type' || target.kind === 'interface' ? 'uses-type' : 'uses'), node)
         } else if (!target) {
           this.referenceToSupport(node, ownerId, node)
@@ -1449,4 +1455,17 @@ function docComment(node: Node | undefined): string | undefined {
 function isLiteralTable(init: Node): boolean {
   const value = unwrap(init)
   return !!value && (Node.isObjectLiteralExpression(value) || Node.isArrayLiteralExpression(value))
+}
+
+const RENDERED_KINDS = new Set(['component', 'page', 'provider'])
+
+/** The JSX element a value is a prop of (`Tile={AppTile}` on <PagedGrid>), when the value is the whole prop. */
+function propElement(node: Node): Node | undefined {
+  const expression = node.getParent()
+  if (!expression || !Node.isJsxExpression(expression)) return undefined
+  const attribute = expression.getParent()
+  if (!attribute || !Node.isJsxAttribute(attribute)) return undefined
+  const opening = attribute.getParent()?.getParent()
+  if (!opening) return undefined
+  return Node.isJsxOpeningElement(opening) ? opening.getParent() : opening
 }

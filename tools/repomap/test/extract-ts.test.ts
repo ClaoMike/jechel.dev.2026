@@ -125,10 +125,12 @@ const STATES: Record<string, string> = {
     export function Failed() { return <b /> }
     export function Thing({ name }: { name: string }) { return <span>{name}</span> }
     export function Empty() { return <p /> }
-    export function Frame({ children }: { children?: unknown }) { return <div>{children as never}</div> }`,
+    export function Frame({ children }: { children?: unknown }) { return <div>{children as never}</div> }
+    export function Row() { return <tr /> }
+    export function Grid({ Tile }: { Tile: () => unknown }) { return <table>{Tile() as never}</table> }`,
   'src/Page.tsx': `
     import { useThings } from './useThings'
-    import { Empty, Failed, Frame, Skeleton, Thing } from './Parts'
+    import { Empty, Failed, Frame, Grid, Row, Skeleton, Thing } from './Parts'
     import { strings } from './strings'
     export function Page({ compact }: { compact: boolean }) {
       const query = useThings()
@@ -139,6 +141,7 @@ const STATES: Record<string, string> = {
           {state.status === 'loading' && <Skeleton />}
           {compact && <p className="note small">{state.status}</p>}
           <i>{strings.common.save}</i>
+          {compact || <Grid Tile={Row} />}
           <div className="always"><span>{compact ? <b>yes</b> : null}</span></div>
           {state.items.length > 0 ? state.items.map((name) => <Thing key={name} name={name} />) : !compact && <Empty />}
         </Frame>
@@ -170,6 +173,10 @@ describe('TypeScript extractor: when a component renders a child', () => {
   it('says when a child is rendered for each item of a list', () => {
     assert.equal(when('Thing')[0].each, 'state.items')
     assert.deepEqual(when('Thing')[0].if, ["state.status !== 'error'", 'state.items.length > 0'])
+  })
+
+  it('counts a component handed over as a prop as rendered by the one handing it, when that element is', () => {
+    assert.deepEqual(when('Row').map((c) => c.if), [["state.status !== 'error'", '!compact']])
   })
 
   it('lists the plain elements a condition picks, not what sits inside them', () => {

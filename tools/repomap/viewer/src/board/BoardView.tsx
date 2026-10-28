@@ -524,25 +524,14 @@ function Chip({ chip, box, single, selected, dim, focused, onKeyDown }: ChipProp
   if (chip.kind === 'state') {
     return (
       <g {...common}>
-        <rect className="state-body" width={box.w} height={box.h} rx={Math.min(box.h / 2, 26)} />
-        <text className="state-caption" x={18} y={17}>
+        <rect className="state-body" width={box.w} height={box.h} rx={box.h / 2} />
+        <text className="state-caption" x={18} y={16}>
           STATE
         </text>
-        <text className="chip-label small mono" x={18} y={32}>
+        <text className="chip-label small mono" x={18} y={30}>
           {chip.label}
         </text>
-        {chip.sub && chip.sub !== 'state' && (
-          <text className="chip-sub" x={18} y={45}>
-            {chip.sub}
-          </text>
-        )}
-        {/* The plain elements it shows then (a note, an empty message): not components, so listed here. */}
-        {chip.pins.map((pin, k) => (
-          <text key={pin.id} className="state-element mono" x={18} y={64 + k * 15}>
-            {pin.label}
-          </text>
-        ))}
-        <rect className="chip-focus-ring" x={-4} y={-4} width={box.w + 8} height={box.h + 8} rx={Math.min(box.h / 2, 26) + 4} />
+        <rect className="chip-focus-ring" x={-4} y={-4} width={box.w + 8} height={box.h + 8} rx={box.h / 2 + 4} />
       </g>
     )
   }

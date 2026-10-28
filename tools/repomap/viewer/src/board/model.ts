@@ -274,7 +274,7 @@ export function landingOf(bi: BoardIndex, i: number, options: BoardOptions): { p
   const id = bi.index.nodes[root].id
   const opts = { ...options, showHidden: options.showHidden || !!bi.hidden[root] }
   const all = chipsIn(bi, path.tier, path.feature, opts)
-  const groups = grouped(bi, all, path.feature)
+  const groups = grouped(bi, all, path.feature, path.tier, opts)
   const { own } = renderLevels(bi, groups ? all.filter((c) => groups.get(c) === path.group) : all, path.tier, opts)
   if (!own.includes(root)) return { path, select: id }
   return { path: { level: 'chips', tier: path.tier, feature: path.feature, ...(path.group !== undefined ? { group: path.group } : {}) }, select: id }
@@ -349,8 +349,14 @@ export function chipGroups(bi: BoardIndex, chips: number[], feature?: string): M
 }
 
 /** Whether a feature's chips on a tier are shown as folders first. */
-function grouped(bi: BoardIndex, chips: number[], feature: string): Map<number, string> | null {
+/**
+ * A feature's folders, when its board would show too many chips: counted as the board shows them (its top components
+ * and what they render, not what those render in turn), so a feature with one page opens on that page.
+ */
+function grouped(bi: BoardIndex, chips: number[], feature: string, tier: string, options: BoardOptions): Map<number, string> | null {
   if (chips.length <= MAX_CHIPS) return null
+  const shown = renderLevels(bi, chips, tier, options)
+  if (shown.own.length + shown.borrowed.length <= MAX_CHIPS) return null
   const groups = chipGroups(bi, chips, feature)
   return new Set(groups.values()).size >= 2 ? groups : null
 }
@@ -360,7 +366,8 @@ export function pathOfNode(bi: BoardIndex, i: number, options: BoardOptions): Bo
   const root = bi.rootOf[i]
   const tier = bi.tierOf[root]
   const feature = bi.featureOf[root]
-  const groups = grouped(bi, chipsIn(bi, tier, feature, { ...options, showHidden: options.showHidden || !!bi.hidden[root] }), feature)
+  const opts = { ...options, showHidden: options.showHidden || !!bi.hidden[root] }
+  const groups = grouped(bi, chipsIn(bi, tier, feature, opts), feature, tier, opts)
   const group = groups?.get(root)
   return { level: 'chip', tier, feature, ...(group !== undefined ? { group } : {}), chip: bi.index.nodes[root].id }
 }
@@ -720,7 +727,7 @@ function pinFor(bi: BoardIndex, i: number, e: number, pins: Map<string, BoardPin
 
 function chipsScene(bi: BoardIndex, path: Extract<BoardPath, { level: 'chips' }>, options: BoardOptions, marks: ReviewMarks | undefined): BoardScene {
   const all = chipsIn(bi, path.tier, path.feature, options)
-  const groups = grouped(bi, all, path.feature)
+  const groups = grouped(bi, all, path.feature, path.tier, options)
   if (groups && path.group === undefined) return groupsScene(bi, path, all, groups, options, marks)
   const { own, borrowed: borrowedList, top, deeper } = renderLevels(bi, groups ? all.filter((c) => groups.get(c) === path.group) : all, path.tier, options)
   const ownSet = new Set(own)
