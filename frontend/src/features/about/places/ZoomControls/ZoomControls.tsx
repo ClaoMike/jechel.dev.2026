@@ -1,4 +1,5 @@
 import { ExpandIcon, MinusIcon, PlusIcon } from '../../../../components/icons/icons'
+import { strings } from '../../../../strings'
 
 export interface ZoomControlsProps {
   canZoomIn: boolean
@@ -13,13 +14,20 @@ export interface ZoomControlsProps {
 export function ZoomControls({ canZoomIn, canZoomOut, zoomIn, zoomOut, reset }: ZoomControlsProps) {
   return (
     <div className="world-map-controls">
-      <button type="button" className="icon-button" aria-label="Zoom in" title="Zoom in" disabled={!canZoomIn} onClick={zoomIn}>
+      <button type="button" className="icon-button" aria-label={strings.zoomControls.zoom} title={strings.zoomControls.zoom} disabled={!canZoomIn} onClick={zoomIn}>
         <PlusIcon size={18} />
       </button>
-      <button type="button" className="icon-button" aria-label="Zoom out" title="Zoom out" disabled={!canZoomOut} onClick={zoomOut}>
+      <button type="button" className="icon-button" aria-label={strings.zoomControls.zoomOut} title={strings.zoomControls.zoomOut} disabled={!canZoomOut} onClick={zoomOut}>
         <MinusIcon size={18} />
       </button>
-      <button type="button" className="icon-button" aria-label="Show the whole world" title="Show the whole world" disabled={!canZoomOut} onClick={reset}>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={strings.zoomControls.showWholeWorld}
+        title={strings.zoomControls.showWholeWorld}
+        disabled={!canZoomOut}
+        onClick={reset}
+      >
         <ExpandIcon size={16} />
       </button>
     </div>

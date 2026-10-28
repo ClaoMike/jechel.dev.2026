@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { CheckIcon, ChevronDownIcon, StarIcon } from '../../../components/icons/icons'
 import { Flag } from '../../about/Flag'
 import { CURRENCIES, FAVOURITE_CURRENCIES, OTHER_CURRENCIES, type Currency, currencyOf } from '../currencies'
+import { strings } from '../../../strings'
 
 /** A currency's icon: the flag of where it's used. Decorative: the code and name beside it say which it is. */
 function CurrencyFlag({ currency }: { currency: Currency }) {
@@ -61,7 +62,7 @@ export function CurrencyPicker({ label, value, onChange }: { label: string; valu
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     const last = CURRENCIES.length - 1
     if (!open) {
-      if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) {
+      if (['ArrowDown', 'ArrowUp', strings.currencyPicker.enter, ' '].includes(event.key)) {
         event.preventDefault()
         show()
       }
@@ -158,8 +159,8 @@ export function CurrencyPicker({ label, value, onChange }: { label: string; valu
         <ChevronDownIcon size={16} />
       </button>
       <ul id={listId} role="listbox" aria-labelledby={labelId} className="currency-list" hidden={!open}>
-        {group('Favourites', FAVOURITE_CURRENCIES, true)}
-        {group('Other currencies', OTHER_CURRENCIES, false)}
+        {group(strings.currencyPicker.favourites, FAVOURITE_CURRENCIES, true)}
+        {group(strings.currencyPicker.otherCurrencies, OTHER_CURRENCIES, false)}
       </ul>
     </div>
   )

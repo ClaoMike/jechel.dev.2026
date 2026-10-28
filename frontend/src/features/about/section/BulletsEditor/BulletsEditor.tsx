@@ -1,5 +1,6 @@
 import { AddButton, ItemControls, TextField } from '../../../../components/fields'
 import { move, removeAt, replaceAt } from '../../list'
+import { strings } from '../../../../strings'
 
 export interface BulletsEditorProps {
   /** What one is called: "bullet point" → "Bullet point 2", "Add bullet point". */
@@ -29,7 +30,10 @@ export function BulletsEditor({ itemName, value, onChange, errorFor, listError, 
         </div>
       ))}
       {listError && <p className="field-error">{listError}</p>}
-      <AddButton onClick={() => onChange([...value, ''])}>Add {itemName}</AddButton>
+      <AddButton onClick={() => onChange([...value, ''])}>
+        {strings.bulletsEditor.add}
+        {itemName}
+      </AddButton>
     </div>
   )
 }

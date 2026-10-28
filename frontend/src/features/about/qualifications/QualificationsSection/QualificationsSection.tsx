@@ -3,6 +3,7 @@ import { EditableSection } from '../../section/EditableSection/EditableSection'
 import { formatMonth } from '../../format'
 import { QualificationItem, type QualificationView } from '../QualificationItem/QualificationItem'
 import { QualificationsEditor } from '../QualificationsEditor/QualificationsEditor'
+import { strings } from '../../../../strings'
 
 /** Certifications and the like: what, who issued it, when, and the grade if there was one. */
 export function QualificationsSection({ value, canEdit, onSave }: { value: Qualification[]; canEdit: boolean; onSave: (value: Qualification[]) => Promise<void> }) {
@@ -10,12 +11,12 @@ export function QualificationsSection({ value, canEdit, onSave }: { value: Quali
     title: item.title,
     issuer: item.issuer,
     obtained: item.obtained ? { text: formatMonth(item.obtained), dateTime: item.obtained.slice(0, 7) } : null,
-    grade: item.grade ? `Grade: ${item.grade}` : '',
+    grade: item.grade ? strings.qualificationsSection.grade(item.grade) : '',
   }))
   return (
-    <EditableSection title="Qualifications" errorKeys={['qualifications']} value={value} canEdit={canEdit} onSave={onSave} editor={QualificationsEditor}>
+    <EditableSection title={strings.common.qualifications} errorKeys={['qualifications']} value={value} canEdit={canEdit} onSave={onSave} editor={QualificationsEditor}>
       {items.length === 0 ? (
-        <p className="muted">Nothing here yet.</p>
+        <p className="muted">{strings.common.nothingHereYet}</p>
       ) : (
         <ul className="qualifications">
           {items.map((item, i) => (

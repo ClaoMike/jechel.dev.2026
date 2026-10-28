@@ -1,4 +1,5 @@
 import { useId, type CSSProperties } from 'react'
+import { strings } from '../../strings'
 
 /**
  * On or Off, as the theme switcher looks: two stops with a glass thumb that slides to the chosen one.
@@ -13,7 +14,7 @@ export function OnOffSwitch({ label, on, onChange, disabled = false }: { label: 
       {([true, false] as const).map((value) => (
         <label key={String(value)} className="theme-switch-option">
           <input type="radio" name={name} checked={on === value} onChange={() => onChange(value)} className="visually-hidden" />
-          {value ? 'On' : 'Off'}
+          {value ? strings.onOffSwitch.on : strings.onOffSwitch.off}
         </label>
       ))}
     </fieldset>

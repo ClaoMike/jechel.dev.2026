@@ -2,6 +2,7 @@ import { AddButton, type EditorProps } from '../../../../components/fields'
 import type { Paper } from '../../../../services/api'
 import { PaperEditor } from '../PaperEditor/PaperEditor'
 import { move, removeAt, replaceAt } from '../../list'
+import { strings } from '../../../../strings'
 
 /** Every paper's title and PDF, reorderable. */
 export function PapersEditor({ value, onChange, update, errors }: EditorProps<Paper[]>) {
@@ -23,7 +24,7 @@ export function PapersEditor({ value, onChange, update, errors }: EditorProps<Pa
         />
       ))}
       {errors.papers && <p className="field-error">{errors.papers}</p>}
-      <AddButton onClick={() => onChange([...value, { title: '', fileUrl: '' }])}>Add paper</AddButton>
+      <AddButton onClick={() => onChange([...value, { title: '', fileUrl: '' }])}>{strings.papersEditor.addPaper}</AddButton>
     </div>
   )
 }

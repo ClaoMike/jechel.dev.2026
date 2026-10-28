@@ -130,6 +130,13 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
     `places.ts`, `skills.ts`, `format.ts`). A `.tsx` file exports only components, types and simple constants, so Fast Refresh
     keeps working (oxlint's `only-export-components`); anything else it shares goes in a `.ts` module next to it
     (`components/PagedGrid/slide.ts`).
+- **Text: `src/strings.ts`.** Everything the site shows or reads out (headings, buttons, labels, hints, placeholders,
+  `aria-label`s, errors, the admin's notes) is in one object, grouped by component (`strings.whatsNewPage.loadingWhatsNew`),
+  with what three or more components share in `strings.common`. Text with values in it is a function of them
+  (`strings.signedInDevices.signedOutOther(count)`, which also picks "device" or "devices"). Components never write text
+  themselves: new text goes in `strings.ts`, under the component's group. Not in it: values that are code (CSS classes,
+  routes, keys, `'loading'`), analytics event names (`tracker.ts`, stored as data), and the backend's own text (the update
+  emails' default wording, the API's validation messages).
 - **Backend: HybridCache** (`Microsoft.Extensions.Caching.Hybrid`): values are kept in memory, and in **Redis** too when
   `ConnectionStrings:Redis` is set (shared by every API instance, kept across restarts). Keys start with
   `portfolio:{database}:` (`CachePrefix`), so APIs on different databases sharing one Redis (yours and the E2E tests') never

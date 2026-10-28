@@ -1,6 +1,7 @@
 import { DeleteButton } from '../../DeleteButton/DeleteButton'
 import { ArrowDownIcon, ArrowUpIcon } from '../../icons/icons'
 import { REMOVE_DETAIL } from '../editor'
+import { strings } from '../../../strings'
 
 export interface ItemControlsProps {
   /** What the item is called in the buttons: "Move role 2 up", "Remove role 2". */
@@ -18,15 +19,29 @@ export function ItemControls({ name, index, count, onMove, onRemove }: ItemContr
     <div className="item-controls">
       {onMove && (
         <>
-          <button type="button" className="icon-button" aria-label={`Move ${name} up`} title="Move up" disabled={index === 0} onClick={() => onMove(index, index - 1)}>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={strings.itemControls.moveUp(name)}
+            title={strings.itemControls.moveUp2}
+            disabled={index === 0}
+            onClick={() => onMove(index, index - 1)}
+          >
             <ArrowUpIcon />
           </button>
-          <button type="button" className="icon-button" aria-label={`Move ${name} down`} title="Move down" disabled={index === count - 1} onClick={() => onMove(index, index + 1)}>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={strings.itemControls.moveDown(name)}
+            title={strings.itemControls.moveDown2}
+            disabled={index === count - 1}
+            onClick={() => onMove(index, index + 1)}
+          >
             <ArrowDownIcon />
           </button>
         </>
       )}
-      <DeleteButton what={name} action="Remove" detail={REMOVE_DETAIL} onDelete={onRemove} />
+      <DeleteButton what={name} action={strings.common.remove} detail={REMOVE_DETAIL} onDelete={onRemove} />
     </div>
   )
 }

@@ -1,8 +1,9 @@
 import { useId, type CSSProperties } from 'react'
 import { useAppDispatch, useAppSelector } from '../../../store'
 import { PREVIEW_MODES, previewModeChanged, type PreviewMode } from '../../../store/previewSlice'
+import { strings } from '../../../strings'
 
-const LABELS: Record<PreviewMode, string> = { normal: 'Normal', loading: 'Loading', error: 'Error' }
+const LABELS: Record<PreviewMode, string> = { normal: strings.previewSwitch.normal, loading: strings.previewSwitch.loading, error: strings.previewSwitch.error }
 
 /** The admin's three-way slider, like the theme switch: see the site normally, while loading, or when loading fails. */
 export function PreviewSwitch() {
@@ -13,7 +14,7 @@ export function PreviewSwitch() {
 
   return (
     <fieldset className="preview-switch" data-mode={mode} style={{ '--preview-index': PREVIEW_MODES.indexOf(mode) } as CSSProperties}>
-      <legend className="visually-hidden">Preview the site as</legend>
+      <legend className="visually-hidden">{strings.previewSwitch.previewSite}</legend>
       <span className="preview-switch-thumb" aria-hidden="true" />
       {options.map((option) => (
         <label key={option.value} className="preview-switch-option">

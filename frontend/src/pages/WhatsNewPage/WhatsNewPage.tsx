@@ -5,30 +5,31 @@ import { WhatsNewSkeleton } from '../../features/whatsNew/WhatsNewSkeleton/Whats
 import { useAppSelector } from '../../store'
 import { useGetLatestQuery } from '../../store/api/appsApi'
 import { toLoadable } from '../../store/loadable'
+import { strings } from '../../strings'
 
 /** What it says, naming only what it shows: apps, videos, or both. */
 function textsFor(apps: boolean, videos: boolean) {
   const what =
     apps && videos
-      ? { newest: 'app and video', added: 'apps and videos' }
+      ? { newest: strings.whatsNewPage.appVideo, added: strings.whatsNewPage.appsVideos }
       : apps
-        ? { newest: 'app', added: 'apps' }
+        ? { newest: strings.whatsNewPage.app, added: strings.whatsNewPage.apps }
         : videos
-          ? { newest: 'video', added: 'videos' }
-          : { newest: 'app and video', added: 'apps and videos' }
+          ? { newest: strings.whatsNewPage.video, added: strings.whatsNewPage.videos }
+          : { newest: strings.whatsNewPage.appVideo, added: strings.whatsNewPage.appsVideos }
   return {
-    label: "What's new?",
-    loading: "Loading what's new…",
-    error: `The newest ${what.newest} can't be loaded right now.`,
-    empty: `Nothing here yet. New ${what.added} will show up here.`,
+    label: strings.common.whatsNew,
+    loading: strings.whatsNewPage.loadingWhatsNew,
+    error: strings.whatsNewPage.newestCantLoadedRight(what.newest),
+    empty: strings.whatsNewPage.nothingHereYetNew(what.added),
   }
 }
 
 /** For the admin, when What's new? leaves a section out: which, and why. */
 function hiddenNote(apps: boolean, videos: boolean): string | null {
   if (apps && videos) return null
-  if (!apps && !videos) return "Apps and YouTube are hidden from visitors (Settings → Visitor pages), so What's new? has nothing to show them."
-  return `As visitors see it: ${apps ? 'YouTube' : 'Apps'} is hidden from them (Settings → Visitor pages), so only ${apps ? 'apps' : 'videos'} count.`
+  if (!apps && !videos) return strings.whatsNewPage.appsYoutubeAreHidden
+  return strings.whatsNewPage.visitorsSeeHiddenThem(apps ? strings.whatsNewPage.youtube : strings.common.apps, apps ? strings.whatsNewPage.apps : strings.whatsNewPage.videos)
 }
 
 /**

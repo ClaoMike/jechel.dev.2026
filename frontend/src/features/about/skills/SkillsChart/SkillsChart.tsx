@@ -5,6 +5,7 @@ import { SKILL_USE_LABELS, splitBackground } from '../../legend'
 import { ColorLegend } from '../../section/ColorLegend/ColorLegend'
 import { SkillBar } from '../SkillBar/SkillBar'
 import { axisYears, chartRange, formatExperience, monthIndex, monthsUsed } from '../skills'
+import { strings } from '../../../../strings'
 
 export interface SkillsChartProps {
   skills: Skill[]
@@ -33,7 +34,7 @@ export function SkillsChart({ skills, colors, now: fixedNow }: SkillsChartProps)
   return (
     <figure className="skills-chart">
       <ColorLegend items={legend} />
-      <ul aria-label="Skills, with when and how each was used">
+      <ul aria-label={strings.skillsChart.skillsWhenHowEach}>
         {skills.map((skill, i) => (
           <li key={i} className="skill-row">
             <span className="skill-name">{skill.name}</span>

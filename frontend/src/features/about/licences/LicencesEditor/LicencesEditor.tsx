@@ -5,6 +5,7 @@ import { isOffered, LICENCE_CATEGORY_LABELS, OFFERED_LICENCES, sameLicence } fro
 import { OfferedLicences } from '../OfferedLicences/OfferedLicences'
 import { OwnLicenceForm } from '../OwnLicenceForm/OwnLicenceForm'
 import { OwnLicences } from '../OwnLicences/OwnLicences'
+import { strings } from '../../../../strings'
 
 const OFFERED_CATEGORIES = ['driving', 'flying', 'boating'] as const
 
@@ -41,7 +42,7 @@ export function LicencesEditor({ value, onChange, errors }: EditorProps<Licence[
         />
       ))}
       <fieldset className="editor-item">
-        <legend>Others</legend>
+        <legend>{strings.licencesEditor.others}</legend>
         <OwnLicences licences={own} />
         {/* The same licence twice is added once. */}
         <OwnLicenceForm onAdd={(licence) => !has(licence) && onChange([...value, licence])} />

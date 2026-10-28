@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { strings } from '../../strings'
 
 /**
  * What a view shows when its data couldn't be loaded: what failed, and a way to try again. The same
@@ -14,7 +15,7 @@ export function ErrorState({ message, onRetry, compact = false }: { message: str
       <p id={id}>{message}</p>
       {onRetry && (
         <button type="button" className="button button-secondary button-small" onClick={onRetry}>
-          Try again
+          {strings.errorState.tryAgain}
         </button>
       )}
     </div>

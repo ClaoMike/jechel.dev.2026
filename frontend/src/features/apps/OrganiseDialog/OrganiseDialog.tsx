@@ -11,6 +11,7 @@ import { useGetAppOrderQuery, useSaveAppOrderMutation } from '../../../store/api
 import { toLoadable } from '../../../store/loadable'
 import { fieldErrorsOf, saveFailedMessage } from '../../../utils/saveErrors'
 import { move, replaceAt } from '../../about/list'
+import { strings } from '../../../strings'
 
 export interface OrganiseDialogProps {
   onClose: () => void
@@ -49,7 +50,7 @@ export function OrganiseDialog(props: OrganiseDialogProps) {
       await saveOrder(items).unwrap()
       // Back to the saved order, unless it was changed again while saving (that change waits for the next Save).
       setDraft((current) => (current === sent ? null : current))
-      setSavedNote('Saved.')
+      setSavedNote(strings.common.saved)
     } catch (error) {
       const outOfDate = fieldErrorsOf(error)?.['']
       if (outOfDate) {
@@ -58,7 +59,7 @@ export function OrganiseDialog(props: OrganiseDialogProps) {
         setDraft(null)
         void query.refetch()
       }
-      setMessage(outOfDate ? "Apps were added or deleted meanwhile. Here's the list as it is now: arrange it again, then save." : saveFailedMessage(error))
+      setMessage(outOfDate ? strings.organiseDialog.appsWereAddedDeleted : saveFailedMessage(error))
     }
   }
   const titleId = useId()
@@ -75,7 +76,7 @@ export function OrganiseDialog(props: OrganiseDialogProps) {
     }
   })
   const canSave = dirty && !saving
-  const saveLabel = saving ? 'Saving…' : 'Save'
+  const saveLabel = saving ? strings.common.saving : strings.common.save
   const requestClose = () => (dirty ? setAskDiscard(true) : onClose())
   const stopAskingDiscard = () => setAskDiscard(false)
 
@@ -85,14 +86,14 @@ export function OrganiseDialog(props: OrganiseDialogProps) {
         <button type="button" className="button button-small" onClick={() => void save()} disabled={!canSave}>
           {saveLabel}
         </button>
-        <h2 id={titleId}>Organise apps</h2>
-        <button type="button" className="icon-button" onClick={requestClose} aria-label="Close">
+        <h2 id={titleId}>{strings.organiseDialog.organiseApps}</h2>
+        <button type="button" className="icon-button" onClick={requestClose} aria-label={strings.common.close}>
           <span aria-hidden="true">×</span>
         </button>
       </div>
-      <p className="muted editor-note">The Apps page shows them in this order. What's new? shows the first one that's on.</p>
+      <p className="muted editor-note">{strings.organiseDialog.appsPageShowsThem}</p>
       {status === 'loading' && (
-        <Loading label="Loading the apps…">
+        <Loading label={strings.organiseDialog.loadingApps}>
           {[48, 36, 56].map((width, i) => (
             <div key={i} className="organise-row">
               <Skeleton width={`${width}%`} height={16} />
@@ -101,14 +102,14 @@ export function OrganiseDialog(props: OrganiseDialogProps) {
           ))}
         </Loading>
       )}
-      {status === 'error' && <ErrorState message="The apps can't be loaded right now." onRetry={retry} />}
-      {empty && <p className="muted">No apps yet.</p>}
+      {status === 'error' && <ErrorState message={strings.organiseDialog.appsCantLoadedRight} onRetry={retry} />}
+      {empty && <p className="muted">{strings.organiseDialog.noAppsYet}</p>}
       {rows.length > 0 && (
         <>
           <p className="organise-columns muted" aria-hidden="true">
-            In What's new?
+            {strings.organiseDialog.whatsNew}
           </p>
-          <ol className={sort.dragging ? 'organise-list organise-list-dragging' : 'organise-list'} aria-label="Apps, in order">
+          <ol className={sort.dragging ? 'organise-list organise-list-dragging' : 'organise-list'} aria-label={strings.organiseDialog.appsOrder}>
             {rows.map((row) => (
               <li key={row.id} className="organise-row" {...sort.itemProps(row.position)}>
                 <button type="button" className="icon-button organise-handle" {...sort.handleProps(row.position, row.title)}>
@@ -118,7 +119,7 @@ export function OrganiseDialog(props: OrganiseDialogProps) {
                   {row.position + 1}
                 </span>
                 <span className="organise-title">{row.title}</span>
-                <OnOffSwitch label={`Show ${row.title} in What's new?`} on={row.showInWhatsNew} onChange={row.setShowInWhatsNew} disabled={saving} />
+                <OnOffSwitch label={strings.organiseDialog.showWhatsNew(row.title)} on={row.showInWhatsNew} onChange={row.setShowInWhatsNew} disabled={saving} />
               </li>
             ))}
           </ol>
@@ -135,7 +136,7 @@ export function OrganiseDialog(props: OrganiseDialogProps) {
       <p className="visually-hidden" role="status">
         {savedNote}
       </p>
-      {askDiscard && <DiscardChangesDialog detail="Your new order of the apps isn't saved." onDiscard={props.onClose} onClose={stopAskingDiscard} />}
+      {askDiscard && <DiscardChangesDialog detail={strings.organiseDialog.newOrderAppsIsnt} onDiscard={props.onClose} onClose={stopAskingDiscard} />}
     </Modal>
   )
 }

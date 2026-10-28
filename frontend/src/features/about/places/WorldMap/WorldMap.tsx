@@ -10,6 +10,7 @@ import { placeLabel } from '../placeLabel'
 import { MAP_HEIGHT, MAP_WIDTH, project } from '../projection'
 import { DOT_SIZE, WORLD_DOTS } from '../worldDots'
 import { ZoomControls } from '../ZoomControls/ZoomControls'
+import { strings } from '../../../../strings'
 
 /** The visible part of the map, in map units. */
 interface View {
@@ -209,7 +210,7 @@ export function WorldMap({ places, colors, highlight, onSelect }: WorldMapProps)
           ref={svg}
           viewBox={`${view.x} ${view.y} ${view.width} ${height}`}
           role="group"
-          aria-label="World map"
+          aria-label={strings.worldMap.worldMap}
           className={zoom > 1 ? 'world-map-svg world-map-zoomed' : 'world-map-svg'}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -227,7 +228,7 @@ export function WorldMap({ places, colors, highlight, onSelect }: WorldMapProps)
               transform={`translate(${pins[i][0]} ${pins[i][1]})`}
               role="button"
               tabIndex={0}
-              aria-label={onSelect ? `Edit ${placeLabel(places[i])}` : describe(places[i])}
+              aria-label={onSelect ? strings.worldMap.edit(placeLabel(places[i])) : describe(places[i])}
               onPointerEnter={(e) => e.pointerType === 'mouse' && !onSelect && show(i, false)}
               onPointerLeave={(e) => e.pointerType === 'mouse' && !onSelect && hideSoon()}
               onFocus={() => !onSelect && show(i, false)}

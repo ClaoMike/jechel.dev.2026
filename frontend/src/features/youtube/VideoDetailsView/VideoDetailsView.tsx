@@ -3,6 +3,7 @@ import { LinkifiedText } from '../../../components/LinkifiedText'
 import type { YouTubeVideo } from '../../../services/api'
 import { YouTubePlayer } from '../YouTubePlayer/YouTubePlayer'
 import { youTubeEmbedUrl } from '../../apps/media'
+import { strings } from '../../../strings'
 
 /**
  * A video to watch here: YouTube's player (the privacy-enhanced one, which sets no cookies
@@ -22,7 +23,7 @@ export function VideoDetailsView(props: { video: YouTubeVideo }) {
       )}
       <div>
         <a className="button app-link" href={video.url} target="_blank" rel="noopener noreferrer">
-          Watch on YouTube
+          {strings.videoDetailsView.watchYoutube}
           <ExternalLinkIcon size={16} />
         </a>
       </div>

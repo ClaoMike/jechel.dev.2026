@@ -3,8 +3,9 @@ import { ConfirmDialog } from '../../../components/ConfirmDialog/ConfirmDialog'
 import { type Meeting, failureOf } from '../../../services/api'
 import { formatMeetingTime, STATUS_LABELS } from '../format'
 import { useCancelMeetingMutation, useDecideMeetingMutation } from '../../../store/api/meetingsApi'
+import { strings } from '../../../strings'
 
-const CAL_REFUSED = "Cal.com didn't take it. Check the API key in Settings, then try again."
+const CAL_REFUSED = strings.meetingActions.calComDidntTake
 
 /**
  * Accept or decline a requested meeting, with an optional message that's emailed to the person
@@ -31,9 +32,9 @@ export function MeetingActions({ meeting }: { meeting: Meeting }) {
     setError('')
     try {
       const result = await decideMeeting({ id: meeting.id, accept, message: message.trim() }).unwrap()
-      setNote(message.trim() && !result.emailSent ? "Your message couldn't be emailed; Cal.com still told them." : message.trim() ? 'Your message was emailed to them.' : '')
+      setNote(message.trim() && !result.emailSent ? strings.meetingActions.messageCouldntEmailedCal : message.trim() ? strings.meetingActions.messageWasEmailedThem : '')
     } catch (e) {
-      setError(failureOf(e).status === 502 ? CAL_REFUSED : "That didn't work. Please try again.")
+      setError(failureOf(e).status === 502 ? CAL_REFUSED : strings.common.didntWorkPleaseTry)
     } finally {
       setDeciding(null)
     }
@@ -46,11 +47,11 @@ export function MeetingActions({ meeting }: { meeting: Meeting }) {
       await cancelMeeting({ id: meeting.id, message: message.trim() }).unwrap()
     } catch (e) {
       const { status } = failureOf(e)
-      setCancelError(status === 502 ? CAL_REFUSED : status === 400 ? 'It has ended already: there is nothing to cancel.' : '')
+      setCancelError(status === 502 ? CAL_REFUSED : status === 400 ? strings.meetingActions.hasEndedAlreadyThere : '')
       throw e
     }
     setMessage('')
-    setNote('Cal.com emailed them.')
+    setNote(strings.meetingActions.calComEmailedThem)
   }
   const id = useId()
   const requested = meeting.status === 'requested'
@@ -72,24 +73,33 @@ export function MeetingActions({ meeting }: { meeting: Meeting }) {
         {note && <span className="muted"> {note}</span>}
         {cancellable && (
           <button type="button" className="button button-danger button-small meeting-cancel" onClick={askToCancel}>
-            Cancel meeting
+            {strings.meetingActions.cancelMeeting}
           </button>
         )}
         {asking && (
           <ConfirmDialog
-            title={`Cancel the meeting with ${attendee}?`}
-            confirmLabel="Cancel meeting"
-            cancelLabel="Keep it"
+            title={strings.meetingActions.cancelMeeting2(attendee)}
+            confirmLabel={strings.meetingActions.cancelMeeting}
+            cancelLabel={strings.meetingActions.keep}
             failure={cancelError}
             onConfirm={cancel}
             onClose={closeAsk}
           >
             <p>
-              {formatMeetingTime(meeting)}. Cal.com emails {attendee} that it's cancelled, and frees the time in your calendar.
+              {formatMeetingTime(meeting)}
+              {strings.meetingActions.calComEmails}
+              {attendee} {strings.meetingActions.cancelledFreesTimeCalendar}
             </p>
             <div className="field">
-              <label htmlFor={`${id}-reason`}>Reason (optional)</label>
-              <textarea id={`${id}-reason`} rows={2} value={message} maxLength={2000} onChange={(e) => setMessage(e.target.value)} placeholder="In Cal.com's email to them." />
+              <label htmlFor={`${id}-reason`}>{strings.meetingActions.reasonOptional}</label>
+              <textarea
+                id={`${id}-reason`}
+                rows={2}
+                value={message}
+                maxLength={2000}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder={strings.meetingActions.calComsEmailThem}
+              />
             </div>
           </ConfirmDialog>
         )}
@@ -100,8 +110,18 @@ export function MeetingActions({ meeting }: { meeting: Meeting }) {
   return (
     <div className="meeting-actions">
       <div className="field">
-        <label htmlFor={`${id}-message`}>Message to {attendee} (optional)</label>
-        <textarea id={`${id}-message`} rows={2} value={message} maxLength={2000} onChange={(e) => setMessage(e.target.value)} placeholder="Emailed to them with your answer." />
+        <label htmlFor={`${id}-message`}>
+          {strings.meetingActions.message}
+          {attendee} {strings.meetingActions.optional}
+        </label>
+        <textarea
+          id={`${id}-message`}
+          rows={2}
+          value={message}
+          maxLength={2000}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder={strings.meetingActions.emailedThemAnswer}
+        />
       </div>
       {error && (
         <p className="field-error" role="alert">
@@ -110,10 +130,10 @@ export function MeetingActions({ meeting }: { meeting: Meeting }) {
       )}
       <div className="meeting-buttons">
         <button type="button" className="button button-small" disabled={deciding !== null} onClick={accept}>
-          {deciding === 'accept' ? 'Accepting…' : 'Accept'}
+          {deciding === 'accept' ? strings.meetingActions.accepting : strings.meetingActions.accept}
         </button>
         <button type="button" className="button button-secondary button-small" disabled={deciding !== null} onClick={decline}>
-          {deciding === 'decline' ? 'Declining…' : 'Decline'}
+          {deciding === 'decline' ? strings.meetingActions.declining : strings.meetingActions.decline}
         </button>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { MessagesInbox } from '../../features/contact/MessagesInbox/MessagesInbo
 import { MeetingsCalendar } from '../../features/meetings/MeetingsCalendar/MeetingsCalendar'
 import { Loading, Skeleton } from '../../components/Skeleton'
 import { useAppSelector } from '../../store'
+import { strings } from '../../strings'
 
 /** Visitors get the contact form (meetings are by invitation: the booking link comes in an answer); the signed-in admin gets the meetings calendar and the messages. */
 export function ContactPage() {
@@ -14,7 +15,7 @@ export function ContactPage() {
     <>
       {isLoading && (
         // Until we know who's here: the contact form's shape.
-        <Loading label="Loading…" className="card">
+        <Loading label={strings.common.loading} className="card">
           <Skeleton width="40%" height={24} />
           {[1, 2].map((i) => (
             <div key={i} className="skeleton-text">

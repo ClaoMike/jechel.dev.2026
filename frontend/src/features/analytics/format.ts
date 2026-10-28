@@ -1,5 +1,6 @@
 import type { BucketSize, VisitDetails, VisitEvent } from '../../services/api'
 import { formatDateTime } from '../../utils/formatDate'
+import { strings } from '../../strings'
 
 const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
 
@@ -14,7 +15,10 @@ export function formatCount(value: number): string {
 export function axisScale(maxValue: number): { max: number; ticks: number[] } {
   const raw = Math.max(1, maxValue) / 4
   const power = 10 ** Math.floor(Math.log10(raw))
-  const step = Math.max(1, [1, 2, 5, 10].map((m) => m * power).find((s) => s >= raw)!)
+  const step = Math.max(
+    1,
+    [1, 2, 5, 10].map((m) => m * power).find((s) => s >= raw)!,
+  )
   return { max: step * 4, ticks: [0, 1, 2, 3, 4].map((i) => i * step) }
 }
 
@@ -28,8 +32,8 @@ export function formatDuration(totalSeconds: number): string {
   const seconds = Math.max(0, Math.round(totalSeconds))
   if (seconds < 60) return `${seconds}s`
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ${String(seconds % 60).padStart(2, '0')}s`
-  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
+  if (minutes < 60) return strings.analyticsFormat.minutesSeconds(minutes, String(seconds % 60).padStart(2, '0'))
+  return strings.analyticsFormat.hoursMinutes(Math.floor(minutes / 60), String(minutes % 60).padStart(2, '0'))
 }
 
 /** Time since the visit started, as on a video: "+0:04", "+12:30", "+1:02:03". */
@@ -42,7 +46,7 @@ export function formatOffset(fromIso: string, toIso: string): string {
 }
 
 /** What one column covers, for "Visitors per …". */
-export const BUCKET_NAMES: Record<BucketSize, string> = { '5m': '5 minutes', hour: 'hour', day: 'day', month: 'month', year: 'year' }
+export const BUCKET_NAMES: Record<BucketSize, string> = { '5m': strings.analyticsFormat.n5Minutes, hour: 'hour', day: 'day', month: 'month', year: 'year' }
 
 const BUCKET_MS: Partial<Record<BucketSize, number>> = { '5m': 5 * 60_000, hour: 3_600_000 }
 
@@ -53,8 +57,7 @@ const BUCKET_MS: Partial<Record<BucketSize, number>> = { '5m': 5 * 60_000, hour:
  */
 export function formatBucket(start: string, size: BucketSize, style: 'axis' | 'full', fewDays = false): string {
   const date = new Date(start)
-  const format = (options: Intl.DateTimeFormatOptions, utc = true) =>
-    new Intl.DateTimeFormat(undefined, utc ? { ...options, timeZone: 'UTC' } : options).format(date)
+  const format = (options: Intl.DateTimeFormatOptions, utc = true) => new Intl.DateTimeFormat(undefined, utc ? { ...options, timeZone: 'UTC' } : options).format(date)
   const time = (d: Date) => new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(d)
 
   switch (size) {
@@ -62,7 +65,7 @@ export function formatBucket(start: string, size: BucketSize, style: 'axis' | 'f
     case 'hour': {
       if (style === 'axis') return time(date)
       const range = `${time(date)}–${time(new Date(date.getTime() + BUCKET_MS[size]!))}`
-      return size === 'hour' ? `${format({ weekday: 'short', day: 'numeric', month: 'short' }, false)}, ${range}` : range
+      return size === 'hour' ? strings.analyticsFormat.dayAndHours(format({ weekday: 'short', day: 'numeric', month: 'short' }, false), range) : range
     }
     case 'day':
       return style === 'full' ? format({ weekday: 'short', day: 'numeric', month: 'short' }) : format(fewDays ? { weekday: 'short' } : { day: 'numeric', month: 'short' })
@@ -77,25 +80,31 @@ export function formatBucket(start: string, size: BucketSize, style: 'axis' | 'f
 export function describeEvent(event: VisitEvent): string {
   switch (event.type) {
     case 'pageview':
-      return `Opened ${event.path}`
+      return strings.analyticsFormat.opened(event.path)
     case 'click':
-      return `Clicked “${event.label ?? '?'}”${event.detail?.href ? ` (${event.detail.href})` : ''}${event.detail?.checked ? ` → ${event.detail.checked === 'true' ? 'ticked' : 'unticked'}` : ''}`
+      return strings.analyticsFormat.clicked(event.label ?? '?', event.detail?.href, event.detail?.checked)
     case 'key':
-      return `Pressed ${event.label}`
+      return strings.analyticsFormat.pressed(event.label)
     case 'change':
-      return `Changed “${event.label ?? '?'}”${event.detail?.value ? ` → ${event.detail.value}` : event.detail?.files ? ` → ${event.detail.files} ${event.detail.files === '1' ? 'file' : 'files'}` : ''}`
+      return strings.analyticsFormat.changed(event.label ?? '?', event.detail?.value, event.detail?.files)
     case 'submit':
-      return `Sent the form “${event.label ?? '?'}”${event.detail?.via === 'Enter' ? ' (pressed Enter)' : ''}`
+      return strings.analyticsFormat.sentForm(event.label ?? '?', event.detail?.via === 'Enter')
     case 'scroll':
-      return `Scrolled ${event.label} down the page`
+      return strings.analyticsFormat.scrolledDownPage(event.label)
     case 'tab':
-      return event.label === 'Back' ? 'Came back to the tab' : 'Switched away (hid the tab)'
+      return event.label === 'Back' ? strings.analyticsFormat.cameBackTab : strings.analyticsFormat.switchedAwayHidTab
     case 'event':
-      return `${event.label}${event.detail ? ` (${Object.entries(event.detail).map(([k, v]) => `${k}: ${v}`).join(', ')})` : ''}`
+      return `${event.label}${
+        event.detail
+          ? ` (${Object.entries(event.detail)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(', ')})`
+          : ''
+      }`
     case 'error':
-      return `ERROR: ${event.label ?? 'Unknown error'}`
+      return strings.analyticsFormat.error(event.label ?? strings.analyticsFormat.unknownError)
     case 'leave':
-      return 'Left the site (closed the tab or went elsewhere)'
+      return strings.analyticsFormat.leftSiteClosedTab
   }
 }
 
@@ -128,17 +137,17 @@ export function describeDevice(visit: { device: string; browser: string; operati
  */
 export function reproductionSteps(visit: VisitDetails): string {
   const lines = [
-    `Visit ${visit.id}, ${formatDateTime(visit.startedAt)}`,
+    strings.analyticsFormat.visit(visit.id, formatDateTime(visit.startedAt)),
     '',
-    'Setup',
-    `- Device: ${describeDevice(visit)}`,
-    `- Viewport: ${visit.viewportWidth}×${visit.viewportHeight} (screen ${visit.screenWidth}×${visit.screenHeight})`,
-    `- Theme: ${describeTheme(visit)}`,
-    `- Language: ${visit.language ?? 'unknown'}, time zone: ${visit.timeZone ?? 'unknown'}`,
+    strings.analyticsFormat.setup,
+    strings.analyticsFormat.device(describeDevice(visit)),
+    strings.analyticsFormat.viewportScreen(visit.viewportWidth, visit.viewportHeight, visit.screenWidth, visit.screenHeight),
+    strings.analyticsFormat.theme(describeTheme(visit)),
+    strings.analyticsFormat.languageTimeZone(visit.language ?? 'unknown', visit.timeZone ?? 'unknown'),
     `- Started on: ${visit.entryPath}${visit.referrer ? ` (from ${visit.referrer})` : ''}`,
-    `- User agent: ${visit.userAgent}`,
+    strings.analyticsFormat.userAgent(visit.userAgent),
     '',
-    'Steps',
+    strings.analyticsFormat.steps,
   ]
   visit.events.forEach((event, index) => {
     lines.push(`${index + 1}. [${formatOffset(visit.startedAt, event.occurredAt)}] ${describeEvent(event)}${event.type === 'pageview' ? '' : `  (on ${event.path})`}`)

@@ -6,6 +6,7 @@ import { PHOTO_MAX_BYTES } from '../../uploadLimits'
 import type { Profile } from '../profile'
 import { ProfilePhoto } from '../ProfilePhoto/ProfilePhoto'
 import { StatusesEditor } from '../StatusesEditor/StatusesEditor'
+import { strings } from '../../../../strings'
 
 /** The photo, the résumé's contact (admin only), the labels and the links. */
 export function ProfileEditor({ value, onChange, update, errors }: EditorProps<Profile>) {
@@ -17,10 +18,10 @@ export function ProfileEditor({ value, onChange, update, errors }: EditorProps<P
     <div className="editor-list">
       <div className="upload-grid">
         <FileUpload
-          label="Photo"
+          label={strings.profileEditor.photo}
           accept="image/jpeg,image/png,image/webp,image/gif"
           maxBytes={PHOTO_MAX_BYTES}
-          hint="JPEG, PNG, WebP or GIF, up to 15 MB. It's resized, and its location data is removed."
+          hint={strings.profileEditor.jpegPngWebpGif}
           kind="photo"
           onUploaded={(file) => update((current) => ({ ...current, photoUrl: file.url }))}
           onRemove={value.photoUrl ? () => onChange({ ...value, photoUrl: '' }) : undefined}
@@ -31,28 +32,49 @@ export function ProfileEditor({ value, onChange, update, errors }: EditorProps<P
       </div>
       {contact && (
         <fieldset className="editor-item">
-          <legend>For the résumé</legend>
+          <legend>{strings.profileEditor.rSum}</legend>
           <div className="editor-grid">
             <TextField
-              label="Headline"
+              label={strings.profileEditor.headline}
               value={contact.headline}
               onChange={setContact('headline')}
               error={errors['contact.headline']}
-              placeholder="Full-stack engineer · .NET, React, PostgreSQL"
+              placeholder={strings.profileEditor.fullStackEngineerNet}
             />
-            <TextField label="Email" type="email" value={contact.email} onChange={setContact('email')} error={errors['contact.email']} labelClassName="label-admin" />
-            <TextField label="Phone" type="tel" value={contact.phone} onChange={setContact('phone')} error={errors['contact.phone']} labelClassName="label-admin" />
+            <TextField
+              label={strings.common.email}
+              type="email"
+              value={contact.email}
+              onChange={setContact('email')}
+              error={errors['contact.email']}
+              labelClassName="label-admin"
+            />
+            <TextField
+              label={strings.profileEditor.phone}
+              type="tel"
+              value={contact.phone}
+              onChange={setContact('phone')}
+              error={errors['contact.phone']}
+              labelClassName="label-admin"
+            />
           </div>
         </fieldset>
       )}
       <fieldset className="editor-item">
-        <legend>Citizenship and residence</legend>
+        <legend>{strings.common.citizenshipResidence}</legend>
         <StatusesEditor value={value.statuses} onChange={(statuses) => onChange({ ...value, statuses })} errors={errors} />
       </fieldset>
       <div className="editor-grid">
-        <TextField label="GitHub URL" type="url" value={value.links.gitHubUrl} onChange={setLink('gitHubUrl')} error={errors['links.gitHubUrl']} hint="Leave empty to hide it." />
-        <TextField label="LinkedIn URL" type="url" value={value.links.linkedInUrl} onChange={setLink('linkedInUrl')} error={errors['links.linkedInUrl']} />
-        <TextField label="Instagram URL" type="url" value={value.links.instagramUrl} onChange={setLink('instagramUrl')} error={errors['links.instagramUrl']} />
+        <TextField
+          label={strings.profileEditor.githubUrl}
+          type="url"
+          value={value.links.gitHubUrl}
+          onChange={setLink('gitHubUrl')}
+          error={errors['links.gitHubUrl']}
+          hint={strings.profileEditor.leaveEmptyHide}
+        />
+        <TextField label={strings.profileEditor.linkedinUrl} type="url" value={value.links.linkedInUrl} onChange={setLink('linkedInUrl')} error={errors['links.linkedInUrl']} />
+        <TextField label={strings.profileEditor.instagramUrl} type="url" value={value.links.instagramUrl} onChange={setLink('instagramUrl')} error={errors['links.instagramUrl']} />
       </div>
     </div>
   )

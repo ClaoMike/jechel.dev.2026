@@ -6,6 +6,7 @@ import { failureOf, type SubscribeStatus } from '../../../services/api'
 import { useSubscribeMutation } from '../../../store/api/communityApi'
 import { trackEvent } from '../../analytics'
 import { isEmail } from '../../contact/contactRules'
+import { strings } from '../../../strings'
 
 type Status = { kind: 'idle' } | { kind: 'done'; email: string; result: SubscribeStatus } | { kind: 'failed'; message: string }
 
@@ -22,7 +23,7 @@ export function SubscribeDialog({ onClose }: { onClose: () => void }) {
     event.preventDefault()
     const value = email.trim()
     if (!isEmail(value)) {
-      setError('Enter a valid email address.')
+      setError(strings.subscribeDialog.enterValidEmailAddress)
       inputRef.current?.focus()
       return
     }
@@ -36,19 +37,19 @@ export function SubscribeDialog({ onClose }: { onClose: () => void }) {
       const { status: code, validationErrors } = failureOf(e)
       trackEvent('Subscribing failed', { reason: validationErrors?.email ? 'invalid address' : code === 429 ? 'too many tries' : String(code || 'no response') })
       if (validationErrors?.email) setError(validationErrors.email[0])
-      else if (code === 429) setStatus({ kind: 'failed', message: 'Too many tries. Please try again in a few minutes.' })
+      else if (code === 429) setStatus({ kind: 'failed', message: strings.subscribeDialog.tooManyTriesPlease })
       // Switched off (Settings → Visitor pages) since the page loaded.
-      else if (code === 404) setStatus({ kind: 'failed', message: "Email updates aren't open right now. Please try again later." })
-      else setStatus({ kind: 'failed', message: "That didn't work. Please try again later." })
+      else if (code === 404) setStatus({ kind: 'failed', message: strings.subscribeDialog.emailUpdatesArentOpen })
+      else setStatus({ kind: 'failed', message: strings.subscribeDialog.didntWorkPleaseTry })
     }
   }
 
   const id = useId()
   const done = status.kind === 'done' ? status : null
   const messages: Record<SubscribeStatus, [string, string]> = {
-    sent: ['Almost there: check ', ' and click the link in the email to confirm.'],
-    pending: ['We already sent a confirmation to ', '. Click the link in that email to confirm.'],
-    alreadySubscribed: ['', " is already subscribed: you'll get an email when there's something new."],
+    sent: [strings.subscribeDialog.almostThereCheck, strings.subscribeDialog.clickLinkEmailConfirm],
+    pending: [strings.subscribeDialog.weAlreadySentConfirmation, '. Click the link in that email to confirm.'],
+    alreadySubscribed: ['', strings.subscribeDialog.alreadySubscribedYoullGet],
   }
   const titleId = `${id}-title`
   const form = {
@@ -59,21 +60,21 @@ export function SubscribeDialog({ onClose }: { onClose: () => void }) {
     error,
     failure: status.kind === 'failed' ? status.message : null,
     sending,
-    submitLabel: sending ? 'Subscribing…' : 'Subscribe',
+    submitLabel: sending ? strings.subscribeDialog.subscribing : strings.subscribeDialog.subscribe,
     submit: (event: FormEvent<HTMLFormElement>) => void submit(event),
   }
   const sent = done && {
     before: messages[done.result][0],
     email: done.email,
     after: messages[done.result][1],
-    hint: done.result === 'alreadySubscribed' ? null : 'Nothing arrived? Look in spam, or try again in 10 minutes.',
+    hint: done.result === 'alreadySubscribed' ? null : strings.subscribeDialog.nothingArrivedLookSpam,
   }
 
   return (
     <Modal labelledBy={titleId} onClose={onClose} initialFocus={inputRef}>
       <div className="modal-header">
-        <h2 id={titleId}>Get updates</h2>
-        <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
+        <h2 id={titleId}>{strings.common.getUpdates}</h2>
+        <button type="button" className="icon-button" onClick={onClose} aria-label={strings.common.close}>
           <span aria-hidden="true">×</span>
         </button>
       </div>

@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { ItemControls, TextField } from '../../../../components/fields'
 import { LANGUAGE_LEVELS, type Language, type LanguageLevel } from '../../../../services/api'
 import { LANGUAGE_LEVEL_LABELS } from '../../legend'
+import { strings } from '../../../../strings'
 
 export interface LanguageEditorProps {
   index: number
@@ -19,10 +20,13 @@ export function LanguageEditor({ index, count, language, nameError, levelError, 
   const levelId = useId()
   return (
     <fieldset className="editor-item editor-item-inline">
-      <legend className="visually-hidden">Language {index + 1}</legend>
-      <TextField label="Language" value={language.name} required onChange={(name) => onChange({ ...language, name })} error={nameError} />
+      <legend className="visually-hidden">
+        {strings.languageEditor.language}
+        {index + 1}
+      </legend>
+      <TextField label={strings.languageEditor.language2} value={language.name} required onChange={(name) => onChange({ ...language, name })} error={nameError} />
       <div className="field">
-        <label htmlFor={levelId}>Level</label>
+        <label htmlFor={levelId}>{strings.languageEditor.level}</label>
         <select
           id={levelId}
           className="select"

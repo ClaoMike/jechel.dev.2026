@@ -10,6 +10,7 @@ import { donationKind } from '../../services/api'
 import { useDecideAnnouncementMutation, useDeleteSubscriberMutation, useListAnnouncementsQuery, useListDonationsQuery, useListSubscribersQuery } from '../../store/api/communityApi'
 import { usePagedQuery, type PagedQueryHook, type PagedQueryOptions } from '../../store/usePagedQuery'
 import { formatDate, formatDateTime } from '../../utils/formatDate'
+import { strings } from '../../strings'
 
 const PAGE_SIZE = 20
 
@@ -30,7 +31,7 @@ export function CommunityPage() {
   return (
     <AdminOnly>
       <div className="community">
-        <h2 className="visually-hidden">Community</h2>
+        <h2 className="visually-hidden">{strings.communityPage.community}</h2>
         <Subscribers />
         <Announcements />
         <UpdateEmailsEditor />
@@ -47,26 +48,30 @@ function Subscribers() {
   return (
     <section className="card community-card" aria-labelledby="subscribers-title">
       <div className="inbox-header">
-        <h3 id="subscribers-title">Email subscribers</h3>
-        {state.status === 'loaded' && <span className="muted">{state.data.totalCount} in all</span>}
+        <h3 id="subscribers-title">{strings.communityPage.emailSubscribers}</h3>
+        {state.status === 'loaded' && (
+          <span className="muted">
+            {state.data.totalCount} {strings.communityPage.all}
+          </span>
+        )}
       </div>
       {state.status === 'loading' && (
-        <Loading label="Loading subscribers…">
+        <Loading label={strings.communityPage.loadingSubscribers}>
           <SkeletonTable rows={4} columns={3} />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="Subscribers couldn't be loaded." onRetry={retry} />}
+      {state.status === 'error' && <ErrorState message={strings.communityPage.subscribersCouldntLoaded} onRetry={retry} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <EmptyState />}
       {state.status === 'loaded' && state.data.items.length > 0 && (
-        <div className="table-scroll" role="region" aria-label="Subscribers table" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label={strings.communityPage.subscribersTable} tabIndex={0}>
           <table className="messages-table">
             <thead>
               <tr>
-                <th scope="col">Email</th>
-                <th scope="col">Status</th>
-                <th scope="col">Since</th>
+                <th scope="col">{strings.common.email}</th>
+                <th scope="col">{strings.common.status}</th>
+                <th scope="col">{strings.communityPage.since}</th>
                 <th scope="col" className="col-actions">
-                  <span className="visually-hidden">Actions</span>
+                  <span className="visually-hidden">{strings.communityPage.actions}</span>
                 </th>
               </tr>
             </thead>
@@ -74,7 +79,13 @@ function Subscribers() {
               {state.data.items.map((subscriber) => (
                 <tr key={subscriber.id}>
                   <td>{subscriber.email}</td>
-                  <td>{subscriber.confirmedAt ? <span className="chip">Confirmed</span> : <span className="chip chip-muted">Waiting for confirmation</span>}</td>
+                  <td>
+                    {subscriber.confirmedAt ? (
+                      <span className="chip">{strings.communityPage.confirmed}</span>
+                    ) : (
+                      <span className="chip chip-muted">{strings.communityPage.waitingConfirmation}</span>
+                    )}
+                  </td>
                   <td>
                     <time dateTime={subscriber.createdAt}>{formatDate(subscriber.createdAt)}</time>
                   </td>
@@ -92,7 +103,13 @@ function Subscribers() {
   )
 }
 
-const STATUS_TEXT = { pending: 'Waiting for you', approved: 'To be sent', sending: 'Sending…', sent: 'Sent', ignored: 'Not sent' } as const
+const STATUS_TEXT = {
+  pending: strings.communityPage.waiting,
+  approved: strings.communityPage.sent,
+  sending: strings.common.sending,
+  sent: strings.communityPage.sent2,
+  ignored: strings.communityPage.notSent,
+} as const
 
 function Announcements() {
   const [decide] = useDecideAnnouncementMutation()
@@ -103,7 +120,7 @@ function Announcements() {
     try {
       await decide({ id, decision }).unwrap()
     } catch {
-      setFailed("That didn't work. Please try again.")
+      setFailed(strings.common.didntWorkPleaseTry)
     }
   }
 
@@ -115,34 +132,34 @@ function Announcements() {
 
   return (
     <section className="card community-card" aria-labelledby="announcements-title">
-      <h3 id="announcements-title">Update emails</h3>
+      <h3 id="announcements-title">{strings.communityPage.updateEmails}</h3>
       {state.status === 'loading' && (
-        <Loading label="Loading the update emails…">
+        <Loading label={strings.communityPage.loadingUpdateEmails}>
           <SkeletonList rows={3} pill />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="The update emails couldn't be loaded." onRetry={retry} />}
+      {state.status === 'error' && <ErrorState message={strings.communityPage.updateEmailsCouldntLoaded} onRetry={retry} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <EmptyState />}
       {failed && <p role="alert">{failed}</p>}
       {state.status === 'loaded' && state.data.items.length > 0 && (
         <ul className="community-list">
           {state.data.items.map((announcement) => (
             <li key={announcement.id}>
-              <span className="chip">{announcement.kind === 'video' ? 'Video' : 'App'}</span>
+              <span className="chip">{announcement.kind === 'video' ? strings.communityPage.video : strings.communityPage.app}</span>
               <strong>{announcement.title}</strong>
               <span className={announcement.status === 'pending' ? 'chip' : 'chip chip-muted'}>{STATUS_TEXT[announcement.status]}</span>
               <span className="muted">
                 {announcement.sentAt
-                  ? `${formatDateTime(announcement.sentAt)} · ${announcement.status === 'sending' ? `${announcement.recipientCount} sent so far` : `to ${announcement.recipientCount} ${announcement.recipientCount === 1 ? 'subscriber' : 'subscribers'}`}`
+                  ? `${formatDateTime(announcement.sentAt)} · ${announcement.status === 'sending' ? strings.communityPage.sentSoFar(announcement.recipientCount) : strings.communityPage.toSubscribers(announcement.recipientCount)}`
                   : formatDateTime(announcement.createdAt)}
               </span>
               {announcement.status === 'pending' && (
                 <span className="community-actions">
                   <button type="button" className="button button-small" onClick={() => void decideOne(announcement.id, 'send')}>
-                    Send email
+                    {strings.communityPage.sendEmail}
                   </button>
                   <button type="button" className="button button-secondary button-small" onClick={() => void decideOne(announcement.id, 'ignore')}>
-                    Ignore
+                    {strings.communityPage.ignore}
                   </button>
                 </span>
               )}
@@ -161,25 +178,29 @@ function Donations() {
   return (
     <section className="card community-card" aria-labelledby="donations-title">
       <div className="inbox-header">
-        <h3 id="donations-title">Coffees (Buy Me a Coffee)</h3>
-        {state.status === 'loaded' && <span className="muted">{state.data.totalCount} in all</span>}
+        <h3 id="donations-title">{strings.communityPage.coffeesBuyMeCoffee}</h3>
+        {state.status === 'loaded' && (
+          <span className="muted">
+            {state.data.totalCount} {strings.communityPage.all}
+          </span>
+        )}
       </div>
       {state.status === 'loading' && (
-        <Loading label="Loading coffees…">
+        <Loading label={strings.communityPage.loadingCoffees}>
           <SkeletonTable rows={3} columns={4} />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="Coffees couldn't be loaded." onRetry={retry} />}
+      {state.status === 'error' && <ErrorState message={strings.communityPage.coffeesCouldntLoaded} onRetry={retry} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <EmptyState />}
       {state.status === 'loaded' && state.data.items.length > 0 && (
-        <div className="table-scroll" role="region" aria-label="Donations table" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label={strings.communityPage.donationsTable} tabIndex={0}>
           <table className="messages-table">
             <thead>
               <tr>
-                <th scope="col">From</th>
-                <th scope="col">Amount</th>
-                <th scope="col">Message</th>
-                <th scope="col">Received</th>
+                <th scope="col">{strings.common.from}</th>
+                <th scope="col">{strings.communityPage.amount}</th>
+                <th scope="col">{strings.common.message}</th>
+                <th scope="col">{strings.communityPage.received}</th>
               </tr>
             </thead>
             <tbody>
@@ -188,12 +209,12 @@ function Donations() {
                   <td>
                     {donation.email ? <a href={`mailto:${donation.email}`}>{donation.fromName}</a> : donation.fromName}
                     {donationKind(donation.type) && <span className="muted"> · {donationKind(donation.type)}</span>}
-                    {donation.isTest && <span className="chip chip-muted">Test</span>}
+                    {donation.isTest && <span className="chip chip-muted">{strings.communityPage.test}</span>}
                   </td>
                   <td>
                     {donation.amount} {donation.currency}
                   </td>
-                  <td>{donation.message ?? <span className="muted">No message</span>}</td>
+                  <td>{donation.message ?? <span className="muted">{strings.communityPage.noMessage}</span>}</td>
                   <td>
                     <time dateTime={donation.receivedAt}>{formatDateTime(donation.receivedAt)}</time>
                   </td>

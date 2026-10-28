@@ -1,3 +1,5 @@
+import { strings } from '../../../strings'
+
 export interface SubscribeSentProps {
   /** The message, around the address in bold: "Almost there: check " + email + " and click…". */
   before: string
@@ -19,7 +21,7 @@ export function SubscribeSent({ before, email, after, hint, onDone }: SubscribeS
       </p>
       {hint && <p className="muted">{hint}</p>}
       <button type="button" className="button" onClick={onDone}>
-        Done
+        {strings.subscribeSent.done}
       </button>
     </div>
   )

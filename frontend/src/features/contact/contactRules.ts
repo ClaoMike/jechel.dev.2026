@@ -1,4 +1,5 @@
 import type { SendMessageRequest } from '../../services/api'
+import { strings } from '../../strings'
 
 /** Mirrors the API's ContactRules.cs, for instant feedback. The API has the final say. Lengths count trimmed text. */
 export const NAME_MAX_LENGTH = 100
@@ -7,7 +8,7 @@ export const MESSAGE_MIN_LENGTH = 100
 export const MESSAGE_MAX_LENGTH = 1000
 
 /** A project enquiry's subject (the API's ContactRules.ProjectSubject): the inbox marks those messages. */
-export const PROJECT_ENQUIRY = 'Project enquiry'
+export const PROJECT_ENQUIRY = strings.contactRules.projectEnquiry
 
 export type ContactField = Exclude<keyof SendMessageRequest, 'topic'>
 export type ContactErrors = Partial<Record<ContactField, string>>
@@ -26,16 +27,15 @@ export function validateContact(values: SendMessageRequest): ContactErrors {
   const email = values.email.trim()
   const message = values.message.trim()
 
-  if (!name) errors.name = 'Please enter your name.'
-  else if (name.length > NAME_MAX_LENGTH) errors.name = `Your name can be at most ${NAME_MAX_LENGTH} characters.`
+  if (!name) errors.name = strings.contactRules.pleaseEnterName
+  else if (name.length > NAME_MAX_LENGTH) errors.name = strings.contactRules.nameCanMostCharacters(NAME_MAX_LENGTH)
 
-  if (!email) errors.email = 'Please enter your email.'
-  else if (!isEmail(email)) errors.email = 'Please enter a valid email address, like name@example.com.'
+  if (!email) errors.email = strings.contactRules.pleaseEnterEmail
+  else if (!isEmail(email)) errors.email = strings.contactRules.pleaseEnterValidEmail
 
-  if (!message) errors.message = 'Please write a message.'
-  else if (message.length < MESSAGE_MIN_LENGTH)
-    errors.message = `Your message needs at least ${MESSAGE_MIN_LENGTH} characters (${MESSAGE_MIN_LENGTH - message.length} more).`
-  else if (message.length > MESSAGE_MAX_LENGTH) errors.message = `Your message can be at most ${MESSAGE_MAX_LENGTH} characters.`
+  if (!message) errors.message = strings.contactRules.pleaseWriteMessage
+  else if (message.length < MESSAGE_MIN_LENGTH) errors.message = strings.contactRules.messageNeedsLeastCharacters(MESSAGE_MIN_LENGTH, MESSAGE_MIN_LENGTH - message.length)
+  else if (message.length > MESSAGE_MAX_LENGTH) errors.message = strings.contactRules.messageCanMostCharacters(MESSAGE_MAX_LENGTH)
 
   return errors
 }

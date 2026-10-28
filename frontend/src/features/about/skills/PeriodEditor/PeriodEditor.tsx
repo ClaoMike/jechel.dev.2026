@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { CheckboxGroup, ItemControls, MonthField, type FieldErrors } from '../../../../components/fields'
 import { SKILL_USES, type AboutColors, type SkillPeriod } from '../../../../services/api'
 import { SKILL_USE_LABELS } from '../../legend'
+import { strings } from '../../../../strings'
 
 export interface PeriodEditorProps {
   /** For the remove button: "period 2 of skill 3". */
@@ -25,17 +26,17 @@ export function PeriodEditor({ name, label, period, colors, errorKey, errors, on
   return (
     <div className="editor-subitem" role="group" aria-label={label}>
       <div className="editor-period">
-        <MonthField label="From" value={period.start} onChange={(start) => set({ start })} error={errors[`${errorKey}.start`]} />
-        {period.end !== null && <MonthField label="To" value={period.end} onChange={(end) => set({ end })} error={errors[`${errorKey}.end`]} />}
+        <MonthField label={strings.common.from} value={period.start} onChange={(start) => set({ start })} error={errors[`${errorKey}.start`]} />
+        {period.end !== null && <MonthField label={strings.periodEditor.to} value={period.end} onChange={(end) => set({ end })} error={errors[`${errorKey}.end`]} />}
         <div className="checkbox-field">
           {/* Unticking "still using it" ends it where it started; the admin moves the end from there. */}
           <input id={ongoingId} type="checkbox" checked={period.end === null} onChange={(e) => set({ end: e.target.checked ? null : period.start })} />
-          <label htmlFor={ongoingId}>Still using it</label>
+          <label htmlFor={ongoingId}>{strings.periodEditor.stillUsing}</label>
         </div>
         <ItemControls name={name} index={0} count={1} onRemove={onRemove} />
       </div>
       <CheckboxGroup
-        label="Used for"
+        label={strings.periodEditor.used}
         options={SKILL_USES}
         value={period.uses}
         onChange={(uses) => set({ uses })}

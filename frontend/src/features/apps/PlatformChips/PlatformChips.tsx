@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { strings } from '../../../strings'
 
 /** "Runs on" and the platforms as chips; nothing without any. */
 export function PlatformChips({ platforms }: { platforms: string[] }) {
@@ -8,7 +9,7 @@ export function PlatformChips({ platforms }: { platforms: string[] }) {
   return (
     <div className="app-platforms">
       <span className="app-platforms-label" id={labelId}>
-        Runs on
+        {strings.platformChips.runs}
       </span>
       <ul className="chips" aria-labelledby={labelId}>
         {platforms.map((platform) => (

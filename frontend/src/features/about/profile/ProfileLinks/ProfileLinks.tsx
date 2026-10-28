@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { DownloadIcon, GitHubIcon, InstagramIcon, LeetCodeIcon, LinkedInIcon, YouTubeIcon } from '../../../../components/icons/icons'
 import type { ProfileLinkIcon, ProfileLinkItem } from '../profile'
+import { strings } from '../../../../strings'
 
 const ICONS: Record<ProfileLinkIcon, ReactNode> = {
   resume: <DownloadIcon />,
@@ -14,7 +15,7 @@ const ICONS: Record<ProfileLinkIcon, ReactNode> = {
 /** The profile's links as buttons: the résumé downloads, the others open in a new tab. */
 export function ProfileLinks({ links }: { links: ProfileLinkItem[] }) {
   return (
-    <ul className="profile-links" aria-label="Links">
+    <ul className="profile-links" aria-label={strings.profileLinks.links}>
       {links.map((link) => (
         <li key={link.icon}>
           <a

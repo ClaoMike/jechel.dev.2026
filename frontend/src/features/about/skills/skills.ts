@@ -1,5 +1,6 @@
 import type { AboutColors, Skill, SkillPeriod } from '../../../services/api'
 import { currentMonth } from '../format'
+import { strings } from '../../../strings'
 
 /** The Skills section's value: the skills, and the colour of each use. */
 export interface SkillsValue {
@@ -23,7 +24,10 @@ function span(period: SkillPeriod, now: Date): [number, number] {
  */
 export function monthsUsed(skill: Skill, now = new Date()): number {
   const nowEnd = monthIndex(currentMonth(now)) + 1
-  const spans = skill.periods.map((p) => span(p, now)).map(([s, e]): [number, number] => [s, Math.min(e, nowEnd)]).filter(([s, e]) => e > s)
+  const spans = skill.periods
+    .map((p) => span(p, now))
+    .map(([s, e]): [number, number] => [s, Math.min(e, nowEnd)])
+    .filter(([s, e]) => e > s)
   spans.sort((a, b) => a[0] - b[0])
   let total = 0
   let coveredUntil = -Infinity
@@ -37,9 +41,9 @@ export function monthsUsed(skill: Skill, now = new Date()): number {
 
 /** "3 months", "1 year", "6 years": whole years from a year on, rounded to the nearest. */
 export function formatExperience(months: number): string {
-  if (months < 12) return months === 1 ? '1 month' : `${months} months`
+  if (months < 12) return months === 1 ? strings.skills.n1Month : strings.skills.months(months)
   const years = Math.round(months / 12)
-  return years === 1 ? '1 year' : `${years} years`
+  return years === 1 ? strings.skills.n1Year : strings.skills.years(years)
 }
 
 /** The chart's time axis, in months: from the January of the earliest start to the end of this year (or the latest end). */

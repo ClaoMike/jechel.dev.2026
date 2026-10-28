@@ -1,14 +1,19 @@
 import { NEETCODE_LISTS, type NeetCodeList } from '../../../services/api'
+import { strings } from '../../../strings'
 
 export const NEETCODE_LIST_LABELS: Record<NeetCodeList, string> = {
-  blind75: 'Blind 75',
-  neetcode150: 'NeetCode 150',
-  neetcode250: 'NeetCode 250',
+  blind75: strings.problemSolving.blind75,
+  neetcode150: strings.problemSolving.neetcode150,
+  neetcode250: strings.problemSolving.neetcode250,
 }
 
 export const DIFFICULTIES = ['easy', 'medium', 'hard'] as const
 
-export const DIFFICULTY_LABELS: Record<(typeof DIFFICULTIES)[number], string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' }
+export const DIFFICULTY_LABELS: Record<(typeof DIFFICULTIES)[number], string> = {
+  easy: strings.problemSolving.easy,
+  medium: strings.problemSolving.medium,
+  hard: strings.problemSolving.hard,
+}
 
 /** Stats older than this mean the API couldn't reach LeetCode since (it refreshes them every 24 hours). */
 export const STALE_AFTER_MS = 48 * 60 * 60 * 1000

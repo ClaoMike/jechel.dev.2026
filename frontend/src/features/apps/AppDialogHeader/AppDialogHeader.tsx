@@ -1,5 +1,6 @@
 import type { AppCategory } from '../../../services/api'
 import { CategoryLabels } from '../CategoryLabels/CategoryLabels'
+import { strings } from '../../../strings'
 
 export interface AppDialogHeaderProps {
   titleId: string
@@ -21,7 +22,7 @@ export function AppDialogHeader({ titleId, heading, headingIsName, categories, o
         </h2>
         <CategoryLabels categories={categories} />
       </div>
-      <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
+      <button type="button" className="icon-button" onClick={onClose} aria-label={strings.common.close}>
         <span aria-hidden="true">×</span>
       </button>
     </div>

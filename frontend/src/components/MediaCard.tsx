@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { FittedImage } from './FittedImage'
 import { ImageIcon } from './icons/icons'
+import { strings } from '../strings'
 
 export interface MediaCardProps {
   /** A link to open (in a new tab by default)... */
@@ -36,7 +37,7 @@ export function MediaCard({ href, onClick, imageUrl, title, description, meta, n
         {title}
         {/* The space outside the hidden text: some screen readers drop a leading space inside it. */}
         {newTab && ' '}
-        {newTab && <span className="visually-hidden">(opens in a new tab)</span>}
+        {newTab && <span className="visually-hidden">{strings.mediaCard.opensNewTab}</span>}
       </a>
     )
 
@@ -50,7 +51,9 @@ export function MediaCard({ href, onClick, imageUrl, title, description, meta, n
         </span>
       )}
       <div className="media-card-body">
-        <h3 className="media-card-title" translate={translateTitle ? undefined : 'no'}>{action}</h3>
+        <h3 className="media-card-title" translate={translateTitle ? undefined : 'no'}>
+          {action}
+        </h3>
         {meta && <span className="media-card-meta">{meta}</span>}
         {description && <p className="media-card-description">{description}</p>}
       </div>

@@ -40,6 +40,7 @@ How it all works is in [`docs/`](docs/):
 ├── frontend/
 │   ├── functions/api/[[path]].ts          # Cloudflare Pages Function: the site's /api proxy to the API on Sliplane (production)
 │   ├── src/
+│   │   ├── strings.ts                     # every text the site shows or reads out, by component
 │   │   ├── services/api.ts                # the single API service: every backend call goes through `api`
 │   │   ├── services/endpoints/<feature>.ts # each feature's endpoints and types (put together by api.ts)
 │   │   ├── services/http.ts               # the plumbing under them: axios, ApiError, the preview switch

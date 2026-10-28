@@ -2,6 +2,7 @@ import { AddButton, ItemControls, TextField, type FieldErrors } from '../../comp
 import { BulletsEditor } from '../about/section/BulletsEditor/BulletsEditor'
 import { move, removeAt, replaceAt } from '../about/list'
 import type { TermsBlock, TermsContent, TermsSection } from '../../services/api'
+import { strings } from '../../strings'
 
 const newParagraph = (): TermsBlock => ({ kind: 'paragraph', text: '', items: [] })
 const newBullets = (): TermsBlock => ({ kind: 'bullets', text: '', items: [''] })
@@ -20,10 +21,10 @@ export function TermsEditor({ value, onChange, errors }: TermsEditorProps) {
 
   return (
     <div className="terms-editor">
-      <TextField label="Title" value={value.title} onChange={(title) => onChange({ ...value, title })} error={errors.title} required />
+      <TextField label={strings.common.title} value={value.title} onChange={(title) => onChange({ ...value, title })} error={errors.title} required />
       <TextField
-        label="Introduction"
-        hint="Optional. Shown before the sections."
+        label={strings.termsEditor.introduction}
+        hint={strings.termsEditor.optionalShownBeforeSections}
         value={value.intro}
         onChange={(intro) => onChange({ ...value, intro })}
         error={errors.intro}
@@ -43,7 +44,7 @@ export function TermsEditor({ value, onChange, errors }: TermsEditorProps) {
           errors={errors}
         />
       ))}
-      <AddButton onClick={() => setSections([...value.sections, newSection()])}>Add section</AddButton>
+      <AddButton onClick={() => setSections([...value.sections, newSection()])}>{strings.termsEditor.addSection}</AddButton>
     </div>
   )
 }
@@ -65,25 +66,39 @@ function SectionEditor({ number, count, value, onChange, onMove, onRemove, error
 
   return (
     <fieldset className="editor-item terms-editor-section">
-      <legend>Section {number}</legend>
+      <legend>
+        {strings.termsEditor.section}
+        {number}
+      </legend>
       <div className="editor-item-toolbar">
         <ItemControls name={`section ${number}`} index={number - 1} count={count} onMove={onMove} onRemove={onRemove} />
       </div>
-      <TextField label="Heading" value={value.heading} onChange={(heading) => onChange({ ...value, heading })} error={errors[`${key}.heading`]} required />
+      <TextField label={strings.termsEditor.heading} value={value.heading} onChange={(heading) => onChange({ ...value, heading })} error={errors[`${key}.heading`]} required />
       <div className="editor-subitems">
         {errors[`${key}.blocks`] && <p className="field-error">{errors[`${key}.blocks`]}</p>}
         {value.blocks.map((block, b) => {
           const blockKey = `${key}.blocks[${b}]`
-          const name = `${block.kind === 'paragraph' ? 'paragraph' : 'bullet list'} ${b + 1} of section ${number}`
+          const name = strings.termsEditor.blockOfSection(block.kind === 'paragraph', b + 1, number)
           return (
-            <div key={b} className="editor-subitem" role="group" aria-label={`${block.kind === 'paragraph' ? 'Paragraph' : 'Bullet list'} ${b + 1}`}>
+            <div
+              key={b}
+              className="editor-subitem"
+              role="group"
+              aria-label={`${block.kind === 'paragraph' ? strings.termsEditor.paragraph : strings.termsEditor.bulletList} ${b + 1}`}
+            >
               <div className="terms-editor-block-header">
-                <span className="field-label">{block.kind === 'paragraph' ? 'Paragraph' : 'Bullet list'}</span>
-                <ItemControls name={name} index={b} count={value.blocks.length} onMove={(from, to) => setBlocks(move(value.blocks, from, to))} onRemove={() => setBlocks(removeAt(value.blocks, b))} />
+                <span className="field-label">{block.kind === 'paragraph' ? strings.termsEditor.paragraph : strings.termsEditor.bulletList}</span>
+                <ItemControls
+                  name={name}
+                  index={b}
+                  count={value.blocks.length}
+                  onMove={(from, to) => setBlocks(move(value.blocks, from, to))}
+                  onRemove={() => setBlocks(removeAt(value.blocks, b))}
+                />
               </div>
               {block.kind === 'paragraph' ? (
                 <TextField
-                  label={`Text of paragraph ${b + 1}`}
+                  label={strings.termsEditor.textParagraph(b + 1)}
                   value={block.text}
                   onChange={(text) => setBlocks(replaceAt(value.blocks, b, { ...block, text }))}
                   error={errors[`${blockKey}.text`] ?? errors[`${blockKey}.kind`]}
@@ -92,7 +107,7 @@ function SectionEditor({ number, count, value, onChange, onMove, onRemove, error
                 />
               ) : (
                 <BulletsEditor
-                  itemName="bullet point"
+                  itemName={strings.common.bulletPoint}
                   value={block.items}
                   onChange={(items) => setBlocks(replaceAt(value.blocks, b, { ...block, items }))}
                   errorFor={(i) => errors[`${blockKey}.items[${i}]`]}
@@ -104,8 +119,8 @@ function SectionEditor({ number, count, value, onChange, onMove, onRemove, error
         })}
       </div>
       <div className="terms-editor-add">
-        <AddButton onClick={() => setBlocks([...value.blocks, newParagraph()])}>Add paragraph</AddButton>
-        <AddButton onClick={() => setBlocks([...value.blocks, newBullets()])}>Add bullet list</AddButton>
+        <AddButton onClick={() => setBlocks([...value.blocks, newParagraph()])}>{strings.termsEditor.addParagraph}</AddButton>
+        <AddButton onClick={() => setBlocks([...value.blocks, newBullets()])}>{strings.termsEditor.addBulletList}</AddButton>
       </div>
     </fieldset>
   )

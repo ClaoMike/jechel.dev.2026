@@ -9,6 +9,7 @@ import { failureOf } from '../../../services/api'
 import { useGetWorkWithMePriceQuery, useSaveWorkWithMePriceMutation } from '../../../store/api/workWithMeApi'
 import { fieldErrorsOf } from '../../../utils/saveErrors'
 import { formatPrice } from '../currencies'
+import { strings } from '../../../strings'
 
 const MAX_AMOUNT = 100_000
 
@@ -17,17 +18,17 @@ type Editing = { currency: string; amount: string; error: string | null; message
 /** The amount as typed ("25", "30.5", "30,50"), or why it can't be a price. */
 function parseAmount(text: string): { amount: number } | { error: string } {
   const typed = text.trim().replace(',', '.')
-  if (!/^\d+(\.\d{1,2})?$/.test(typed)) return { error: 'Give an amount like 25 or 30.50 (at most two decimals).' }
+  if (!/^\d+(\.\d{1,2})?$/.test(typed)) return { error: strings.workWithMePrice.giveAmountLike25 }
   const amount = Number(typed)
-  if (amount <= 0 || amount > MAX_AMOUNT) return { error: `Give an amount more than 0 and at most ${MAX_AMOUNT.toLocaleString('en-GB')}.` }
+  if (amount <= 0 || amount > MAX_AMOUNT) return { error: strings.workWithMePrice.giveAmountMoreThan(MAX_AMOUNT.toLocaleString('en-GB')) }
   return { amount }
 }
 
 function describeError(error: unknown): string {
   const fields = fieldErrorsOf(error)
-  if (fields) return Object.values(fields).flat()[0] ?? "Couldn't save. Please try again."
-  if (failureOf(error).status === 401) return 'Your session has ended. Sign in again, then save.'
-  return "Couldn't save. Please try again."
+  if (fields) return Object.values(fields).flat()[0] ?? strings.common.couldntSavePleaseTry
+  if (failureOf(error).status === 401) return strings.common.sessionHasEndedSign
+  return strings.common.couldntSavePleaseTry
 }
 
 /** The hourly price (the API's: €25 until the admin sets one). The signed-in admin can change its currency and amount; visitors only read it. */
@@ -66,20 +67,21 @@ export function WorkWithMePrice() {
   return (
     <section aria-labelledby="work-price-title" className="work-price">
       <div className="work-price-header">
-        <h4 id="work-price-title">Price</h4>
+        <h4 id="work-price-title">{strings.workWithMePrice.price}</h4>
         {canEdit && !editing && (
           <button type="button" className="button button-secondary button-small" onClick={edit}>
             <PencilIcon size={16} />
-            Edit <span className="visually-hidden">the price</span>
+            {strings.common.edit}
+            <span className="visually-hidden">{strings.workWithMePrice.price2}</span>
           </button>
         )}
       </div>
 
       {editing ? (
-        <form className="work-price-editor" noValidate onSubmit={(event) => void save(event)} aria-label="Edit the price">
+        <form className="work-price-editor" noValidate onSubmit={(event) => void save(event)} aria-label={strings.workWithMePrice.editPrice}>
           <div className="work-price-fields">
-            <CurrencyPicker label="Currency" value={editing.currency} onChange={chooseCurrency} />
-            <TextField label={`Amount, ${PRICE.per}`} value={editing.amount} onChange={typeAmount} error={editing.error ?? undefined} />
+            <CurrencyPicker label={strings.workWithMePrice.currency} value={editing.currency} onChange={chooseCurrency} />
+            <TextField label={strings.workWithMePrice.amount(PRICE.per)} value={editing.amount} onChange={typeAmount} error={editing.error ?? undefined} />
           </div>
           {editing.message && (
             <p role="alert" className="form-error">
@@ -88,10 +90,10 @@ export function WorkWithMePrice() {
           )}
           <div className="about-editor-actions">
             <button type="submit" className="button" disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? strings.common.saving : strings.common.save}
             </button>
             <button type="button" className="button button-secondary" disabled={saving} onClick={cancel}>
-              Cancel
+              {strings.common.cancel}
             </button>
           </div>
         </form>
@@ -100,9 +102,9 @@ export function WorkWithMePrice() {
           <span className="work-price-amount">{shown}</span> {PRICE.per}
         </p>
       ) : failed ? (
-        <p className="muted">The price couldn't be loaded.</p>
+        <p className="muted">{strings.workWithMePrice.priceCouldntLoaded}</p>
       ) : (
-        <Loading label="Loading the price…">
+        <Loading label={strings.workWithMePrice.loadingPrice}>
           <Skeleton width={140} height={28} />
         </Loading>
       )}

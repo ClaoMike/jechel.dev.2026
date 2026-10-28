@@ -7,6 +7,7 @@ import { MeetingActions } from '../MeetingActions/MeetingActions'
 import type { Meeting } from '../../../services/api'
 import { useListMeetingsQuery } from '../../../store/api/meetingsApi'
 import { toLoadable } from '../../../store/loadable'
+import { strings } from '../../../strings'
 
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(new Date(2024, 0, 1 + i)))
 const LONG_DAY = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
@@ -71,7 +72,7 @@ export function MeetingsCalendar() {
       otherMonth: day.getMonth() !== month.getMonth(),
       today: key === today,
       selected: key === selected,
-      label: `${LONG_DAY.format(day)}${dayMeetings.length ? `, ${dayMeetings.length} ${dayMeetings.length === 1 ? 'meeting' : 'meetings'}` : ''}`,
+      label: strings.meetingsCalendar.dayLabel(LONG_DAY.format(day), dayMeetings.length),
       meetings: dayMeetings,
       select: () => setSelected(key),
     }
@@ -91,31 +92,31 @@ export function MeetingsCalendar() {
   return (
     <section className="card meetings" aria-labelledby="meetings-title">
       <div className="inbox-header">
-        <h2 id="meetings-title">Meetings</h2>
+        <h2 id="meetings-title">{strings.meetingsCalendar.meetings}</h2>
         <div className="meetings-month">
-          <button type="button" className="icon-button" aria-label="Previous month" onClick={previousMonth}>
+          <button type="button" className="icon-button" aria-label={strings.meetingsCalendar.previousMonth} onClick={previousMonth}>
             <ArrowLeftIcon />
           </button>
           <span aria-live="polite">{monthName}</span>
-          <button type="button" className="icon-button" aria-label="Next month" onClick={nextMonth}>
+          <button type="button" className="icon-button" aria-label={strings.meetingsCalendar.nextMonth} onClick={nextMonth}>
             <ArrowRightIcon />
           </button>
         </div>
       </div>
-      <p className="muted">Booked through Cal.com. Your phone reminds you a day, 2 hours and 5 minutes before each accepted meeting, and when it starts.</p>
+      <p className="muted">{strings.meetingsCalendar.bookedThroughCalCom}</p>
 
       {status === 'loading' && (
-        <Loading label="Loading meetings…">
+        <Loading label={strings.meetingsCalendar.loadingMeetings}>
           <Skeleton height={260} radius={12} />
           <SkeletonList rows={2} pill />
         </Loading>
       )}
-      {status === 'error' && <ErrorState message="Meetings couldn't be loaded." onRetry={retry} />}
+      {status === 'error' && <ErrorState message={strings.meetingsCalendar.meetingsCouldntLoaded} onRetry={retry} />}
       {status === 'loaded' && (
         <>
           {requestCount > 0 && (
             <p className="meetings-waiting" role="status">
-              {requestCount === 1 ? '1 request is' : `${requestCount} requests are`} waiting for you this month.
+              {requestCount === 1 ? strings.meetingsCalendar.n1Request : strings.meetingsCalendar.requestsAre(requestCount)} {strings.meetingsCalendar.waitingMonth}
             </p>
           )}
           <div className="calendar" role="grid" aria-label={monthName}>
@@ -156,7 +157,7 @@ export function MeetingsCalendar() {
 
           <h3 className="meetings-day-title">{selectedTitle}</h3>
           {selectedMeetings.length === 0 ? (
-            <p className="muted">No meetings this day.</p>
+            <p className="muted">{strings.meetingsCalendar.noMeetingsDay}</p>
           ) : (
             <ul className="meetings-list">
               {selectedMeetings.map((meeting) => (
@@ -168,7 +169,7 @@ export function MeetingsCalendar() {
                       {meeting.attendeeEmail}
                     </a>
                     {/* Meetings are by invitation: someone who never wrote got the link elsewhere. */}
-                    {meeting.fromConversation === false && <span className="chip meeting-stranger">Not from a conversation</span>}
+                    {meeting.fromConversation === false && <span className="chip meeting-stranger">{strings.meetingsCalendar.notConversation}</span>}
                   </p>
                   <p className="muted">{meeting.title}</p>
                   {meeting.notes && <p className="meeting-notes">“{meeting.notes}”</p>}

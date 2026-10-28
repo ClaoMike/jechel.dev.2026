@@ -1,3 +1,5 @@
+import { strings } from '../../strings'
+
 /** Work with me: what I offer, how a project goes, and the price. The words visitors read, in one place. */
 
 export type ServiceIcon = 'website' | 'api' | 'automation'
@@ -11,18 +13,18 @@ export interface Service {
 export const SERVICES: readonly Service[] = [
   {
     icon: 'website',
-    title: 'Websites, end to end',
-    text: 'Full-stack websites, from the database to the page you see: designed, built, tested and put live.',
+    title: strings.workWithMe.websitesEndEnd,
+    text: strings.workWithMe.fullStackWebsitesDatabase,
   },
   {
     icon: 'api',
     title: 'APIs',
-    text: 'APIs your apps and partners can rely on: secure, documented and tested.',
+    text: strings.workWithMe.apisAppsPartnersCan,
   },
   {
     icon: 'automation',
-    title: 'Automations for your company',
-    text: 'The manual work your team repeats every day, done automatically, and your apps connected so data flows between them.',
+    title: strings.workWithMe.automationsCompany,
+    text: strings.workWithMe.manualWorkTeamRepeats,
   },
 ]
 
@@ -32,14 +34,14 @@ export interface Step {
 }
 
 export const STEPS: readonly Step[] = [
-  { title: 'A free call or meeting', text: 'Online or in person, whichever suits you and where you are. You tell me what you need.' },
-  { title: 'A plan', text: 'I work out what to build and how, step by step.' },
-  { title: 'The plan, presented', text: 'I walk you through it, and you decide whether to go ahead.' },
-  { title: 'Price, then building', text: 'We agree the price, I build it, and we keep each other in the loop all the way.' },
+  { title: strings.workWithMe.freeCallMeeting, text: strings.workWithMe.onlinePersonWhicheverSuits },
+  { title: strings.workWithMe.plan, text: strings.workWithMe.iWorkOutWhat },
+  { title: strings.workWithMe.planPresented, text: strings.workWithMe.iWalkThroughDecide },
+  { title: strings.workWithMe.priceThenBuilding, text: strings.workWithMe.weAgreePriceI },
 ]
 
 /** The amount and currency are the admin's (the API's); these are the words around them. */
 export const PRICE = {
-  per: 'an hour',
-  note: "The final price is agreed together, once you've seen the plan.",
+  per: strings.workWithMe.hour,
+  note: strings.workWithMe.finalPriceAgreedTogether,
 }

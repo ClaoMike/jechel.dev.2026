@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import { WorkWithMe } from '../workWithMe/WorkWithMe/WorkWithMe'
+import { strings } from '../../strings'
 
 /** A feature the admin tries out on the site before visitors get it (the Feature Testing tab). */
 export interface TestFeature {
@@ -19,7 +20,7 @@ export interface TestFeature {
 export const TEST_FEATURES: readonly TestFeature[] = [
   {
     slug: 'work-with-me',
-    title: 'Work with me',
+    title: strings.testFeatures.workMe,
     Component: WorkWithMe,
   },
 ]

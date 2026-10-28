@@ -3,6 +3,7 @@ import { isSafeUrl } from '../../../features/about/format'
 import { formatLink } from '../../../features/about/textLinks'
 import { LinkIcon } from '../../icons/icons'
 import type { FieldElement, Selection } from '../TextField/TextField'
+import { strings } from '../../../strings'
 
 export interface LinkInserterProps {
   /** The field's label, to name the button and the group: "Add link to Title". */
@@ -34,7 +35,7 @@ export function LinkInserter({ fieldLabel, value, onChange, input, selection }: 
   function insert() {
     if (!draft) return
     if (!isSafeUrl(draft.url) || draft.url.trim() === 'https://') {
-      setDraft({ ...draft, error: 'Enter a full link (https://…) or a path on this site (/…).' })
+      setDraft({ ...draft, error: strings.linkInserter.enterFullLinkHttps })
       return
     }
     const link = formatLink(draft.label, draft.url)
@@ -62,15 +63,19 @@ export function LinkInserter({ fieldLabel, value, onChange, input, selection }: 
     return (
       <button type="button" className="text-button" onClick={open}>
         <LinkIcon size={14} />
-        Add link <span className="visually-hidden">to {fieldLabel}</span>
+        {strings.linkInserter.addLink}
+        <span className="visually-hidden">
+          {strings.linkInserter.to}
+          {fieldLabel}
+        </span>
       </button>
     )
   }
 
   return (
-    <div className="link-inserter" role="group" aria-label={`Add a link to ${fieldLabel}`}>
+    <div className="link-inserter" role="group" aria-label={strings.linkInserter.addLink2(fieldLabel)}>
       <div className="field">
-        <label htmlFor={labelId}>Link text</label>
+        <label htmlFor={labelId}>{strings.linkInserter.linkText}</label>
         <input
           id={labelId}
           value={draft.label}
@@ -79,11 +84,11 @@ export function LinkInserter({ fieldLabel, value, onChange, input, selection }: 
             setDraft((current) => current && { ...current, label })
           }}
           onKeyDown={onKeyDown}
-          placeholder="The University of Manchester"
+          placeholder={strings.linkInserter.universityManchester}
         />
       </div>
       <div className="field">
-        <label htmlFor={urlId}>Link URL</label>
+        <label htmlFor={urlId}>{strings.linkInserter.linkUrl}</label>
         <input
           id={urlId}
           type="url"
@@ -100,10 +105,10 @@ export function LinkInserter({ fieldLabel, value, onChange, input, selection }: 
       </div>
       <div className="link-inserter-actions">
         <button type="button" className="button button-small" onClick={insert}>
-          Insert link
+          {strings.linkInserter.insertLink}
         </button>
         <button type="button" className="button button-secondary button-small" onClick={() => setDraft(null)}>
-          Cancel
+          {strings.common.cancel}
         </button>
       </div>
       {draft.error && (

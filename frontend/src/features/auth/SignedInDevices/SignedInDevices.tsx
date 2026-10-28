@@ -5,6 +5,7 @@ import { failureOf, type AdminSession } from '../../../services/api'
 import { useEndOtherSessionsMutation, useEndSessionMutation, useListSessionsQuery } from '../../../store/api/sessionsApi'
 import { toLoadable } from '../../../store/loadable'
 import { formatDateTime } from '../../../utils/formatDate'
+import { strings } from '../../../strings'
 
 /** A device as the list shows it. */
 export interface DeviceRow {
@@ -40,11 +41,11 @@ export function SignedInDevices() {
     setMessage(null)
     try {
       await endSession(session.id).unwrap()
-      setMessage({ ok: true, text: `Signed out ${session.device}.` })
+      setMessage({ ok: true, text: strings.signedInDevices.signedOut(session.device) })
     } catch (error) {
       // Already gone (it ended, or another tab signed it out): the list is simply out of date.
       if (failureOf(error).status === 404) void query.refetch()
-      else setMessage({ ok: false, text: "That device couldn't be signed out. Please try again." })
+      else setMessage({ ok: false, text: strings.signedInDevices.deviceCouldntSignedOut })
     } finally {
       setEnding(null)
     }
@@ -54,9 +55,9 @@ export function SignedInDevices() {
     setMessage(null)
     try {
       const count = await endOthers().unwrap()
-      setMessage({ ok: true, text: count === 0 ? 'No other device was signed in.' : `Signed out ${count} other ${count === 1 ? 'device' : 'devices'}.` })
+      setMessage({ ok: true, text: count === 0 ? strings.signedInDevices.noOtherDeviceWas : strings.signedInDevices.signedOutOther(count, count === 1 ? 'device' : 'devices') })
     } catch {
-      setMessage({ ok: false, text: "The other devices couldn't be signed out. Please try again." })
+      setMessage({ ok: false, text: strings.signedInDevices.otherDevicesCouldntSigned })
     }
   }
 
@@ -65,7 +66,7 @@ export function SignedInDevices() {
     id: session.id,
     name: session.device,
     current: session.current,
-    where: session.ipAddress ? `${session.ipAddress}${session.country ? ` (${session.country})` : ''}` : 'Unknown address',
+    where: session.ipAddress ? `${session.ipAddress}${session.country ? ` (${session.country})` : ''}` : strings.signedInDevices.unknownAddress,
     signedIn: formatDateTime(session.createdAt),
     lastActive: formatDateTime(session.lastSeenAt),
     ends: formatDateTime(session.endsAt),
@@ -82,32 +83,41 @@ export function SignedInDevices() {
   if (status === 'loading')
     return (
       <section className="card signed-in-devices">
-        <Loading label="Loading the signed-in devices…">
+        <Loading label={strings.signedInDevices.loadingSignedDevices}>
           <Skeleton width="35%" height={20} />
           <SkeletonList rows={2} />
         </Loading>
       </section>
     )
-  if (status === 'error') return <ErrorState message="The signed-in devices couldn't be loaded." onRetry={retry} />
+  if (status === 'error') return <ErrorState message={strings.signedInDevices.signedDevicesCouldntLoaded} onRetry={retry} />
 
   return (
     <section className="card signed-in-devices" aria-labelledby={titleId}>
-      <h3 id={titleId}>Signed-in devices</h3>
+      <h3 id={titleId}>{strings.signedInDevices.signedDevices}</h3>
       <ul className="device-list" aria-labelledby={titleId}>
         {devices.map((device) => (
           <li key={device.id} className="device-row">
             <div className="device-what">
               <span className="device-name">
                 {device.name}
-                {device.current && <span className="chip chip-muted">This device</span>}
+                {device.current && <span className="chip chip-muted">{strings.signedInDevices.device}</span>}
               </span>
               <span className="muted">
-                {device.where} · signed in {device.signedIn} · active <time dateTime={device.lastSeenAt}>{device.lastActive}</time> · ends by {device.ends}
+                {device.where} {strings.signedInDevices.signed}
+                {device.signedIn} {strings.signedInDevices.active}
+                <time dateTime={device.lastSeenAt}>{device.lastActive}</time> {strings.signedInDevices.ends}
+                {device.ends}
               </span>
             </div>
             {!device.current && (
-              <button type="button" className="button button-secondary button-small" disabled={device.busy} onClick={device.signOut} aria-label={`Sign out ${device.name}`}>
-                {device.busy ? 'Signing out…' : 'Sign out'}
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                disabled={device.busy}
+                onClick={device.signOut}
+                aria-label={strings.signedInDevices.signOut(device.name)}
+              >
+                {device.busy ? strings.signedInDevices.signingOut : strings.signedInDevices.signOut2}
               </button>
             )}
           </li>
@@ -121,7 +131,7 @@ export function SignedInDevices() {
       )}
       {hasOthers && (
         <button type="button" className="button button-secondary" disabled={signingOutOthers} onClick={() => void signOutOthers()}>
-          {signingOutOthers ? 'Signing out…' : 'Sign out all other devices'}
+          {signingOutOthers ? strings.signedInDevices.signingOut : strings.signedInDevices.signOutAllOther}
         </button>
       )}
     </section>

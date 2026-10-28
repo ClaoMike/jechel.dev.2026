@@ -1,4 +1,5 @@
 import type { FieldErrors } from '../../utils/saveErrors'
+import { strings } from '../../strings'
 
 /** API field errors, first message per path, e.g. { "experience[0].title": "Required." }. */
 export type { FieldErrors }
@@ -13,4 +14,4 @@ export interface EditorProps<T> {
 }
 
 /** Under "Remove …?" in the editors: nothing is lost until the section is saved. */
-export const REMOVE_DETAIL = 'It goes when you save this section; Cancel brings it back.'
+export const REMOVE_DETAIL = strings.editor.goesWhenSaveSection

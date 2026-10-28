@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
 import { TrashIcon } from '../icons/icons'
+import { strings } from '../../strings'
 
 export interface DeleteButtonProps {
   /** What goes, for the question: "Delete {what}?", e.g. "the message from Ana". */
@@ -22,8 +23,8 @@ export interface DeleteButtonProps {
 /** A delete (or remove) button that asks for confirmation in a popup first. */
 export function DeleteButton({
   what,
-  action = 'Delete',
-  detail = "This can't be undone.",
+  action = strings.common.delete,
+  detail = strings.deleteButton.cantUndone,
   onDelete,
   label,
   className = 'icon-button icon-button-danger',

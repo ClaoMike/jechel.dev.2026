@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useListAppCategoriesQuery } from '../../../store/api/appsApi'
 import { CategoriesDialog } from '../CategoriesDialog/CategoriesDialog'
+import { strings } from '../../../strings'
 
 /** The admin's Categories button above the Apps grid, and the popup it opens to edit the list. */
 export function CategoriesButton() {
@@ -11,7 +12,7 @@ export function CategoriesButton() {
   return (
     <>
       <button type="button" className="button button-secondary button-small" onClick={() => setEditing(true)}>
-        Categories
+        {strings.categoriesButton.categories}
       </button>
       {editing && <CategoriesDialog categories={categories} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />}
     </>

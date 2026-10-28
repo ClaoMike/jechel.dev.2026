@@ -9,9 +9,10 @@ import { formatMegabytes } from '../../about/format'
 import { move, removeAt } from '../../about/list'
 import { APP_IMAGE_MAX_BYTES, APP_VIDEO_MAX_BYTES } from '../../about/uploadLimits'
 import { isVideoFile, mediaFromLink } from '../media'
+import { strings } from '../../../strings'
 
-const noun = (item: AppMedia) => ({ image: 'image', video: 'video', youtube: 'YouTube video' })[item.kind]
-const LABELS = { image: 'Image', video: 'Video', youtube: 'YouTube' }
+const noun = (item: AppMedia) => ({ image: 'image', video: 'video', youtube: strings.mediaListEditor.youtubeVideo })[item.kind]
+const LABELS = { image: strings.mediaListEditor.image, video: strings.mediaListEditor.video, youtube: 'YouTube' }
 
 /** Keys that stay the same when the list is reordered: the link, and which repeat of it this is. */
 function stableKeys(items: AppMedia[]): string[] {
@@ -54,10 +55,10 @@ export function MediaListEditor(props: MediaListEditorProps) {
     for (const [i, file] of files.entries()) {
       const max = isVideoFile(file) ? APP_VIDEO_MAX_BYTES : APP_IMAGE_MAX_BYTES
       if (file.size > max) {
-        failed.push(`${file.name} is ${formatMegabytes(file.size)}; the limit is ${formatMegabytes(max)}.`)
+        failed.push(strings.mediaListEditor.limit(file.name, formatMegabytes(file.size), formatMegabytes(max)))
         continue
       }
-      const label = files.length > 1 ? `Uploading ${i + 1} of ${files.length}…` : 'Uploading…'
+      const label = files.length > 1 ? strings.mediaListEditor.uploading(i + 1, files.length) : strings.mediaListEditor.uploading2
       setProgress(`${label} 0%`)
       try {
         const uploaded = await api.files.uploadAppMedia(file, (fraction) => setProgress(`${label} ${Math.floor(fraction * 100)}%`))
@@ -66,7 +67,7 @@ export function MediaListEditor(props: MediaListEditorProps) {
       } catch (e) {
         const { status, validationErrors } = failureOf(e)
         const reason = validationErrors?.file?.[0]
-        failed.push(`${file.name}: ${reason || (status === 401 ? 'your session has ended. Sign in again, then upload.' : "couldn't upload. Please try again.")}`)
+        failed.push(`${file.name}: ${reason || (status === 401 ? strings.mediaListEditor.sessionHasEndedSign : strings.mediaListEditor.couldntUploadPleaseTry)}`)
       }
     }
     setProgress(null)
@@ -106,13 +107,10 @@ export function MediaListEditor(props: MediaListEditorProps) {
 
   return (
     <fieldset className="media-list-editor">
-      <legend className="field-label">Images and videos</legend>
-      <p className="field-hint">
-        The first image is the tile's picture. Drag to reorder. Upload JPEG, PNG, WebP or GIF up to 15 MB and MP4, MOV or WebM up to 200 MB, or add a link: a YouTube video, or an
-        image or video elsewhere.
-      </p>
+      <legend className="field-label">{strings.mediaListEditor.imagesVideos}</legend>
+      <p className="field-hint">{strings.mediaListEditor.firstImageTilesPicture}</p>
       {items.length > 0 && (
-        <ol className={sort.dragging ? 'media-list media-list-dragging' : 'media-list'} aria-label="Images and videos">
+        <ol className={sort.dragging ? 'media-list media-list-dragging' : 'media-list'} aria-label={strings.mediaListEditor.imagesVideos}>
           {items.map(({ key, position, item, name, label, remove }) => (
             <li key={key} className="media-list-item" {...sort.itemProps(position)}>
               <MediaThumbnail item={item} />
@@ -121,7 +119,7 @@ export function MediaListEditor(props: MediaListEditorProps) {
                   <GripIcon size={16} />
                 </button>
                 <span className="media-list-label">{label}</span>
-                <DeleteButton what={name} action="Remove" detail="It goes when you save the app; Cancel keeps it." onDelete={remove} />
+                <DeleteButton what={name} action={strings.common.remove} detail={strings.mediaListEditor.goesWhenSaveApp} onDelete={remove} />
               </span>
             </li>
           ))}
@@ -138,12 +136,12 @@ export function MediaListEditor(props: MediaListEditorProps) {
           accept={ACCEPT}
           className="visually-hidden"
           tabIndex={-1}
-          aria-label="Image or video files"
+          aria-label={strings.mediaListEditor.imageVideoFiles}
           onChange={(e) => upload([...(e.target.files ?? [])])}
         />
         <button type="button" className="button button-secondary button-small" disabled={progress !== null} onClick={pickFiles}>
           <UploadIcon size={16} />
-          {progress ?? 'Upload images or videos'}
+          {progress ?? strings.mediaListEditor.uploadImagesVideos}
         </button>
         {/* The button says how far it got; this tells screen readers too. */}
         <span className="visually-hidden" role="status">
@@ -152,17 +150,17 @@ export function MediaListEditor(props: MediaListEditorProps) {
       </div>
       <div className="app-inline-add" onKeyDown={onLinkKeyDown}>
         <TextField
-          label="Or add from a link"
+          label={strings.mediaListEditor.addLink}
           type="url"
           value={link}
           onChange={(next) => {
             setLink(next)
             setLinkError(null)
           }}
-          placeholder="https://www.youtube.com/watch?v=…"
+          placeholder={strings.mediaListEditor.httpsWwwYoutubeCom}
           error={linkError ?? undefined}
         />
-        <AddButton onClick={addLink}>Add link</AddButton>
+        <AddButton onClick={addLink}>{strings.mediaListEditor.addLink2}</AddButton>
       </div>
       {problems.map((problem) => (
         <p key={problem} className="field-error" role="alert">

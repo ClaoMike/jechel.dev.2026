@@ -1,10 +1,11 @@
 import type { Meeting, MeetingStatus } from '../../services/api'
+import { strings } from '../../strings'
 
 export const STATUS_LABELS: Record<MeetingStatus, string> = {
-  requested: 'Waiting for you',
-  accepted: 'Accepted',
-  declined: 'Declined',
-  cancelled: 'Cancelled',
+  requested: strings.meetingsFormat.waiting,
+  accepted: strings.meetingsFormat.accepted,
+  declined: strings.meetingsFormat.declined,
+  cancelled: strings.meetingsFormat.cancelled,
 }
 
 /** "Thu 22 Oct, 15:00–15:30", in the viewer's time zone. */

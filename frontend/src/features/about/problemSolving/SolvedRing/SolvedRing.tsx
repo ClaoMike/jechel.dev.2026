@@ -1,5 +1,6 @@
 import type { LeetCodeStats } from '../../../../services/api'
 import { DIFFICULTIES } from '../problemSolving'
+import { strings } from '../../../../strings'
 
 const RING_RADIUS = 52
 const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
@@ -32,7 +33,7 @@ export function SolvedRing({ solved }: { solved: LeetCodeStats['solved'] }) {
       </svg>
       <p className="leetcode-ring-label">
         <strong>{solved.all.toLocaleString('en-GB')}</strong>
-        <span>solved</span>
+        <span>{strings.solvedRing.solved}</span>
       </p>
     </div>
   )

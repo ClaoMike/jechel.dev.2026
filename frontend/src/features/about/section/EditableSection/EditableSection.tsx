@@ -3,6 +3,7 @@ import type { EditorProps, FieldErrors } from '../../../../components/fields'
 import { describeSaveError } from '../saveError'
 import { SectionEditorForm } from '../SectionEditorForm/SectionEditorForm'
 import { SectionHeader } from '../SectionHeader/SectionHeader'
+import { strings } from '../../../../strings'
 
 type Status = { state: 'viewing' } | { state: 'editing' | 'saving'; draft: unknown; errors: FieldErrors; message: string | null }
 
@@ -97,7 +98,7 @@ export function EditableSection<T>({ title, hideTitle = false, editLabel, classN
       <div id={bodyId} hidden={!open}>
         {status.state !== 'viewing' && canEdit ? (
           <SectionEditorForm
-            label={`Edit ${name}`}
+            label={strings.editableSection.edit(name)}
             saving={status.state === 'saving'}
             message={status.message}
             submit={(event) => {

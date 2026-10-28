@@ -1,4 +1,5 @@
 import type { FormEvent, RefObject } from 'react'
+import { strings } from '../../../strings'
 
 export interface SubscribeFormProps {
   inputRef: RefObject<HTMLInputElement | null>
@@ -19,9 +20,9 @@ export interface SubscribeFormProps {
 export function SubscribeForm({ inputRef, emailId, errorId, email, setEmail, error, failure, sending, submitLabel, submit }: SubscribeFormProps) {
   return (
     <form className="subscribe-form" onSubmit={submit} noValidate>
-      <p>Get an email when there's a new app or YouTube video. No spam, and you can unsubscribe from any email in one click.</p>
+      <p>{strings.subscribeForm.getEmailWhenTheres}</p>
       <div className="field">
-        <label htmlFor={emailId}>Email</label>
+        <label htmlFor={emailId}>{strings.common.email}</label>
         <input
           ref={inputRef}
           id={emailId}

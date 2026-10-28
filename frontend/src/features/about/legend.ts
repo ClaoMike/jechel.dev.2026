@@ -1,16 +1,17 @@
 import type { LanguageLevel, SkillUse, VisitKind } from '../../services/api'
+import { strings } from '../../strings'
 
-export const SKILL_USE_LABELS: Record<SkillUse, string> = { work: 'Work', academic: 'Academic', personal: 'Personal' }
+export const SKILL_USE_LABELS: Record<SkillUse, string> = { work: strings.legend.work, academic: strings.legend.academic, personal: strings.legend.personal }
 
 export const LANGUAGE_LEVEL_LABELS: Record<LanguageLevel, string> = {
-  native: 'Native',
-  fluent: 'Fluent',
-  advanced: 'Advanced',
-  intermediate: 'Intermediate',
-  beginner: 'Beginner',
+  native: strings.legend.native,
+  fluent: strings.legend.fluent,
+  advanced: strings.legend.advanced,
+  intermediate: strings.legend.intermediate,
+  beginner: strings.legend.beginner,
 }
 
-export const VISIT_LABELS: Record<VisitKind, string> = { worked: 'Worked', studied: 'Studied', visited: 'Visited' }
+export const VISIT_LABELS: Record<VisitKind, string> = { worked: strings.legend.worked, studied: strings.legend.studied, visited: strings.legend.visited }
 
 /**
  * A CSS background split into equal hard-edged bands, one per colour: one colour is a plain

@@ -4,6 +4,7 @@ import { EMAIL_MAX_LENGTH, MESSAGE_MAX_LENGTH, MESSAGE_MIN_LENGTH, NAME_MAX_LENG
 import { useSendMessageMutation } from '../../../store/api/contactApi'
 import { trackEvent } from '../../analytics'
 import { useFeature } from '../../site/useSite'
+import { strings } from '../../../strings'
 
 /** tooMany: the API's limit on messages from one address in a short while (429). */
 type Status = 'idle' | 'sent' | 'failed' | 'tooMany'
@@ -27,8 +28,8 @@ function fromApiErrors(apiErrors: Record<string, string[]>): ContactErrors {
  */
 export function ContactForm({
   topic: fixedTopic,
-  title = 'Contact me',
-  intro = "Have a question or an idea? Send me a message and I'll reply by email. All fields are required.",
+  title = strings.contactForm.contactMe,
+  intro = strings.contactForm.haveQuestionIdeaSend,
 }: {
   topic?: ContactTopic
   title?: string
@@ -118,10 +119,13 @@ export function ContactForm({
   if (status === 'sent') {
     return (
       <section className="card contact-sent" aria-labelledby={`${id}-sent`}>
-        <h2 id={`${id}-sent`}>Thank you!</h2>
-        <p role="status">Your message was sent. I'll get back to you at {sentTo}.</p>
+        <h2 id={`${id}-sent`}>{strings.contactForm.thank}</h2>
+        <p role="status">
+          {strings.contactForm.messageWasSentIll}
+          {sentTo}.
+        </p>
         <button type="button" className="button button-secondary" onClick={reset}>
-          Send another message
+          {strings.contactForm.sendAnotherMessage}
         </button>
       </section>
     )
@@ -134,33 +138,35 @@ export function ContactForm({
 
       <form className="contact-form" noValidate onSubmit={(event) => void submit(event)}>
         <div className="field">
-          <label htmlFor={`${id}-name`}>Name</label>
+          <label htmlFor={`${id}-name`}>{strings.common.name}</label>
           <input {...fieldProps('name')} type="text" autoComplete="name" maxLength={NAME_MAX_LENGTH} onChange={(e) => update('name', e.target.value)} />
           <FieldError id={`${id}-name-error`} error={errors.name} />
         </div>
 
         <div className="field">
-          <label htmlFor={`${id}-email`}>Email</label>
+          <label htmlFor={`${id}-email`}>{strings.common.email}</label>
           <input {...fieldProps('email')} type="email" autoComplete="email" maxLength={EMAIL_MAX_LENGTH} onChange={(e) => update('email', e.target.value)} />
           <FieldError id={`${id}-email-error`} error={errors.email} />
         </div>
 
         {showTopic && (
           <div className="field">
-            <label htmlFor={`${id}-topic`}>What's it about?</label>
+            <label htmlFor={`${id}-topic`}>{strings.contactForm.whatsAbout}</label>
             <select id={`${id}-topic`} className="select" value={topic} onChange={(e) => setTopic(e.target.value as ContactTopic | '')}>
-              <option value="">A question, or anything else</option>
-              <option value="project">A project: working with me</option>
+              <option value="">{strings.contactForm.questionAnythingElse}</option>
+              <option value="project">{strings.contactForm.projectWorkingMe}</option>
             </select>
           </div>
         )}
 
         <div className="field">
-          <label htmlFor={`${id}-message`}>Message</label>
+          <label htmlFor={`${id}-message`}>{strings.common.message}</label>
           <textarea {...fieldProps('message')} rows={8} maxLength={MESSAGE_MAX_LENGTH} onChange={(e) => update('message', e.target.value)} />
           <div className="field-hint" id={`${id}-message-hint`}>
             <span>
-              Between {MESSAGE_MIN_LENGTH} and {MESSAGE_MAX_LENGTH} characters.
+              {strings.contactForm.between}
+              {MESSAGE_MIN_LENGTH} {strings.contactForm.and}
+              {MESSAGE_MAX_LENGTH} {strings.contactForm.characters}
             </span>
             <span className={messageShort ? 'counter counter-short' : 'counter'}>
               {messageLength} / {MESSAGE_MAX_LENGTH}
@@ -171,22 +177,22 @@ export function ContactForm({
 
         {status === 'failed' && (
           <p role="alert" className="form-error">
-            Your message couldn't be sent. Please try again in a moment.
+            {strings.contactForm.messageCouldntSentPlease}
           </p>
         )}
         {status === 'tooMany' && (
           <p role="alert" className="form-error">
-            Several messages in a short while: please try again in a few minutes.
+            {strings.contactForm.severalMessagesShortWhile}
           </p>
         )}
 
         <div className="contact-send">
           <button type="submit" className="button" disabled={!canSend} aria-describedby={canSend || sending ? undefined : `${id}-send-hint`}>
-            {sending ? 'Sending…' : 'Send message'}
+            {sending ? strings.common.sending : strings.contactForm.sendMessage}
           </button>
           {!canSend && !sending && (
             <p className="field-hint" id={`${id}-send-hint`}>
-              Fill in every field to send it.
+              {strings.contactForm.fillEveryFieldSend}
             </p>
           )}
         </div>

@@ -3,10 +3,11 @@ import { GoogleSignInButton } from '../../features/admin/GoogleSignInButton/Goog
 import { SignInSkeleton } from '../../features/admin/SignInSkeleton/SignInSkeleton'
 import { useAuth } from '../../auth'
 import { api } from '../../services/api'
+import { strings } from '../../strings'
 
 const ERROR_MESSAGES: Record<string, string> = {
-  not_authorized: 'This Google account is not allowed to access the admin area.',
-  login_failed: 'Google sign-in was cancelled or failed. Please try again.',
+  not_authorized: strings.adminPage.googleAccountNotAllowed,
+  login_failed: strings.adminPage.googleSignWasCancelled,
 }
 
 /** The admin's sign-in (/admin): Google only; once signed in, home. Says why the last try failed. */
@@ -15,7 +16,7 @@ export function AdminPage() {
   // with.
   const { isLoading, isAuthenticated } = useAuth()
   const error = useSearchParams()[0].get('error')
-  const errorMessage = error ? (ERROR_MESSAGES[error] ?? 'Something went wrong. Please try again.') : null
+  const errorMessage = error ? (ERROR_MESSAGES[error] ?? strings.adminPage.somethingWentWrongPlease) : null
   const signInUrl = api.auth.googleLoginUrl('/')
 
   if (isAuthenticated) return <Navigate to="/" replace />
@@ -25,7 +26,7 @@ export function AdminPage() {
         <SignInSkeleton />
       ) : (
         <div className="login-card">
-          <h1>Admin sign in</h1>
+          <h1>{strings.adminPage.adminSign}</h1>
           {errorMessage && (
             <p role="alert" className="login-error">
               {errorMessage}

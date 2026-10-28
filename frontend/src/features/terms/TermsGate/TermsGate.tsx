@@ -4,9 +4,10 @@ import { useAppDispatch } from '../../../store'
 import { termsAccepted } from '../../../store/termsSlice'
 import { ConsentList } from '../ConsentList/ConsentList'
 import { useTerms } from '../useTerms'
+import { strings } from '../../../strings'
 
 /** What visitors confirm before they can use the site: everything else is in the terms themselves. */
-const CONSENTS = ['I have read and I accept the Terms and Conditions of this website.'] as const
+const CONSENTS = [strings.termsGate.iHaveReadI] as const
 
 /**
  * The welcome popup: visitors tick the box (they accept the terms), then continue. It can't be closed any other way
@@ -22,19 +23,19 @@ export function TermsGate() {
 
   return (
     <Modal labelledBy={titleId} onClose={() => {}} className="terms-gate">
-      <h2 id={titleId}>Welcome to jechel.dev</h2>
+      <h2 id={titleId}>{strings.termsGate.welcomeJechelDev}</h2>
       <p className="terms-gate-intro">
-        Before you continue, please read the{' '}
+        {strings.termsGate.beforeContinuePleaseRead}{' '}
         <button type="button" className="link-button" onClick={openTerms}>
-          Terms and Conditions
+          {strings.common.termsConditions}
         </button>{' '}
-        and confirm that you accept them.
+        {strings.termsGate.confirmAcceptThem}
       </p>
       <ConsentList consents={consents} />
       <div className="terms-gate-actions">
-        {!allTicked && <p className="terms-gate-hint">Tick the box to continue.</p>}
+        {!allTicked && <p className="terms-gate-hint">{strings.termsGate.tickBoxContinue}</p>}
         <button type="button" className="button" disabled={!allTicked} onClick={() => dispatch(termsAccepted(version))}>
-          Continue
+          {strings.termsGate.continue}
         </button>
       </div>
     </Modal>

@@ -4,6 +4,7 @@ import { move, removeAt, replaceAt, sortByEndDate } from '../../list'
 import { SortableListHeader } from '../../section/SortableListHeader/SortableListHeader'
 import { newEntry, type TimelineConfig, type TimelineEntry } from '../timeline'
 import { TimelineEntryEditor } from '../TimelineEntryEditor/TimelineEntryEditor'
+import { strings } from '../../../../strings'
 
 export interface TimelineEditorProps<T> extends EditorProps<T[]> {
   config: TimelineConfig<T>
@@ -22,8 +23,8 @@ export function TimelineEditor<T>({ config, value: items, onChange: onItemsChang
   return (
     <div className="editor-list">
       <SortableListHeader
-        sortLabel="Sort by end date"
-        sortedMessage="Sorted by end date, ongoing first. Save to keep this order, or Cancel to undo."
+        sortLabel={strings.timelineEditor.sortEndDate}
+        sortedMessage={strings.timelineEditor.sortedEndDateOngoing}
         canSort={value.length >= 2}
         sorted={sorted}
         sort={() => {
@@ -45,7 +46,10 @@ export function TimelineEditor<T>({ config, value: items, onChange: onItemsChang
         />
       ))}
       {errors[config.key] && <p className="field-error">{errors[config.key]}</p>}
-      <AddButton onClick={() => change([newEntry(config.withBullets), ...value])}>Add {config.itemName}</AddButton>
+      <AddButton onClick={() => change([newEntry(config.withBullets), ...value])}>
+        {strings.timelineEditor.add}
+        {config.itemName}
+      </AddButton>
     </div>
   )
 }

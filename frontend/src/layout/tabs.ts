@@ -1,4 +1,5 @@
 import type { SitePage } from '../services/api'
+import { strings } from '../strings'
 
 export interface Tab {
   to: string
@@ -17,22 +18,22 @@ export interface Tab {
 
 /** The admin's pages, under System: each at its own address, with System's navigation above it. */
 export const SYSTEM_PAGES: readonly Tab[] = [
-  { to: '/engagement', label: 'Engagement', adminOnly: true },
-  { to: '/community', label: 'Community', adminOnly: true },
-  { to: '/notifications', label: 'Notifications', adminOnly: true },
-  { to: '/terms', label: 'Terms', adminOnly: true },
-  { to: '/settings', label: 'Settings', adminOnly: true },
-  { to: '/features', label: 'Feature Testing', badge: 'BETA', adminOnly: true, nested: true },
+  { to: '/engagement', label: strings.tabs.engagement, adminOnly: true },
+  { to: '/community', label: strings.tabs.community, adminOnly: true },
+  { to: '/notifications', label: strings.tabs.notifications, adminOnly: true },
+  { to: '/terms', label: strings.tabs.terms, adminOnly: true },
+  { to: '/settings', label: strings.tabs.settings, adminOnly: true },
+  { to: '/features', label: strings.tabs.featureTesting, badge: 'BETA', adminOnly: true, nested: true },
 ]
 
 /** The site's sections, in tab order. Each is a route rendered inside <AppLayout>. */
 export const TABS: readonly Tab[] = [
-  { to: '/', label: "What's new?", page: 'whatsNew' },
-  { to: '/apps', label: 'Apps', page: 'apps' },
+  { to: '/', label: strings.common.whatsNew, page: 'whatsNew' },
+  { to: '/apps', label: strings.common.apps, page: 'apps' },
   { to: '/youtube', label: 'YouTube', page: 'youtube' },
-  { to: '/about', label: 'About Me', page: 'about' },
-  { to: '/contact', label: 'Contact', page: 'contact' },
-  { to: '/system', label: 'System', adminOnly: true, sections: SYSTEM_PAGES },
+  { to: '/about', label: strings.common.aboutMe, page: 'about' },
+  { to: '/contact', label: strings.tabs.contact, page: 'contact' },
+  { to: '/system', label: strings.tabs.system, adminOnly: true, sections: SYSTEM_PAGES },
 ]
 
 /** Whether the tab is the one on show at that path: its own page, the pages under it (nested), or one it groups. */

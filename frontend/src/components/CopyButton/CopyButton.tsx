@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ClipboardCheckIcon, ClipboardIcon, ClipboardXIcon } from '../icons/icons'
+import { strings } from '../../strings'
 
 const FEEDBACK_MS = 2000
 
@@ -24,11 +25,11 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
     }
   }
 
-  const tooltip = state === 'copied' ? 'Copied!' : state === 'failed' ? "Couldn't copy" : `Copy ${label} to clipboard`
-  const announcement = state === 'copied' ? `${label} copied` : state === 'failed' ? `Couldn't copy ${label}` : ''
+  const tooltip = state === 'copied' ? strings.copyButton.copied : state === 'failed' ? strings.copyButton.couldntCopy : strings.copyButton.copyClipboard(label)
+  const announcement = state === 'copied' ? strings.copyButton.copied2(label) : state === 'failed' ? strings.copyButton.couldntCopy2(label) : ''
 
   return (
-    <button type="button" className={`icon-button copy-button copy-button-${state}`} onClick={() => void copy()} aria-label={`Copy ${label}`} title={tooltip}>
+    <button type="button" className={`icon-button copy-button copy-button-${state}`} onClick={() => void copy()} aria-label={strings.copyButton.copy(label)} title={tooltip}>
       {state === 'copied' ? <ClipboardCheckIcon /> : state === 'failed' ? <ClipboardXIcon /> : <ClipboardIcon />}
       <span className="visually-hidden" role="status">
         {announcement}

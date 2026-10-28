@@ -1,6 +1,7 @@
 import type { Licence, LicenceCategory } from '../../../../services/api'
 import { LicenceCategoryIcon } from '../LicenceCategoryIcon/LicenceCategoryIcon'
 import { LicenceLabel } from '../LicenceLabel/LicenceLabel'
+import { strings } from '../../../../strings'
 
 /** One kind of licence (Driving, Flying…), titled with its icon, and its licences as chips. */
 export function LicenceGroup({ category, label, licences }: { category: LicenceCategory; label: string; licences: Licence[] }) {
@@ -10,7 +11,7 @@ export function LicenceGroup({ category, label, licences }: { category: LicenceC
         <LicenceCategoryIcon category={category} size={18} />
         {label}
       </h3>
-      <ul className="chips" aria-label={`${label} licences`}>
+      <ul className="chips" aria-label={strings.licenceGroup.licences(label)}>
         {licences.map((licence, i) => (
           <li key={i} className="chip licence-chip">
             <LicenceLabel code={licence.code} name={licence.name} />

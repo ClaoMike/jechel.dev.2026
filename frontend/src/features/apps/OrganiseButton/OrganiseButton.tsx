@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { OrganiseDialog } from '../OrganiseDialog/OrganiseDialog'
+import { strings } from '../../../strings'
 
 /** The admin's Organise button above the Apps grid, and the popup it opens to order the apps. */
 export function OrganiseButton() {
@@ -8,7 +9,7 @@ export function OrganiseButton() {
   return (
     <>
       <button type="button" className="button button-secondary button-small" onClick={() => setOrganising(true)}>
-        Organise
+        {strings.organiseButton.organise}
       </button>
       {organising && <OrganiseDialog onClose={() => setOrganising(false)} />}
     </>

@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { ItemControls, MonthField, TextField, type FieldErrors } from '../../../../components/fields'
 import { BulletsEditor } from '../../section/BulletsEditor/BulletsEditor'
 import type { TimelineConfig, TimelineEntry } from '../timeline'
+import { strings } from '../../../../strings'
 
 export interface TimelineEntryEditorProps<T> {
   config: TimelineConfig<T>
@@ -41,22 +42,22 @@ export function TimelineEntryEditor<T>({ config, index, count, entry, errors, on
           error={errorAt(config.organizationKey)}
           allowLinks
         />
-        <TextField label="Location (optional)" value={entry.location} onChange={(location) => set({ location })} error={errorAt('location')} allowLinks />
+        <TextField label={strings.timelineEntryEditor.locationOptional} value={entry.location} onChange={(location) => set({ location })} error={errorAt('location')} allowLinks />
       </div>
       <div className="editor-period">
-        <MonthField label="Start" value={entry.start} onChange={(start) => set({ start })} error={errorAt('start')} />
-        {entry.end !== null && <MonthField label="End" value={entry.end} onChange={(end) => set({ end })} error={errorAt('end')} />}
+        <MonthField label={strings.timelineEntryEditor.start} value={entry.start} onChange={(start) => set({ start })} error={errorAt('start')} />
+        {entry.end !== null && <MonthField label={strings.timelineEntryEditor.end} value={entry.end} onChange={(end) => set({ end })} error={errorAt('end')} />}
         <div className="checkbox-field">
           {/* Unticking "Ongoing" ends it where it started; the admin moves the end from there. */}
           <input id={ongoingId} type="checkbox" checked={entry.end === null} onChange={(e) => set({ end: e.target.checked ? null : entry.start })} />
-          <label htmlFor={ongoingId}>Ongoing (no end date)</label>
+          <label htmlFor={ongoingId}>{strings.timelineEntryEditor.ongoingNoEndDate}</label>
         </div>
       </div>
       {entry.bullets && (
         <div className="editor-bullets">
-          <span className="field-label">What you did</span>
+          <span className="field-label">{strings.timelineEntryEditor.whatDid}</span>
           <BulletsEditor
-            itemName="bullet point"
+            itemName={strings.common.bulletPoint}
             value={entry.bullets}
             onChange={(bullets) => set({ bullets })}
             errorFor={(i) => errors[`${prefix}.bullets[${i}]`]}

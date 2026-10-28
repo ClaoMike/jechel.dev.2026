@@ -7,6 +7,7 @@ import { TermsDocumentView } from '../TermsDocumentView/TermsDocumentView'
 import { useAppDispatch } from '../../../store'
 import { termsClosed } from '../../../store/termsSlice'
 import { useTerms } from '../useTerms'
+import { strings } from '../../../strings'
 
 /** The terms in a popup, closed with × (or Escape, or a click outside). It sits above every other popup, the welcome one included. */
 export function TermsDialog() {
@@ -26,13 +27,13 @@ export function TermsDialog() {
   return (
     <Modal labelledBy={titleId} initialFocus={closeRef} onClose={close} className="modal-wide terms-modal">
       <div className="modal-header">
-        <h2 id={titleId}>{state.status === 'loaded' ? state.data.title : 'Terms and Conditions'}</h2>
-        <button ref={closeRef} type="button" className="icon-button" onClick={close} aria-label="Close">
+        <h2 id={titleId}>{state.status === 'loaded' ? state.data.title : strings.common.termsConditions}</h2>
+        <button ref={closeRef} type="button" className="icon-button" onClick={close} aria-label={strings.common.close}>
           <span aria-hidden="true">×</span>
         </button>
       </div>
       {state.status === 'loading' && <TermsSkeleton />}
-      {state.status === 'error' && <ErrorState message="The terms couldn't be loaded." onRetry={reload} />}
+      {state.status === 'error' && <ErrorState message={strings.termsDialog.termsCouldntLoaded} onRetry={reload} />}
       {state.status === 'loaded' && <TermsDocumentView terms={state.data} hideTitle />}
     </Modal>
   )

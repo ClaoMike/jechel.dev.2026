@@ -7,6 +7,7 @@ import { describeDevice, formatDuration } from '../format'
 import { VisitDialog } from '../VisitDialog/VisitDialog'
 import { useDeleteVisitMutation, useListVisitsQuery } from '../../../store/api/analyticsApi'
 import { usePagedQuery } from '../../../store/usePagedQuery'
+import { strings } from '../../../strings'
 
 const VISITS_PAGE_SIZE = 20
 
@@ -27,7 +28,7 @@ export function VisitsTable() {
   return (
     <section className="card visits" aria-labelledby="visits-title">
       <div className="engagement-card-header">
-        <h3 id="visits-title">Visits</h3>
+        <h3 id="visits-title">{strings.common.visits}</h3>
         <label className="visits-filter">
           <input
             type="checkbox"
@@ -37,31 +38,31 @@ export function VisitsTable() {
               setPage(1)
             }}
           />
-          Only visits with errors
+          {strings.visitsTable.onlyVisitsErrors}
         </label>
       </div>
 
       {state.status === 'loading' && (
-        <Loading label="Loading visits…">
+        <Loading label={strings.visitsTable.loadingVisits}>
           <SkeletonTable rows={6} columns={5} />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="Visits couldn't be loaded." onRetry={retry} />}
-      {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">{errorsOnly ? 'No visit has hit an error.' : 'No visits yet.'}</p>}
+      {state.status === 'error' && <ErrorState message={strings.visitsTable.visitsCouldntLoaded} onRetry={retry} />}
+      {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">{errorsOnly ? strings.visitsTable.noVisitHasHit : strings.visitsTable.noVisitsYet}</p>}
 
       {state.status === 'loaded' && state.data.items.length > 0 && (
         <>
-          <div className="table-scroll" role="region" aria-label="Visits table" tabIndex={0}>
+          <div className="table-scroll" role="region" aria-label={strings.visitsTable.visitsTable} tabIndex={0}>
             <table className="messages-table visits-table">
               <thead>
                 <tr>
-                  <th scope="col">Started</th>
-                  <th scope="col">Length</th>
-                  <th scope="col">Pages</th>
-                  <th scope="col">Device</th>
-                  <th scope="col">Entry page</th>
-                  <th scope="col">From</th>
-                  <th scope="col">Errors</th>
+                  <th scope="col">{strings.visitsTable.started}</th>
+                  <th scope="col">{strings.visitsTable.length}</th>
+                  <th scope="col">{strings.visitsTable.pages}</th>
+                  <th scope="col">{strings.visitsTable.device}</th>
+                  <th scope="col">{strings.visitsTable.entryPage}</th>
+                  <th scope="col">{strings.common.from}</th>
+                  <th scope="col">{strings.common.errors}</th>
                 </tr>
               </thead>
               <tbody>
@@ -82,7 +83,7 @@ export function VisitsTable() {
                     <td>{visit.pageViews}</td>
                     <td>{describeDevice(visit)}</td>
                     <td className="visits-path">{visit.entryPath}</td>
-                    <td>{visit.referrerHost ?? 'Direct'}</td>
+                    <td>{visit.referrerHost ?? strings.visitsTable.direct}</td>
                     <td>{visit.errorCount > 0 ? <span className="error-badge">{visit.errorCount}</span> : <span className="muted">0</span>}</td>
                   </tr>
                 ))}

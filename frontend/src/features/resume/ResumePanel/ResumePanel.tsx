@@ -7,20 +7,21 @@ import { api, RESUME_SECTIONS, type ResumeChoices, type ResumeSection } from '..
 import { useGenerateResumeMutation, useGetResumeSettingsQuery, useSaveResumeChoicesMutation } from '../../../store/api/resumeApi'
 import { toLoadable } from '../../../store/loadable'
 import { formatDateTime } from '../../../utils/formatDate'
+import { strings } from '../../../strings'
 
 const SECTION_LABELS: Record<ResumeSection, string> = {
-  statuses: 'Citizenship and residence',
-  links: 'Links (this site, GitHub, LinkedIn)',
-  experience: 'Work experience',
-  skills: 'Skills',
-  education: 'Education',
-  qualifications: 'Qualifications',
-  papers: 'Academic papers',
-  hackathons: 'Hackathons',
-  problemSolving: 'Problem solving (LeetCode, NeetCode)',
-  languages: 'Languages',
-  licences: 'Licences',
-  places: "Where I've been (as a list)",
+  statuses: strings.common.citizenshipResidence,
+  links: strings.resumePanel.linksSiteGithubLinkedin,
+  experience: strings.common.workExperience,
+  skills: strings.common.skills,
+  education: strings.common.education,
+  qualifications: strings.common.qualifications,
+  papers: strings.common.academicPapers,
+  hackathons: strings.common.hackathons,
+  problemSolving: strings.resumePanel.problemSolvingLeetcodeNeetcode,
+  languages: strings.common.languages,
+  licences: strings.common.licences,
+  places: strings.resumePanel.whereIveBeenList,
 }
 
 /** Skill names match whatever their case, like on the API. */
@@ -56,9 +57,9 @@ export function ResumePanel({ skills }: { skills: string[] }) {
     try {
       await (kind === 'generating' ? generateResume(draft) : saveChoices(draft)).unwrap()
       setChanged(null)
-      setMessage(kind === 'generating' ? 'Both résumés are ready. Visitors now download the public copy.' : 'Saved.')
+      setMessage(kind === 'generating' ? strings.resumePanel.bothRSumS : strings.common.saved)
     } catch {
-      setMessage(kind === 'generating' ? "The résumés couldn't be generated. Please try again." : "That couldn't be saved. Please try again.")
+      setMessage(kind === 'generating' ? strings.resumePanel.rSumSCouldnt : strings.common.couldntSavedPleaseTry)
     } finally {
       setBusy(null)
     }
@@ -68,16 +69,16 @@ export function ResumePanel({ skills }: { skills: string[] }) {
   const version = generatedAt ? `?v=${Date.parse(generatedAt)}` : ''
   const status = state.status
   const retry = () => void query.refetch()
-  const errorMessage = "The résumé settings couldn't be loaded."
+  const errorMessage = strings.resumePanel.rSumSettingsCouldnt
   const sectionLabel = (section: ResumeSection) => SECTION_LABELS[section]
   const setSections = (sections: ResumeSection[]) => draft && setChanged({ ...draft, sections })
   const showSkills = !!draft && draft.sections.includes('skills') && skills.length > 0
   const shownSkills = draft ? skills.filter((skill) => !draft.excludedSkills.some((excluded) => sameSkill(excluded, skill))) : []
   const setShownSkills = (shown: string[]) => draft && setChanged({ ...draft, excludedSkills: skills.filter((skill) => !shown.includes(skill)) })
-  const generateLabel = busy === 'generating' ? 'Generating…' : 'Generate résumés'
-  const saveLabel = busy === 'saving' ? 'Saving…' : 'Save without generating'
+  const generateLabel = busy === 'generating' ? strings.resumePanel.generating : strings.resumePanel.generateRSumS
+  const saveLabel = busy === 'saving' ? strings.common.saving : strings.resumePanel.saveWithoutGenerating
   const save = () => void run('saving')
-  const generated = generatedAt ? `Last generated ${formatDateTime(generatedAt)}.` : null
+  const generated = generatedAt ? strings.resumePanel.lastGenerated(formatDateTime(generatedAt)) : null
   const skillLabel = (skill: string) => skill
   const privateUrl = `${api.resume.privateUrl}${version}`
   const publicUrl = `${api.resume.publicUrl}${version}`
@@ -85,8 +86,8 @@ export function ResumePanel({ skills }: { skills: string[] }) {
   return (
     <details className="card resume-panel">
       <summary>
-        <span className="resume-panel-title">Résumé generator</span>
-        <span className="muted"> · only you see this</span>
+        <span className="resume-panel-title">{strings.resumePanel.rSumGenerator}</span>
+        <span className="muted"> {strings.resumePanel.onlySee}</span>
       </summary>
 
       {status === 'loading' && <ResumeSkeleton />}
@@ -99,8 +100,8 @@ export function ResumePanel({ skills }: { skills: string[] }) {
             void run('generating')
           }}
         >
-          <CheckboxGroup label="Sections to include" options={RESUME_SECTIONS} value={draft.sections} onChange={setSections} labelFor={sectionLabel} />
-          {showSkills && <CheckboxGroup label="Skills to show" options={skills} value={shownSkills} onChange={setShownSkills} labelFor={skillLabel} />}
+          <CheckboxGroup label={strings.resumePanel.sectionsInclude} options={RESUME_SECTIONS} value={draft.sections} onChange={setSections} labelFor={sectionLabel} />
+          {showSkills && <CheckboxGroup label={strings.resumePanel.skillsShow} options={skills} value={shownSkills} onChange={setShownSkills} labelFor={skillLabel} />}
 
           <div className="resume-actions">
             <button type="submit" className="button" disabled={busy !== null}>

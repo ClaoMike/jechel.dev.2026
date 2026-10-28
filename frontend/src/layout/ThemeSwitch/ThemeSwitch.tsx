@@ -4,8 +4,9 @@ import { ViceMark } from '../../components/ViceMark'
 import { useAppDispatch, useAppSelector } from '../../store'
 import { themeChosen } from '../../store/themeSlice'
 import { THEMES, type Theme } from '../theme'
+import { strings } from '../../strings'
 
-const LABELS: Record<Theme, string> = { dark: 'Dark mode', light: 'Light mode', vice: 'Vice mode' }
+const LABELS: Record<Theme, string> = { dark: strings.themeSwitch.darkMode, light: strings.themeSwitch.lightMode, vice: strings.themeSwitch.viceMode }
 
 const ICONS: Record<Theme, ReactNode> = {
   dark: <MoonIcon size={16} />,
@@ -26,7 +27,7 @@ export function ThemeSwitch() {
 
   return (
     <fieldset className="theme-switch" style={{ '--theme-index': THEMES.indexOf(theme) } as CSSProperties}>
-      <legend className="visually-hidden">Theme</legend>
+      <legend className="visually-hidden">{strings.themeSwitch.theme}</legend>
       <span className="theme-switch-thumb" aria-hidden="true" />
       {THEMES.map((option) => (
         <label key={option} className="theme-switch-option" title={LABELS[option]} data-theme-option={option} data-picked={(picked === option && theme === option) || undefined}>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { strings } from '../../strings'
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -81,7 +82,7 @@ export function Modal({ labelledBy, initialFocus, onClose, className, dismissibl
         if (dismissible && event.target === event.currentTarget) onClose()
       }}
     >
-      <div ref={dialogRef} className={className ? `modal ${className}` : 'modal'} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}>
+      <div ref={dialogRef} className={className ? strings.modal.modal(className) : 'modal'} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}>
         {/* What scrolls when it's taller than the screen: the frame (and its glass rim) stays put. */}
         <div className="modal-body">{children}</div>
       </div>

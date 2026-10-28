@@ -5,12 +5,13 @@ import { VideoTile } from '../../features/youtube/VideoTile/VideoTile'
 import { useListVideosQuery, usePrefetchVideos } from '../../store/api/appsApi'
 import { useAuth } from '../../auth'
 import type { YouTubeVideo } from '../../services/api'
+import { strings } from '../../strings'
 
 const TEXTS: PagedGridTexts = {
-  label: 'Videos',
-  loading: 'Loading videos…',
-  empty: 'No videos yet.',
-  error: "The videos can't be loaded right now.",
+  label: strings.youTubePage.videos,
+  loading: strings.youTubePage.loadingVideos,
+  empty: strings.youTubePage.noVideosYet,
+  error: strings.youTubePage.videosCantLoadedRight,
 }
 
 /** My YouTube videos, newest first, nine a page, after a button to the channel (and the admin's refresh, across from it). Each opens on YouTube in a new tab. */
@@ -20,9 +21,9 @@ export function YouTubePage() {
   const tileProps = {}
 
   return (
-    <section className="youtube" aria-label="YouTube">
+    <section className="youtube" aria-label={strings.youTubePage.youtube}>
       <div className="youtube-channel">
-        <YouTubeChannelButton label="Visit my YouTube page" />
+        <YouTubeChannelButton label={strings.youTubePage.visitMyYoutubePage} />
         {isAuthenticated && <RefreshVideosButton />}
       </div>
       <PagedGrid useItems={useListVideosQuery} usePrefetchItems={usePrefetchVideos} itemKey={itemKey} texts={TEXTS} Tile={VideoTile} tileProps={tileProps} />

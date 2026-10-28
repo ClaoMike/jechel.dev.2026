@@ -4,6 +4,7 @@ import { CarouselControls } from '../CarouselControls/CarouselControls'
 import { MediaSlide } from '../MediaSlide/MediaSlide'
 import { motionAllowed } from '../../../utils/motion'
 import { trackEvent } from '../../analytics'
+import { strings } from '../../../strings'
 
 /** How long an arrow's scroll may take to arrive before the track's own position counts again. */
 export const ARRIVAL_TIMEOUT_MS = 1000
@@ -56,11 +57,11 @@ export function MediaCarousel({ media, title }: { media: AppMedia[]; title: stri
   }
   const slides = media.map((item, i) => ({
     key: `${item.url}-${i}`,
-    position: `${i + 1} of ${media.length}`,
+    position: strings.mediaCarousel.of(i + 1, media.length),
     item,
     index: i,
     active: i === index,
-    label: `${title}, ${item.kind === 'image' ? 'image' : 'video'} ${i + 1} of ${media.length}`,
+    label: strings.mediaCarousel.slideLabel(title, item.kind === 'image', i + 1, media.length),
     show: () => goTo(i),
   }))
   // Swiping or scrolling the track itself. Only where it rests on a slide, so the slides passed on the
@@ -91,17 +92,17 @@ export function MediaCarousel({ media, title }: { media: AppMedia[]; title: stri
   if (slides.length === 0) return null
 
   return (
-    <section className="carousel" aria-roledescription="carousel" aria-label={`${title}: images and videos`}>
-      <div ref={track} className="carousel-track" onScroll={onScroll} onKeyDown={onKeyDown} tabIndex={0} aria-label="Use the arrow keys to move between slides">
+    <section className="carousel" aria-roledescription={strings.mediaCarousel.carousel} aria-label={strings.mediaCarousel.imagesVideos(title)}>
+      <div ref={track} className="carousel-track" onScroll={onScroll} onKeyDown={onKeyDown} tabIndex={0} aria-label={strings.mediaCarousel.useArrowKeysMove}>
         {slides.map(({ key, position, ...slide }) => (
-          <div key={key} className="carousel-slide" role="group" aria-roledescription="slide" aria-label={position}>
+          <div key={key} className="carousel-slide" role="group" aria-roledescription={strings.mediaCarousel.slide} aria-label={position}>
             <MediaSlide {...slide} />
           </div>
         ))}
       </div>
       {media.length > 1 && (
         <CarouselControls
-          dots={media.map((_, i) => ({ key: i, label: `Show ${i + 1} of ${media.length}`, current: i === index, show: () => goTo(i) }))}
+          dots={media.map((_, i) => ({ key: i, label: strings.mediaCarousel.show(i + 1, media.length), current: i === index, show: () => goTo(i) }))}
           count={`${index + 1} / ${media.length}`}
           canGoBack={index > 0}
           canGoOn={index < media.length - 1}

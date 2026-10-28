@@ -20,8 +20,9 @@ import { useGetAboutQuery, useUpdateAboutMutation } from '../../store/api/aboutA
 import { useGetYouTubeChannelQuery } from '../../store/api/appsApi'
 import { useGetResumeHeadlineQuery, useGetResumeSettingsQuery, useSaveResumeContactMutation } from '../../store/api/resumeApi'
 import { toLoadable } from '../../store/loadable'
+import { strings } from '../../strings'
 
-const TEXTS = { heading: 'About Me', loading: 'Loading About Me…', error: "This page couldn't be loaded." }
+const TEXTS = { heading: strings.common.aboutMe, loading: strings.aboutPage.loadingAboutMe, error: strings.aboutPage.pageCouldntLoaded }
 
 /**
  * About Me: photo and links, where I've been, problem solving (LeetCode, NeetCode), skills, work experience, education, papers,
