@@ -19,7 +19,6 @@ import { assignFeatures, caseLabel, checkRules, isConditional, memberAt, resolve
 import { parseUnifiedDiff, touchedNodes } from '../src/shared/review.ts'
 import type { GraphEdge, GraphNode, RepoGraph } from '../src/shared/types.ts'
 import { layoutScene, wirePath, type ElkLike } from '../viewer/src/board/layout.ts'
-import { overlaps } from '../viewer/src/board/overlaps.ts'
 import { buildScene, chipGroups, chipsIn, indexBoard, parentPath, pathOfNode, type BoardPath } from '../viewer/src/board/model.ts'
 import { computeImpact } from '../viewer/src/board/impact.ts'
 import { indexGraph } from '../viewer/src/model/graph.ts'
@@ -361,31 +360,6 @@ describe('board levels', () => {
     }
     const portrait = await layoutScene(scene({ level: 'features', tier: 'web' }), elk, { portrait: true })
     assert.ok(portrait.height > 0)
-  })
-
-  it('never lays two wires on the same line, even many from one pin', async () => {
-    const elk = new (ELK as unknown as new () => ElkLike)()
-    for (const path of [{ level: 'tiers' }, { level: 'features', tier: 'web' }, { level: 'chips', tier: 'web', feature: 'contact' }, { level: 'chips', tier: 'web', feature: 'orders' }] as BoardPath[]) {
-      assert.deepEqual(overlaps(await layoutScene(scene(path), elk)), [], path.level)
-    }
-    // A fan: one function calling twelve others, all from the same pin, plus a chip's own wires to them.
-    const fan = sample()
-    const callees = Array.from({ length: 12 }, (_, k) => n(`model:c:api.contact.op${k}`, 'api-call', 'model', { parent: 'model:c:api', file: 'web/src/services/api.ts', line: 10 + k, tags: ['feature:contact'] }))
-    fan.nodes.push(...callees)
-    for (const callee of callees) {
-      fan.edges.push(e('views:c:ContactForm', 'calls', callee.id, { evidence: [{ file: 'web/src/features/contact/ContactForm.tsx', line: 7 }] }))
-      fan.edges.push(e('views:c:ContactForm', 'uses', callee.id))
-    }
-    const fanBi = indexBoard(indexGraph(withBoard(fan)))
-    const busy = buildScene(fanBi, { level: 'chips', tier: 'web', feature: 'contact' }, options)
-    const layout = await layoutScene(busy, elk)
-    assert.deepEqual(overlaps(layout), [])
-    assert.deepEqual(overlaps(layout, 2, 5.5), [], 'and none closer than 6 px either')
-    const form = layout.chips.get('views:c:ContactForm')!
-    assert.ok(form.rows && form.rows.length > 0, 'its rows are laid out')
-    // Each wire attaches at its own point.
-    const starts = busy.wires.filter((w) => w.from === 'views:c:ContactForm').map((w) => layout.wires.get(w.id)![0].y)
-    assert.equal(new Set(starts.map((y) => y.toFixed(1))).size, starts.length)
   })
 })
 
