@@ -11,7 +11,7 @@ import { serverInfo } from '../model/server.ts'
 import { useViewer } from '../model/store.ts'
 import { Icon } from '../ui/icons.tsx'
 import { BoardPanel } from './BoardPanel.tsx'
-import { chipSize, HEADER, layoutScene, PIN_ROW, pinY, wirePath, type BoardLayout, type ChipBox } from './layout.ts'
+import { chipSize, HEADER, layoutScene, pinY, wirePath, type BoardLayout, type ChipBox } from './layout.ts'
 import { buildScene, indexBoard, parentPath, pathTrail, type BoardChip, type BoardScene, type BoardWire } from './model.ts'
 import { useBoard, type AiJob } from './store.ts'
 
@@ -504,7 +504,7 @@ function Chip({ chip, box, single, selected, dim, focused, onKeyDown }: ChipProp
     const arrowLeft = chip.side === 'out'
     return (
       <g {...common}>
-        <rect className="connector-body" width={box.w} height={box.h} rx={Math.min(box.h / 2, 20)} style={{ stroke: chip.color }} />
+        <rect className="connector-body" width={box.w} height={box.h} rx={box.h / 2} style={{ stroke: chip.color }} />
         <text className="connector-arrow" x={arrowLeft ? 14 : box.w - 14} y={box.h / 2 + 4} textAnchor="middle" aria-hidden="true">
           ▸
         </text>
@@ -524,7 +524,7 @@ function Chip({ chip, box, single, selected, dim, focused, onKeyDown }: ChipProp
   if (chip.kind === 'state') {
     return (
       <g {...common}>
-        <rect className="state-body" width={box.w} height={box.h} rx={Math.min(box.h / 2, 26)} />
+        <rect className="state-body" width={box.w} height={box.h} rx={box.h / 2} />
         <text className="state-caption" x={18} y={17}>
           STATE
         </text>
@@ -536,7 +536,7 @@ function Chip({ chip, box, single, selected, dim, focused, onKeyDown }: ChipProp
             {truncate(chip.sub, Math.floor((box.w - 30) / 5.8))}
           </text>
         )}
-        <rect className="chip-focus-ring" x={-4} y={-4} width={box.w + 8} height={box.h + 8} rx={Math.min(box.h / 2, 26) + 4} />
+        <rect className="chip-focus-ring" x={-4} y={-4} width={box.w + 8} height={box.h + 8} rx={box.h / 2 + 4} />
       </g>
     )
   }
@@ -600,9 +600,9 @@ function Chip({ chip, box, single, selected, dim, focused, onKeyDown }: ChipProp
           {truncate(chip.sub, Math.floor((width - 30) / 6))}
         </text>
       )}
-      <line className="chip-rule" x1={8} x2={box.w - 8} y1={(box.header ?? HEADER) - 4} y2={(box.header ?? HEADER) - 4} />
+      <line className="chip-rule" x1={8} x2={box.w - 8} y1={HEADER - 4} y2={HEADER - 4} />
       {chip.pins.map((pin, k) => {
-        const y = box.rows?.[k] ?? pinY(k)
+        const y = pinY(k)
         const color = pin.member ? (MEMBER_COLORS[pin.kind] ?? '#94a3b8') : '#e2e8f0'
         return (
           <g key={pin.id} className={`pin${pin.in || pin.out ? ' wired' : ''}`} data-pin={pin.id}>
@@ -621,7 +621,7 @@ function Chip({ chip, box, single, selected, dim, focused, onKeyDown }: ChipProp
         )
       })}
       {chip.morePins ? (
-        <text className="chip-more" x={24} y={(box.rows?.length ? box.h - 10 - PIN_ROW / 2 : pinY(chip.pins.length)) + 4}>
+        <text className="chip-more" x={24} y={pinY(chip.pins.length) + 4}>
           + {chip.morePins} more inside
         </text>
       ) : null}

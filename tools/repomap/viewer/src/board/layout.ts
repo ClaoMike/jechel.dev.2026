@@ -4,10 +4,6 @@
  */
 import type { ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api.js'
 import type { BoardChip, BoardScene } from './model.ts'
-import { nudge, overlaps } from './overlaps.ts'
-
-/** Wires running side by side closer than this read as one: the layout keeps them apart. */
-const SEPARATE = 5.5
 
 export interface Point {
   x: number
@@ -19,9 +15,6 @@ export interface ChipBox {
   y: number
   w: number
   h: number
-  /** Code chips: where the header ends and each pin's row is (centres); rows grow with the wires on them. */
-  header?: number
-  rows?: number[]
 }
 
 export interface BoardLayout {
@@ -69,64 +62,14 @@ export function pinY(index: number): number {
   return HEADER + index * PIN_ROW + PIN_ROW / 2
 }
 
+const portId = (chip: string, pin: string | undefined, end: 'in' | 'out') => `${chip}::${pin ?? ''}::${end}`
+
 /** `portrait`: a tall screen (a phone): boards without pins flow downwards and pack tall. */
 export interface LayoutHints {
   portrait?: boolean
 }
 
-/** Room each wire gets where it meets a chip: wires never share an attachment point, so they never run together. */
-const WIRE_GAP = 9
-/** On a pin's row: tighter, as they fan out right away. */
-const PIN_GAP = 8
-
-const wirePort = (wire: string, end: 'in' | 'out') => `${wire}::${end}`
-
-/** Where a chip side's wires attach, grouped by the pin they belong to (`''`: the chip itself). */
-type Ends = Map<string, { wire: string; end: 'in' | 'out' }[]>
-
-/** Each wire end's position along its side, for ordering: the other end's place in a first layout. */
-type Order = Map<string, number>
-
-function endsOf(scene: BoardScene): Map<string, Ends> {
-  const byChip = new Map<string, Ends>()
-  const add = (chip: string, pin: string | undefined, end: 'in' | 'out', wire: string) => {
-    const ends = byChip.get(chip) ?? new Map()
-    byChip.set(chip, ends)
-    const key = `${pin ?? ''}::${end}`
-    const list = ends.get(key) ?? []
-    ends.set(key, list)
-    list.push({ wire, end })
-  }
-  for (const wire of scene.wires) {
-    add(wire.from, wire.fromPin, 'out', wire.id)
-    add(wire.to, wire.toPin, 'in', wire.id)
-  }
-  return byChip
-}
-
-/** A code chip's rows: the header, then each pin's (centre and height), tall enough for the wires on it. */
-export function rowsOf(chip: BoardChip, wiresOn: (pin: string) => number): { header: number; rows: number[]; spans: number[]; height: number } {
-  const header = Math.max(HEADER, wiresOn('') * WIRE_GAP + 16)
-  const rows: number[] = []
-  const spans: number[] = []
-  let y = header
-  for (const pin of chip.pins) {
-    const span = Math.max(PIN_ROW, wiresOn(pin.id) * PIN_GAP + 4)
-    rows.push(y + span / 2)
-    spans.push(span)
-    y += span
-  }
-  return { header, rows, spans, height: y + (chip.morePins ? PIN_ROW : 0) + PAD }
-}
-
-/** Spreads `count` points evenly over [from, to]; one sits in the middle. */
-function spread(count: number, from: number, to: number): number[] {
-  if (count === 1) return [(from + to) / 2]
-  const step = (to - from) / (count - 1)
-  return Array.from({ length: count }, (_, k) => from + k * step)
-}
-
-export function elkGraph(scene: BoardScene, hints: LayoutHints = {}, order?: Order, nodeSpacing = 30): ElkNode {
+export function elkGraph(scene: BoardScene, hints: LayoutHints = {}): ElkNode {
   const pinless = scene.chips.every((c) => c.kind !== 'node')
   const direction = hints.portrait && pinless && scene.path.level !== 'app' ? 'DOWN' : scene.direction
   const down = direction === 'DOWN'
@@ -134,42 +77,26 @@ export function elkGraph(scene: BoardScene, hints: LayoutHints = {}, order?: Ord
   const partitions = new Set(scene.chips.filter((c) => c.kind !== 'connector').map((c) => c.partition ?? 0))
   const partitioned = partitions.size > 1
   const maxPartition = Math.max(0, ...partitions)
-  const ends = endsOf(scene)
   const children: ElkNode[] = scene.chips.map((chip) => {
-    const size = chipSize(chip, single && chip.kind === 'node')
-    const chipEnds: Ends = ends.get(chip.id) ?? new Map()
-    const count = (pin: string) => Math.max(chipEnds.get(`${pin}::in`)?.length ?? 0, chipEnds.get(`${pin}::out`)?.length ?? 0)
-    let { w, h } = size
-    // A code chip's header and pin rows grow to give every wire on them its own place; a chip without pins grows too.
-    const geometry = chip.kind === 'node' && !down ? rowsOf(chip, count) : undefined
-    if (geometry) h = geometry.height
-    else if (chip.kind !== 'node') {
-      const most = Math.max(0, ...[...chipEnds.values()].map((list) => list.length))
-      if (down) w = Math.max(w, most * WIRE_GAP + 16)
-      else h = Math.max(h, most * WIRE_GAP + 16)
-    }
+    const { w, h } = chipSize(chip, single && chip.kind === 'node')
     const ports: ElkPort[] = []
-    for (const [key, list] of chipEnds) {
-      const [pin, end] = key.split('::') as [string, 'in' | 'out']
-      const sorted = order ? [...list].sort((a, b) => (order.get(wirePort(a.wire, a.end)) ?? 0) - (order.get(wirePort(b.wire, b.end)) ?? 0)) : list
-      let along: number[]
-      if (down) along = spread(sorted.length, 8, w - 8)
-      else if (geometry && pin) {
-        const k = chip.pins.findIndex((p) => p.id === pin)
-        const half = (geometry.spans[k] - PIN_GAP) / 2
-        along = spread(sorted.length, geometry.rows[k] - half, geometry.rows[k] + half)
-      } else if (geometry) along = spread(sorted.length, 8, geometry.header - 8)
-      else along = spread(sorted.length, 8, h - 8)
-      sorted.forEach((item, k) =>
-        ports.push({
-          id: wirePort(item.wire, end),
-          x: down ? along[k] : end === 'in' ? 0 : w,
-          y: down ? (end === 'in' ? 0 : h) : along[k],
-          width: 1,
-          height: 1,
-          layoutOptions: { 'elk.port.side': down ? (end === 'in' ? 'NORTH' : 'SOUTH') : end === 'in' ? 'WEST' : 'EAST' },
-        }),
-      )
+    const port = (pin: string | undefined, end: 'in' | 'out', y: number) =>
+      ports.push({
+        id: portId(chip.id, pin, end),
+        x: down ? w / 2 : end === 'in' ? 0 : w,
+        y: down ? (end === 'in' ? 0 : h) : y,
+        width: 1,
+        height: 1,
+        layoutOptions: { 'elk.port.side': down ? (end === 'in' ? 'NORTH' : 'SOUTH') : end === 'in' ? 'WEST' : 'EAST' },
+      })
+    const bodyY = chip.kind === 'node' ? 22 : h / 2
+    if (chip.kind !== 'connector' || chip.side === 'out') port(undefined, 'in', bodyY)
+    if (chip.kind !== 'connector' || chip.side === 'in') port(undefined, 'out', bodyY)
+    if (chip.kind === 'node') {
+      chip.pins.forEach((pin, k) => {
+        if (pin.in) port(pin.id, 'in', pinY(k))
+        if (pin.out) port(pin.id, 'out', pinY(k))
+      })
     }
     const layoutOptions: Record<string, string> = { 'elk.portConstraints': 'FIXED_POS' }
     if (partitioned) {
@@ -178,12 +105,12 @@ export function elkGraph(scene: BoardScene, hints: LayoutHints = {}, order?: Ord
     } else if (chip.kind === 'connector') {
       layoutOptions['elk.layered.layering.layerConstraint'] = chip.side === 'in' ? 'FIRST_SEPARATE' : 'LAST_SEPARATE'
     }
-    return { id: chip.id, width: w, height: h, ports, layoutOptions, ...(geometry ? { geometry } : {}) }
+    return { id: chip.id, width: w, height: h, ports, layoutOptions }
   })
   const edges: ElkExtendedEdge[] = scene.wires.map((wire) => ({
     id: wire.id,
-    sources: [wirePort(wire.id, 'out')],
-    targets: [wirePort(wire.id, 'in')],
+    sources: [portId(wire.from, wire.fromPin, 'out')],
+    targets: [portId(wire.to, wire.toPin, 'in')],
   }))
   return {
     id: 'board',
@@ -192,11 +119,10 @@ export function elkGraph(scene: BoardScene, hints: LayoutHints = {}, order?: Ord
       'elk.direction': direction,
       'elk.edgeRouting': 'ORTHOGONAL',
       'elk.layered.spacing.nodeNodeBetweenLayers': down ? '110' : '120',
-      'elk.spacing.nodeNode': String(nodeSpacing),
-      // Wider than the thickest wire, so wires side by side never touch.
-      'elk.spacing.edgeEdge': '12',
+      'elk.spacing.nodeNode': '30',
+      'elk.spacing.edgeEdge': '7',
       'elk.spacing.edgeNode': '16',
-      'elk.layered.spacing.edgeEdgeBetweenLayers': '12',
+      'elk.layered.spacing.edgeEdgeBetweenLayers': '7',
       'elk.layered.spacing.edgeNodeBetweenLayers': '16',
       'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
       'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
@@ -211,11 +137,10 @@ export function elkGraph(scene: BoardScene, hints: LayoutHints = {}, order?: Ord
   }
 }
 
-function read(result: ElkNode): BoardLayout {
+export async function layoutScene(scene: BoardScene, elk: ElkLike, hints: LayoutHints = {}): Promise<BoardLayout> {
+  const result = await elk.layout(elkGraph(scene, hints))
   const chips = new Map<string, ChipBox>()
-  for (const child of (result.children ?? []) as (ElkNode & { geometry?: { header: number; rows: number[] } })[]) {
-    chips.set(child.id, { x: child.x ?? 0, y: child.y ?? 0, w: child.width ?? 0, h: child.height ?? 0, ...(child.geometry ? { header: child.geometry.header, rows: child.geometry.rows } : {}) })
-  }
+  for (const child of result.children ?? []) chips.set(child.id, { x: child.x ?? 0, y: child.y ?? 0, w: child.width ?? 0, h: child.height ?? 0 })
   const wires = new Map<string, Point[]>()
   for (const edge of (result.edges ?? []) as ElkExtendedEdge[]) {
     const section = edge.sections?.[0]
@@ -223,43 +148,6 @@ function read(result: ElkNode): BoardLayout {
     wires.set(edge.id, [section.startPoint, ...(section.bendPoints ?? []), section.endPoint])
   }
   return { width: result.width ?? 0, height: result.height ?? 0, chips, wires }
-}
-
-/**
- * Lays the board out twice: the first pass says where each wire's other end is, the second orders the wires on every
- * side by that, so wires leaving a chip fan out towards their targets instead of crossing on the way out.
- */
-export async function layoutScene(scene: BoardScene, elk: ElkLike, hints: LayoutHints = {}): Promise<BoardLayout> {
-  const down = elkGraph(scene, hints).layoutOptions?.['elk.direction'] === 'DOWN'
-  const first = read(await elk.layout(elkGraph(scene, hints)))
-  let best = read(await elk.layout(elkGraph(scene, hints, orderFrom(scene, first, down))))
-  let count = overlaps(best, 2, SEPARATE).length
-  // Two wires can still meet where one leaves a chip at the height another arrives at (the chips moved since the
-  // order was taken): order again from the new layout, with a little more room between chips; keep the best.
-  for (const spacing of [30, 37, 44, 52]) {
-    if (count === 0) break
-    const next = read(await elk.layout(elkGraph(scene, hints, orderFrom(scene, best, down), spacing)))
-    const n = overlaps(next, 2, SEPARATE).length
-    if (n < count) [best, count] = [next, n]
-  }
-  if (count > 0) nudge(best, SEPARATE)
-  return best
-}
-
-/** Each wire end's place along its side: where the wire goes next (its first bend leaving, its last bend arriving). */
-function orderFrom(scene: BoardScene, layout: BoardLayout, down: boolean): Order {
-  const order: Order = new Map()
-  for (const wire of scene.wires) {
-    const points = layout.wires.get(wire.id)
-    if (!points || points.length < 2) continue
-    const start = points[0]
-    const finish = points[points.length - 1]
-    const leaving = points[1]
-    const arriving = points[points.length - 2]
-    order.set(wirePort(wire.id, 'out'), down ? finish.x + leaving.x / 1e4 : finish.y + leaving.y / 1e4)
-    order.set(wirePort(wire.id, 'in'), down ? start.x + arriving.x / 1e4 : start.y + arriving.y / 1e4)
-  }
-  return order
 }
 
 /** An orthogonal polyline with rounded corners, as an SVG path. */
