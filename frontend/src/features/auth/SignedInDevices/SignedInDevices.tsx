@@ -1,16 +1,85 @@
+import { useId, useState } from 'react'
 import { ErrorState } from '../../../components/ErrorState/ErrorState'
 import { Loading, Skeleton, SkeletonList } from '../../../components/Skeleton'
-import { useSignedInDevicesViewModel } from './SignedInDevices.viewModel'
+import { failureOf, type AdminSession } from '../../../services/api'
+import { useEndOtherSessionsMutation, useEndSessionMutation, useListSessionsQuery } from '../../../store/api/sessionsApi'
+import { toLoadable } from '../../../store/loadable'
+import { formatDateTime } from '../../../utils/formatDate'
+
+/** A device as the list shows it. */
+export interface DeviceRow {
+  id: string
+  name: string
+  current: boolean
+  /** "203.0.113.7 (GB)", or "Unknown address". */
+  where: string
+  signedIn: string
+  lastActive: string
+  ends: string
+  /** ISO, for <time>. */
+  lastSeenAt: string
+  busy: boolean
+  signOut: () => void
+}
 
 /**
  * Settings → Signed-in devices: each device signed in as the admin (its browser, address, when it signed
  * in, was last active and ends at the latest), and signing one, or all the others, out.
  */
 export function SignedInDevices() {
-  const vm = useSignedInDevicesViewModel()
-  const titleId = `${vm.id}-title`
+  const id = useId()
+  const query = useListSessionsQuery()
+  const [endSession] = useEndSessionMutation()
+  const [endOthers, others] = useEndOtherSessionsMutation()
+  const [ending, setEnding] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  const state = toLoadable(query)
 
-  if (vm.status === 'loading')
+  async function signOutDevice(session: AdminSession) {
+    setEnding(session.id)
+    setMessage(null)
+    try {
+      await endSession(session.id).unwrap()
+      setMessage({ ok: true, text: `Signed out ${session.device}.` })
+    } catch (error) {
+      // Already gone (it ended, or another tab signed it out): the list is simply out of date.
+      if (failureOf(error).status === 404) void query.refetch()
+      else setMessage({ ok: false, text: "That device couldn't be signed out. Please try again." })
+    } finally {
+      setEnding(null)
+    }
+  }
+
+  async function signOutOthers() {
+    setMessage(null)
+    try {
+      const count = await endOthers().unwrap()
+      setMessage({ ok: true, text: count === 0 ? 'No other device was signed in.' : `Signed out ${count} other ${count === 1 ? 'device' : 'devices'}.` })
+    } catch {
+      setMessage({ ok: false, text: "The other devices couldn't be signed out. Please try again." })
+    }
+  }
+
+  const sessions = state.status === 'loaded' ? state.data : []
+  const devices: DeviceRow[] = sessions.map((session) => ({
+    id: session.id,
+    name: session.device,
+    current: session.current,
+    where: session.ipAddress ? `${session.ipAddress}${session.country ? ` (${session.country})` : ''}` : 'Unknown address',
+    signedIn: formatDateTime(session.createdAt),
+    lastActive: formatDateTime(session.lastSeenAt),
+    ends: formatDateTime(session.endsAt),
+    lastSeenAt: session.lastSeenAt,
+    busy: ending === session.id,
+    signOut: () => void signOutDevice(session),
+  }))
+  const status = state.status
+  const retry = () => void query.refetch()
+  const hasOthers = sessions.some((session) => !session.current)
+  const signingOutOthers = others.isLoading
+  const titleId = `${id}-title`
+
+  if (status === 'loading')
     return (
       <section className="card signed-in-devices">
         <Loading label="Loading the signed-in devices…">
@@ -19,13 +88,13 @@ export function SignedInDevices() {
         </Loading>
       </section>
     )
-  if (vm.status === 'error') return <ErrorState message="The signed-in devices couldn't be loaded." onRetry={vm.retry} />
+  if (status === 'error') return <ErrorState message="The signed-in devices couldn't be loaded." onRetry={retry} />
 
   return (
     <section className="card signed-in-devices" aria-labelledby={titleId}>
       <h3 id={titleId}>Signed-in devices</h3>
       <ul className="device-list" aria-labelledby={titleId}>
-        {vm.devices.map((device) => (
+        {devices.map((device) => (
           <li key={device.id} className="device-row">
             <div className="device-what">
               <span className="device-name">
@@ -44,15 +113,15 @@ export function SignedInDevices() {
           </li>
         ))}
       </ul>
-      {vm.message && (
-        <p role="status" className={vm.message.ok ? 'settings-ok' : 'field-error'}>
-          {vm.message.ok ? '✓ ' : ''}
-          {vm.message.text}
+      {message && (
+        <p role="status" className={message.ok ? 'settings-ok' : 'field-error'}>
+          {message.ok ? '✓ ' : ''}
+          {message.text}
         </p>
       )}
-      {vm.hasOthers && (
-        <button type="button" className="button button-secondary" disabled={vm.signingOutOthers} onClick={vm.signOutOthers}>
-          {vm.signingOutOthers ? 'Signing out…' : 'Sign out all other devices'}
+      {hasOthers && (
+        <button type="button" className="button button-secondary" disabled={signingOutOthers} onClick={() => void signOutOthers()}>
+          {signingOutOthers ? 'Signing out…' : 'Sign out all other devices'}
         </button>
       )}
     </section>

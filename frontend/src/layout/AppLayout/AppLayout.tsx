@@ -1,9 +1,10 @@
+import { useCallback, useState } from 'react'
+import { useFeature } from '../../features/site/useSite'
 import { SupportButton } from '../../features/support/SupportButton/SupportButton'
 import { SubscribeButton } from '../../features/updates/SubscribeButton/SubscribeButton'
 import { AdminBar } from '../AdminBar/AdminBar'
 import { UserBar } from '../UserBar/UserBar'
 import { Brand } from '../Brand/Brand'
-import { useAppLayoutViewModel } from './AppLayout.viewModel'
 import { RivieraBackground } from '../background/RivieraBackground/RivieraBackground'
 import { ContentToggle } from '../ContentToggle/ContentToggle'
 import { PageTransition } from '../PageTransition/PageTransition'
@@ -13,6 +14,10 @@ import { SystemNav } from '../SystemNav/SystemNav'
 import { MaintenanceScreen } from '../../features/site/MaintenanceScreen/MaintenanceScreen'
 import { TabNav } from '../TabNav/TabNav'
 import { ThemeSwitch } from '../ThemeSwitch/ThemeSwitch'
+import { useAppSelector } from '../../store'
+import { activePreview } from '../../store/previewSlice'
+import { useScrollMemory } from '../useScrollMemory'
+import { useSwipeNavigation } from '../useSwipeNavigation'
 
 /** Shown instead of the tabs and the page while visitors can't use the site (see App). */
 export interface Downtime {
@@ -28,37 +33,52 @@ export interface Downtime {
  * without the tabs, the pages, the footer or the header's other buttons.
  */
 export function AppLayout({ downtime }: { downtime?: Downtime } = {}) {
-  const { toggleSlotRef, pageRef, ...vm } = useAppLayoutViewModel({ downtime: !!downtime })
+  // The admin's preview (normal / loading / error): changing it remounts what loads data (the keys
+  // below), so their own state starts afresh too, as everything loads again (store/listeners).
+  const preview = useAppSelector(activePreview)
+  const theme = useAppSelector((state) => state.theme.theme)
+  useScrollMemory()
+  const showUpdates = useFeature('updates')
+  const vice = theme === 'vice'
+  // Vice can hide the page to show off the scene; leaving Vice always brings the page back.
+  const [hideContent, setHideContent] = useState(false)
+  if (!vice && hideContent) setHideContent(false)
+  const contentHidden = vice && hideContent
+  // Swiping between pages, for everyone; not while the page is down or hidden.
+  const pageRef = useSwipeNavigation(!downtime && !contentHidden)
+  const toggleContent = useCallback(() => setHideContent((hidden) => !hidden), [])
+  // On phones, Vice's hide / show button sits in this slot in the header while the page shows (see ContentToggle).
+  const [toggleSlot, setToggleSlot] = useState<HTMLSpanElement | null>(null)
 
   return (
-    <div className="app" data-content-hidden={vm.contentHidden || undefined}>
-      {vm.vice && <RivieraBackground />}
-      <header className="site-header" inert={vm.contentHidden}>
+    <div className="app" data-content-hidden={contentHidden || undefined}>
+      {vice && <RivieraBackground />}
+      <header className="site-header" inert={contentHidden}>
         <AdminBar />
         <UserBar />
         <div className="site-header-top">
           <Brand />
           <div className="header-actions">
-            {vm.vice && <span ref={toggleSlotRef} className="content-toggle-slot" />}
-            {!downtime && <SupportButton key={vm.preview} />}
-            {!downtime && vm.showUpdates && <SubscribeButton />}
+            {vice && <span ref={setToggleSlot} className="content-toggle-slot" />}
+            {!downtime && <SupportButton key={preview} />}
+            {!downtime && showUpdates && <SubscribeButton />}
             <ThemeSwitch />
           </div>
         </div>
         {!downtime && <TabNav />}
       </header>
-      <main ref={pageRef} className="page" inert={vm.contentHidden}>
+      <main ref={pageRef} className="page" inert={contentHidden}>
         {downtime ? (
           <MaintenanceScreen reason={downtime.reason} message={downtime.message} />
         ) : (
           <>
             <SystemNav />
-            <PageTransition key={vm.preview} />
+            <PageTransition key={preview} />
           </>
         )}
       </main>
-      {!downtime && <SiteFooter inert={vm.contentHidden} />}
-      {vm.vice && <ContentToggle hidden={vm.contentHidden} onToggle={vm.toggleContent} slot={vm.toggleSlot} />}
+      {!downtime && <SiteFooter inert={contentHidden} />}
+      {vice && <ContentToggle hidden={contentHidden} onToggle={toggleContent} slot={toggleSlot} />}
       <SlowSceneNotice />
     </div>
   )

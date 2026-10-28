@@ -3,15 +3,16 @@ import { ContactForm } from '../../features/contact/ContactForm/ContactForm'
 import { MessagesInbox } from '../../features/contact/MessagesInbox/MessagesInbox'
 import { MeetingsCalendar } from '../../features/meetings/MeetingsCalendar/MeetingsCalendar'
 import { Loading, Skeleton } from '../../components/Skeleton'
-import { useContactPageViewModel } from './ContactPage.viewModel'
+import { useAppSelector } from '../../store'
 
 /** Visitors get the contact form (meetings are by invitation: the booking link comes in an answer); the signed-in admin gets the meetings calendar and the messages. */
 export function ContactPage() {
-  const vm = useContactPageViewModel()
+  // Until it's known who's here, the page shows the contact form's shape.
+  const isLoading = useAppSelector((state) => state.auth.status === 'loading')
 
   return (
     <>
-      {vm.isLoading && (
+      {isLoading && (
         // Until we know who's here: the contact form's shape.
         <Loading label="Loading…" className="card">
           <Skeleton width="40%" height={24} />

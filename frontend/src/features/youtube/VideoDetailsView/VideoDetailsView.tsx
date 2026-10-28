@@ -2,7 +2,7 @@ import { ExternalLinkIcon } from '../../../components/icons/icons'
 import { LinkifiedText } from '../../../components/LinkifiedText'
 import type { YouTubeVideo } from '../../../services/api'
 import { YouTubePlayer } from '../YouTubePlayer/YouTubePlayer'
-import { useVideoDetailsViewViewModel } from './VideoDetailsView.viewModel'
+import { youTubeEmbedUrl } from '../../apps/media'
 
 /**
  * A video to watch here: YouTube's player (the privacy-enhanced one, which sets no cookies
@@ -10,11 +10,10 @@ import { useVideoDetailsViewViewModel } from './VideoDetailsView.viewModel'
  */
 export function VideoDetailsView(props: { video: YouTubeVideo }) {
   const { video } = props
-  const vm = useVideoDetailsViewViewModel(props)
   return (
     <div className="video-details">
       <div className="video-player">
-        <YouTubePlayer src={vm.playerUrl} title={video.title} lazy />
+        <YouTubePlayer src={youTubeEmbedUrl(video.id)} title={video.title} lazy />
       </div>
       {video.description && (
         <p className="app-description">

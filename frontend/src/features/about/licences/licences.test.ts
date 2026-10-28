@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Licence } from '../../../services/api'
 import { isOffered, OFFERED_LICENCES, sameLicence } from './licences'
-import { inDisplayOrder } from './LicencesSection/LicencesSection.viewModel'
+import { inDisplayOrder } from './licences'
 
 const car: Licence = { category: 'driving', code: 'B', name: 'Car' }
 

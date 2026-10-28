@@ -1,17 +1,32 @@
-import { AddButton } from '../../../../components/fields'
+import { AddButton, type FieldErrors } from '../../../../components/fields'
+import type { Status } from '../../../../services/api'
+import { move, removeAt, replaceAt } from '../../list'
 import { StatusEditor } from '../StatusEditor/StatusEditor'
-import { useStatusesEditorViewModel, type StatusesEditorProps } from './StatusesEditor.viewModel'
+
+export interface StatusesEditorProps {
+  value: Status[]
+  onChange: (value: Status[]) => void
+  errors: FieldErrors
+}
 
 /** The labels under the photo: a flag and text each, reorderable. */
-export function StatusesEditor(props: StatusesEditorProps) {
-  const vm = useStatusesEditorViewModel(props)
+export function StatusesEditor({ value, onChange, errors }: StatusesEditorProps) {
   return (
     <div className="editor-list">
-      {vm.rows.map(({ key, ...row }) => (
-        <StatusEditor key={key} {...row} />
+      {value.map((status, i) => (
+        <StatusEditor
+          key={i}
+          index={i}
+          count={value.length}
+          status={status}
+          error={errors[`statuses[${i}].text`] ?? errors[`statuses[${i}].flag`]}
+          onChange={(next) => onChange(replaceAt(value, i, next))}
+          onMove={(from, to) => onChange(move(value, from, to))}
+          onRemove={() => onChange(removeAt(value, i))}
+        />
       ))}
-      {vm.listError && <p className="field-error">{vm.listError}</p>}
-      <AddButton onClick={vm.add}>Add label</AddButton>
+      {errors.statuses && <p className="field-error">{errors.statuses}</p>}
+      <AddButton onClick={() => onChange([...value, { text: '', flag: '' }])}>Add label</AddButton>
     </div>
   )
 }

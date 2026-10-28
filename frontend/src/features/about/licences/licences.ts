@@ -55,3 +55,10 @@ export const sameLicence = (a: Licence, b: Licence) => a.category === b.category
 export function isOffered(licence: Licence): boolean {
   return licence.category !== 'other' && OFFERED_LICENCES[licence.category].some((offered) => sameLicence(licence, { ...offered, category: licence.category }))
 }
+
+/** Offered licences in the catalogue's order, then the admin's own in the order added. */
+export function inDisplayOrder(licences: Licence[]): Licence[] {
+  const rank = (l: Licence) => (l.category === 'other' ? -1 : OFFERED_LICENCES[l.category].findIndex((o) => sameLicence(l, { ...o, category: l.category })))
+  const offered = licences.filter(isOffered).sort((a, b) => rank(a) - rank(b))
+  return [...offered, ...licences.filter((l) => !isOffered(l))]
+}

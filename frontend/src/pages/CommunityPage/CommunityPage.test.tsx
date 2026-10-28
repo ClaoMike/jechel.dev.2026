@@ -7,7 +7,7 @@ import { ADMIN, forever, renderView, textOf } from '../../test/render'
 import { DEFAULT_EMAILS, previewOf } from '../../test/fixtures/updateEmails'
 import { formatDate, formatDateTime } from '../../utils/formatDate'
 import { CommunityPage } from './CommunityPage'
-import { SENDING_REFRESH_MS } from './CommunityPage.viewModel'
+import { SENDING_REFRESH_MS } from './CommunityPage'
 
 // The admin's Community tab: subscribers, the update emails (new apps wait to be sent or ignored), and coffees.
 

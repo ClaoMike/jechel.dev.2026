@@ -1,9 +1,18 @@
-import type { ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { DeleteButton } from '../../../components/DeleteButton/DeleteButton'
-import { TrashIcon, UploadIcon } from '../../../components/icons/icons'
-import type { UploadedFile } from '../../../services/api'
 import { REMOVE_DETAIL } from '../../../components/fields'
-import { useFileUploadViewModel, type UploadKind } from './FileUpload.viewModel'
+import { TrashIcon, UploadIcon } from '../../../components/icons/icons'
+import { api, failureOf, type UploadedFile } from '../../../services/api'
+import { formatMegabytes } from '../format'
+
+/** What's uploaded: a photo (stored as a small WebP) or a paper (a PDF). */
+type UploadKind = 'photo' | 'paper'
+
+// Uploads go to the API service directly: their progress isn't the store's to keep.
+const upload = (kind: UploadKind, file: File, onProgress: (fraction: number) => void) =>
+  kind === 'photo' ? api.files.uploadPhoto(file, onProgress) : api.files.uploadPaper(file, onProgress)
+
+type Status = { state: 'idle' } | { state: 'uploading'; percent: number } | { state: 'failed'; message: string }
 
 interface FileUploadProps {
   /** What the file is, e.g. "Photo": the legend, and the buttons' "Upload photo". */
@@ -25,33 +34,69 @@ interface FileUploadProps {
 }
 
 /**
- * Upload / Replace and Remove buttons for one file. The file is uploaded straight away, but
- * the page only uses it once the section is saved.
+ * Upload / Replace and Remove buttons for one file. The file is refused here if it's too big, otherwise uploaded straight
+ * away with its progress, but the page only uses it once the section is saved.
  */
-export function FileUpload(props: FileUploadProps) {
-  const { label, accept, hint, onRemove, children } = props
-  const { inputRef, ...vm } = useFileUploadViewModel(props)
-  const { id, message, noun } = vm
+export function FileUpload({ label, context, accept, maxBytes, hint, kind, onUploaded, onRemove, error, children }: FileUploadProps) {
+  const id = useId()
+  const input = useRef<HTMLInputElement>(null)
+  const [status, setStatus] = useState<Status>({ state: 'idle' })
+  // "Photo" → "photo", but an acronym like "PDF" stays as it is.
+  const noun = label === label.toUpperCase() ? label : label.toLowerCase()
+  const action = status.state === 'uploading' ? `Uploading… ${status.percent}%` : onRemove ? `Replace ${noun}` : `Upload ${noun}`
+  // With several uploads on one form, the buttons' names say which one: "Remove PDF for paper 2".
+  const named = (text: string) => (context ? `${text} ${context}` : undefined)
+  const uploading = status.state === 'uploading'
+  const message = status.state === 'failed' ? status.message : error
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return
+    if (file.size > maxBytes) {
+      setStatus({ state: 'failed', message: `That file is ${formatMegabytes(file.size)}. The limit is ${formatMegabytes(maxBytes)}.` })
+      if (input.current) input.current.value = ''
+      return
+    }
+    setStatus({ state: 'uploading', percent: 0 })
+    try {
+      onUploaded(await upload(kind, file, (fraction) => setStatus({ state: 'uploading', percent: Math.floor(fraction * 100) })))
+      setStatus({ state: 'idle' })
+    } catch (e) {
+      const { status: code, validationErrors } = failureOf(e)
+      const reason = validationErrors?.file?.[0]
+      setStatus({ state: 'failed', message: reason || (code === 401 ? 'Your session has ended. Sign in again, then upload.' : "Couldn't upload. Please try again.") })
+    } finally {
+      if (input.current) input.current.value = ''
+    }
+  }
 
   return (
     <fieldset className="upload" aria-describedby={`${id}-hint${message ? ` ${id}-error` : ''}`}>
       <legend className="field-label">{label}</legend>
       {children}
       <div className="upload-actions">
-        <input ref={inputRef} id={id} type="file" accept={accept} className="visually-hidden" tabIndex={-1} onChange={(e) => vm.handleFile(e.target.files?.[0])} aria-label={vm.inputLabel} />
-        <button type="button" className="button button-secondary button-small" disabled={vm.uploading} onClick={vm.pick} aria-label={vm.actionLabel}>
+        <input
+          ref={input}
+          id={id}
+          type="file"
+          accept={accept}
+          className="visually-hidden"
+          tabIndex={-1}
+          onChange={(e) => void handleFile(e.target.files?.[0])}
+          aria-label={`${label} file${context ? ` ${context}` : ''}`}
+        />
+        <button type="button" className="button button-secondary button-small" disabled={uploading} onClick={() => input.current?.click()} aria-label={named(action)}>
           <UploadIcon size={16} />
-          {vm.action}
+          {action}
         </button>
         {onRemove && (
           <DeleteButton
-            what={vm.removeWhat}
+            what={context ? `the ${noun} ${context}` : `the ${noun}`}
             action="Remove"
             detail={REMOVE_DETAIL}
             onDelete={onRemove}
             className="button button-secondary button-small"
-            disabled={vm.uploading}
-            label={vm.removeLabel}
+            disabled={uploading}
+            label={named(`Remove ${noun}`) ?? `Remove ${noun}`}
           >
             <TrashIcon size={16} />
             Remove {noun}

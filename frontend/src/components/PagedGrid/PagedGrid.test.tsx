@@ -7,7 +7,7 @@ import { stubApi, type ApiStubs } from '../../test/api'
 import { makeApp, pageOf } from '../../test/fixtures/apps'
 import { makeVideo, pageOfVideos } from '../../test/fixtures/site'
 import { ADMIN, forever, renderView, textOf } from '../../test/render'
-import { RESIZE, SLIDE_FALLBACK_MS } from './PagedGrid.viewModel'
+import { RESIZE, SLIDE_FALLBACK_MS } from './slide'
 
 // The paged grid (Apps and YouTube): loading the pages next to the one on show ahead, and sliding
 // between pages. Tested through the YouTube page (and Apps for its admin's 8 a page), the API stubbed.
@@ -198,7 +198,9 @@ describe('sliding between pages', () => {
     await page.getByRole('button', { name: 'Next' }).click()
     await expect.element(tile('Video 10')).toBeVisible()
 
-    leaving()!.querySelector('li')!.dispatchEvent(new AnimationEvent('animationend', { bubbles: true }))
+    leaving()!
+      .querySelector('li')!
+      .dispatchEvent(new AnimationEvent('animationend', { bubbles: true }))
     await new Promise((r) => setTimeout(r, 50))
     expect(leaving()).not.toBeNull()
 
@@ -330,7 +332,7 @@ describe("the grid's height following a slide (Previous / Next glide instead of 
     return api
   }
 
-  it('glides Previous / Next up to a shorter page, at the slide\'s pace', async () => {
+  it("glides Previous / Next up to a shorter page, at the slide's pace", async () => {
     await openPage('/youtube?page=2')
     await expect.element(tile('Video 10')).toBeVisible()
     const tall = stage().offsetHeight

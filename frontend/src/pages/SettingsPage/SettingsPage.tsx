@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { AdminOnly } from '../../components/AdminOnly/AdminOnly'
 import { CopyButton } from '../../components/CopyButton/CopyButton'
 import { ErrorState } from '../../components/ErrorState/ErrorState'
@@ -6,9 +6,26 @@ import { Loading, Skeleton } from '../../components/Skeleton'
 import { ArrowDownIcon, ExternalLinkIcon } from '../../components/icons/icons'
 import { SignedInDevices } from '../../features/auth/SignedInDevices/SignedInDevices'
 import { SiteVisibility } from '../../features/site/SiteVisibility/SiteVisibility'
-import type { Setting } from '../../services/api'
-import type { TestableService } from '../../store/api/settingsApi'
-import { newNtfyTopic, useServiceCardViewModel, useSettingFieldViewModel, useSettingsViewModel, useTestButtonViewModel, type ServiceStatus } from './SettingsPage.viewModel'
+import { failureOf, type Setting, type TestResult } from '../../services/api'
+import { useGetSettingsQuery, useSaveSettingMutation, useTestServiceMutation, type TestableService } from '../../store/api/settingsApi'
+import { toLoadable } from '../../store/loadable'
+
+type ServiceStatus = 'ready' | 'partial' | 'off'
+
+const STATUS_TEXT: Record<ServiceStatus, string> = { ready: 'Set up', partial: 'Partly set up', off: 'Not set up' }
+
+function randomHex(bytes: number): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** A private ntfy topic name: anyone who knows the topic can read it. */
+const newNtfyTopic = () => `jechel-${randomHex(12)}`
+
+function sourceText(setting: Setting): string {
+  if (!setting.isSet) return 'not set'
+  const where = setting.source === 'settings' ? 'saved here' : 'from the server configuration'
+  return setting.isSecret && setting.hint ? `set, ends in ${setting.hint}, ${where}` : `set, ${where}`
+}
 
 /**
  * Settings (an admin-only tab): what visitors see, the devices signed in as the admin, and every
@@ -30,8 +47,15 @@ export function SettingsPage() {
 
 /** Every service the site connects to, A to Z, each an accordion inside one card (as the skills are in the editor). */
 function Connections() {
-  const vm = useSettingsViewModel()
-  const { state, setting, status } = vm
+  const query = useGetSettingsQuery()
+  const state = toLoadable(query)
+  const loaded = state.status === 'loaded' ? state.data : null
+  const setting = (key: string) => loaded!.settings.find((s) => s.key === key)!
+  /** "Set up" when every key the service needs is set, "Partly set up" when some are. */
+  const status = (...keys: string[]): ServiceStatus => {
+    const set = keys.filter((key) => setting(key).isSet).length
+    return set === keys.length ? 'ready' : set > 0 ? 'partial' : 'off'
+  }
 
   if (state.status === 'loading')
     return (
@@ -50,7 +74,7 @@ function Connections() {
   if (state.status === 'error')
     return (
       <ConnectionsCard>
-        <ErrorState message="The settings couldn't be loaded." onRetry={vm.retry} />
+        <ErrorState message="The settings couldn't be loaded." onRetry={() => void query.refetch()} />
       </ConnectionsCard>
     )
 
@@ -75,7 +99,8 @@ function Connections() {
               <Copyable value={`${data.siteUrl}/api/support/buymeacoffee`} />
             </li>
             <li>
-              Copy the webhook's secret into the field below and save. Then, on that webhook in Buy Me a Coffee's dashboard, press <strong>Send test</strong>: a coffee marked Test should land in the Community tab and on your phone.
+              Copy the webhook's secret into the field below and save. Then, on that webhook in Buy Me a Coffee's dashboard, press <strong>Send test</strong>: a coffee marked Test
+              should land in the Community tab and on your phone.
             </li>
           </Steps>
           {field('Support:BuyMeACoffeeWebhookSecret')}
@@ -245,18 +270,18 @@ function ServiceCard({
   test?: { service: TestableService; label: string }
   children?: ReactNode
 }) {
-  const vm = useServiceCardViewModel(status)
-  const { id } = vm
+  const [open, setOpen] = useState(false)
+  const id = useId()
   return (
     <section className="editor-item settings-card" aria-labelledby={id}>
       <h4 className="settings-card-heading">
-        <button type="button" id={id} className="accordion-toggle" aria-expanded={vm.open} aria-controls={`${id}-body`} onClick={vm.toggle}>
+        <button type="button" id={id} className="accordion-toggle" aria-expanded={open} aria-controls={`${id}-body`} onClick={() => setOpen(!open)}>
           <ArrowDownIcon size={18} />
           <span className="accordion-title">{title}</span>
-          {status && <span className={`chip settings-status settings-status-${status}`}>{vm.statusText}</span>}
+          {status && <span className={`chip settings-status settings-status-${status}`}>{STATUS_TEXT[status]}</span>}
         </button>
       </h4>
-      <div id={`${id}-body`} className="settings-card-body" hidden={!vm.open}>
+      <div id={`${id}-body`} className="settings-card-body" hidden={!open}>
         {what && <p className="muted">{what}</p>}
         {links.length > 0 && (
           <div className="settings-links">
@@ -289,13 +314,22 @@ function Copyable({ value }: { value: string }) {
 }
 
 function TestButton({ service, label }: { service: TestableService; label: string }) {
-  const vm = useTestButtonViewModel(service)
-  const { result } = vm
+  const [test, { isLoading: busy }] = useTestServiceMutation()
+  const [result, setResult] = useState<TestResult | null>(null)
+
+  async function run() {
+    setResult(null)
+    try {
+      setResult(await test(service).unwrap())
+    } catch {
+      setResult({ ok: false, message: "The test couldn't run. Please try again." })
+    }
+  }
 
   return (
     <div className="settings-test">
-      <button type="button" className="button button-secondary" disabled={vm.busy} onClick={vm.run}>
-        {vm.busy ? 'Testing…' : label}
+      <button type="button" className="button button-secondary" disabled={busy} onClick={() => void run()}>
+        {busy ? 'Testing…' : label}
       </button>
       {result && (
         <p role="status" className={result.ok ? 'settings-ok' : 'field-error'}>
@@ -317,14 +351,32 @@ interface FieldProps {
 
 /** One setting: its value (or, for a secret, whether it's set), a box for a new one, Save, and Remove when it was saved here. */
 function SettingField({ setting, placeholder, hint, generate }: FieldProps) {
-  const vm = useSettingFieldViewModel(setting, placeholder)
-  const { id, draft, error } = vm
+  const id = useId()
+  const [draft, setDraft] = useState(setting.isSecret ? '' : (setting.value ?? ''))
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState('')
+  const [saveSetting, { isLoading: busy }] = useSaveSettingMutation()
+  const changed = draft.trim() !== (setting.isSecret ? '' : (setting.value ?? ''))
+
+  // Saves a new value (or removes the one saved here, with ""). The store then shows every setting as the API has it.
+  async function save(value: string) {
+    setError('')
+    setSaved('')
+    try {
+      const next = await saveSetting({ key: setting.key, value }).unwrap()
+      const updated = next.settings.find((s) => s.key === setting.key)
+      setDraft(setting.isSecret ? '' : (updated?.value ?? ''))
+      setSaved(value ? 'Saved.' : 'Removed.')
+    } catch (e) {
+      setError(failureOf(e).validationErrors?.value?.[0] ?? "That couldn't be saved. Please try again.")
+    }
+  }
 
   return (
     <div className="field settings-field">
       <label htmlFor={id}>
         {setting.label}
-        <span className="settings-source"> · {vm.sourceText}</span>
+        <span className="settings-source"> · {sourceText(setting)}</span>
       </label>
       <div className="settings-input-row">
         <input
@@ -333,22 +385,22 @@ function SettingField({ setting, placeholder, hint, generate }: FieldProps) {
           autoComplete="off"
           spellCheck={false}
           value={draft}
-          placeholder={vm.placeholder}
-          onChange={(e) => vm.setDraft(e.target.value)}
+          placeholder={setting.isSecret ? (setting.isSet ? 'Paste a new value to replace it' : 'Paste it here') : placeholder}
+          onChange={(e) => setDraft(e.target.value)}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
         />
         {generate && (
-          <button type="button" className="button button-secondary" onClick={() => vm.setDraft(generate())}>
+          <button type="button" className="button button-secondary" onClick={() => setDraft(generate())}>
             Generate
           </button>
         )}
         {!setting.isSecret && draft && <CopyButton value={draft} label={setting.label.toLowerCase()} />}
-        <button type="button" className="button" disabled={!vm.canSave} onClick={vm.save}>
+        <button type="button" className="button" disabled={busy || !changed || (setting.isSecret && !draft.trim())} onClick={() => void save(draft.trim())}>
           Save
         </button>
-        {vm.canRemove && (
-          <button type="button" className="button button-secondary" disabled={vm.busy} onClick={vm.remove}>
+        {setting.source === 'settings' && (
+          <button type="button" className="button button-secondary" disabled={busy} onClick={() => void save('')}>
             Remove
           </button>
         )}
@@ -363,9 +415,9 @@ function SettingField({ setting, placeholder, hint, generate }: FieldProps) {
           {error}
         </p>
       )}
-      {vm.saved && (
+      {saved && (
         <p role="status" className="settings-ok">
-          {vm.saved}
+          {saved}
         </p>
       )}
     </div>

@@ -1,14 +1,13 @@
 import type { YouTubeVideo } from '../../../services/api'
+import { formatDate } from '../../../utils/formatDate'
 import { VideoDetailsView } from '../../youtube/VideoDetailsView/VideoDetailsView'
 import { WhatsNewCard } from '../WhatsNewCard/WhatsNewCard'
-import { useLatestVideoViewModel } from './LatestVideo.viewModel'
 
-/** The newest video, to watch here: the player, its description, and a link to it on YouTube. */
-export function LatestVideo(props: { video: YouTubeVideo }) {
-  const vm = useLatestVideoViewModel(props)
+/** The newest video, to watch here: the player, its description, and a link to it on YouTube, dated when it was published. */
+export function LatestVideo({ video }: { video: YouTubeVideo }) {
   return (
-    <WhatsNewCard {...vm}>
-      <VideoDetailsView video={props.video} />
+    <WhatsNewCard kind="New video" date={formatDate(video.publishedAt)} dateTime={video.publishedAt} title={video.title}>
+      <VideoDetailsView video={video} />
     </WhatsNewCard>
   )
 }

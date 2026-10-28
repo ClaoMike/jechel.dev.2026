@@ -2,19 +2,25 @@ import { EditableSection } from '../../section/EditableSection/EditableSection'
 import { LeetCodeCard } from '../LeetCodeCard/LeetCodeCard'
 import { NeetCodeLists } from '../NeetCodeLists/NeetCodeLists'
 import { ProblemSolvingEditor } from '../ProblemSolvingEditor/ProblemSolvingEditor'
-import { useProblemSolvingSectionViewModel, type ProblemSolvingSectionProps } from './ProblemSolvingSection.viewModel'
+import type { ProblemSolving } from '../../../../services/api'
+import { NEETCODE_LIST_LABELS } from '../problemSolving'
+
+export interface ProblemSolvingSectionProps {
+  value: ProblemSolving
+  canEdit: boolean
+  onSave: (value: ProblemSolving) => Promise<void>
+}
 
 /** LeetCode stats, fetched through the API, and the NeetCode lists completed. */
-export function ProblemSolvingSection(props: ProblemSolvingSectionProps) {
-  const vm = useProblemSolvingSectionViewModel(props)
+export function ProblemSolvingSection({ value, canEdit, onSave }: ProblemSolvingSectionProps) {
   return (
-    <EditableSection title="Problem solving" errorKeys={['problemSolving']} value={props.value} canEdit={props.canEdit} onSave={props.onSave} editor={ProblemSolvingEditor}>
-      {vm.empty ? (
+    <EditableSection title="Problem solving" errorKeys={['problemSolving']} value={value} canEdit={canEdit} onSave={onSave} editor={ProblemSolvingEditor}>
+      {!value.leetCodeUsername && value.neetCodeLists.length === 0 ? (
         <p className="muted">Nothing here yet.</p>
       ) : (
         <div className="problem-solving">
-          {vm.leetCodeUsername && <LeetCodeCard key={vm.leetCodeUsername} username={vm.leetCodeUsername} canEdit={props.canEdit} />}
-          {vm.neetCodeLists.length > 0 && <NeetCodeLists lists={vm.neetCodeLists} />}
+          {value.leetCodeUsername && <LeetCodeCard key={value.leetCodeUsername} username={value.leetCodeUsername} canEdit={canEdit} />}
+          {value.neetCodeLists.length > 0 && <NeetCodeLists lists={value.neetCodeLists.map((list) => NEETCODE_LIST_LABELS[list])} />}
         </div>
       )}
     </EditableSection>

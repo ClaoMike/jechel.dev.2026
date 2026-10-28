@@ -1,25 +1,49 @@
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { CopyButton } from '../../../components/CopyButton/CopyButton'
 import { DeleteButton } from '../../../components/DeleteButton/DeleteButton'
 import { TrashIcon } from '../../../components/icons/icons'
 import { ErrorState } from '../../../components/ErrorState/ErrorState'
 import { Modal } from '../../../components/Modal/Modal'
 import { Loading, Skeleton, SkeletonText } from '../../../components/Skeleton'
-import type { ContactReply } from '../../../services/api'
+import { type ContactReply, failureOf } from '../../../services/api'
 import { formatMeetingTime } from '../../meetings/format'
 import { MeetingActions } from '../../meetings/MeetingActions/MeetingActions'
 import { formatDateTime } from '../../../utils/formatDate'
-import { useMessageDialogViewModel, useRepliesViewModel, type MessageDialogProps } from './MessageDialog.viewModel'
+import { useGetMessageQuery, useMarkMessageReadMutation, useReplyToMessageMutation } from '../../../store/api/contactApi'
+import { useGetBookingLinkQuery } from '../../../store/api/meetingsApi'
+import { toLoadable } from '../../../store/loadable'
+import { INBOX_REFRESH_MS } from '../MessagesInbox/MessagesInbox'
 
-/** A message's details, each with a copy button. Opening it marks the message as read. */
-export function MessageDialog(props: MessageDialogProps) {
-  const { messageId, onClose, onDelete } = props
-  const vm = useMessageDialogViewModel(props)
-  const { titleId, state } = vm
+export interface MessageDialogProps {
+  messageId: number
+  /** The name from the list, shown while the details load. */
+  name: string
+  onClose: () => void
+  /** Deletes the message on the server (after the admin confirms); the inbox then closes this. */
+  onDelete: (id: number) => Promise<void>
+}
+
+/**
+ * A message's details, each with a copy button. It's looked at again every minute while it's open (their emailed answer
+ * joins it). Opening it marks the message as read (once it's loaded and still unread, which an answer that comes in makes
+ * it again).
+ */
+export function MessageDialog({ messageId, name, onClose, onDelete }: MessageDialogProps) {
+  const query = useGetMessageQuery(messageId, { pollingInterval: INBOX_REFRESH_MS })
+  const state = toLoadable(query)
+  const [markRead] = useMarkMessageReadMutation()
+  const unread = state.status === 'loaded' && state.data.readAt === null
+
+  useEffect(() => {
+    // If it fails, it stays unread in the list; the next time it's opened tries again.
+    if (unread) void markRead(messageId)
+  }, [unread, messageId, markRead])
+  const titleId = useId()
 
   return (
     <Modal labelledBy={titleId} onClose={onClose}>
       <div className="modal-header">
-        <h2 id={titleId}>Message from {vm.name}</h2>
+        <h2 id={titleId}>Message from {state.status === 'loaded' ? state.data.name : name}</h2>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
           <span aria-hidden="true">×</span>
         </button>
@@ -36,7 +60,7 @@ export function MessageDialog(props: MessageDialogProps) {
           <SkeletonText lines={4} />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="This message couldn't be loaded." onRetry={vm.retry} />}
+      {state.status === 'error' && <ErrorState message="This message couldn't be loaded." onRetry={() => void query.refetch()} />}
       {state.status === 'loaded' && (
         <dl className="message-details">
           <DetailRow label="Name" value={state.data.name} />
@@ -99,8 +123,34 @@ function DetailRow({ label, value, href, multiline = false }: DetailRowProps) {
  * and what they emailed back. Then a box for the next answer.
  */
 function Replies({ messageId, name, replies }: { messageId: number; name: string; replies: ContactReply[] }) {
-  const vm = useRepliesViewModel(messageId)
-  const { id, error } = vm
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  const [reply, { isLoading: busy }] = useReplyToMessageMutation()
+  // Meetings are by invitation: the booking page goes out in an answer. None set (or not known yet): no button.
+  const { data: bookingLink = '' } = useGetBookingLinkQuery()
+  const id = useId()
+
+  /** Adds the booking link on a line of its own at the end, once, and puts the cursor back in the box. */
+  function addBookingLink() {
+    if (!text.includes(bookingLink)) setText((current) => (current.trimEnd() ? `${current.trimEnd()}\n\n${bookingLink}` : bookingLink))
+    setError('')
+    document.getElementById(`${id}-text`)?.focus()
+  }
+
+  async function send(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!text.trim()) {
+      setError('Write the reply first.')
+      return
+    }
+    setError('')
+    try {
+      await reply({ id: messageId, text: text.trim() }).unwrap()
+      setText('')
+    } catch (e) {
+      setError(failureOf(e).status === 503 ? "The email couldn't be sent: check Resend in Settings (its test shows why)." : "That didn't work. Please try again.")
+    }
+  }
 
   return (
     <section className="message-replies" aria-labelledby={`${id}-title`}>
@@ -117,15 +167,15 @@ function Replies({ messageId, name, replies }: { messageId: number; name: string
           ))}
         </ul>
       )}
-      <form className="reply-form" onSubmit={vm.send} noValidate>
+      <form className="reply-form" onSubmit={(event) => void send(event)} noValidate>
         <div className="field">
           <label htmlFor={`${id}-text`}>{replies.length > 0 ? `Write to ${name} again` : `Reply to ${name}`}</label>
           <textarea
             id={`${id}-text`}
             rows={4}
-            value={vm.text}
+            value={text}
             maxLength={5000}
-            onChange={(e) => vm.setText(e.target.value)}
+            onChange={(e) => setText(e.target.value)}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? `${id}-error` : `${id}-hint`}
           />
@@ -140,11 +190,11 @@ function Replies({ messageId, name, replies }: { messageId: number; name: string
           )}
         </div>
         <div className="reply-actions">
-          <button type="submit" className="button button-small" disabled={vm.busy}>
-            {vm.busy ? 'Sending…' : 'Send reply'}
+          <button type="submit" className="button button-small" disabled={busy}>
+            {busy ? 'Sending…' : 'Send reply'}
           </button>
-          {vm.bookingLink && (
-            <button type="button" className="button button-small button-secondary" onClick={vm.addBookingLink} disabled={!vm.canAddBookingLink}>
+          {bookingLink && (
+            <button type="button" className="button button-small button-secondary" onClick={addBookingLink} disabled={text.includes(bookingLink)}>
               Add booking link
             </button>
           )}

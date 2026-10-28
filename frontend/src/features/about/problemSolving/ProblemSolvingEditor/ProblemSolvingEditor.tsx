@@ -1,17 +1,17 @@
 import { TextField, type EditorProps } from '../../../../components/fields'
-import type { ProblemSolving } from '../../../../services/api'
-import { useProblemSolvingEditorViewModel } from './ProblemSolvingEditor.viewModel'
+import { NEETCODE_LISTS, type ProblemSolving } from '../../../../services/api'
+import { leetCodeUsernameFrom, NEETCODE_LIST_LABELS, toggleList } from '../problemSolving'
 
 /** The LeetCode username, and which NeetCode lists are done. */
-export function ProblemSolvingEditor(props: EditorProps<ProblemSolving>) {
-  const vm = useProblemSolvingEditorViewModel(props)
+export function ProblemSolvingEditor({ value, onChange, errors }: EditorProps<ProblemSolving>) {
   return (
     <div className="editor-list">
       <TextField
         label="LeetCode username"
-        value={vm.username}
-        onChange={vm.setUsername}
-        error={vm.usernameError}
+        value={value.leetCodeUsername}
+        // A pasted profile link becomes the name.
+        onChange={(input) => onChange({ ...value, leetCodeUsername: leetCodeUsernameFrom(input) })}
+        error={errors['problemSolving.leetCodeUsername']}
         hint="As in leetcode.com/u/username (pasting the profile link works too). Leave empty to hide the stats."
         placeholder="e.g. neetcode"
       />
@@ -19,15 +19,21 @@ export function ProblemSolvingEditor(props: EditorProps<ProblemSolving>) {
         <legend>NeetCode lists completed</legend>
         <p className="muted editor-note">Click the ones you've completed.</p>
         <div className="licence-toggles">
-          {vm.lists.map((list) => (
-            <button key={list.key} type="button" className="licence-toggle" aria-pressed={list.done} onClick={list.toggle}>
-              {list.label}
+          {NEETCODE_LISTS.map((list) => (
+            <button
+              key={list}
+              type="button"
+              className="licence-toggle"
+              aria-pressed={value.neetCodeLists.includes(list)}
+              onClick={() => onChange({ ...value, neetCodeLists: toggleList(value.neetCodeLists, list) })}
+            >
+              {NEETCODE_LIST_LABELS[list]}
             </button>
           ))}
         </div>
-        {vm.listsError && <p className="field-error">{vm.listsError}</p>}
+        {errors['problemSolving.neetCodeLists'] && <p className="field-error">{errors['problemSolving.neetCodeLists']}</p>}
       </fieldset>
-      {vm.sectionError && <p className="field-error">{vm.sectionError}</p>}
+      {errors.problemSolving && <p className="field-error">{errors.problemSolving}</p>}
     </div>
   )
 }

@@ -127,7 +127,7 @@ pages next to the one on show (page − 1 and page + 1, within range) are loaded
 (`usePrefetchApps`, `usePrefetchVideos` in `store/api/appsApi.ts`), which skips a page loaded in the last 30 seconds,
 so Previous / Next show their page at once; a page that wasn't loaded ahead shows placeholders, then slides in.
 While a page slides, the grid's height goes from the old page's to the new one's with the same timing (a Web
-Animation from `PagedGrid.viewModel`), so Previous / Next glide up to a shorter page (or down to a taller one)
+Animation from `PagedGrid`), so Previous / Next glide up to a shorter page (or down to a taller one)
 instead of jumping.
 
 How the videos get to the page:

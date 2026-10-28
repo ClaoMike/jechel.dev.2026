@@ -1,23 +1,26 @@
 import { Link } from 'react-router'
 import { PreviewSwitch } from '../../features/preview/PreviewSwitch/PreviewSwitch'
-import { useAdminBarViewModel } from './AdminBar.viewModel'
+import { useAuth } from '../../auth'
+import { useAppSelector } from '../../store'
+import { PREVIEW_AVAILABLE } from '../../store/previewSlice'
 
 /** The admin's own bar above the header: "Admin", a maintenance warning, the preview switch (in development), who's signed in, Sign out. */
 export function AdminBar() {
-  const vm = useAdminBarViewModel()
-  if (!vm.shown) return null
+  const { user, signOut } = useAuth()
+  const maintenance = useAppSelector((state) => state.site.status === 'loaded' && state.site.site.maintenance)
+  if (!user) return null
   return (
     <div className="admin-bar">
       <div className="admin-bar-inner">
         <span className="admin-bar-badge">Admin</span>
-        {vm.maintenance && (
+        {maintenance && (
           <Link to="/settings" className="admin-bar-maintenance">
-            {vm.maintenance}
+            Maintenance on: visitors see the maintenance page
           </Link>
         )}
-        {vm.showPreviewSwitch && <PreviewSwitch />}
-        <span className="admin-bar-user">{vm.signedInAs}</span>
-        <button type="button" className="button button-secondary button-small" onClick={vm.signOut}>
+        {PREVIEW_AVAILABLE && <PreviewSwitch />}
+        <span className="admin-bar-user">Signed in as {user.email}</span>
+        <button type="button" className="button button-secondary button-small" onClick={() => void signOut()}>
           Sign out
         </button>
       </div>
