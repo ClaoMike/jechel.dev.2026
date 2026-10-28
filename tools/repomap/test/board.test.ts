@@ -331,6 +331,12 @@ describe('board levels', () => {
     assert.deepEqual(button.enter, pathOfNode(bi, bi.index.byId.get('views:c:Button')!, options))
   })
 
+  it('dashes wires only where states are drawn, not on the overviews', () => {
+    for (const path of [{ level: 'app' }, { level: 'tiers' }, { level: 'features', tier: 'web' }] as BoardPath[]) {
+      assert.ok(scene(path).wires.every((w) => !w.conditional), path.level)
+    }
+  })
+
   it('draws a render that happens only in some state as a conditional wire', () => {
     const orders = scene({ level: 'chips', tier: 'web', feature: 'orders' })
     assert.equal(orders.wires.find((w) => w.to === 'views:c:OrderRow')!.conditional, true)

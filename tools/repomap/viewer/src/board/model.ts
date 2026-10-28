@@ -537,14 +537,20 @@ function mark(bi: BoardIndex, chips: Map<string, BoardChip>, chipOf: (i: number)
   }
 }
 
+function overview(scene: BoardScene): BoardScene {
+  for (const wire of scene.wires) wire.conditional = false
+  return scene
+}
+
 export function buildScene(bi: BoardIndex, path: BoardPath, options: BoardOptions, marks?: ReviewMarks): BoardScene {
   switch (path.level) {
+    // Overviews: no states are drawn there, so no wire is dashed for one (the wire's details still say when).
     case 'app':
-      return appScene(bi, options, marks)
+      return overview(appScene(bi, options, marks))
     case 'tiers':
-      return tiersScene(bi, options, marks)
+      return overview(tiersScene(bi, options, marks))
     case 'features':
-      return featuresScene(bi, path, options, marks)
+      return overview(featuresScene(bi, path, options, marks))
     case 'chips':
       return chipsScene(bi, path, options, marks)
     case 'chip':
