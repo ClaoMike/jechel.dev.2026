@@ -12,7 +12,7 @@ import { useGit } from '../git/store.ts'
 import { search } from '../model/search.ts'
 import { useViewer } from '../model/store.ts'
 import { Icon } from '../ui/icons.tsx'
-import { featureLabel, pathOfNode, tierLabel, type BoardChip, type BoardIndex, type BoardScene } from './model.ts'
+import { featureLabel, landingOf, tierLabel, type BoardChip, type BoardIndex, type BoardScene } from './model.ts'
 import { loadReview, requestBriefing, reviewCommit, WORKTREE } from './review.ts'
 import { useBoard, type BoardPanel as PanelId } from './store.ts'
 
@@ -74,10 +74,10 @@ function BoardSearch({ bi }: { bi: BoardIndex }) {
   const hits = useMemo(() => (query.trim() ? search(bi.index, query, 8) : []), [bi, query])
   const go = (i: number) => {
     const root = bi.rootOf[i]
-    const path = pathOfNode(bi, root, options)
     if (bi.hidden[root] && !options.showHidden) useBoard.getState().setOption('showHidden', true)
-    // Open the feature's board with the chip selected (its own board is one more zoom away).
-    if (path.level === 'chip') useBoard.getState().navigate({ level: 'chips', tier: path.tier, feature: path.feature, ...(path.group !== undefined ? { group: path.group } : {}) }, 'in', path.chip)
+    // Open the feature's board with the chip selected, or its own board when it sits deeper.
+    const landing = landingOf(bi, root, options)
+    useBoard.getState().navigate(landing.path, 'in', landing.select)
     useBoard.getState().setFocus([i])
     setQuery('')
   }
@@ -609,9 +609,9 @@ function ReviewTab({ bi }: { bi: BoardIndex }) {
   }, [bi, review])
   const options = useBoard((s) => s.options)
   const goTo = (root: number) => {
-    const path = pathOfNode(bi, root, options)
     if (bi.hidden[root] && !options.showHidden) useBoard.getState().setOption('showHidden', true)
-    if (path.level === 'chip') useBoard.getState().navigate({ level: 'chips', tier: path.tier, feature: path.feature, ...(path.group !== undefined ? { group: path.group } : {}) }, 'in', path.chip)
+    const landing = landingOf(bi, root, options)
+    useBoard.getState().navigate(landing.path, 'in', landing.select)
   }
   return (
     <div className="board-details" data-testid="board-review">
@@ -747,9 +747,8 @@ function RulesTab({ bi }: { bi: BoardIndex }) {
   const goTo = (id: string) => {
     const i = bi.index.byId.get(id)
     if (i === undefined) return
-    const root = bi.rootOf[i]
-    const path = pathOfNode(bi, root, options)
-    if (path.level === 'chip') useBoard.getState().navigate({ level: 'chips', tier: path.tier, feature: path.feature, ...(path.group !== undefined ? { group: path.group } : {}) }, 'in', path.chip)
+    const landing = landingOf(bi, bi.rootOf[i], options)
+    useBoard.getState().navigate(landing.path, 'in', landing.select)
   }
   return (
     <div className="board-details" data-testid="board-rules">

@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 import { BOOK_CARD, DEMO, mapLoaded, serveSource, violations, watchErrors } from './helpers.ts'
 
 const chip = (page: Page, id: string) => page.locator(`[data-chip="${id}"]`)
+/** On the Books board: BooksPage renders it (BookCard, which it renders, is one board further in). */
+const BOOK_LIST = 'frontend:symbol:web/src/features/books/BookList.tsx#BookList'
 const trail = (page: Page) => page.locator('.board-trail')
 
 /** Wheel-zooms on the middle of a chip until the board opens it. */
@@ -32,18 +34,20 @@ test.describe('board', () => {
 
     await chip(page, 'f:book').dblclick()
     await expect(trail(page)).toContainText('Book')
-    await expect(chip(page, BOOK_CARD)).toBeVisible()
-    await chip(page, BOOK_CARD).click()
-    await expect(page.getByTestId('board-chip-details')).toContainText('BookCard')
+    await expect(chip(page, BOOK_LIST)).toBeVisible()
+    await chip(page, BOOK_LIST).click()
+    await expect(page.getByTestId('board-chip-details')).toContainText('BookList')
     await page.getByTestId('board-open').click()
-    await expect(trail(page).locator('button').last()).toHaveText('BookCard')
+    await expect(trail(page).locator('button').last()).toHaveText('BookList')
     // On its own board the chip is described without selecting it.
-    await expect(page.getByTestId('board-chip-details')).toContainText('BookCard')
+    await expect(page.getByTestId('board-chip-details')).toContainText('BookList')
 
+    // BookCard is on BookList's own board, where it leads.
+    await expect(page.locator(`[data-chip="out:${BOOK_CARD}"]`)).toBeVisible()
     // Esc goes back up, one level at a time.
     await page.locator('.board-canvas').click({ position: { x: 5, y: 300 } })
     await page.keyboard.press('Escape')
-    await expect(chip(page, BOOK_CARD)).toBeVisible()
+    await expect(chip(page, BOOK_LIST)).toBeVisible()
     await page.getByTestId('board-trail-1').click()
     await expect(chip(page, 'frontend')).toBeVisible()
     expect(errors).toEqual([])
@@ -144,8 +148,8 @@ for (const theme of ['dark', 'light'] as const) {
       expect(await violations(page)).toEqual([])
       await page.goto('/#tab=board&board=chips~frontend~book~')
       await page.reload()
-      await expect(chip(page, BOOK_CARD)).toBeVisible()
-      await chip(page, BOOK_CARD).click()
+      await expect(chip(page, BOOK_LIST)).toBeVisible()
+      await chip(page, BOOK_LIST).click()
       expect(await violations(page)).toEqual([])
       for (const panel of ['review', 'rules', 'ai'] as const) {
         await page.getByTestId(`board-panel-${panel}`).click()

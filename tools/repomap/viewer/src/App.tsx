@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { ChatDock } from './ai/ChatDock.tsx'
 import { SettingsDialog } from './ai/SettingsDialog.tsx'
 import { BOARD_FOCUS_EVENT, FILES_CHANGED_EVENT, useAssistant } from './ai/store.ts'
-import { indexBoard, parentPath, pathOfNode } from './board/model.ts'
+import { indexBoard, landingOf, parentPath } from './board/model.ts'
 import { useBoard } from './board/store.ts'
 import { useGitActions } from './git/actions.ts'
 import { ensureGitHistory, reloadServerHistory } from './git/load.ts'
@@ -83,9 +83,9 @@ export function App() {
       const bi = indexBoard(index)
       useViewer.getState().setTab('board')
       const board = useBoard.getState()
-      const path = pathOfNode(bi, nodes[0], board.options)
       if (bi.hidden[bi.rootOf[nodes[0]]] && !board.options.showHidden) board.setOption('showHidden', true)
-      if (path.level === 'chip') board.navigate({ level: 'chips', tier: path.tier, feature: path.feature, ...(path.group !== undefined ? { group: path.group } : {}) }, 'in', path.chip)
+      const landing = landingOf(bi, nodes[0], board.options)
+      board.navigate(landing.path, 'in', landing.select)
       board.setFocus(nodes)
     }
     window.addEventListener(BOARD_FOCUS_EVENT, onFocus)
