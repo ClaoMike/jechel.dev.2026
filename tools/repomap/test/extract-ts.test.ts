@@ -3,7 +3,7 @@ import { before, describe, it } from 'node:test'
 import { Project, ts } from 'ts-morph'
 import { negate } from '../plugins/extract-ts/conditions.ts'
 import { extractProject, type ExtractResult } from '../plugins/extract-ts/extract.ts'
-import type { FileEntry, RenderCase } from '../src/shared/types.ts'
+import type { FileEntry, RenderCase, ShownElement } from '../src/shared/types.ts'
 
 /** A small MVVM + Redux Toolkit app, in memory. */
 const FILES: Record<string, string> = {
@@ -132,6 +132,8 @@ const STATES: Record<string, string> = {
       return (
         <Frame>
           {state.status === 'loading' && <Skeleton />}
+          {compact && <p className="note small">{state.status}</p>}
+          <div className="always"><span>{compact ? <b>yes</b> : null}</span></div>
           {state.items.length > 0 ? state.items.map((name) => <Thing key={name} name={name} />) : !compact && <Empty />}
         </Frame>
       )
@@ -162,6 +164,17 @@ describe('TypeScript extractor: when a component renders a child', () => {
   it('says when a child is rendered for each item of a list', () => {
     assert.equal(when('Thing')[0].each, 'state.items')
     assert.deepEqual(when('Thing')[0].if, ["state.status !== 'error'", 'state.items.length > 0'])
+  })
+
+  it('lists the plain elements a condition picks, not what sits inside them', () => {
+    const shows = result.nodes.find((n) => n.label === 'Page')!.attrs?.shows as ShownElement[]
+    assert.deepEqual(
+      shows.map((s) => [s.tag, s.className, s.content, s.case.if]),
+      [
+        ['p', 'small', '{state.status}', ["state.status !== 'error'", 'compact']],
+        ['b', undefined, 'yes', ["state.status !== 'error'", 'compact']],
+      ],
+    )
   })
 
   it('traces what a condition reads back to the hook or prop it comes from', () => {

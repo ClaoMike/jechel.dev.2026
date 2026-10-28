@@ -5,6 +5,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { WRITE_HEADER } from '../../../src/shared/git-actions.ts'
 import { caseLabel, membersOf, renderCases, type Member, type Summary } from '../../../src/shared/board.ts'
+import type { RenderCase, ShownElement } from '../../../src/shared/types.ts'
 import { Markdown } from '../ai/Markdown.tsx'
 import { ensureGitHistory } from '../git/load.ts'
 import { useGit } from '../git/store.ts'
@@ -371,6 +372,17 @@ function StateDetails({ bi, scene, chip }: { bi: BoardIndex; scene: BoardScene; 
       )}
       <p className="description">{chip.description}</p>
       {chip.sub && chip.sub !== 'state' && <p className="muted small mono">{chip.sub}</p>}
+      {chip.pins.length > 0 && (
+        <Section title={`Elements (${chip.pins.length})`}>
+          <ul className="board-list">
+            {chip.pins.map((pin) => (
+              <li key={pin.id} className="mono small">
+                {pin.label}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
       <Section title={`Shows (${shows.length})`}>
         <ul className="board-list">
           {shows.map((c) => (
@@ -392,6 +404,8 @@ interface StateGroup {
   reads: { name: string; from: string }[]
   line: number
   targets: number[]
+  /** Plain elements shown then: `<p.muted> {texts.empty}`. */
+  elements: string[]
 }
 
 /**
@@ -402,11 +416,23 @@ function RenderStates({ bi, scene, node }: { bi: BoardIndex; scene: BoardScene; 
   const setFocus = useBoard((s) => s.setFocus)
   const groups = useMemo(() => {
     const byLabel = new Map<string, StateGroup>()
+    const groupOf = (c: RenderCase) => {
+      const label = caseLabel(c)
+      const group = byLabel.get(label) ?? { label, reads: [], line: c.line, targets: [], elements: [] }
+      byLabel.set(label, group)
+      for (const read of c.reads ?? []) if (!group.reads.some((r) => r.name === read.name)) group.reads.push(read)
+      group.line = Math.min(group.line, c.line)
+      return group
+    }
+    const shown = bi.index.nodes[node].attrs?.shows
+    for (const element of Array.isArray(shown) ? (shown as ShownElement[]) : []) {
+      groupOf(element.case).elements.push(`<${element.tag}${element.className ? `.${element.className}` : ''}>${element.content ? ` ${element.content}` : ''}`)
+    }
     for (const e of bi.index.outEdges[node]) {
       const edge = bi.index.edges[e]
       for (const c of renderCases(edge)) {
         const label = caseLabel(c)
-        const group = byLabel.get(label) ?? { label, reads: [], line: c.line, targets: [] }
+        const group = byLabel.get(label) ?? { label, reads: [], line: c.line, targets: [], elements: [] }
         byLabel.set(label, group)
         const target = bi.index.edgeTo[e]
         if (!group.targets.includes(target)) group.targets.push(target)
@@ -443,6 +469,11 @@ function RenderStates({ bi, scene, node }: { bi: BoardIndex; scene: BoardScene; 
               </p>
             )}
             <ul className="board-list">
+              {group.elements.map((element) => (
+                <li key={element} className="mono small muted">
+                  {element}
+                </li>
+              ))}
               {group.targets.map((t) => {
                 const child = bi.index.nodes[t]
                 const chipId = bi.index.nodes[bi.rootOf[t]].id

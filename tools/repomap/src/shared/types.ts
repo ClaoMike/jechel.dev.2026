@@ -200,6 +200,16 @@ export interface RenderCase {
   line: number
 }
 
+/** A plain element (`<p>`, `<div>`…) a component shows only under some condition (`attrs.shows` on the component). */
+export interface ShownElement {
+  tag: string
+  /** Its first class name, when it's written out. */
+  className?: string
+  /** What it holds, shortened: `{adminNote}`, or its text. */
+  content?: string
+  case: RenderCase
+}
+
 /** A reference that could not be resolved to a node, e.g. a frontend call to a route that does not exist. */
 export interface UnresolvedLink {
   from: string

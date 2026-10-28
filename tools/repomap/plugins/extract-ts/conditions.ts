@@ -5,9 +5,9 @@
  * component's own state, a store selector, a query, a prop — traced through the locals it was worked out from.
  */
 import { Node, SyntaxKind } from 'ts-morph'
-import type { RenderCase } from '../../src/shared/types.ts'
+import type { RenderCase, ShownElement } from '../../src/shared/types.ts'
 
-export type { RenderCase }
+export type { RenderCase, ShownElement }
 
 const MAX_TEXT = 140
 
@@ -147,4 +147,49 @@ function hookText(call: Node, name: string): string {
     if (!Node.isBlock(body)) return `${name}(${text(body)})`
   }
   return name
+}
+
+/**
+ * Whether this element is the one a condition picks (`cond && <p>…</p>`, a branch of `?:`, `if (cond) return <p />`),
+ * not something nested inside an element that is.
+ */
+export function directlyConditional(element: Node, root: Node): boolean {
+  let child: Node = element
+  let parent = element.getParent()
+  while (parent && child !== root) {
+    if (Node.isJsxElement(parent) || Node.isJsxFragment(parent)) return false
+    if (Node.isBinaryExpression(parent) && parent.getRight() === child) {
+      const op = parent.getOperatorToken().getKind()
+      if (op === SyntaxKind.AmpersandAmpersandToken || op === SyntaxKind.BarBarToken) return true
+    }
+    if (Node.isConditionalExpression(parent) && parent.getCondition() !== child) return true
+    if (Node.isIfStatement(parent) && parent.getExpression() !== child) return true
+    if (Node.isBlock(parent) || Node.isArrowFunction(parent) || Node.isFunctionDeclaration(parent)) return false
+    child = parent
+    parent = parent.getParent()
+  }
+  return false
+}
+
+/** A plain element shown under a condition: its tag, first class, and a glimpse of what it holds. */
+export function shownElement(element: Node, root: Node): ShownElement {
+  const opening = Node.isJsxElement(element) ? element.getOpeningElement() : element
+  const tag = Node.isJsxOpeningElement(opening) || Node.isJsxSelfClosingElement(opening) ? opening.getTagNameNode().getText() : 'element'
+  let className: string | undefined
+  if (Node.isJsxOpeningElement(opening) || Node.isJsxSelfClosingElement(opening)) {
+    const attribute = opening.getAttribute('className')
+    const initializer = attribute && Node.isJsxAttribute(attribute) ? attribute.getInitializer() : undefined
+    if (initializer && Node.isStringLiteral(initializer)) className = initializer.getLiteralText().split(/\s+/).filter(Boolean).at(-1)
+  }
+  let content: string | undefined
+  if (Node.isJsxElement(element)) {
+    for (const child of element.getJsxChildren()) {
+      const piece = Node.isJsxText(child) ? child.getText().replace(/\s+/g, ' ').trim() : Node.isJsxExpression(child) ? text(child) : ''
+      if (piece) {
+        content = piece.length > 60 ? `${piece.slice(0, 59)}…` : piece
+        break
+      }
+    }
+  }
+  return { tag, ...(className ? { className } : {}), ...(content ? { content } : {}), case: renderCase(element, root) }
 }
