@@ -150,6 +150,7 @@ function Details({ bi, scene }: { bi: BoardIndex; scene: BoardScene | null }) {
   }
   // A chip's own board is about that chip.
   const chip = selected ? scene.chips.find((c) => c.id === selected) : scene.path.level === 'chip' ? scene.chips[0] : undefined
+  if (chip?.kind === 'state') return <StateDetails bi={bi} scene={scene} chip={chip} />
   if (chip) return <ChipDetails bi={bi} scene={scene} chip={chip} />
   return <LevelDetails bi={bi} scene={scene} />
 }
@@ -186,6 +187,9 @@ function LevelDetails({ bi, scene }: { bi: BoardIndex; scene: BoardScene }) {
         </label>
         <label>
           <input type="checkbox" checked={options.typeLinks} onChange={(e) => setOption('typeLinks', e.target.checked)} /> Type references
+        </label>
+        <label>
+          <input type="checkbox" checked={options.states !== false} onChange={(e) => setOption('states', e.target.checked)} data-testid="board-states" /> Components' states
         </label>
       </div>
     </div>
@@ -333,6 +337,52 @@ function ChipDetails({ bi, scene, chip }: { bi: BoardIndex; scene: BoardScene; c
           </ul>
         </Section>
       )}
+    </div>
+  )
+}
+
+/** A state chip: the condition, what it reads, its component and what it shows then. */
+function StateDetails({ bi, scene, chip }: { bi: BoardIndex; scene: BoardScene; chip: BoardChip }) {
+  const owner = chip.owner !== undefined ? bi.index.nodes[chip.owner] : undefined
+  const byId = new Map(scene.chips.map((c) => [c.id, c]))
+  const shows = scene.wires.filter((w) => w.from === chip.id).map((w) => byId.get(w.to)).filter((c): c is BoardChip => !!c)
+  return (
+    <div className="board-details" data-testid="board-state-details">
+      <header className="board-details-head">
+        <span className="swatch" style={{ background: chip.color }} aria-hidden="true" />
+        <div>
+          <h2 className="mono">{chip.label}</h2>
+          <div className="chips">
+            <span className="chip">state</span>
+            {owner && <span className="chip">of {owner.label}</span>}
+          </div>
+        </div>
+      </header>
+      {owner?.file && (
+        <div className="board-actions">
+          <button
+            type="button"
+            className="chip"
+            onClick={() => useViewer.setState({ codeView: { node: null, opened: { ...owner, id: `${owner.id}@${chip.line ?? 0}`, line: chip.line ?? owner.line, endLine: chip.line ?? owner.line } }, contextMenu: null })}
+          >
+            <Icon name="code" size={14} /> Read the condition
+          </button>
+        </div>
+      )}
+      <p className="description">{chip.description}</p>
+      {chip.sub && chip.sub !== 'state' && <p className="muted small mono">{chip.sub}</p>}
+      <Section title={`Shows (${shows.length})`}>
+        <ul className="board-list">
+          {shows.map((c) => (
+            <li key={c.id}>
+              <button type="button" onClick={() => useBoard.getState().select(c.id)}>
+                {c.label}
+                {c.sub && <span className="muted"> {c.sub}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Section>
     </div>
   )
 }

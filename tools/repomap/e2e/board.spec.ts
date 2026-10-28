@@ -80,7 +80,13 @@ test.describe('board', () => {
     const list = 'frontend:symbol:web/src/features/books/BookList.tsx#BookList'
     await page.goto('/#tab=board&board=chips~frontend~book~')
     await mapLoaded(page)
-    await expect(page.locator(`[data-wire="${page_}|>${list}|"], [data-wire^="${page_}|"][data-wire*="${list}"]`).first()).toHaveClass(/conditional/)
+    // On the board: BooksPage → [its state] → BookList.
+    const state = page.locator(`[data-chip^="state:${page_}:"]`)
+    await expect(state).toContainText("state.status === 'loaded'")
+    await expect(page.locator(`[data-wire^="state:${page_}:"][data-wire*="${list}"]`).first()).toHaveClass(/conditional/)
+    await state.click()
+    await expect(page.getByTestId('board-state-details')).toContainText('BookList')
+    await expect(page.getByTestId('board-state-details')).toContainText('of BooksPage')
     await chip(page, page_).click()
     const states = page.getByTestId('board-render-states')
     await expect(states).toContainText("state.status === 'loaded'")

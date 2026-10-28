@@ -122,6 +122,9 @@ function Legend() {
         <i className="lg-wire conditional" /> shown only when a condition holds
       </span>
       <span>
+        <i className="lg-state" /> a state: what the component shows then is wired to its right
+      </span>
+      <span>
         <i className="lg-wire bad" /> breaks a rule
       </span>
       {review && (
@@ -513,6 +516,27 @@ function Chip({ chip, box, single, selected, dim, focused, onKeyDown }: ChipProp
             {truncate(chip.sub, Math.floor((box.w - 38) / 5.8))}
           </text>
         )}
+      </g>
+    )
+  }
+
+  // A state of its component: a lozenge between it and what it shows then.
+  if (chip.kind === 'state') {
+    return (
+      <g {...common}>
+        <rect className="state-body" width={box.w} height={box.h} rx={box.h / 2} />
+        <text className="state-caption" x={18} y={17}>
+          STATE
+        </text>
+        <text className="chip-label small mono" x={18} y={32}>
+          {truncate(chip.label, Math.floor((box.w - 30) / 6.6))}
+        </text>
+        {chip.sub && chip.sub !== 'state' && (
+          <text className="chip-sub" x={18} y={45}>
+            {truncate(chip.sub, Math.floor((box.w - 30) / 5.8))}
+          </text>
+        )}
+        <rect className="chip-focus-ring" x={-4} y={-4} width={box.w + 8} height={box.h + 8} rx={box.h / 2 + 4} />
       </g>
     )
   }
