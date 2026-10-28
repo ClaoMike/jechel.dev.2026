@@ -306,6 +306,17 @@ describe('board levels', () => {
     const row = graph.edges.find((x) => x.to === 'views:c:OrderRow')!
     assert.ok(isConditional(row))
     assert.ok(!isConditional(graph.edges.find((x) => x.from === 'views:c:OrdersPage' && x.to === 'views:c:Button')!))
+    // Through the state it happens in: OrdersPage → [the state] → OrderRow, with the condition and what it reads.
+    const state = orders.chips.find((c) => c.kind === 'state')!
+    assert.equal(state.label, "for each of rows, when state.status === 'loaded'")
+    assert.equal(state.sub, 'state ← useOrders')
+    assert.equal(state.owner, bi.index.byId.get('views:c:OrdersPage'))
+    assert.ok(orders.wires.some((w) => w.from === 'views:c:OrdersPage' && w.to === state.id))
+    assert.ok(orders.wires.some((w) => w.from === state.id && w.to === 'views:c:OrderRow'))
+    assert.ok(!orders.wires.some((w) => w.from === 'views:c:OrdersPage' && w.to === 'views:c:OrderRow'))
+    const flat = buildScene(bi, { level: 'chips', tier: 'web', feature: 'orders' }, { ...options, states: false })
+    assert.ok(!flat.chips.some((c) => c.kind === 'state'))
+    assert.ok(flat.wires.some((w) => w.from === 'views:c:OrdersPage' && w.to === 'views:c:OrderRow'))
     assert.equal(caseLabel({ if: [], line: 1 }), 'always')
     assert.equal(caseLabel({ if: ['a', 'b'], each: 'rows', line: 1 }), 'for each of rows, when a && b')
   })

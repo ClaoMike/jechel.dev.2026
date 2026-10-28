@@ -94,7 +94,7 @@ export function decodePath(text: string | null): BoardPath {
 export const useBoard = create<State & Actions>((set, get) => ({
   path: decodePath(readHashParam('board')),
   selected: null,
-  options: { showHidden: readPref<string>('board.hidden', '0') === '1', typeLinks: readPref<string>('board.types', '0') === '1' },
+  options: { showHidden: readPref<string>('board.hidden', '0') === '1', typeLinks: readPref<string>('board.types', '0') === '1', states: readPref<string>('board.states', '1') === '1' },
   panel: 'details',
   sheetOpen: false,
   review: null,
@@ -115,7 +115,7 @@ export const useBoard = create<State & Actions>((set, get) => ({
   },
   setOption(option, value) {
     set({ options: { ...get().options, [option]: value } })
-    writePref(option === 'showHidden' ? 'board.hidden' : 'board.types', value ? '1' : '0')
+    writePref(option === 'showHidden' ? 'board.hidden' : option === 'states' ? 'board.states' : 'board.types', value ? '1' : '0')
   },
   setPanel(panel) {
     set({ panel, sheetOpen: true })

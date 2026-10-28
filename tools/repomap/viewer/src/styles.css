@@ -4611,6 +4611,27 @@ button.chip:hover {
   stroke-dasharray: 3 3;
 }
 
+/* A component's state, between it and what it shows in it. */
+.state-body {
+  fill: var(--chip-fill);
+  stroke: #facc15;
+  stroke-width: 1.5;
+}
+
+.state-caption {
+  font: 700 9px var(--font-sans);
+  letter-spacing: 0.08em;
+  fill: var(--chip-sub);
+}
+
+.lg-state {
+  display: inline-block;
+  width: 22px;
+  height: 10px;
+  border-radius: 5px;
+  border: 1.5px solid #facc15;
+}
+
 .connector-arrow {
   fill: var(--chip-sub);
   font-size: 12px;
