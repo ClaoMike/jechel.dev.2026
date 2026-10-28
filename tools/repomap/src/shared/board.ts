@@ -3,7 +3,7 @@
  *
  *   app → tiers (frontend, backend, database…) → a tier's features → a feature's chips → one chip
  *
- * A tier groups layers (the frontend's views, view models and model are one tier). A feature is a
+ * A tier groups layers (the frontend's components and its store are one tier). A feature is a
  * vertical slice of the app (Contact, Meetings…); nodes get one from their folder (`feature:x` tags the
  * extractors add), from config or the AI, or from their neighbours; the rest are "shared". A chip is a
  * top-level node (no parent); its children (an entity's properties, a table's columns, an endpoint
@@ -11,7 +11,7 @@
  *
  * Isomorphic: used by the builder (feature assignment, rules) and by the viewer (levels).
  */
-import type { GraphEdge, GraphNode, LayerDef } from './types.ts'
+import type { GraphEdge, GraphNode, LayerDef, RenderCase } from './types.ts'
 
 export interface TierDef {
   id: string
@@ -41,6 +41,24 @@ export interface Summary {
 }
 
 /** A member a chip's code declares (extractors put them in `attrs.members`). */
+/** When a component renders a child: the extractor's `attrs.when` on a `renders` edge (none from other stacks). */
+export function renderCases(edge: { type: string; attrs?: Record<string, unknown> }): RenderCase[] {
+  return edge.type === 'renders' && Array.isArray(edge.attrs?.when) ? (edge.attrs.when as RenderCase[]) : []
+}
+
+/** A render case in words: "for each of items, when a && b", or "always". */
+export function caseLabel(c: RenderCase): string {
+  const when = c.if.length ? c.if.join(' && ') : ''
+  if (c.each) return when ? `for each of ${c.each}, when ${when}` : `for each of ${c.each}`
+  return when || 'always'
+}
+
+/** Only under some condition: every place it's rendered has one. */
+export function isConditional(edge: { type: string; attrs?: Record<string, unknown> }): boolean {
+  const cases = renderCases(edge)
+  return cases.length > 0 && cases.every((c) => c.if.length > 0)
+}
+
 export interface Member {
   name: string
   kind: string

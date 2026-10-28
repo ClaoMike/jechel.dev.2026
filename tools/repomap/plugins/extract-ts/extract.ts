@@ -17,6 +17,7 @@
 import { relative } from 'node:path'
 import { Node, SyntaxKind, type Project, type SourceFile, type ts } from 'ts-morph'
 import { normalizeUrl } from '../../src/shared/routes.ts'
+import { renderCase, type RenderCase } from './conditions.ts'
 import { fileNodeId } from '../../src/shared/types.ts'
 import type { Diagnostic, Fact, FileEntry, PluginEdge, PluginNode } from '../../src/shared/types.ts'
 
@@ -146,6 +147,14 @@ class Extractor {
       return
     }
     this.edges.set(key, { from, to, type, confidence, evidence: this.evidence(at), ...(attrs ? { attrs } : {}) })
+  }
+
+  /** Where and when the owner renders the child (`attrs.when` on the renders edge): a few places at most. */
+  private addRenderCase(key: string, renderCase: RenderCase): void {
+    const edge = this.edges.get(key)
+    if (!edge) return
+    const when = ((edge.attrs ??= {}).when ??= []) as RenderCase[]
+    if (when.length < MAX_RENDER_CASES && !when.some((c) => c.line === renderCase.line)) when.push(renderCase)
   }
 
   private idFor(entry: FileEntry, name: string): string {
@@ -772,8 +781,9 @@ class Extractor {
         }
         const target = Node.isPropertyAccessExpression(tag) && tag.getName() === 'Provider' ? this.resolve(tag.getExpression()) : this.resolve(tag)
         if (target?.kind) {
-          const type = target.kind === 'context' ? 'provides' : 'renders'
-          this.addEdge(ownerId, target.id, refEdge(target.kind, type), node)
+          const type = refEdge(target.kind, target.kind === 'context' ? 'provides' : 'renders')
+          this.addEdge(ownerId, target.id, type, node)
+          if (type === 'renders') this.addRenderCase(`${ownerId}|${type}|${target.id}`, renderCase(container ?? node, root))
         } else {
           this.referenceToSupport(tag, ownerId, node)
         }
@@ -1069,6 +1079,7 @@ interface Member {
 }
 
 const MAX_MEMBERS = 60
+const MAX_RENDER_CASES = 6
 
 /**
  * What a declaration holds, for the board's chip pins: a function's props or parameters, and the state,

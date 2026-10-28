@@ -4453,6 +4453,11 @@ button.chip:hover {
   fill: none;
 }
 
+/* A render that happens only under some condition (a loading state, a prop…): dashed. */
+.wire.conditional .wire-core {
+  stroke-dasharray: 7 5;
+}
+
 .wire.touched .wire-core {
   stroke: var(--wire-touched);
 }
@@ -4761,6 +4766,10 @@ button.chip:hover {
   background: var(--copper);
 }
 
+.lg-wire.conditional {
+  background: repeating-linear-gradient(90deg, var(--copper) 0 7px, transparent 7px 11px);
+}
+
 .lg-wire.bad {
   background: var(--wire-bad);
 }
@@ -4945,6 +4954,40 @@ button.chip:hover {
 
 .board-section {
   margin-top: 16px;
+}
+
+/* What a component shows, and when: one group per state. */
+.board-states {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.board-states > li {
+  border-left: 3px dashed var(--copper);
+  padding-left: 8px;
+}
+
+.board-state-when {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.board-state-when:hover {
+  text-decoration: underline;
+}
+
+.board-state-read {
+  display: inline-block;
+  margin-right: 10px;
 }
 
 .board-list {

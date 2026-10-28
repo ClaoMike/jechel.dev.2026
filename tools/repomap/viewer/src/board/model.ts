@@ -12,6 +12,7 @@ import {
   resolveTiers,
   type FeatureSource,
   featureKey,
+  isConditional,
   memberAt,
   membersOf,
   roleCovers,
@@ -89,6 +90,8 @@ export interface BoardWire {
   edges: number[]
   violation: boolean
   touched: boolean
+  /** Every connection is a render that happens only under some condition (drawn dashed). */
+  conditional: boolean
 }
 
 export interface BoardScene {
@@ -353,13 +356,14 @@ function collector(bi: BoardIndex, marks: ReviewMarks | undefined): Collector {
       const key = `${from.chip}|${from.pin ?? ''}>${to.chip}|${to.pin ?? ''}`
       let wire = wires.get(key)
       if (!wire) {
-        wire = { id: key, from: from.chip, to: to.chip, fromPin: from.pin, toPin: to.pin, count: 0, types: {}, edges: [], violation: false, touched: false }
+        wire = { id: key, from: from.chip, to: to.chip, fromPin: from.pin, toPin: to.pin, count: 0, types: {}, edges: [], violation: false, touched: false, conditional: true }
         wires.set(key, wire)
       }
       const type = bi.index.edges[e].type
       wire.count++
       wire.types[type] = (wire.types[type] ?? 0) + 1
       wire.edges.push(e)
+      if (!isConditional(bi.index.edges[e])) wire.conditional = false
       if (bi.violationsByEdge.has(e)) wire.violation = true
       if (marks && (marks.touched.has(bi.index.edgeFrom[e]) || marks.touched.has(bi.index.edgeTo[e]))) wire.touched = true
     },
