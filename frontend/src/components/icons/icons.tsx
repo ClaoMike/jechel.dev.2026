@@ -1,5 +1,4 @@
-import type { ReactNode, SVGProps } from 'react'
-import { useCoffeeIconViewModel, useInstagramIconViewModel } from './icons.viewModel'
+import { useId, type ReactNode, type SVGProps } from 'react'
 
 /** 24×24 line icons in the current text color. Decorative: label the button or link that holds them. */
 function Icon({ children, size = 18, ...props }: SVGProps<SVGSVGElement> & { size?: number; children: ReactNode }) {
@@ -241,7 +240,8 @@ export const LinkedInIcon = (p: IconProps) => (
 
 /** The camera glyph filled with Instagram's yellow-pink-purple gradient. */
 export function InstagramIcon(p: IconProps) {
-  const { gradient } = useInstagramIconViewModel()
+  // Unique per icon on the page.
+  const gradient = useId()
   return (
     <BrandIcon {...p}>
       <defs>
@@ -350,7 +350,8 @@ export const EyeOffIcon = (p: IconProps) => (
  * coffee button's hover the cup fills with coffee, bottom to top (glass.css: .coffee-steam, .coffee-fill).
  */
 export function CoffeeIcon(p: IconProps) {
-  const { inside } = useCoffeeIconViewModel()
+  // The cup's inside (what the coffee fills), unique per icon on the page.
+  const inside = useId()
   return (
     <Icon {...p} className="coffee-icon">
       <defs>

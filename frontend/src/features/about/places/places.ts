@@ -1,5 +1,11 @@
-import type { Place } from '../../../services/api'
+import type { AboutColors, Place } from '../../../services/api'
 import type { FieldErrors } from '../../../components/fields'
+
+/** The section's value: the places and the colour of each kind of visit. */
+export interface PlacesValue {
+  places: Place[]
+  colors: AboutColors['places']
+}
 
 /** What the popup is editing: a city from the search, or a place already on the map. */
 export type Editing = { kind: 'new'; place: Place } | { kind: 'existing'; index: number; place: Place }

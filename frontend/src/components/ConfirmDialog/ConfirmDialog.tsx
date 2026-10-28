@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react'
-import { useConfirmDialogViewModel } from './ConfirmDialog.viewModel'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { Modal } from '../Modal/Modal'
 
 export interface ConfirmDialogProps {
@@ -22,24 +21,39 @@ export interface ConfirmDialogProps {
 
 /** Asks before doing something. Cancel has the focus, so Enter by mistake does nothing. */
 export function ConfirmDialog({ title, children, confirmLabel, cancelLabel = 'Cancel', failure, danger = true, onConfirm, onClose }: ConfirmDialogProps) {
-  const { cancelRef, ...vm } = useConfirmDialogViewModel({ onConfirm, onClose })
+  const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle')
+  const titleId = useId()
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  const busy = state === 'busy'
+
+  // Waits for `onConfirm` (it may be async), says so if it fails, and closes on success.
+  async function confirm() {
+    setState('busy')
+    try {
+      await onConfirm()
+    } catch {
+      setState('failed')
+      return
+    }
+    onClose()
+  }
 
   return (
-    <Modal labelledBy={vm.titleId} initialFocus={cancelRef} onClose={vm.close}>
+    <Modal labelledBy={titleId} initialFocus={cancelRef} onClose={() => !busy && onClose()}>
       <div className="confirm-dialog">
-        <h2 id={vm.titleId}>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         {children && <div className="confirm-dialog-body">{children}</div>}
-        {vm.failed && (
+        {state === 'failed' && (
           <p role="alert" className="field-error">
             {failure || "That didn't work. Please try again."}
           </p>
         )}
         <div className="confirm-dialog-actions">
-          <button ref={cancelRef} type="button" className="button button-secondary" disabled={vm.busy} onClick={onClose}>
+          <button ref={cancelRef} type="button" className="button button-secondary" disabled={busy} onClick={onClose}>
             {cancelLabel}
           </button>
-          <button type="button" className={danger ? 'button button-danger' : 'button'} disabled={vm.busy} onClick={vm.confirm}>
-            {vm.busy ? 'Working…' : confirmLabel}
+          <button type="button" className={danger ? 'button button-danger' : 'button'} disabled={busy} onClick={() => void confirm()}>
+            {busy ? 'Working…' : confirmLabel}
           </button>
         </div>
       </div>

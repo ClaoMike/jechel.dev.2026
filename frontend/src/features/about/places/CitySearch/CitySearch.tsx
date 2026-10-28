@@ -1,30 +1,48 @@
+import { useEffect, useId, useState } from 'react'
 import { SearchIcon } from '../../../../components/icons/icons'
-import { CityResults } from '../CityResults/CityResults'
 import type { City } from '../../../../services/api'
-import { useCitySearchViewModel } from './CitySearch.viewModel'
+import { useSearchCitiesQuery } from '../../../../store/api/aboutApi'
+import { CityResults } from '../CityResults/CityResults'
+import { placeLabel } from '../placeLabel'
 
-/** Type a city's name; pick one of the matches (largest first) to place it on the map. */
+/** Waits until typing pauses, so each key press doesn't send a request. */
+const SEARCH_DELAY_MS = 250
+
+/** Type a city's name (2 letters or more); pick one of the matches (largest first) to place it on the map. */
 export function CitySearch({ onPick }: { onPick: (city: City) => void }) {
-  const vm = useCitySearchViewModel(onPick)
+  const id = useId()
+  const [query, setQuery] = useState('')
+  const [searched, setSearched] = useState('')
+  const text = query.trim()
+  const active = text.length >= 2
+
+  useEffect(() => {
+    if (!active) return
+    const timer = window.setTimeout(() => setSearched(text), SEARCH_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [text, active])
+
+  const search = useSearchCitiesQuery(searched, { skip: !active || searched.length < 2 })
+  const results = active && searched === text && !search.isFetching && !search.isError ? (search.currentData ?? null) : null
 
   return (
     <div className="city-search">
       <div className="field">
-        <label htmlFor={vm.id}>Add a city</label>
+        <label htmlFor={id}>Add a city</label>
         <div className="city-search-input">
           <SearchIcon size={16} />
           <input
-            id={vm.id}
+            id={id}
             type="search"
-            value={vm.query}
+            value={query}
             placeholder="Manchester, or Manchester, England"
             autoComplete="off"
-            aria-describedby={`${vm.id}-hint`}
-            onChange={(e) => vm.setQuery(e.target.value)}
+            aria-describedby={`${id}-hint`}
+            onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
           />
         </div>
-        <p className="field-hint" id={`${vm.id}-hint`}>
+        <p className="field-hint" id={`${id}-hint`}>
           <span>
             Any place with 1,000+ people. City data:{' '}
             <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">
@@ -34,9 +52,23 @@ export function CitySearch({ onPick }: { onPick: (city: City) => void }) {
           </span>
         </p>
       </div>
-      {vm.searching && <p className="muted city-search-status">Searching…</p>}
-      {vm.failed && <p className="field-error">The search isn't working right now. Please try again.</p>}
-      {vm.results && <CityResults results={vm.results} onPick={vm.pick} />}
+      {active && search.isFetching && <p className="muted city-search-status">Searching…</p>}
+      {active && search.isError && !search.isFetching && <p className="field-error">The search isn't working right now. Please try again.</p>}
+      {results && (
+        <CityResults
+          results={results.map((city) => ({
+            key: city.id,
+            city,
+            label: placeLabel(city),
+            name: city.name,
+            detail: [city.region !== city.name ? city.region : '', city.country].filter(Boolean).join(', '),
+          }))}
+          onPick={(city) => {
+            onPick(city)
+            setQuery('')
+          }}
+        />
+      )}
     </div>
   )
 }

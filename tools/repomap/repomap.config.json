@@ -5,20 +5,17 @@
   "output": ".out/graph.json",
   "exclude": ["tools/repomap/**"],
 
-  // The frontend is MVVM (README → State and caching): views on top, their view models under them,
-  // then the Model (Redux store, RTK Query, the API service) and everything else. The three planes are
-  // laid out together as one tree from main.tsx.
+  // The frontend as two planes: the components on top, then the store (Redux, RTK Query, the API service) and
+  // everything else under them. They're laid out together as one tree from main.tsx.
   "layers": [
-    { "id": "frontend-views", "label": "Frontend · Views", "color": "#38bdf8", "before": "frontend", "arrange": "tree", "description": "Views (*.tsx): main.tsx, App, pages and components; they render and call their own view model" },
-    { "id": "frontend-viewmodels", "label": "Frontend · View models", "color": "#818cf8", "before": "frontend", "gap": 50, "arrange": "tree", "description": "View models (*.viewModel.ts): a view's state, effects, store access and commands" },
-    { "id": "frontend", "label": "Frontend · Model & the rest", "color": "#22d3ee", "gap": 50, "arrange": "tree", "description": "Redux store (slices, thunks, listeners), RTK Query endpoints, the API service, utilities and config" }
+    { "id": "frontend-views", "label": "Frontend · Components", "color": "#38bdf8", "before": "frontend", "arrange": "tree", "description": "Components (*.tsx): main.tsx, App, pages and components, with their state, effects and store access" },
+    { "id": "frontend", "label": "Frontend · Store & the rest", "color": "#22d3ee", "gap": 50, "arrange": "tree", "description": "Redux store (slices, thunks, listeners), RTK Query endpoints, the API service, shared hooks, utilities and config" }
   ],
   "layerRules": [
-    { "match": ["frontend/src/**/*.viewModel.ts"], "layer": "frontend-viewmodels", "reason": "a view model (MVVM)" },
-    { "match": ["frontend/src/**/*.tsx"], "layer": "frontend-views", "reason": "a view (MVVM)" }
+    { "match": ["frontend/src/**/*.tsx"], "layer": "frontend-views", "reason": "a component" }
   ],
 
-  "plugins": [{ "id": "typescript", "layers": ["frontend-views", "frontend-viewmodels", "frontend"] }],
+  "plugins": [{ "id": "typescript", "layers": ["frontend-views", "frontend"] }],
 
   // The Board tab: the three frontend planes are one tier; features come from frontend/src/features/* and
   // backend Features/* (folder names lowercased: workWithMe → workwithme).
@@ -78,7 +75,7 @@
     {
       "id": "data",
       "filter": {
-        "layers": { "frontend-views": "hide", "frontend-viewmodels": "hide", "frontend": "hide", "infra": "hide" },
+        "layers": { "frontend-views": "hide", "frontend": "hide", "infra": "hide" },
         "kinds": { "*": "dim", "dbcontext": "show", "entity": "show", "property": "show", "table": "show", "column": "show", "migration": "show", "snapshot": "show" },
         "roles": { "test": "hide", "config": "hide", "tooling": "hide", "docs": "hide" }
       }

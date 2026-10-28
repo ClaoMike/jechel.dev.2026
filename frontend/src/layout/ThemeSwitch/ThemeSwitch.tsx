@@ -1,8 +1,11 @@
-import type { ReactNode } from 'react'
+import { useId, useState, type CSSProperties, type ReactNode } from 'react'
 import { MoonIcon, SunIcon } from '../../components/icons/icons'
 import { ViceMark } from '../../components/ViceMark'
-import type { Theme } from '../theme'
-import { useThemeSwitchViewModel } from './ThemeSwitch.viewModel'
+import { useAppDispatch, useAppSelector } from '../../store'
+import { themeChosen } from '../../store/themeSlice'
+import { THEMES, type Theme } from '../theme'
+
+const LABELS: Record<Theme, string> = { dark: 'Dark mode', light: 'Light mode', vice: 'Vice mode' }
 
 const ICONS: Record<Theme, ReactNode> = {
   dark: <MoonIcon size={16} />,
@@ -15,17 +18,31 @@ const ICONS: Record<Theme, ReactNode> = {
  * arrow keys move between them; the glass thumb slides to the chosen one, and its icon turns once.
  */
 export function ThemeSwitch() {
-  const vm = useThemeSwitchViewModel()
+  const dispatch = useAppDispatch()
+  const theme = useAppSelector((state) => state.theme.theme)
+  // The one just picked here: its icon plays its little turn (not on load, nor when the theme changes by itself).
+  const [picked, setPicked] = useState<Theme | null>(null)
+  const name = useId()
 
   return (
-    <fieldset className="theme-switch" style={vm.style}>
+    <fieldset className="theme-switch" style={{ '--theme-index': THEMES.indexOf(theme) } as CSSProperties}>
       <legend className="visually-hidden">Theme</legend>
       <span className="theme-switch-thumb" aria-hidden="true" />
-      {vm.options.map((option) => (
-        <label key={option.value} className="theme-switch-option" title={option.label} data-theme-option={option.value} data-picked={option.picked || undefined}>
-          <input type="radio" name={vm.name} value={option.value} checked={option.checked} onChange={option.choose} className="visually-hidden" />
-          {ICONS[option.value]}
-          <span className="visually-hidden">{option.label}</span>
+      {THEMES.map((option) => (
+        <label key={option} className="theme-switch-option" title={LABELS[option]} data-theme-option={option} data-picked={(picked === option && theme === option) || undefined}>
+          <input
+            type="radio"
+            name={name}
+            value={option}
+            checked={theme === option}
+            onChange={() => {
+              setPicked(option)
+              dispatch(themeChosen(option))
+            }}
+            className="visually-hidden"
+          />
+          {ICONS[option]}
+          <span className="visually-hidden">{LABELS[option]}</span>
         </label>
       ))}
     </fieldset>

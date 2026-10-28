@@ -1,15 +1,28 @@
+import { useState } from 'react'
 import { ErrorState } from '../../../components/ErrorState/ErrorState'
 import { Loading, SkeletonTable } from '../../../components/Skeleton'
 import { Pagination } from '../../../components/Pagination'
 import { formatDateTime } from '../../../utils/formatDate'
 import { describeDevice, formatDuration } from '../format'
 import { VisitDialog } from '../VisitDialog/VisitDialog'
-import { useVisitsTableViewModel } from './VisitsTable.viewModel'
+import { useDeleteVisitMutation, useListVisitsQuery } from '../../../store/api/analyticsApi'
+import { usePagedQuery } from '../../../store/usePagedQuery'
 
-/** Every visit, newest first; a row opens its timeline. */
+const VISITS_PAGE_SIZE = 20
+
+/** Every visit, newest first, a page at a time (its own page number: not in the URL); a row opens its timeline. */
 export function VisitsTable() {
-  const vm = useVisitsTableViewModel()
-  const { state, errorsOnly } = vm
+  const [page, setPage] = useState(1)
+  const [errorsOnly, setErrorsOnly] = useState(false)
+  const [open, setOpen] = useState<string | null>(null)
+  const { state, totalPages, retry } = usePagedQuery(useListVisitsQuery, { page, pageSize: VISITS_PAGE_SIZE, errorsOnly }, setPage)
+  const [deleteVisit] = useDeleteVisitMutation()
+
+  // The numbers and the list load again (store tags).
+  async function deleteOpenVisit(id: string) {
+    await deleteVisit(id).unwrap()
+    setOpen(null)
+  }
 
   return (
     <section className="card visits" aria-labelledby="visits-title">
@@ -19,7 +32,10 @@ export function VisitsTable() {
           <input
             type="checkbox"
             checked={errorsOnly}
-            onChange={(event) => vm.setErrorsOnly(event.target.checked)}
+            onChange={(event) => {
+              setErrorsOnly(event.target.checked)
+              setPage(1)
+            }}
           />
           Only visits with errors
         </label>
@@ -30,7 +46,7 @@ export function VisitsTable() {
           <SkeletonTable rows={6} columns={5} />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="Visits couldn't be loaded." onRetry={vm.retry} />}
+      {state.status === 'error' && <ErrorState message="Visits couldn't be loaded." onRetry={retry} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <p className="muted">{errorsOnly ? 'No visit has hit an error.' : 'No visits yet.'}</p>}
 
       {state.status === 'loaded' && state.data.items.length > 0 && (
@@ -53,10 +69,12 @@ export function VisitsTable() {
                   <tr
                     key={visit.id}
                     className="message-row"
-                    onClick={(event) => vm.rowClicked(event, visit.id)}
+                    onClick={(event) => {
+                      if (!(event.target as HTMLElement).closest('button')) setOpen(visit.id)
+                    }}
                   >
                     <td>
-                      <button type="button" className="link-button" onClick={() => vm.openVisit(visit.id)}>
+                      <button type="button" className="link-button" onClick={() => setOpen(visit.id)}>
                         <time dateTime={visit.startedAt}>{formatDateTime(visit.startedAt)}</time>
                       </button>
                     </td>
@@ -71,11 +89,11 @@ export function VisitsTable() {
               </tbody>
             </table>
           </div>
-          <Pagination page={vm.page} totalPages={vm.totalPages} onPageChange={vm.setPage} />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
 
-      {vm.open && <VisitDialog visitId={vm.open} onClose={vm.close} onDelete={vm.deleteVisit} />}
+      {open && <VisitDialog visitId={open} onClose={() => setOpen(null)} onDelete={deleteOpenVisit} />}
     </section>
   )
 }

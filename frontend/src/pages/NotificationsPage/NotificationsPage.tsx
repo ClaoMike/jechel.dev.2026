@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { AlertChannelsCard } from '../../features/notifications/AlertChannelsCard/AlertChannelsCard'
 import { AdminOnly } from '../../components/AdminOnly/AdminOnly'
@@ -6,8 +7,28 @@ import { ErrorState } from '../../components/ErrorState/ErrorState'
 import { OnOffSwitch } from '../../components/OnOffSwitch/OnOffSwitch'
 import { Pagination } from '../../components/Pagination'
 import { Loading, Skeleton, SkeletonList } from '../../components/Skeleton'
+import type { AlertChannel, NotificationKind, NotificationStatus } from '../../services/api'
+import { useAppDispatch } from '../../store'
+import { useListNotificationKindsQuery, useListNotificationsQuery, useSaveNotificationKindMutation } from '../../store/api/notificationsApi'
+import { baseApi } from '../../store/baseApi'
+import { toLoadable } from '../../store/loadable'
+import { usePagedQuery } from '../../store/usePagedQuery'
 import { formatDateTime } from '../../utils/formatDate'
-import { STATUS_TEXT, useNotificationHistoryViewModel, useNotificationKindsViewModel } from './NotificationsPage.viewModel'
+
+const NOTIFICATIONS_PAGE_SIZE = 20
+
+const SENT_TO: Record<AlertChannel, string> = { ntfy: 'ntfy', push: "this site's notifications" }
+
+const STATUS_TEXT: Record<NotificationStatus, string> = {
+  sent: 'Sent',
+  off: 'Off: not sent',
+  'not-set-up': 'Not set up: not sent',
+  failed: 'Failed',
+  'no-channel': 'Both ways off: not sent',
+}
+
+/** A page on this site, to link the title to; null for anything else (only the API's own paths are links). */
+const linkOf = (path: string | null) => (path?.startsWith('/') && !path.startsWith('//') && !path.startsWith('/\\') ? path : null)
 
 /**
  * Notifications (an admin-only tab): where alerts go (the ntfy app, the site's own notifications, each on or off, and
@@ -27,9 +48,30 @@ export function NotificationsPage() {
   )
 }
 
+/** Every kind of phone alert, grouped as the API orders them, each with a switch. */
 function Kinds() {
-  const vm = useNotificationKindsViewModel()
-  const { state } = vm
+  const query = useListNotificationKindsQuery()
+  const state = toLoadable(query)
+  const [save] = useSaveNotificationKindMutation()
+  const [failed, setFailed] = useState('')
+
+  const kinds = state.status === 'loaded' ? state.data : []
+  const groups: { name: string; kinds: NotificationKind[] }[] = []
+  for (const kind of kinds) {
+    const group = groups.at(-1)?.name === kind.group ? groups.at(-1)! : (groups.push({ name: kind.group, kinds: [] }), groups.at(-1)!)
+    group.kinds.push(kind)
+  }
+
+  // The switch moves at once (store/api/notificationsApi.ts), and is never locked while saving: locking it
+  // would drop the keyboard's focus, and it can be clicked again before the first answer comes.
+  async function toggle(kind: string, enabled: boolean) {
+    setFailed('')
+    try {
+      await save({ kind, enabled }).unwrap()
+    } catch {
+      setFailed("That couldn't be saved. Please try again.")
+    }
+  }
 
   return (
     <section className="card notifications-card" aria-labelledby="notification-kinds-title">
@@ -44,9 +86,9 @@ function Kinds() {
           ))}
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="The notifications couldn't be loaded." onRetry={vm.retry} />}
-      {vm.failed && <p role="alert">{vm.failed}</p>}
-      {vm.groups.map((group) => (
+      {state.status === 'error' && <ErrorState message="The notifications couldn't be loaded." onRetry={() => void query.refetch()} />}
+      {failed && <p role="alert">{failed}</p>}
+      {groups.map((group) => (
         <fieldset key={group.name} className="notification-group">
           <legend>{group.name}</legend>
           {group.kinds.map((kind) => (
@@ -55,7 +97,7 @@ function Kinds() {
                 <span className="notification-kind-label">{kind.label}</span>
                 <span className="muted notification-kind-meta">{kind.lastAt ? `${kind.last30Days} in 30 days · last ${formatDateTime(kind.lastAt)}` : 'None yet'}</span>
               </span>
-              <OnOffSwitch label={kind.label} on={kind.enabled} onChange={(on) => vm.toggle(kind.kind, on)} />
+              <OnOffSwitch label={kind.label} on={kind.enabled} onChange={(on) => void toggle(kind.kind, on)} />
             </div>
           ))}
         </fieldset>
@@ -64,9 +106,13 @@ function Kinds() {
   )
 }
 
+/** What was raised, newest first, a page at a time, of every kind or the one picked. */
 function History() {
-  const vm = useNotificationHistoryViewModel()
-  const { state } = vm
+  const [page, setPage] = useState(1)
+  const [kind, setKind] = useState<string | null>(null)
+  const dispatch = useAppDispatch()
+  const { data: kinds = [] } = useListNotificationKindsQuery()
+  const { state, totalPages, retry } = usePagedQuery(useListNotificationsQuery, { page, pageSize: NOTIFICATIONS_PAGE_SIZE, kind }, setPage)
 
   return (
     <section className="card notifications-card" aria-labelledby="notification-history-title">
@@ -74,16 +120,25 @@ function History() {
         <h3 id="notification-history-title">History</h3>
         <span className="notification-history-actions">
           {state.status === 'loaded' && <span className="muted">{state.data.totalCount} in all</span>}
-          <button type="button" className="button button-secondary button-small" onClick={vm.refresh}>
+          {/* What came while the page was open: the history, and the kinds' counts. */}
+          <button type="button" className="button button-secondary button-small" onClick={() => void dispatch(baseApi.util.invalidateTags(['Notifications', 'NotificationKinds']))}>
             Refresh
           </button>
         </span>
       </div>
       <div className="field notification-filter">
         <label htmlFor="notification-kind">Kind</label>
-        <select id="notification-kind" className="select" value={vm.kind ?? ''} onChange={(event) => vm.chooseKind(event.target.value)}>
+        <select
+          id="notification-kind"
+          className="select"
+          value={kind ?? ''}
+          onChange={(event) => {
+            setKind(event.target.value || null)
+            setPage(1)
+          }}
+        >
           <option value="">Every kind</option>
-          {vm.kinds.map((kind) => (
+          {kinds.map((kind) => (
             <option key={kind.kind} value={kind.kind}>
               {kind.label}
             </option>
@@ -95,17 +150,17 @@ function History() {
           <SkeletonList rows={5} pill />
         </Loading>
       )}
-      {state.status === 'error' && <ErrorState message="The history couldn't be loaded." onRetry={vm.retry} />}
+      {state.status === 'error' && <ErrorState message="The history couldn't be loaded." onRetry={retry} />}
       {state.status === 'loaded' && state.data.totalCount === 0 && <EmptyState />}
       {state.status === 'loaded' && state.data.items.length > 0 && (
         <ul className="notification-list">
           {state.data.items.map((notification) => (
             <li key={notification.id} className="notification-item" data-status={notification.status}>
               <div className="notification-item-head">
-                <span className="chip">{vm.labelOf(notification.kind)}</span>
-                <strong>{vm.linkOf(notification.path) ? <Link to={vm.linkOf(notification.path)!}>{notification.title}</Link> : notification.title}</strong>
+                <span className="chip">{kinds.find((k) => k.kind === notification.kind)?.label ?? notification.kind}</span>
+                <strong>{linkOf(notification.path) ? <Link to={linkOf(notification.path)!}>{notification.title}</Link> : notification.title}</strong>
                 <span className={notification.status === 'sent' ? 'chip chip-muted' : 'chip notification-status-held'}>{STATUS_TEXT[notification.status]}</span>
-                {notification.sentTo.length > 0 && <span className="muted notification-sent-to">{vm.sentToText(notification.sentTo)}</span>}
+                {notification.sentTo.length > 0 && <span className="muted notification-sent-to">to {notification.sentTo.map((c) => SENT_TO[c]).join(' and ')}</span>}
               </div>
               <p className="notification-message">{notification.message}</p>
               <time className="muted" dateTime={notification.createdAt}>
@@ -115,7 +170,7 @@ function History() {
           ))}
         </ul>
       )}
-      <Pagination page={vm.page} totalPages={vm.totalPages} onPageChange={vm.setPage} />
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </section>
   )
 }

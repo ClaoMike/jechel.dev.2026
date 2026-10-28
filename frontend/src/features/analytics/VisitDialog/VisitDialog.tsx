@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { ErrorState } from '../../../components/ErrorState/ErrorState'
 import { Loading, SkeletonChips, SkeletonList } from '../../../components/Skeleton'
 import { CopyButton } from '../../../components/CopyButton/CopyButton'
@@ -6,20 +7,23 @@ import { TrashIcon } from '../../../components/icons/icons'
 import { Modal } from '../../../components/Modal/Modal'
 import type { VisitDetails } from '../../../services/api'
 import { describeDevice, describeEvent, describeTheme, formatDuration, formatOffset, reproductionSteps } from '../format'
-import { useVisitDialogViewModel } from './VisitDialog.viewModel'
+import { useGetVisitQuery } from '../../../store/api/analyticsApi'
+import { toLoadable } from '../../../store/loadable'
+import { formatDateTime } from '../../../utils/formatDate'
 
 /**
  * A visit replayed: what it ran on, then every step in order with its time. Errors open up to their
  * stack. "Copy steps" gives it all as text, to reproduce the problem (or hand it to an AI).
  */
 export function VisitDialog({ visitId, onClose, onDelete }: { visitId: string; onClose: () => void; onDelete: (id: string) => Promise<void> }) {
-  const vm = useVisitDialogViewModel(visitId)
-  const { titleId, state } = vm
+  const query = useGetVisitQuery(visitId)
+  const state = toLoadable(query)
+  const titleId = useId()
 
   return (
     <Modal labelledBy={titleId} onClose={onClose} className="modal-wide">
       <div className="modal-header">
-        <h2 id={titleId}>{vm.title}</h2>
+        <h2 id={titleId}>{state.status === 'loaded' ? `Visit on ${formatDateTime(state.data.startedAt)}` : 'Visit'}</h2>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
           <span aria-hidden="true">×</span>
         </button>
@@ -31,9 +35,7 @@ export function VisitDialog({ visitId, onClose, onDelete }: { visitId: string; o
           <SkeletonList rows={8} pill />
         </Loading>
       )}
-      {state.status === 'error' && (
-        <ErrorState message="This visit couldn't be loaded." onRetry={vm.retry} />
-      )}
+      {state.status === 'error' && <ErrorState message="This visit couldn't be loaded." onRetry={() => void query.refetch()} />}
       {state.status === 'loaded' && <VisitView visit={state.data} onDelete={() => onDelete(visitId)} />}
     </Modal>
   )

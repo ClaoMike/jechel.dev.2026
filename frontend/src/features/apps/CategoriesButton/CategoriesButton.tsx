@@ -1,16 +1,19 @@
+import { useState } from 'react'
+import { useListAppCategoriesQuery } from '../../../store/api/appsApi'
 import { CategoriesDialog } from '../CategoriesDialog/CategoriesDialog'
-import { useCategoriesButtonViewModel } from './CategoriesButton.viewModel'
 
 /** The admin's Categories button above the Apps grid, and the popup it opens to edit the list. */
 export function CategoriesButton() {
-  const vm = useCategoriesButtonViewModel()
+  const [editing, setEditing] = useState(false)
+  // The same cached list the Apps page loads for the admin.
+  const { data: categories = [] } = useListAppCategoriesQuery()
 
   return (
     <>
-      <button type="button" className="button button-secondary button-small" onClick={vm.edit}>
+      <button type="button" className="button button-secondary button-small" onClick={() => setEditing(true)}>
         Categories
       </button>
-      {vm.editing && <CategoriesDialog categories={vm.categories} onClose={vm.stopEditing} onSaved={vm.stopEditing} />}
+      {editing && <CategoriesDialog categories={categories} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />}
     </>
   )
 }
