@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { ChatDock } from './ai/ChatDock.tsx'
 import { SettingsDialog } from './ai/SettingsDialog.tsx'
 import { BOARD_FOCUS_EVENT, FILES_CHANGED_EVENT, useAssistant } from './ai/store.ts'
-import { indexBoard, landingOf, parentPath } from './board/model.ts'
+import { indexBoard, landingOf } from './board/model.ts'
 import { useBoard } from './board/store.ts'
 import { useGitActions } from './git/actions.ts'
 import { ensureGitHistory, reloadServerHistory } from './git/load.ts'
@@ -267,10 +267,7 @@ function onBoardKey(event: KeyboardEvent, typing: boolean): void {
     case 'Escape': {
       if (viewer.helpOpen) viewer.setHelp(false)
       else if (board.selected) board.select(null)
-      else {
-        const up = parentPath(board.path)
-        if (up) board.navigate(up, 'out')
-      }
+      else board.back()
       break
     }
     case '/':

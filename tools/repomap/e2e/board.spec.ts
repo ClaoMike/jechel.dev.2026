@@ -53,6 +53,30 @@ test.describe('board', () => {
     expect(errors).toEqual([])
   })
 
+  test('going chip to chip, up retraces the way you came, and the trail shows it', async ({ page }) => {
+    const pagePath = 'frontend:symbol:web/src/features/books/BooksPage.tsx#BooksPage'
+    const open = async (id: string) => {
+      await page.locator(`[data-chip="${id}"]`).first().click({ force: true })
+      await page.getByTestId('board-open').click()
+    }
+    await page.goto('/#tab=board&board=chips~frontend~book~')
+    await mapLoaded(page)
+    await open(pagePath)
+    await open(`out:${BOOK_LIST}`)
+    await open(`out:${BOOK_CARD}`)
+    await expect(trail(page)).toContainText('Book›BooksPage›BookList›BookCard')
+    await page.getByTestId('board-up').click()
+    await expect(trail(page).locator('button').last()).toHaveText('BookList')
+    // BookList's board, not BookCard's feature board: and the chip you left is selected.
+    await expect(chip(page, BOOK_LIST)).toBeVisible()
+    await page.getByTestId('board-up').click()
+    await expect(trail(page).locator('button').last()).toHaveText('BooksPage')
+    // A step of the trail goes straight there.
+    await open(`out:${BOOK_LIST}`)
+    await page.getByRole('button', { name: 'Book', exact: true }).click()
+    await expect(trail(page).locator('button').last()).toHaveText('Book')
+  })
+
   test('zooming far into a chip opens it; far out goes up', async ({ page }) => {
     await page.goto('/#tab=board&board=tiers')
     await mapLoaded(page)

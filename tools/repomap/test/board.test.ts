@@ -19,7 +19,7 @@ import { assignFeatures, caseLabel, checkRules, isConditional, memberAt, resolve
 import { parseUnifiedDiff, touchedNodes } from '../src/shared/review.ts'
 import type { GraphEdge, GraphNode, RepoGraph } from '../src/shared/types.ts'
 import { layoutScene, wirePath, type ElkLike } from '../viewer/src/board/layout.ts'
-import { buildScene, chipGroups, chipsIn, indexBoard, parentPath, pathOfNode, type BoardPath } from '../viewer/src/board/model.ts'
+import { buildScene, chipGroups, chipsIn, indexBoard, parentPath, pathOfNode, trailOf, type BoardPath } from '../viewer/src/board/model.ts'
 import { computeImpact } from '../viewer/src/board/impact.ts'
 import { indexGraph } from '../viewer/src/model/graph.ts'
 import { FakeAnthropic } from './fake-anthropic.ts'
@@ -387,6 +387,16 @@ describe('board levels', () => {
     assert.ok(row.chips.some((c) => c.label === 'Icon' && c.side === 'out'))
     const cell = buildScene(dbi, { level: 'chip', tier: 'web', feature: 'orders', chip: 'views:c:OrderCell' }, options)
     assert.ok(cell.chips.some((c) => c.label === 'OrderRow' && c.side === 'in'))
+  })
+
+  it('the trail follows the boards you went through, each step with what came before it', () => {
+    const feature: BoardPath = { level: 'chips', tier: 'web', feature: 'orders' }
+    const page: BoardPath = { level: 'chip', tier: 'web', feature: 'orders', chip: 'views:c:OrdersPage' }
+    const button: BoardPath = { level: 'chip', tier: 'web', feature: 'shared', chip: 'views:c:Button' }
+    const steps = trailOf(bi, [{ level: 'tiers' }, feature, page], button, 'shop')
+    assert.deepEqual(steps.map((s) => s.label), ['shop', 'Tiers', 'Frontend', 'Orders', 'OrdersPage', 'Button'])
+    assert.deepEqual(steps[4].history, [{ level: 'tiers' }, feature])
+    assert.deepEqual(steps[3].history, [{ level: 'tiers' }])
   })
 
   it('goes up level by level', () => {

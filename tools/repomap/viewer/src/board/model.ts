@@ -249,6 +249,28 @@ export function pathTrail(bi: BoardIndex, path: BoardPath, appName: string): { l
 }
 
 /** The level above. */
+/**
+ * The breadcrumbs for where you are and how you got there: the levels down to the first board you opened by going from
+ * chip to chip, then each chip's board you went through. Each step carries the boards before it (its history).
+ */
+export function trailOf(bi: BoardIndex, history: BoardPath[], path: BoardPath, appName: string): { label: string; path: BoardPath; history: BoardPath[] }[] {
+  const chain = [...history, path]
+  // Start at the last board that isn't a chip's: everything before it is on its own trail.
+  let start = 0
+  chain.forEach((p, k) => {
+    if (p.level !== 'chip') start = k
+  })
+  const steps = pathTrail(bi, chain[start], appName).map((step) => ({ ...step, history: [] as BoardPath[] }))
+  steps[steps.length - 1].history = chain.slice(0, start)
+  for (let k = start + 1; k < chain.length; k++) {
+    const p = chain[k]
+    if (p.level !== 'chip') continue
+    const i = bi.index.byId.get(p.chip)
+    steps.push({ label: i === undefined ? p.chip : bi.index.nodes[i].label, path: p, history: chain.slice(0, k) })
+  }
+  return steps
+}
+
 export function parentPath(path: BoardPath): BoardPath | null {
   switch (path.level) {
     case 'app':
