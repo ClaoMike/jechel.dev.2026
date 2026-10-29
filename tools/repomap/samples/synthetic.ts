@@ -11,7 +11,6 @@ import { dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { stringifyGraph } from '../src/core/build.ts'
 import { loadConfig, TOOL_ROOT } from '../src/core/config.ts'
-import { computeLayout, vocabularyOptions } from '../src/shared/layout.ts'
 import type { GraphEdge, GraphNode, RepoGraph, UnresolvedLink } from '../src/shared/types.ts'
 
 const { values } = parseArgs({
@@ -225,21 +224,8 @@ function snapshotFile(): string {
   return 'api/src/Bookshelf.Api/Data/Migrations/AppDbContextModelSnapshot.cs'
 }
 
-// ---------------------------------------------------------------- layout + write
+// ---------------------------------------------------------------- write
 for (const n of nodes) n.roleReason ??= 'synthetic demo'
-const kinds = new Map(config.kinds.map((k) => [k.id, k]))
-const started = performance.now()
-const positions = computeLayout(
-  nodes.map((n) => ({ id: n.id, layer: n.layer, role: n.role, parent: n.parent, tags: n.tags, size: kinds.get(n.kind)?.size, kind: n.kind })),
-  edges,
-  {
-    ...vocabularyOptions(config.layers, config.roles),
-    layerGap: config.layout.layerGap,
-    seed: config.layout.seed,
-  },
-)
-for (const n of nodes) n.pos = positions.get(n.id)
-const layoutMs = Math.round(performance.now() - started)
 
 const graph: RepoGraph = {
   version: 1,
@@ -251,8 +237,6 @@ const graph: RepoGraph = {
     roles: config.roles,
     kinds: config.kinds,
     edgeTypes: config.edgeTypes,
-    presets: config.presets,
-    layout: { algorithm: 'layered-force', layerGap: config.layout.layerGap, seed: config.layout.seed },
     changes: added.length > 0 ? { since: '2026-09-29T17:30:00Z', previousCommit: 'demo~1', addedNodes: added, removedNodes: [], addedEdges: added.length * 2, removedEdges: 0 } : undefined,
     stats: { nodes: nodes.length, edges: edges.length, unresolved: unresolved.length },
   },
@@ -264,4 +248,4 @@ if (!graph.meta.changes) delete graph.meta.changes
 const out = resolve(values.out!)
 mkdirSync(dirname(out), { recursive: true })
 writeFileSync(out, stringifyGraph(graph))
-process.stderr.write(`wrote ${out}: ${nodes.length} nodes, ${edges.length} edges (layout ${layoutMs} ms)\n`)
+process.stderr.write(`wrote ${out}: ${nodes.length} nodes, ${edges.length} edges \n`)

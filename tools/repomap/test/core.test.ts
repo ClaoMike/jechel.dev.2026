@@ -38,7 +38,6 @@ describe('config', () => {
   it('loads the stack preset through extends', () => {
     const config = loadConfig(join(TOOL_ROOT, 'repomap.config.json'))
     assert.deepEqual(config.layers.map((l) => l.id), ['frontend-views', 'frontend', 'backend', 'database', 'infra'])
-    assert.deepEqual(config.layers.filter((l) => l.arrange === 'tree').map((l) => l.id), ['frontend-views', 'frontend'])
     assert.ok(config.layers.every((l) => !('before' in l)), 'placement hints are not part of the vocabulary')
     assert.deepEqual(config.plugins.find((p) => p.id === 'typescript')?.layers, ['frontend-views', 'frontend'])
     assert.ok(config.plugins.some((p) => p.id === 'typescript'))

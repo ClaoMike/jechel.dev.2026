@@ -7,7 +7,7 @@ import type { ReviewFile } from '../../../src/shared/review.ts'
 import { readHashParam, readPref, writeHashParams, writePref } from '../model/url.ts'
 import { parentPath, samePath, type BoardOptions, type BoardPath } from './model.ts'
 
-export type BoardPanel = 'details' | 'review' | 'rules' | 'ai'
+export type BoardPanel = 'details' | 'files' | 'review' | 'rules' | 'ai'
 
 export interface ReviewState {
   base?: string

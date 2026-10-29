@@ -303,10 +303,10 @@ for (const theme of ['dark', 'light'] as const) {
       expect(await violations(page), 'failure banner').toEqual([])
 
       // The code panel, editing, with a conflict.
-      await page.getByTestId('tab-map').click()
-      await page.getByTestId('search').fill('BookCard')
-      await page.getByTestId('search').press('Enter')
-      await page.getByTestId('view-code').click()
+      await page.getByTestId('tab-board').click()
+      await page.getByTestId('board-search').fill('BookCard')
+      await page.getByTestId('board-search').press('Enter')
+      await page.getByTestId('board-read-code').click()
       const code = page.getByTestId('code-viewer')
       await code.locator('.cm-line', { hasText: 'type Props' }).click()
       await page.keyboard.type(' // x')

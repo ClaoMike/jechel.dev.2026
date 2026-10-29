@@ -40,7 +40,6 @@ const graph = (root: string): RepoGraph =>
       roles: [],
       kinds: [],
       edgeTypes: [],
-      presets: [],
     },
     nodes: [
       { id: 'frontend:symbol:src/Cart.tsx#Cart', label: 'Cart', kind: 'component', layer: 'frontend', role: 'production', file: 'src/Cart.tsx', line: 1 },

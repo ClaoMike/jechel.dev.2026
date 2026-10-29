@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { hasNoHorizontalOverflow, watchErrors } from './helpers.ts'
 
 /** The phone hides the repository name: wait for the board itself. */
-const mapLoaded = (page: Page) => expect(page.getByTestId('board-svg')).toBeVisible({ timeout: 20_000 })
+const graphLoaded = (page: Page) => expect(page.getByTestId('board-svg')).toBeVisible({ timeout: 20_000 })
 const chip = (page: Page, id: string) => page.locator(`[data-chip="${id}"]`)
 
 async function center(page: Page, id: string): Promise<{ x: number; y: number }> {
@@ -30,7 +30,7 @@ test.describe('board on a phone', () => {
   test('tap selects (the sheet describes it), double-tap opens, the trail goes back', async ({ page }) => {
     const errors = watchErrors(page)
     await page.goto('/#tab=board&board=tiers')
-    await mapLoaded(page)
+    await graphLoaded(page)
     await expect(chip(page, 'frontend')).toBeVisible()
     const at = await center(page, 'frontend')
     await page.touchscreen.tap(at.x, at.y)
@@ -47,7 +47,7 @@ test.describe('board on a phone', () => {
   test('pinching out on a chip opens it', async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'touch events through CDP')
     await page.goto('/#tab=board&board=tiers')
-    await mapLoaded(page)
+    await graphLoaded(page)
     await expect(chip(page, 'backend')).toBeVisible()
     await pinchOut(page, await center(page, 'backend'))
     await expect(page.locator('.board-trail')).toContainText('Backend', { timeout: 5000 })
@@ -55,7 +55,7 @@ test.describe('board on a phone', () => {
 
   test('the sheet pulls up for the panels', async ({ page }) => {
     await page.goto('/#tab=board')
-    await mapLoaded(page)
+    await graphLoaded(page)
     const sheet = page.getByTestId('board-panel')
     const collapsed = (await sheet.boundingBox())!.height
     await sheet.getByRole('button', { name: 'Expand the panel' }).tap()

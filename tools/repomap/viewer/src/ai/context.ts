@@ -1,5 +1,5 @@
 /**
- * What the user is looking at, as context for the assistant: the selected node of the map (with what it
+ * What the user is looking at, as context for the assistant: the chip selected on the Board (with what it
  * connects to), the open file and the selected lines, the selected commit, or the uncommitted changes.
  */
 import type { ContextItem } from '../../../src/shared/ai.ts'
@@ -83,7 +83,7 @@ export function changesContext(files: LiveFile[], branch?: string): ContextItem 
 }
 
 export interface ContextSources {
-  tab: 'map' | 'git' | 'board'
+  tab: 'git' | 'board'
   index: GraphIndex | null
   selectedNode: number | null
   editor: { file: string | null; cursorLine: number | null; selection: { from: number; to: number; text: string } | null }
@@ -100,7 +100,7 @@ export function gatherContext(sources: ContextSources): ContextItem[] {
     if (editor.selection && editor.selection.text.trim()) items.push(selectionContext(editor.file, editor.selection))
     items.push(fileContext(editor.file, editor.cursorLine))
   }
-  if ((sources.tab === 'map' || sources.tab === 'board') && sources.index && sources.selectedNode !== null && sources.index.nodes[sources.selectedNode]) {
+  if (sources.tab === 'board' && sources.index && sources.selectedNode !== null && sources.index.nodes[sources.selectedNode]) {
     items.push(nodeContext(sources.index, sources.selectedNode))
   }
   if (sources.tab === 'git') {

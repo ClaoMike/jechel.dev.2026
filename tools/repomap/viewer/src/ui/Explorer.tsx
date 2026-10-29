@@ -1,9 +1,11 @@
 /**
  * The file explorer (the side panel's "Files" tab): the repository as a folder tree, each file with
- * the colour of the layer it is drawn on. Click a file to find it in the map, double-click to open its
+ * the colour of the layer it is drawn on. Click a file to show it on the Board, double-click to open its
  * code; the ⋯ menus create, rename, move and delete files and folders when the server allows it.
  */
 import { useMemo, useState } from 'react'
+import { showOnBoard } from '../board/show.ts'
+import { useBoard } from '../board/store.ts'
 import { useGit } from '../git/store.ts'
 import { filesIn, useFiles } from '../model/files.ts'
 import { buildTree, type Folder } from '../model/tree.ts'
@@ -35,7 +37,8 @@ type Row = { type: 'folder'; folder: Folder; depth: number } | { type: 'file'; p
 
 export function Explorer() {
   const index = useViewer((s) => s.index)
-  const selected = useViewer((s) => s.selected)
+  // The chip selected on the Board: its file is marked here.
+  const selected = useBoard((s) => (s.selected && index ? (index.byId.get(s.selected) ?? null) : null))
   const listed = useFiles((s) => s.files)
   const writable = useFiles((s) => s.writable)
   const [filter, setFilter] = useState('')
@@ -156,12 +159,12 @@ function FileRow(props: { path: string; depth: number; node?: number; index: Gra
   const slash = path.lastIndexOf('/')
   const layer = node !== undefined && index ? index.layerById.get(index.nodes[node].layer) : undefined
   const show = () => {
-    if (node !== undefined) viewer.select(node, true)
+    if (node !== undefined) showOnBoard([node], { details: false })
     else viewer.openFile(path)
   }
   const items: MenuItem[] = [
     { label: 'Open code', icon: 'code', onSelect: () => viewer.openFile(path) },
-    { label: 'Show in the map', icon: 'layers', disabled: node === undefined, title: node === undefined ? 'Not in the map (yet)' : undefined, onSelect: () => node !== undefined && viewer.select(node, true) },
+    { label: 'Show on the board', icon: 'focus', disabled: node === undefined, title: node === undefined ? 'Not in the graph (yet)' : undefined, onSelect: () => node !== undefined && showOnBoard([node]) },
     {
       label: 'History',
       icon: 'clock',
@@ -183,7 +186,7 @@ function FileRow(props: { path: string; depth: number; node?: number; index: Gra
         className="explorer-main"
         onClick={show}
         onDoubleClick={() => viewer.openFile(path)}
-        title={`${path}${layer ? ` — ${layer.label}` : ' — not in the map'}\nClick: find it in the map · double-click: open the code`}
+        title={`${path}${layer ? ` — ${layer.label}` : ' — not in the map'}\nClick: show it on the board · double-click: open the code`}
       >
         <span className="expander-icon" aria-hidden="true" />
         <span className={`swatch round${layer ? '' : ' empty'}`} style={layer ? { background: layer.color } : undefined} aria-hidden="true" />

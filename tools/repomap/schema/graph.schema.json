@@ -77,8 +77,6 @@
     },
     "id": { "type": "string", "minLength": 1 },
     "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-    "visibility": { "enum": ["show", "dim", "hide"] },
-    "visibilityMap": { "type": "object", "additionalProperties": { "$ref": "#/definitions/visibility" } },
     "evidence": {
       "type": "object",
       "required": ["file"],
@@ -86,7 +84,7 @@
     },
     "meta": {
       "type": "object",
-      "required": ["tool", "repo", "generatedAt", "layers", "roles", "kinds", "edgeTypes", "presets"],
+      "required": ["tool", "repo", "generatedAt", "layers", "roles", "kinds", "edgeTypes"],
       "properties": {
         "tool": {
           "type": "object",
@@ -114,9 +112,6 @@
               "id": { "$ref": "#/definitions/id" },
               "label": { "type": "string" },
               "color": { "$ref": "#/definitions/color" },
-              "flat": { "type": "boolean" },
-              "gap": { "type": "number", "exclusiveMinimum": 0 },
-              "arrange": { "enum": ["force", "tree"] },
               "description": { "type": "string" }
             }
           }
@@ -131,8 +126,6 @@
               "label": { "type": "string" },
               "color": { "$ref": "#/definitions/color" },
               "parent": { "type": "string" },
-              "style": { "enum": ["solid", "ghost"] },
-              "planeOffset": { "type": "number" },
               "description": { "type": "string" }
             }
           }
@@ -141,16 +134,11 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "label", "color", "shape"],
+            "required": ["id", "label", "color"],
             "properties": {
               "id": { "$ref": "#/definitions/id" },
               "label": { "type": "string" },
               "color": { "$ref": "#/definitions/color" },
-              "shape": {
-                "enum": ["sphere", "box", "octahedron", "cylinder", "cone", "torus", "tetrahedron", "dodecahedron", "icosahedron", "capsule", "tile", "disc"]
-              },
-              "size": { "type": "number", "exclusiveMinimum": 0 },
-              "labelPriority": { "type": "number" },
               "description": { "type": "string" }
             }
           }
@@ -164,34 +152,7 @@
               "id": { "$ref": "#/definitions/id" },
               "label": { "type": "string" },
               "color": { "$ref": "#/definitions/color" },
-              "flow": { "type": "boolean" },
-              "context": { "type": "boolean" },
               "description": { "type": "string" }
-            }
-          }
-        },
-        "presets": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["id", "label", "filter"],
-            "properties": {
-              "id": { "type": "string" },
-              "label": { "type": "string" },
-              "description": { "type": "string" },
-              "filter": {
-                "type": "object",
-                "properties": {
-                  "default": { "$ref": "#/definitions/visibility" },
-                  "layers": { "$ref": "#/definitions/visibilityMap" },
-                  "kinds": { "$ref": "#/definitions/visibilityMap" },
-                  "roles": { "$ref": "#/definitions/visibilityMap" },
-                  "edgeTypes": { "$ref": "#/definitions/visibilityMap" },
-                  "sources": { "$ref": "#/definitions/visibilityMap" },
-                  "minConfidence": { "type": "number", "minimum": 0, "maximum": 1 }
-                },
-                "additionalProperties": false
-              }
             }
           }
         }
@@ -215,7 +176,6 @@
         "description": { "type": "string" },
         "descriptionSource": { "enum": ["doc-comment", "llm", "manual", "derived"] },
         "roleReason": { "type": "string" },
-        "pos": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
         "feature": { "type": "string" },
         "featureSource": { "enum": ["path", "manual", "llm", "derived", "shared"] }
       }

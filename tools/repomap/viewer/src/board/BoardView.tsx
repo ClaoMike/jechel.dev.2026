@@ -12,7 +12,7 @@ import { useViewer } from '../model/store.ts'
 import { Icon } from '../ui/icons.tsx'
 import { BoardPanel } from './BoardPanel.tsx'
 import { chipSize, HEADER, laneBoxes, layoutScene, pinY, wirePath, type BoardLayout, type ChipBox } from './layout.ts'
-import { buildScene, indexBoard, parentPath, trailOf, type BoardChip, type BoardScene, type BoardWire } from './model.ts'
+import { architectureTrail, buildScene, indexBoard, parentPath, trailOf, type BoardChip, type BoardScene, type BoardWire } from './model.ts'
 import { useBoard, type AiJob } from './store.ts'
 
 const elk = new ELK()
@@ -63,26 +63,47 @@ export default function BoardView() {
 
   if (!index || !bi) return null
   const trail = trailOf(bi, history, path, index.graph.meta.repo.name)
+  const place = architectureTrail(bi, path)
   const current = layout && layout.scene === scene ? layout : null
   return (
     <div className="board-workspace">
       <div className={`board-stage theme-${theme}`} data-testid="board-stage">
-        <nav className="board-trail" aria-label="Board level">
-          {trail.map((step, k) => (
-            <span key={k} className="board-trail-step">
-              {k > 0 && <span aria-hidden="true">›</span>}
-              <button
-                type="button"
-                className={k === trail.length - 1 ? 'current' : ''}
-                aria-current={k === trail.length - 1 ? 'location' : undefined}
-                onClick={() => k < trail.length - 1 && useBoard.getState().goToStep(step.path, step.history)}
-                data-testid={`board-trail-${k}`}
-              >
-                {step.label}
-              </button>
-            </span>
-          ))}
-        </nav>
+        <div className="board-trails">
+          <nav className="board-trail" aria-label="Board level">
+            {trail.map((step, k) => (
+              <span key={k} className="board-trail-step">
+                {k > 0 && <span aria-hidden="true">›</span>}
+                <button
+                  type="button"
+                  className={k === trail.length - 1 ? 'current' : ''}
+                  aria-current={k === trail.length - 1 ? 'location' : undefined}
+                  onClick={() => k < trail.length - 1 && useBoard.getState().goToStep(step.path, step.history)}
+                  data-testid={`board-trail-${k}`}
+                >
+                  {step.label}
+                </button>
+              </span>
+            ))}
+          </nav>
+          {place && (
+            <nav className="board-arch" aria-label="Place in the architecture" data-testid="board-architecture">
+              {place.map((step, k) => (
+                <span key={k} className={`board-arch-step ${step.kind}`}>
+                  {k > 0 && <span aria-hidden="true">›</span>}
+                  {step.path && k < place.length - 1 ? (
+                    <button type="button" title={step.title} onClick={() => useBoard.getState().navigate(step.path!, 'out')}>
+                      {step.label}
+                    </button>
+                  ) : (
+                    <span title={step.title} aria-current={k === place.length - 1 ? 'location' : undefined}>
+                      {step.label}
+                    </span>
+                  )}
+                </span>
+              ))}
+            </nav>
+          )}
+        </div>
         {current ? (
           <Board
             key={JSON.stringify(path)}

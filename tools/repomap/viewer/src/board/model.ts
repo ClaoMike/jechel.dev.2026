@@ -280,6 +280,52 @@ export function trailOf(bi: BoardIndex, history: BoardPath[], path: BoardPath, a
   return steps
 }
 
+/** A step of where a level is in its tier's architecture: the architecture, a layer, a slice, folders, a file. */
+export interface ArchitectureStep {
+  label: string
+  kind: 'architecture' | 'layer' | 'slice' | 'folder' | 'file'
+  /** The board level it stands for, when it has one. */
+  path?: BoardPath
+  title?: string
+}
+
+/**
+ * Where a level is in its tier's architecture (board.architectures), e.g. Feature-Sliced Design › Pages › Apps › ui ›
+ * AppTile › AppTile.tsx; null on levels above a tier, and on tiers that follow none.
+ */
+export function architectureTrail(bi: BoardIndex, path: BoardPath): ArchitectureStep[] | null {
+  if (path.level === 'app' || path.level === 'tiers') return null
+  const arch = bi.board.architectures?.find((a) => a.tier === path.tier)
+  if (!arch) return null
+  const tierLevel: BoardPath = { level: 'features', tier: path.tier }
+  const steps: ArchitectureStep[] = [{ label: arch.label, kind: 'architecture', path: tierLevel, ...(arch.description ? { title: arch.description } : {}) }]
+  if (path.level === 'features') return steps
+  const feature = bi.featureById.get(path.feature)
+  const sliceLevel: BoardPath = { level: 'chips', tier: path.tier, feature: path.feature }
+  const layer = feature?.layer?.architecture === arch.id ? arch.layers[feature.layer.order] : undefined
+  if (!feature || !layer) {
+    steps.push({ label: `Outside ${arch.label}`, kind: 'layer', path: tierLevel }, { label: feature?.label ?? path.feature, kind: 'slice', path: sliceLevel })
+    return steps
+  }
+  steps.push({ label: layer.label, kind: 'layer', path: tierLevel, ...(layer.description ? { title: layer.description } : {}) })
+  // The feature's id is <architecture>/<layer>[/<slice>].
+  const part = path.feature.slice(`${arch.id}/${layer.id}/`.length) || undefined
+  if (layer.parts && part) steps.push({ label: feature.label, kind: 'slice', path: sliceLevel, title: `${layer.id}/${part}` })
+  if (path.level === 'chips') {
+    if (path.group) steps.push({ label: path.group, kind: 'folder' })
+    return steps
+  }
+  const i = bi.index.byId.get(path.chip)
+  const file = i === undefined ? undefined : bi.index.nodes[i].file
+  const base = `${arch.root.replace(/\/+$/, '')}/${layer.id}/${layer.parts && part ? `${part}/` : ''}`
+  if (file?.startsWith(base)) {
+    const rest = file.slice(base.length).split('/')
+    rest.slice(0, -1).forEach((folder) => steps.push({ label: folder, kind: 'folder' }))
+    steps.push({ label: rest[rest.length - 1], kind: 'file', title: file })
+  }
+  return steps
+}
+
 export function parentPath(path: BoardPath): BoardPath | null {
   switch (path.level) {
     case 'app':

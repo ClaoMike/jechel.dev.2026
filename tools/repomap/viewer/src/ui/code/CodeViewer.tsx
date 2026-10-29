@@ -31,7 +31,7 @@ import { useEditor } from '../../model/editor.ts'
 import { onServerEvent } from '../../model/events.ts'
 import { fetchSource, saveSource, type SourceFile } from '../../model/source.ts'
 import { useViewer } from '../../model/store.ts'
-import { Icon, ShapeIcon } from '../icons.tsx'
+import { Icon } from '../icons.tsx'
 import { LANGUAGE_NAMES, languageOf } from './languages.ts'
 import { loadLanguage } from './loaders.ts'
 import { vscodeTheme } from './theme.ts'
@@ -357,7 +357,7 @@ function CodePanel({ node }: { node: GraphNode }) {
       <div className={`code-dialog code-${theme}`} role="dialog" aria-modal="true" aria-label={`Code of ${node.label}`} data-testid="code-viewer">
         <header className="code-header">
           <div className="code-title">
-            {kind && <ShapeIcon shape={kind.shape} color={kind.color} size={16} />}
+            {kind && <span className="kind-dot" style={{ background: kind.color }} aria-hidden="true" />}
             <span className="code-node" title={node.id}>
               {node.label}
             </span>

@@ -9,12 +9,12 @@ test.describe('editing on a phone', () => {
   test('opens the code read-only, edits after tapping Edit, saves', async ({ page, repo }) => {
     const errors = watchErrors(page)
     await page.goto(`${repo.url}/`)
-    // The gesture hint shows once the map is loaded (searching before that finds nothing).
-    await expect(page.getByTestId('hint')).toBeVisible()
-    await page.getByRole('button', { name: 'Search' }).tap()
-    await page.getByTestId('search').fill('BookCard')
-    await page.getByTestId('search').press('Enter')
-    await page.getByTestId('details').getByTestId('view-code').tap()
+    // The board is drawn once the graph is loaded (searching before that finds nothing); the search is on its sheet.
+    await expect(page.getByTestId('board-svg')).toBeVisible({ timeout: 20_000 })
+    await page.getByRole('button', { name: 'Toggle the board panel' }).tap()
+    await page.getByTestId('board-search').fill('BookCard')
+    await page.getByTestId('board-search').press('Enter')
+    await page.getByTestId('board-read-code').tap()
     const code = page.getByTestId('code-viewer')
     await expect(code.locator('.cm-content')).toContainText('export function BookCard')
     const edit = code.getByTestId('code-edit')

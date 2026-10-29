@@ -1,12 +1,4 @@
-/**
- * View state in the URL hash (shareable links, back/forward) plus the last view in localStorage.
- * Only differences from the defaults are stored.
- */
-import { decodeView, encodeView, type ViewState } from './view-code.ts'
-
-export { decodeView, encodeView, type ViewState }
-
-const STORAGE_KEY = 'repomap.view'
+/** Where you are in the URL hash (shareable links), and preferences in localStorage. */
 
 function hashParams(): URLSearchParams {
   return new URLSearchParams(window.location.hash.replace(/^#/, ''))
@@ -28,30 +20,6 @@ export function writeHashParams(values: Record<string, string | null | undefined
   const hash = text ? `#${text}` : ''
   if (window.location.hash.replace(/^#$/, '') !== hash) {
     history.replaceState(history.state, '', `${window.location.pathname}${window.location.search}${hash}`)
-  }
-}
-
-export function readViewFromHash(): ViewState | null {
-  const text = readHashParam('view')
-  return text ? decodeView(text) : null
-}
-
-export function writeViewToHash(view: ViewState): void {
-  const empty = Object.values(view).every((v) => v === undefined)
-  writeHashParams({ view: empty ? null : encodeView(view) })
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(view))
-  } catch {
-    // Storage can be unavailable (private mode); the hash still works.
-  }
-}
-
-export function readStoredView(): ViewState | null {
-  try {
-    const text = localStorage.getItem(STORAGE_KEY)
-    return text ? (JSON.parse(text) as ViewState) : null
-  } catch {
-    return null
   }
 }
 
