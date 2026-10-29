@@ -5,11 +5,11 @@
   "output": ".out/graph.json",
   "exclude": ["tools/repomap/**"],
 
-  // The frontend as two planes: the components on top, then the store (Redux, RTK Query, the API service) and
-  // everything else under them. They're laid out together as one tree from main.tsx.
+  // The frontend as two layers of its tier: the components, then the store (Redux, RTK Query, the API service) and
+  // everything else (the Board shows them as two columns of a feature's chips).
   "layers": [
-    { "id": "frontend-views", "label": "Frontend · Components", "color": "#38bdf8", "before": "frontend", "arrange": "tree", "description": "Components (*.tsx): main.tsx, App, pages and components, with their state, effects and store access" },
-    { "id": "frontend", "label": "Frontend · Store & the rest", "color": "#22d3ee", "gap": 50, "arrange": "tree", "description": "Everything but components: Redux slices and listeners, RTK Query endpoints, the API service (shared/api), hooks, helpers, strings" }
+    { "id": "frontend-views", "label": "Frontend · Components", "color": "#38bdf8", "before": "frontend", "description": "Components (*.tsx): main.tsx, App, pages and components, with their state, effects and store access" },
+    { "id": "frontend", "label": "Frontend · Store & the rest", "color": "#22d3ee", "description": "Everything but components: Redux slices and listeners, RTK Query endpoints, the API service (shared/api), hooks, helpers, strings" }
   ],
   "layerRules": [
     { "match": ["frontend/src/**/*.tsx"], "layer": "frontend-views", "reason": "a component" }
@@ -117,17 +117,6 @@
       "to": { "kinds": ["entity", "property"] },
       "edgeTypes": ["queries", "writes"],
       "sameFeature": true
-    }
-  ],
-
-  "presets": [
-    {
-      "id": "data",
-      "filter": {
-        "layers": { "frontend-views": "hide", "frontend": "hide", "infra": "hide" },
-        "kinds": { "*": "dim", "dbcontext": "show", "entity": "show", "property": "show", "table": "show", "column": "show", "migration": "show", "snapshot": "show" },
-        "roles": { "test": "hide", "config": "hide", "tooling": "hide", "docs": "hide" }
-      }
     }
   ]
 }

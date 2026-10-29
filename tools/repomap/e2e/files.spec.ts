@@ -1,22 +1,22 @@
 /**
- * Creating, renaming and deleting files and folders from the explorer and the details panel, against
- * a real repository whose map is built by the real pipeline and rebuilt after every change: the new
- * file appears in the map on its layer's plane, a deleted one disappears. And read-only elsewhere.
+ * Creating, renaming and deleting files and folders from the explorer (the Board's Files tab), against a real
+ * repository whose graph is built by the real pipeline and rebuilt after every change: the board opens on a new file,
+ * a deleted one disappears. And read-only elsewhere.
  */
 import type { Page } from '@playwright/test'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { mapLoaded, violations, watchErrors } from './helpers.ts'
+import { BOOK_CARD, graphLoaded, violations, watchErrors } from './helpers.ts'
 import { BOOK_CARD_FILE, expect, test } from './repo-fixture.ts'
 
 const BOOKS = 'web/src/features/books'
 const dialog = (page: Page) => page.getByTestId('file-dialog')
-const details = (page: Page) => page.getByTestId('details')
+const details = (page: Page) => page.getByTestId('board-chip-details')
 
 async function openExplorer(page: Page, url: string): Promise<void> {
   await page.goto(`${url}/`)
-  await mapLoaded(page)
-  await page.getByTestId('sidebar-files').click()
+  await graphLoaded(page)
+  await page.getByTestId('board-panel-files').click()
   await expect(page.getByTestId('explorer')).toBeVisible()
 }
 
@@ -37,7 +37,7 @@ async function expandTo(page: Page, folder: string): Promise<void> {
 test.describe('files', () => {
   test.use({ realMap: true })
 
-  test('creates a component from the explorer: it opens in the editor and lands on the Frontend plane', async ({ page, repo }) => {
+  test('creates a component from the explorer: it opens in the editor, then the board opens on it', async ({ page, repo }) => {
     const errors = watchErrors(page)
     await openExplorer(page, repo.url)
     await expandTo(page, BOOKS)
@@ -57,23 +57,19 @@ test.describe('files', () => {
     await page.keyboard.press('Escape')
     await expect(code).toHaveCount(0)
 
-    // The rebuilt map has it, selected, on the Frontend plane.
-    await expect(details(page).getByRole('heading', { name: 'BookList' })).toBeVisible({ timeout: 20_000 })
+    // The rebuilt graph has it: the board opens on it, selected, on the Frontend tier.
+    await expect(details(page)).toContainText('BookList', { timeout: 20_000 })
     await expect(details(page)).toContainText('Frontend')
-    await expect(details(page).locator('.location')).toContainText(`${BOOKS}/BookList.tsx`)
+    await expect(details(page)).toContainText(`${BOOKS}/BookList.tsx`)
+    await page.getByTestId('board-panel-files').click()
     await expect(page.getByTestId(`file-${BOOKS}/BookList.tsx`)).toBeVisible()
     expect(errors).toEqual([])
   })
 
-  test('renames, moves and deletes a file from the details panel', async ({ page, repo }) => {
-    await page.goto(`${repo.url}/`)
-    await mapLoaded(page)
-    await page.getByTestId('search').fill('BookCard')
-    await page.getByTestId('search').press('Enter')
-    await expect(details(page).getByRole('heading', { name: 'BookCard' })).toBeVisible()
-    const commands = details(page).getByTestId('file-commands')
-
-    await commands.getByRole('button', { name: 'Rename or move…' }).click()
+  test('renames, moves and deletes a file from the explorer', async ({ page, repo }) => {
+    await openExplorer(page, repo.url)
+    await expandTo(page, BOOKS)
+    await rowMenu(page, BOOK_CARD_FILE, 'Rename or move…')
     const path = dialog(page).getByTestId('file-path')
     await expect(path).toHaveValue(BOOK_CARD_FILE)
     // The name is selected, not the folder or the extension.
@@ -82,19 +78,25 @@ test.describe('files', () => {
     await path.fill('web/src/shared/Card.tsx')
     await expect(dialog(page).getByRole('button', { name: 'Move' })).toBeEnabled()
     await dialog(page).getByRole('button', { name: 'Move' }).click()
-    await expect(details(page).locator('.location')).toContainText('web/src/shared/Card.tsx', { timeout: 20_000 })
+    // The board opens on it where it went.
+    await expect(details(page)).toContainText('web/src/shared/Card.tsx', { timeout: 20_000 })
     expect(existsSync(join(repo.dir, BOOK_CARD_FILE))).toBe(false)
     expect(repo.read('web/src/shared/Card.tsx')).toContain('export function BookCard')
 
-    await details(page).getByTestId('file-commands').getByRole('button', { name: 'Delete…' }).click()
+    await page.getByTestId('board-panel-files').click()
+    await expandTo(page, 'web/src/shared')
+    await rowMenu(page, 'web/src/shared/Card.tsx', 'Delete…')
     await expect(dialog(page)).toContainText('web/src/shared/Card.tsx')
     await dialog(page).getByRole('button', { name: 'Delete' }).click()
-    await expect(details(page)).toHaveCount(0, { timeout: 20_000 })
+    await expect(page.getByTestId('file-web/src/shared/Card.tsx')).toHaveCount(0, { timeout: 20_000 })
     expect(existsSync(join(repo.dir, 'web/src/shared/Card.tsx'))).toBe(false)
-    // Nothing in the map is called BookCard any more.
-    await page.getByTestId('search').fill('BookCard')
-    await expect(page.locator('.search-results')).toContainText('No matches')
-    await expect(page.locator('.search-results [role="option"]')).toHaveCount(0)
+    // Nothing on the board is called BookCard any more, once it's rebuilt.
+    await page.getByTestId('board-panel-details').click()
+    await expect(async () => {
+      await page.getByTestId('board-search').fill('')
+      await page.getByTestId('board-search').fill('BookCard')
+      await expect(page.locator('.board-search-hits button', { hasText: /^BookCard/ })).toHaveCount(0, { timeout: 1000 })
+    }).toPass({ timeout: 20_000 })
   })
 
   test('deletes a folder, and the git tab can take it back', async ({ page, repo }) => {
@@ -113,7 +115,7 @@ test.describe('files', () => {
     await page.getByTestId('change-list').getByRole('button', { name: `Discard ${BOOK_CARD_FILE}` }).click()
     await page.getByTestId('git-dialog').getByRole('button', { name: 'Discard changes' }).click()
     await expect.poll(() => existsSync(join(repo.dir, BOOK_CARD_FILE))).toBe(true)
-    await page.getByTestId('tab-map').click()
+    await page.getByTestId('tab-board').click()
     await expect(page.getByTestId(`folder-web/src/features`)).toBeVisible({ timeout: 20_000 })
   })
 
@@ -149,10 +151,10 @@ test.describe('files', () => {
   })
 })
 
-test('on a read-only server the explorer lists the map files and changes nothing', async ({ page }) => {
+test('on a read-only server the explorer lists the graph\'s files and changes nothing', async ({ page }) => {
   await page.goto('/')
-  await mapLoaded(page)
-  await page.getByTestId('sidebar-files').click()
+  await graphLoaded(page)
+  await page.getByTestId('board-panel-files').click()
   await expect(page.getByTestId('explorer')).toContainText('Read-only')
   await expect(page.getByTestId('explorer-new-file')).toHaveCount(0)
   await page.getByTestId('explorer-filter').fill('BookCard')
@@ -160,8 +162,11 @@ test('on a read-only server the explorer lists the map files and changes nothing
   await page.getByTestId(`explorer-menu-${BOOK_CARD_FILE}`).click()
   await expect(page.getByTestId(`explorer-menu-${BOOK_CARD_FILE}-menu`).getByRole('menuitem', { name: 'Delete…' })).toBeDisabled()
   await page.keyboard.press('Escape')
-  // Clicking a file finds it in the map.
+  // Clicking a file finds it on the board (the Files tab stays open); its menu describes it.
   await page.getByTestId(`file-${BOOK_CARD_FILE}`).locator('.explorer-main').click()
-  await expect(details(page).getByRole('heading', { name: 'BookCard' })).toBeVisible()
-  await expect(details(page).getByTestId('file-commands')).toHaveCount(0)
+  await expect(page.locator(`[data-chip="${BOOK_CARD}"]`)).toBeVisible()
+  await expect(page.getByTestId('explorer')).toBeVisible()
+  await page.getByTestId(`explorer-menu-${BOOK_CARD_FILE}`).click()
+  await page.getByTestId(`explorer-menu-${BOOK_CARD_FILE}-menu`).getByRole('menuitem', { name: 'Show on the board' }).click()
+  await expect(details(page)).toContainText('BookCard')
 })

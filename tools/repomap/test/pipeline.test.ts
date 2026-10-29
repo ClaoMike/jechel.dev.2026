@@ -77,16 +77,11 @@ describe('pipeline on this repository', { skip: !hasDotnet && 'dotnet SDK not fo
     assert.ok(hasEdge('Profile', 'maps-to', 'profiles'))
   })
 
-  it('puts the components and the rest of the frontend on their own planes, as one tree from main.tsx', () => {
+  it('puts the components and the rest of the frontend on their own layers', () => {
     for (const n of graph.nodes.filter((n) => n.file?.startsWith('frontend/src/') && n.kind !== 'route')) {
       const expected = n.file!.endsWith('.tsx') ? 'frontend-views' : 'frontend'
       assert.equal(n.layer, expected, n.id)
     }
-    const main = node('frontend-views', 'main.tsx')
-    assert.deepEqual([main.pos![0], main.pos![2]], [0, 0])
-    const r = (n: { pos?: number[] }) => Math.hypot(n.pos![0], n.pos![2])
-    assert.ok(r(node('frontend-views', 'App')) < r(node('frontend-views', 'AppsPage')))
-    assert.ok(r(node('frontend-views', 'AppsPage')) < r(node('frontend', 'useListAppsQuery')))
     assert.equal(node('frontend', 'useListAppsQuery').kind, 'hook')
     assert.equal(node('frontend', 'authSlice').kind, 'slice')
   })

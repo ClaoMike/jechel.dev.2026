@@ -22,7 +22,7 @@
     { "id": "frontend", "label": "Frontend", "color": "#38bdf8", "description": "React app: routes, pages, components, hooks, API client" },
     { "id": "backend", "label": "Backend", "color": "#4ade80", "description": "ASP.NET Core: endpoints, services, DbContext, entities" },
     { "id": "database", "label": "Database", "color": "#fb923c", "description": "PostgreSQL schema from the EF Core model: tables, columns, foreign keys, migrations" },
-    { "id": "infra", "label": "Infra & tooling", "color": "#a78bfa", "flat": true, "description": "CI, containers, scripts and docs" }
+    { "id": "infra", "label": "Infra & tooling", "color": "#a78bfa", "description": "CI, containers, scripts and docs" }
   ],
   "layerRules": [
     { "match": ["**/Migrations/**"], "layer": "database", "reason": "EF Core migrations folder" },
@@ -33,17 +33,17 @@
   "defaultLayer": "infra",
 
   "roles": [
-    { "id": "production", "label": "Production", "color": "#e2e8f0", "planeOffset": 0, "description": "Code that ships" },
-    { "id": "test", "label": "Tests", "color": "#fb7185", "planeOffset": 14 },
+    { "id": "production", "label": "Production", "color": "#e2e8f0", "description": "Code that ships" },
+    { "id": "test", "label": "Tests", "color": "#fb7185" },
     { "id": "test/unit", "label": "Unit", "color": "#fb7185", "parent": "test" },
     { "id": "test/integration", "label": "Integration", "color": "#f472b6", "parent": "test" },
     { "id": "test/e2e", "label": "End-to-end", "color": "#e879f9", "parent": "test" },
     { "id": "test/support", "label": "Test support", "color": "#fda4af", "parent": "test", "description": "Fixtures, mock servers and helpers used only by tests" },
-    { "id": "config", "label": "Config", "color": "#94a3b8", "planeOffset": 24 },
-    { "id": "migration", "label": "Migrations", "color": "#c084fc", "planeOffset": 14 },
-    { "id": "generated", "label": "Generated", "color": "#64748b", "planeOffset": 30, "style": "ghost" },
-    { "id": "tooling", "label": "Tooling & CI", "color": "#a78bfa", "planeOffset": 24 },
-    { "id": "docs", "label": "Docs", "color": "#cbd5e1", "planeOffset": 24 }
+    { "id": "config", "label": "Config", "color": "#94a3b8" },
+    { "id": "migration", "label": "Migrations", "color": "#c084fc" },
+    { "id": "generated", "label": "Generated", "color": "#64748b" },
+    { "id": "tooling", "label": "Tooling & CI", "color": "#a78bfa" },
+    { "id": "docs", "label": "Docs", "color": "#cbd5e1" }
   ],
   "roleRules": [
     { "match": ["**/*.Designer.cs", "**/*.designer.cs", "**/*.g.cs", "**/*.g.i.cs", "**/*.generated.*", "**/*ModelSnapshot.cs", "**/__generated__/**", "**/*.gen.ts"], "role": "generated", "reason": "generated-file naming convention" },
@@ -59,126 +59,85 @@
   "defaultRole": "production",
 
   "kinds": [
-    { "id": "route", "label": "Route", "color": "#7dd3fc", "shape": "octahedron", "size": 1.0, "labelPriority": 8, "description": "A frontend URL route" },
-    { "id": "page", "label": "Page", "color": "#38bdf8", "shape": "sphere", "size": 1.45, "labelPriority": 9, "description": "A component rendered by a route" },
-    { "id": "component", "label": "Component", "color": "#60a5fa", "shape": "sphere", "size": 1.0, "labelPriority": 5 },
-    { "id": "provider", "label": "Provider", "color": "#818cf8", "shape": "capsule", "size": 1.15, "labelPriority": 6, "description": "A component that provides a React context" },
-    { "id": "hook", "label": "Hook", "color": "#a78bfa", "shape": "tetrahedron", "size": 1.0, "labelPriority": 5 },
-    { "id": "context", "label": "Context", "color": "#c084fc", "shape": "capsule", "size": 0.9, "labelPriority": 4 },
-    { "id": "api-client", "label": "API client", "color": "#22d3ee", "shape": "box", "size": 1.3, "labelPriority": 7, "description": "The object/module every backend call goes through" },
-    { "id": "api-call", "label": "API call", "color": "#2dd4bf", "shape": "cone", "size": 0.95, "labelPriority": 6, "description": "A client function that calls a backend endpoint" },
-    { "id": "store-api", "label": "Query API", "color": "#67e8f9", "shape": "box", "size": 1.15, "labelPriority": 6, "description": "An RTK Query API (createApi / injectEndpoints); its generated hooks hang under it" },
-    { "id": "slice", "label": "Store slice", "color": "#f472b6", "shape": "box", "size": 1.1, "labelPriority": 6, "description": "A Redux slice (createSlice): a part of the app state and its reducers" },
-    { "id": "action", "label": "Action", "color": "#f9a8d4", "shape": "tetrahedron", "size": 0.7, "labelPriority": 3, "description": "A Redux action a slice defines" },
-    { "id": "thunk", "label": "Thunk", "color": "#e879f9", "shape": "cone", "size": 0.9, "labelPriority": 5, "description": "An async Redux action (createAsyncThunk)" },
-    { "id": "function", "label": "Function", "color": "#93c5fd", "shape": "sphere", "size": 0.7, "labelPriority": 3 },
-    { "id": "constant", "label": "Constant", "color": "#fde047", "shape": "tile", "size": 0.8, "labelPriority": 3, "description": "An exported table of values: the site's strings, its tabs, labels by key" },
-    { "id": "class", "label": "Class", "color": "#cbd5e1", "shape": "box", "size": 0.85, "labelPriority": 3 },
-    { "id": "type", "label": "Type", "color": "#94a3b8", "shape": "tile", "size": 0.75, "labelPriority": 2 },
-    { "id": "interface", "label": "Interface", "color": "#a5b4fc", "shape": "tile", "size": 0.75, "labelPriority": 2 },
-    { "id": "entrypoint", "label": "Entry point", "color": "#f1f5f9", "shape": "icosahedron", "size": 1.35, "labelPriority": 8, "description": "Where the app starts (main.tsx, Program.cs)" },
-    { "id": "stylesheet", "label": "Stylesheet", "color": "#f9a8d4", "shape": "tile", "size": 0.75, "labelPriority": 2 },
-    { "id": "html", "label": "HTML page", "color": "#fdba74", "shape": "tile", "size": 0.9, "labelPriority": 3 },
+    { "id": "route", "label": "Route", "color": "#7dd3fc", "description": "A frontend URL route" },
+    { "id": "page", "label": "Page", "color": "#38bdf8", "description": "A component rendered by a route" },
+    { "id": "component", "label": "Component", "color": "#60a5fa" },
+    { "id": "provider", "label": "Provider", "color": "#818cf8", "description": "A component that provides a React context" },
+    { "id": "hook", "label": "Hook", "color": "#a78bfa" },
+    { "id": "context", "label": "Context", "color": "#c084fc" },
+    { "id": "api-client", "label": "API client", "color": "#22d3ee", "description": "The object/module every backend call goes through" },
+    { "id": "api-call", "label": "API call", "color": "#2dd4bf", "description": "A client function that calls a backend endpoint" },
+    { "id": "store-api", "label": "Query API", "color": "#67e8f9", "description": "An RTK Query API (createApi / injectEndpoints); its generated hooks hang under it" },
+    { "id": "slice", "label": "Store slice", "color": "#f472b6", "description": "A Redux slice (createSlice): a part of the app state and its reducers" },
+    { "id": "action", "label": "Action", "color": "#f9a8d4", "description": "A Redux action a slice defines" },
+    { "id": "thunk", "label": "Thunk", "color": "#e879f9", "description": "An async Redux action (createAsyncThunk)" },
+    { "id": "function", "label": "Function", "color": "#93c5fd" },
+    { "id": "constant", "label": "Constant", "color": "#fde047", "description": "An exported table of values: the site's strings, its tabs, labels by key" },
+    { "id": "class", "label": "Class", "color": "#cbd5e1" },
+    { "id": "type", "label": "Type", "color": "#94a3b8" },
+    { "id": "interface", "label": "Interface", "color": "#a5b4fc" },
+    { "id": "entrypoint", "label": "Entry point", "color": "#f1f5f9", "description": "Where the app starts (main.tsx, Program.cs)" },
+    { "id": "stylesheet", "label": "Stylesheet", "color": "#f9a8d4" },
+    { "id": "html", "label": "HTML page", "color": "#fdba74" },
 
-    { "id": "endpoint", "label": "Endpoint", "color": "#4ade80", "shape": "octahedron", "size": 1.15, "labelPriority": 9, "description": "An HTTP route the API serves" },
-    { "id": "endpoint-slice", "label": "Endpoint slice", "color": "#4ade80", "shape": "box", "size": 1.2, "labelPriority": 6, "description": "A vertical slice: one endpoint with its route, request, response and handler (an IEndpoint the app finds by itself)" },
-    { "id": "endpoint-group", "label": "Endpoint group", "color": "#86efac", "shape": "box", "size": 1.2, "labelPriority": 6, "description": "A class that maps a feature's endpoints" },
-    { "id": "controller", "label": "Controller", "color": "#86efac", "shape": "box", "size": 1.25, "labelPriority": 7 },
-    { "id": "service", "label": "Service", "color": "#34d399", "shape": "box", "size": 1.3, "labelPriority": 8 },
-    { "id": "middleware", "label": "Middleware", "color": "#5eead4", "shape": "box", "size": 1.0, "labelPriority": 5, "description": "Request pipeline middleware, or a Redux listener middleware" },
-    { "id": "options", "label": "Options", "color": "#a3e635", "shape": "tile", "size": 0.9, "labelPriority": 4, "description": "A class bound to a configuration section" },
-    { "id": "dto", "label": "DTO", "color": "#bef264", "shape": "tile", "size": 0.8, "labelPriority": 3, "description": "A request/response contract" },
-    { "id": "setup", "label": "Setup / DI", "color": "#6ee7b7", "shape": "box", "size": 1.05, "labelPriority": 5, "description": "Service registration and app configuration" },
-    { "id": "dbcontext", "label": "DbContext", "color": "#facc15", "shape": "cylinder", "size": 1.4, "labelPriority": 8 },
-    { "id": "entity", "label": "Entity", "color": "#fbbf24", "shape": "box", "size": 1.2, "labelPriority": 7 },
-    { "id": "property", "label": "Property", "color": "#fde68a", "shape": "sphere", "size": 0.42, "labelPriority": 1 },
-    { "id": "enum", "label": "Enum", "color": "#a1a1aa", "shape": "tile", "size": 0.7, "labelPriority": 2 },
+    { "id": "endpoint", "label": "Endpoint", "color": "#4ade80", "description": "An HTTP route the API serves" },
+    { "id": "endpoint-slice", "label": "Endpoint slice", "color": "#4ade80", "description": "A vertical slice: one endpoint with its route, request, response and handler (an IEndpoint the app finds by itself)" },
+    { "id": "endpoint-group", "label": "Endpoint group", "color": "#86efac", "description": "A class that maps a feature's endpoints" },
+    { "id": "controller", "label": "Controller", "color": "#86efac" },
+    { "id": "service", "label": "Service", "color": "#34d399" },
+    { "id": "middleware", "label": "Middleware", "color": "#5eead4", "description": "Request pipeline middleware, or a Redux listener middleware" },
+    { "id": "options", "label": "Options", "color": "#a3e635", "description": "A class bound to a configuration section" },
+    { "id": "dto", "label": "DTO", "color": "#bef264", "description": "A request/response contract" },
+    { "id": "setup", "label": "Setup / DI", "color": "#6ee7b7", "description": "Service registration and app configuration" },
+    { "id": "dbcontext", "label": "DbContext", "color": "#facc15" },
+    { "id": "entity", "label": "Entity", "color": "#fbbf24" },
+    { "id": "property", "label": "Property", "color": "#fde68a" },
+    { "id": "enum", "label": "Enum", "color": "#a1a1aa" },
 
-    { "id": "table", "label": "Table", "color": "#fb923c", "shape": "cylinder", "size": 1.5, "labelPriority": 9 },
-    { "id": "column", "label": "Column", "color": "#fdba74", "shape": "sphere", "size": 0.42, "labelPriority": 1 },
-    { "id": "migration", "label": "Migration", "color": "#c084fc", "shape": "disc", "size": 1.0, "labelPriority": 4 },
-    { "id": "snapshot", "label": "Model snapshot", "color": "#a78bfa", "shape": "disc", "size": 1.0, "labelPriority": 2 },
+    { "id": "table", "label": "Table", "color": "#fb923c" },
+    { "id": "column", "label": "Column", "color": "#fdba74" },
+    { "id": "migration", "label": "Migration", "color": "#c084fc" },
+    { "id": "snapshot", "label": "Model snapshot", "color": "#a78bfa" },
 
-    { "id": "test-suite", "label": "Test suite", "color": "#fb7185", "shape": "torus", "size": 1.0, "labelPriority": 4 },
-    { "id": "test-helper", "label": "Test helper", "color": "#fda4af", "shape": "torus", "size": 0.8, "labelPriority": 3, "description": "Fixture, mock server or render helper" },
+    { "id": "test-suite", "label": "Test suite", "color": "#fb7185" },
+    { "id": "test-helper", "label": "Test helper", "color": "#fda4af", "description": "Fixture, mock server or render helper" },
 
-    { "id": "project", "label": "Project file", "color": "#cbd5e1", "shape": "dodecahedron", "size": 1.0, "labelPriority": 4 },
-    { "id": "config-file", "label": "Config file", "color": "#94a3b8", "shape": "dodecahedron", "size": 0.85, "labelPriority": 3 },
-    { "id": "workflow", "label": "CI workflow", "color": "#c4b5fd", "shape": "dodecahedron", "size": 1.0, "labelPriority": 4 },
-    { "id": "script", "label": "Script", "color": "#d6d3d1", "shape": "tile", "size": 0.85, "labelPriority": 3 },
-    { "id": "http-file", "label": "HTTP requests", "color": "#5eead4", "shape": "tile", "size": 0.8, "labelPriority": 3 },
-    { "id": "doc", "label": "Document", "color": "#e2e8f0", "shape": "tile", "size": 0.8, "labelPriority": 2 },
-    { "id": "file", "label": "File", "color": "#9ca3af", "shape": "tile", "size": 0.7, "labelPriority": 1 }
+    { "id": "project", "label": "Project file", "color": "#cbd5e1" },
+    { "id": "config-file", "label": "Config file", "color": "#94a3b8" },
+    { "id": "workflow", "label": "CI workflow", "color": "#c4b5fd" },
+    { "id": "script", "label": "Script", "color": "#d6d3d1" },
+    { "id": "http-file", "label": "HTTP requests", "color": "#5eead4" },
+    { "id": "doc", "label": "Document", "color": "#e2e8f0" },
+    { "id": "file", "label": "File", "color": "#9ca3af" }
   ],
 
   "edgeTypes": [
     { "id": "contains", "label": "Contains", "color": "#64748b", "description": "Parent → child (class → member, table → column)" },
-    { "id": "renders", "label": "Renders", "color": "#60a5fa", "flow": true },
-    { "id": "uses", "label": "Uses", "color": "#94a3b8", "flow": true },
-    { "id": "provides", "label": "Provides", "color": "#818cf8", "flow": true, "description": "Provider → context" },
-    { "id": "calls", "label": "Calls", "color": "#22d3ee", "flow": true },
-    { "id": "http", "label": "HTTP", "color": "#2dd4bf", "flow": true, "description": "Client call → backend endpoint" },
-    { "id": "navigates", "label": "Navigates", "color": "#7dd3fc", "context": true, "description": "Link/redirect to a route" },
-    { "id": "injects", "label": "Injects", "color": "#34d399", "flow": true, "description": "Dependency injection" },
-    { "id": "resolves", "label": "Resolves", "color": "#6ee7b7", "flow": true, "description": "Service locator (GetRequiredService<T>)" },
-    { "id": "queries", "label": "Queries", "color": "#fbbf24", "flow": true, "description": "Uses an entity's DbSet" },
-    { "id": "exposes", "label": "Exposes", "color": "#facc15", "context": true, "description": "DbContext → entity set (DbSet<T>); not followed by traces, which use the precise queries/reads/writes instead" },
-    { "id": "reads", "label": "Reads", "color": "#fcd34d", "flow": true, "description": "Reads an entity property" },
-    { "id": "writes", "label": "Writes", "color": "#f97316", "flow": true, "description": "Assigns an entity property" },
-    { "id": "returns", "label": "Returns", "color": "#bef264", "flow": true },
-    { "id": "maps-to", "label": "Maps to", "color": "#fb923c", "flow": true, "description": "Entity → table, property → column" },
-    { "id": "foreign-key", "label": "Foreign key", "color": "#fdba74", "flow": true },
-    { "id": "registers", "label": "Registers", "color": "#a3e635", "context": true, "description": "DI registration" },
+    { "id": "renders", "label": "Renders", "color": "#60a5fa" },
+    { "id": "uses", "label": "Uses", "color": "#94a3b8" },
+    { "id": "provides", "label": "Provides", "color": "#818cf8", "description": "Provider → context" },
+    { "id": "calls", "label": "Calls", "color": "#22d3ee" },
+    { "id": "http", "label": "HTTP", "color": "#2dd4bf", "description": "Client call → backend endpoint" },
+    { "id": "navigates", "label": "Navigates", "color": "#7dd3fc", "description": "Link/redirect to a route" },
+    { "id": "injects", "label": "Injects", "color": "#34d399", "description": "Dependency injection" },
+    { "id": "resolves", "label": "Resolves", "color": "#6ee7b7", "description": "Service locator (GetRequiredService<T>)" },
+    { "id": "queries", "label": "Queries", "color": "#fbbf24", "description": "Uses an entity's DbSet" },
+    { "id": "exposes", "label": "Exposes", "color": "#facc15", "description": "DbContext → entity set (DbSet<T>); not followed by traces, which use the precise queries/reads/writes instead" },
+    { "id": "reads", "label": "Reads", "color": "#fcd34d", "description": "Reads an entity property" },
+    { "id": "writes", "label": "Writes", "color": "#f97316", "description": "Assigns an entity property" },
+    { "id": "returns", "label": "Returns", "color": "#bef264" },
+    { "id": "maps-to", "label": "Maps to", "color": "#fb923c", "description": "Entity → table, property → column" },
+    { "id": "foreign-key", "label": "Foreign key", "color": "#fdba74" },
+    { "id": "registers", "label": "Registers", "color": "#a3e635", "description": "DI registration" },
     { "id": "uses-type", "label": "Uses type", "color": "#64748b" },
-    { "id": "mirrors", "label": "Mirrors", "color": "#e879f9", "context": true, "description": "Frontend type ↔ backend DTO" },
-    { "id": "tests", "label": "Tests", "color": "#fb7185", "context": true },
-    { "id": "mocks", "label": "Mocks", "color": "#fda4af", "context": true, "description": "Test double of an endpoint (MSW, page.route)" },
-    { "id": "migrates", "label": "Migrates", "color": "#c084fc", "context": true, "description": "Migration → table/column it changes" },
-    { "id": "configures", "label": "Configures", "color": "#94a3b8", "context": true },
-    { "id": "depends-on", "label": "Depends on", "color": "#cbd5e1", "context": true, "description": "Project reference" }
+    { "id": "mirrors", "label": "Mirrors", "color": "#e879f9", "description": "Frontend type ↔ backend DTO" },
+    { "id": "tests", "label": "Tests", "color": "#fb7185" },
+    { "id": "mocks", "label": "Mocks", "color": "#fda4af", "description": "Test double of an endpoint (MSW, page.route)" },
+    { "id": "migrates", "label": "Migrates", "color": "#c084fc", "description": "Migration → table/column it changes" },
+    { "id": "configures", "label": "Configures", "color": "#94a3b8" },
+    { "id": "depends-on", "label": "Depends on", "color": "#cbd5e1", "description": "Project reference" }
   ],
 
-  "presets": [
-    { "id": "everything", "label": "Everything", "description": "All layers, kinds and roles", "filter": {} },
-    {
-      "id": "architecture",
-      "label": "Architecture",
-      "description": "Production code only: no tests, config, migrations, generated code or tooling",
-      "filter": {
-        "roles": { "test": "hide", "config": "hide", "migration": "hide", "generated": "hide", "tooling": "hide", "docs": "hide" },
-        "edgeTypes": { "uses-type": "hide" }
-      }
-    },
-    {
-      "id": "tests",
-      "label": "Tests",
-      "description": "Tests in full colour, the code they cover dimmed",
-      "filter": {
-        "roles": { "production": "dim", "config": "hide", "migration": "hide", "generated": "hide", "tooling": "hide", "docs": "hide" }
-      }
-    },
-    {
-      "id": "data",
-      "label": "Data model",
-      "description": "DbContext, entities, tables, columns and migrations",
-      "filter": {
-        "layers": { "frontend": "hide", "infra": "hide" },
-        "kinds": { "*": "dim", "dbcontext": "show", "entity": "show", "property": "show", "table": "show", "column": "show", "migration": "show", "snapshot": "show" },
-        "roles": { "test": "hide", "config": "hide", "tooling": "hide", "docs": "hide" }
-      }
-    },
-    {
-      "id": "api",
-      "label": "API surface",
-      "description": "Routes, API calls, endpoints and contracts",
-      "filter": {
-        "kinds": { "*": "dim", "route": "show", "page": "show", "api-client": "show", "api-call": "show", "endpoint": "show", "endpoint-slice": "show", "endpoint-group": "show", "controller": "show", "dto": "show", "type": "show" },
-        "roles": { "test": "hide", "config": "hide", "generated": "hide", "migration": "hide", "tooling": "hide", "docs": "hide" }
-      }
-    }
-  ],
-
-  "layout": { "layerGap": 90, "seed": 7 },
 
   "plugins": [
     {

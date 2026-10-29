@@ -30,7 +30,7 @@ import { touchedNodes, WORKTREE } from './shared/review.ts'
 import type { GitHistory } from './shared/git-types.ts'
 import type { RepoGraph } from './shared/types.ts'
 
-const HELP = `${color.bold('repomap')} — 3D architecture map of a repository
+const HELP = `${color.bold('repomap')} — architecture map of a repository: the Board, the git history
 
 Usage: node src/cli.ts <command> [options]
 
@@ -53,7 +53,6 @@ Options
   -c, --config <file>   Config file (default: ./repomap.config.json)
       --no-cache        Re-run every plugin
       --public          Leave the absolute repository path and uncommitted changes out
-      --relayout        Lay the graph out from scratch (ignore previous positions)
       --build           serve: rebuild the graph before serving
   -w, --watch           serve: rebuild when repository files change (live reload)
   -p, --port <n>        serve: port (default 5199)
@@ -78,7 +77,6 @@ async function main(): Promise<number> {
       config: { type: 'string', short: 'c' },
       'no-cache': { type: 'boolean' },
       public: { type: 'boolean' },
-      relayout: { type: 'boolean' },
       build: { type: 'boolean' },
       watch: { type: 'boolean', short: 'w' },
       port: { type: 'string', short: 'p' },
@@ -110,7 +108,7 @@ async function main(): Promise<number> {
   switch (command) {
     case 'build': {
       const config = loadConfig(configPath())
-      await buildGraph(config, { log, noCache: values['no-cache'], publicOutput: values.public, relayout: values.relayout })
+      await buildGraph(config, { log, noCache: values['no-cache'], publicOutput: values.public })
       return 0
     }
     case 'history': {

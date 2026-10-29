@@ -11,6 +11,7 @@ import { ensureGitHistory } from '../git/load.ts'
 import { useGit } from '../git/store.ts'
 import { search } from '../model/search.ts'
 import { useViewer } from '../model/store.ts'
+import { Explorer } from '../ui/Explorer.tsx'
 import { Icon } from '../ui/icons.tsx'
 import { featureLabel, landingOf, tierLabel, type BoardChip, type BoardIndex, type BoardScene } from './model.ts'
 import { loadReview, requestBriefing, reviewCommit, WORKTREE } from './review.ts'
@@ -18,6 +19,7 @@ import { useBoard, type BoardPanel as PanelId } from './store.ts'
 
 const TABS: { id: PanelId; label: string }[] = [
   { id: 'details', label: 'Details' },
+  { id: 'files', label: 'Files' },
   { id: 'review', label: 'Review' },
   { id: 'rules', label: 'Rules' },
   { id: 'ai', label: 'AI' },
@@ -59,6 +61,7 @@ export function BoardPanel({ bi, scene }: { bi: BoardIndex; scene: BoardScene | 
       <div className="board-panel-body" role="tabpanel">
         <BoardSearch bi={bi} />
         {panel === 'details' && <Details bi={bi} scene={scene} />}
+        {panel === 'files' && <Explorer />}
         {panel === 'review' && <ReviewTab bi={bi} />}
         {panel === 'rules' && <RulesTab bi={bi} />}
         {panel === 'ai' && <AiTab bi={bi} />}
@@ -211,7 +214,7 @@ function openAt(bi: BoardIndex, node: number, member?: Member) {
     useViewer.getState().openCode(node)
     return
   }
-  useViewer.setState({ codeView: { node: null, opened: { ...target, id: `${target.id}#${member.name}`, line: member.line, endLine: member.endLine ?? member.line } }, contextMenu: null })
+  useViewer.setState({ codeView: { node: null, opened: { ...target, id: `${target.id}#${member.name}`, line: member.line, endLine: member.endLine ?? member.line } } })
 }
 
 function ChipDetails({ bi, scene, chip }: { bi: BoardIndex; scene: BoardScene; chip: BoardChip }) {
@@ -265,16 +268,18 @@ function ChipDetails({ bi, scene, chip }: { bi: BoardIndex; scene: BoardScene; c
             <Icon name="code" size={14} /> Read the code
           </button>
         )}
-        {node && (
+        {node?.file && (
           <button
             type="button"
             className="chip"
             onClick={() => {
-              useViewer.getState().setTab('map')
-              useViewer.getState().select(chip.node!, true)
+              useGit.getState().setPath(node.file!)
+              useViewer.getState().setTab('git')
             }}
+            title="Its file's commits, in the history"
+            data-testid="file-history"
           >
-            <Icon name="layers" size={14} /> In the 3D map
+            <Icon name="clock" size={14} /> History
           </button>
         )}
       </div>
@@ -364,7 +369,7 @@ function StateDetails({ bi, scene, chip }: { bi: BoardIndex; scene: BoardScene; 
           <button
             type="button"
             className="chip"
-            onClick={() => useViewer.setState({ codeView: { node: null, opened: { ...owner, id: `${owner.id}@${chip.line ?? 0}`, line: chip.line ?? owner.line, endLine: chip.line ?? owner.line } }, contextMenu: null })}
+            onClick={() => useViewer.setState({ codeView: { node: null, opened: { ...owner, id: `${owner.id}@${chip.line ?? 0}`, line: chip.line ?? owner.line, endLine: chip.line ?? owner.line } } })}
           >
             <Icon name="code" size={14} /> Read the condition
           </button>
@@ -455,7 +460,7 @@ function RenderStates({ bi, scene, node }: { bi: BoardIndex; scene: BoardScene; 
               type="button"
               className="board-state-when mono"
               title={`Line ${group.line}`}
-              onClick={() => useViewer.setState({ codeView: { node: null, opened: { ...target, id: `${target.id}@${group.line}`, line: group.line, endLine: group.line } }, contextMenu: null })}
+              onClick={() => useViewer.setState({ codeView: { node: null, opened: { ...target, id: `${target.id}@${group.line}`, line: group.line, endLine: group.line } } })}
             >
               {group.label}
             </button>
@@ -552,7 +557,7 @@ function WireDetails({ bi, scene, wireId }: { bi: BoardIndex; scene: BoardScene;
                 disabled={!evidence}
                 onClick={() => {
                   if (!evidence) return
-                  useViewer.setState({ codeView: { node: null, opened: { ...a, id: `${a.id}@${evidence.line ?? 0}`, file: evidence.file, line: evidence.line, endLine: evidence.line } }, contextMenu: null })
+                  useViewer.setState({ codeView: { node: null, opened: { ...a, id: `${a.id}@${evidence.line ?? 0}`, file: evidence.file, line: evidence.line, endLine: evidence.line } } })
                 }}
                 title={evidence ? `${evidence.file}:${evidence.line ?? ''}` : undefined}
               >

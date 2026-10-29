@@ -3,6 +3,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { isCommitHash } from '../../../src/shared/git-actions.ts'
 import { commitUrl, pullRequestUrl, WORKTREE, type GitCommit, type GitFileChange, type GitPullRequest, type GitRef } from '../../../src/shared/git-types.ts'
 import type { GraphIndex } from '../model/graph.ts'
+import { showOnBoard } from '../board/show.ts'
 import { useViewer } from '../model/store.ts'
 import { Icon } from '../ui/icons.tsx'
 import { confirmThen, useGitActions } from './actions.ts'
@@ -322,11 +323,8 @@ function FileRow(props: { path: string; from?: string; letter: string; label: st
   const { path, from, letter, label, className, additions, deletions, node } = props
   const current = useGit((s) => s.path === path)
   const slash = path.lastIndexOf('/')
-  const showInMap = () => {
-    if (node === undefined) return
-    const viewer = useViewer.getState()
-    viewer.setTab('map')
-    viewer.select(node, true)
+  const showOnTheBoard = () => {
+    if (node !== undefined) showOnBoard([node])
   }
   return (
     <li className={`file-row${current ? ' current' : ''}`}>
@@ -346,8 +344,8 @@ function FileRow(props: { path: string; from?: string; letter: string; label: st
       )}
       <span className="file-actions">
         {node !== undefined && (
-          <button type="button" className="mini-button" onClick={showInMap} title="Show it in the architecture map" aria-label={`Show ${path} in the map`}>
-            <Icon name="layers" size={13} />
+          <button type="button" className="mini-button" onClick={showOnTheBoard} title="Show it on the board" aria-label={`Show ${path} on the board`}>
+            <Icon name="focus" size={13} />
           </button>
         )}
         <button

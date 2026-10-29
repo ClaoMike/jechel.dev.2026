@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { BOOK_CARD, DEMO, mapLoaded, serveSource, violations, watchErrors } from './helpers.ts'
+import { BOOK_CARD, DEMO, graphLoaded, serveSource, violations, watchErrors } from './helpers.ts'
 
 const chip = (page: Page, id: string) => page.locator(`[data-chip="${id}"]`)
 /** On the Books board: BooksPage renders it (BookCard, which it renders, is one board further in). */
@@ -17,7 +17,7 @@ test.describe('board', () => {
   test('zooms from the app to its tiers, a feature, its chips and one chip', async ({ page }) => {
     const errors = watchErrors(page)
     await page.goto('/#tab=board')
-    await mapLoaded(page)
+    await graphLoaded(page)
     await expect(chip(page, 'app')).toBeVisible()
     await chip(page, 'app').dblclick()
     await expect(trail(page)).toContainText('Tiers')
@@ -60,7 +60,7 @@ test.describe('board', () => {
       await page.getByTestId('board-open').click()
     }
     await page.goto('/#tab=board&board=chips~frontend~book~')
-    await mapLoaded(page)
+    await graphLoaded(page)
     await open(pagePath)
     await open(`out:${BOOK_LIST}`)
     await open(`out:${BOOK_CARD}`)
@@ -79,7 +79,7 @@ test.describe('board', () => {
 
   test('zooming far into a chip opens it; far out goes up', async ({ page }) => {
     await page.goto('/#tab=board&board=tiers')
-    await mapLoaded(page)
+    await graphLoaded(page)
     await zoomInto(page, 'backend')
     await expect(trail(page)).toContainText('Backend', { timeout: 5000 })
     await expect(chip(page, 'out:database')).toBeVisible()
@@ -95,7 +95,7 @@ test.describe('board', () => {
   test('a wire lists the connections it carries and opens their code', async ({ page }) => {
     await serveSource(page)
     await page.goto('/#tab=board&board=tiers')
-    await mapLoaded(page)
+    await graphLoaded(page)
     const wire = page.locator('[data-wire^="frontend|"]').first()
     await wire.locator('.wire-hit').click({ force: true })
     const details = page.getByTestId('board-wire-details')
@@ -107,7 +107,7 @@ test.describe('board', () => {
     const page_ = 'frontend:symbol:web/src/features/books/BooksPage.tsx#BooksPage'
     const list = 'frontend:symbol:web/src/features/books/BookList.tsx#BookList'
     await page.goto('/#tab=board&board=chips~frontend~book~')
-    await mapLoaded(page)
+    await graphLoaded(page)
     // On the board: BooksPage → [its state] → BookList.
     const state = page.locator(`[data-chip^="state:${page_}:"]`)
     await expect(state).toContainText("state.status === 'loaded'")
@@ -127,7 +127,7 @@ test.describe('board', () => {
   test('finds a chip and reads its code', async ({ page }) => {
     await serveSource(page)
     await page.goto('/#tab=board')
-    await mapLoaded(page)
+    await graphLoaded(page)
     await page.getByTestId('board-search').fill('BookCard')
     await page.getByTestId('board-search').press('Enter')
     await expect(chip(page, BOOK_CARD)).toHaveClass(/selected/)
@@ -137,7 +137,7 @@ test.describe('board', () => {
 
   test('reviews a commit: changed chips, what may be affected', async ({ page }) => {
     await page.goto('/#tab=board&board=features~frontend')
-    await mapLoaded(page)
+    await graphLoaded(page)
     await page.getByTestId('board-tool-review').click()
     const review = page.getByTestId('board-review')
     await expect(review.getByTestId('board-review-choice').locator('option', { hasText: 'Wishlist button' })).toHaveCount(1)
@@ -154,7 +154,7 @@ test.describe('board', () => {
 
   test('tests and tooling show when asked', async ({ page }) => {
     await page.goto('/#tab=board&board=tiers')
-    await mapLoaded(page)
+    await graphLoaded(page)
     const before = await page.locator('[data-chip]').count()
     await page.getByTestId('board-show-hidden').check()
     await expect.poll(() => page.locator('[data-chip]').count()).toBeGreaterThanOrEqual(before)
@@ -167,7 +167,7 @@ for (const theme of ['dark', 'light'] as const) {
     test.use({ colorScheme: theme, reducedMotion: 'reduce' })
     test('levels, a chip and the panels', async ({ page }) => {
       await page.goto('/#tab=board')
-      await mapLoaded(page)
+      await graphLoaded(page)
       await expect(chip(page, 'app')).toBeVisible()
       expect(await violations(page)).toEqual([])
       await page.goto('/#tab=board&board=chips~frontend~book~')

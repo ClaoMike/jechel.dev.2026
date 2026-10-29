@@ -12,7 +12,6 @@ import { useGit } from '../git/store.ts'
 import { onServerEvent } from './events.ts'
 import { checkGraph } from './graph.ts'
 import { useViewer, type GraphSource } from './store.ts'
-import { readStoredView, readViewFromHash } from './url.ts'
 
 async function fetchGraph(url: string): Promise<RepoGraph> {
   const response = await fetch(url, { cache: 'no-store' })
@@ -27,24 +26,23 @@ async function fetchGraph(url: string): Promise<RepoGraph> {
 
 export async function loadInitialGraph(): Promise<void> {
   const store = useViewer.getState()
-  const view = readViewFromHash() ?? readStoredView()
   const params = new URLSearchParams(window.location.search)
   const explicit = params.get('graph')
   try {
     if (explicit) {
-      store.setGraph(await fetchGraph(explicit), { kind: 'url', name: explicit }, view)
+      store.setGraph(await fetchGraph(explicit), { kind: 'url', name: explicit })
       return
     }
     try {
       const graph = await fetchGraph('graph.json')
-      store.setGraph(graph, { kind: 'server', name: graph.meta.repo.name }, view)
+      store.setGraph(graph, { kind: 'server', name: graph.meta.repo.name })
       listenForUpdates()
       return
     } catch {
       // No graph next to the viewer: fall back to the demo.
     }
     const demo = await fetchGraph('samples/demo.graph.json')
-    store.setGraph(demo, { kind: 'demo', name: demo.meta.repo.name }, view)
+    store.setGraph(demo, { kind: 'demo', name: demo.meta.repo.name })
   } catch (error) {
     store.setError((error as Error).message)
   }
@@ -65,7 +63,7 @@ export async function loadGraphFile(file: File): Promise<void> {
     const problem = checkGraph(json)
     if (problem) throw new Error(problem)
     const source: GraphSource = { kind: 'file', name: file.name }
-    store.setGraph(json as RepoGraph, source, null)
+    store.setGraph(json as RepoGraph, source)
     store.notify(`Loaded ${file.name}`)
   } catch (error) {
     store.notify(`Could not open ${file.name}: ${(error as Error).message}`)
@@ -79,7 +77,7 @@ function listenForUpdates(): void {
       const store = useViewer.getState()
       if (store.source?.kind !== 'server') return
       const before = store.graph?.nodes.length ?? 0
-      store.setGraph(graph, { kind: 'server', name: graph.meta.repo.name }, null, true)
+      store.setGraph(graph, { kind: 'server', name: graph.meta.repo.name }, true)
       const delta = graph.nodes.length - before
       const changes = graph.meta.changes
       const detail = changes ? `+${changes.addedNodes.length} / −${changes.removedNodes.length} nodes` : `${delta >= 0 ? '+' : ''}${delta} nodes`

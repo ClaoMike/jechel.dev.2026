@@ -1,83 +1,52 @@
 import { useEffect, useState } from 'react'
 import { loadGraphFile } from '../model/load.ts'
 import { useViewer } from '../model/store.ts'
-import { EdgeIcon, Icon, ShapeIcon } from './icons.tsx'
+import { Icon } from './icons.tsx'
 
 export function HelpOverlay() {
   const open = useViewer((s) => s.helpOpen)
-  const index = useViewer((s) => s.index)
   const tab = useViewer((s) => s.tab)
   const setHelp = useViewer((s) => s.setHelp)
   if (!open) return null
   if (tab === 'git') return <GitHelp onClose={() => setHelp(false)} />
-  const kinds = index ? [...index.layerKinds.values()].flat().filter((k, i, all) => all.indexOf(k) === i).map((k) => index.kinds.get(k)!) : []
-  const edgeTypes = index ? index.presentEdgeTypes.map((t) => index.edgeTypes.get(t)!) : []
   return (
     <div className="modal-backdrop" onClick={() => setHelp(false)} role="presentation">
       <div className="modal" role="dialog" aria-label="Help" onClick={(e) => e.stopPropagation()}>
         <header>
-          <h2>How to read and drive the map</h2>
+          <h2>How to read and drive the board</h2>
           <button type="button" className="icon-button" onClick={() => setHelp(false)} aria-label="Close help">
             <Icon name="close" />
           </button>
         </header>
         <div className="help-grid">
           <section>
-            <h3>Mouse &amp; trackpad</h3>
+            <h3>Levels</h3>
+            <p>
+              The app, its tiers (frontend, backend, database…), a tier&apos;s features, a feature&apos;s chips, one chip. Zoom far into a chip to open it and far out to go up;
+              the trail at the top goes back. Under it, where you are in the tier&apos;s architecture (its layer, slice and folders).
+            </p>
+            <h3>Mouse, trackpad &amp; touch</h3>
             <ul className="keys">
-              <li><kbd>drag</kbd> rotate</li>
-              <li><kbd>right-drag</kbd> / <kbd>⇧ drag</kbd> pan</li>
-              <li><kbd>wheel</kbd> / <kbd>pinch</kbd> zoom to cursor</li>
-              <li><kbd>click</kbd> select &amp; trace</li>
-              <li><kbd>double-click</kbd> fly to a node (empty space: fit)</li>
-              <li><kbd>right-click</kbd> / <kbd>⌃ click</kbd> a node → read its code</li>
-            </ul>
-            <h3>Touch</h3>
-            <ul className="keys">
-              <li><kbd>one finger</kbd> rotate</li>
-              <li><kbd>pinch</kbd> zoom · <kbd>two fingers</kbd> pan</li>
-              <li><kbd>tap</kbd> select &amp; trace · <kbd>double-tap</kbd> fly to a node</li>
-              <li><kbd>long-press</kbd> a node for its code</li>
+              <li><kbd>wheel</kbd> / <kbd>pinch</kbd> zoom · <kbd>drag</kbd> pan</li>
+              <li><kbd>click</kbd> / <kbd>tap</kbd> select a chip · again to open it</li>
+              <li><kbd>click</kbd> a wire for the connections it carries</li>
             </ul>
             <h3>Keyboard</h3>
             <ul className="keys">
-              <li><kbd>/</kbd> or <kbd>⌘K</kbd> search</li>
-              <li><kbd>F</kbd> fit · <kbd>S</kbd> side view · <kbd>R</kbd> reset</li>
-              <li><kbd>1</kbd>…<kbd>9</kbd> top-down view of a layer</li>
-              <li><kbd>C</kbd> colour by · <kbd>L</kbd> labels · <kbd>[</kbd> filters</li>
-              <li><kbd>Esc</kbd> clear selection</li>
+              <li><kbd>/</kbd> or <kbd>⌘K</kbd> find a chip</li>
+              <li><kbd>F</kbd> fit · <kbd>+</kbd> <kbd>-</kbd> zoom</li>
+              <li><kbd>Esc</kbd> clear the selection, then up a level</li>
+              <li><kbd>⌘J</kbd> the assistant</li>
             </ul>
-            <h3>Trace mode</h3>
-            <p>
-              Selecting a node lights up everything it depends on (<strong>↓ downstream</strong>) and everything that depends on it (<strong>↑ upstream</strong>), across
-              layers — e.g. page → API call → endpoint → service → entity → table. Particles flow in the direction of each dependency. Tests, migrations and config
-              are shown one hop around the selection.
-            </p>
-            <h3>Filters</h3>
-            <p>
-              Every layer, kind, role and edge type can be shown, <Icon name="dim" size={12} /> dimmed (kept as faint context) or hidden. <kbd>⌥</kbd>-click a row to
-              show only that one. Positions never move when you filter.
-            </p>
           </section>
           <section>
-            <h3>Shapes</h3>
-            <ul className="legend">
-              {kinds.map((kind) => (
-                <li key={kind.id} title={kind.description}>
-                  <ShapeIcon shape={kind.shape} color={kind.color} /> {kind.label}
-                </li>
-              ))}
-            </ul>
-            <h3>Edges</h3>
-            <ul className="legend">
-              {edgeTypes.map((type) => (
-                <li key={type.id} title={type.description}>
-                  <EdgeIcon color={type.color} /> {type.label}
-                  {type.flow && <span className="muted"> · flow</span>}
-                </li>
-              ))}
-            </ul>
-            <p className="muted">Planes are layers; thin planes just below a layer hold its tests, config and generated code. Dashed lines are rolled-up edges of hidden children.</p>
+            <h3>Wires</h3>
+            <p>Thicker is more connections; dashed, a render that happens only in some state; red, a connection that breaks an architecture rule.</p>
+            <h3>Panels</h3>
+            <p>
+              <strong>Details</strong> describes what&apos;s selected and reads its code; <strong>Files</strong> is the repository&apos;s explorer; <strong>Review</strong> lights up
+              what a change touches; <strong>Rules</strong> lists what breaks the architecture; <strong>AI</strong> writes the summaries.
+            </p>
           </section>
         </div>
       </div>
@@ -148,8 +117,7 @@ function GitHelp({ onClose }: { onClose: () => void }) {
             </p>
             <h3>Files</h3>
             <p>
-              A commit lists the files it changed. The clock button follows one file through the history; the layers button shows it in the architecture map (and
-              the map's <strong>History</strong> button comes back here).
+              A commit lists the files it changed. The clock button follows one file through the history; the board button shows where it is on the Board.
             </p>
             <p className="muted">Read-only: nothing here changes the repository.</p>
           </section>
@@ -254,7 +222,7 @@ export function Status() {
     return (
       <div className="status">
         <div className="spinner" aria-hidden="true" />
-        <p>Loading the map…</p>
+        <p>Loading the graph…</p>
       </div>
     )
   }

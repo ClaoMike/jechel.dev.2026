@@ -19,12 +19,12 @@ import { architecturePlace, assignFeatures, caseLabel, checkRules, featureDefs, 
 import { parseUnifiedDiff, touchedNodes } from '../src/shared/review.ts'
 import type { GraphEdge, GraphNode, RepoGraph } from '../src/shared/types.ts'
 import { laneBoxes, layoutScene, wirePath, type ElkLike } from '../viewer/src/board/layout.ts'
-import { buildScene, chipGroups, chipsIn, indexBoard, parentPath, pathOfNode, trailOf, type BoardPath } from '../viewer/src/board/model.ts'
+import { architectureTrail, buildScene, chipGroups, chipsIn, indexBoard, parentPath, pathOfNode, trailOf, type BoardPath } from '../viewer/src/board/model.ts'
 import { computeImpact } from '../viewer/src/board/impact.ts'
 import { indexGraph } from '../viewer/src/model/graph.ts'
 import { FakeAnthropic } from './fake-anthropic.ts'
 
-const n = (id: string, kind: string, layer: string, extra: Partial<GraphNode> = {}): GraphNode => ({ id, label: id.split(':').pop()!, kind, layer, role: 'production', pos: [0, 0, 0], ...extra })
+const n = (id: string, kind: string, layer: string, extra: Partial<GraphNode> = {}): GraphNode => ({ id, label: id.split(':').pop()!, kind, layer, role: 'production', ...extra })
 const e = (from: string, type: string, to: string, extra: Partial<GraphEdge> = {}): GraphEdge => ({ from, to, type, source: 'static', confidence: 1, ...extra })
 
 /** A small app: a contact feature across three tiers, an orders feature, a shared button and a test. */
@@ -90,7 +90,6 @@ function sample(): RepoGraph {
       ],
       kinds: [],
       edgeTypes: [],
-      presets: [],
     },
     nodes,
     edges,
@@ -575,6 +574,43 @@ describe('layered architectures', () => {
     delete sources['web/src/entities/site/model/useSite.ts']
     const again = checkRules(nodes, edges, [], rules, () => undefined, { placeOf: (id) => places.get(id), allowCrossing: () => false })
     assert.ok(again.some((v) => v.from === 'web:useSite' && v.message.includes("slices of entities don't use each other")))
+  })
+
+  it('says where a level is in its tier’s architecture: layer, slice, folders, file', () => {
+    const nodes = [
+      n('web:AppTile', 'component', 'views', { file: 'web/src/pages/apps/ui/AppTile/AppTile.tsx', feature: 'fsd/pages/apps' }),
+      n('web:App', 'component', 'views', { file: 'web/src/app/App.tsx', feature: 'fsd/app' }),
+      n('web:main', 'module', 'views', { file: 'web/src/main.tsx', feature: 'shared' }),
+    ]
+    const graph = {
+      ...sample(),
+      layers: [{ id: 'views', label: 'Views', color: '#38bdf8' }],
+      nodes,
+      edges: [],
+      board: { tiers: [{ id: 'web', label: 'Web', color: '#38bdf8', layers: ['views'] }], features: featureDefs(nodes.map((x) => x.feature!), { 'fsd/pages/apps': 'Apps' }, [FSD]), architectures: [FSD] },
+    } as unknown as RepoGraph
+    const bi = indexBoard(indexGraph(graph))
+    const labels = (path: BoardPath) => architectureTrail(bi, path)?.map((s) => `${s.kind}:${s.label}`)
+    assert.equal(architectureTrail(bi, { level: 'tiers' }), null)
+    assert.deepEqual(labels({ level: 'features', tier: 'web' }), ['architecture:Feature-Sliced Design'])
+    assert.deepEqual(labels({ level: 'chips', tier: 'web', feature: 'fsd/pages/apps' }), ['architecture:Feature-Sliced Design', 'layer:Pages', 'slice:Apps'])
+    assert.deepEqual(labels({ level: 'chip', tier: 'web', feature: 'fsd/pages/apps', chip: 'web:AppTile' }), [
+      'architecture:Feature-Sliced Design',
+      'layer:Pages',
+      'slice:Apps',
+      'folder:ui',
+      'folder:AppTile',
+      'file:AppTile.tsx',
+    ])
+    // A layer that is one feature has no slice; what's outside the architecture says so.
+    assert.deepEqual(labels({ level: 'chip', tier: 'web', feature: 'fsd/app', chip: 'web:App' }), ['architecture:Feature-Sliced Design', 'layer:App', 'file:App.tsx'])
+    assert.deepEqual(labels({ level: 'chips', tier: 'web', feature: 'shared' }), ['architecture:Feature-Sliced Design', 'layer:Outside Feature-Sliced Design', 'slice:Shared'])
+    // The architecture and the layer lead to the tier's board, the slice to its own.
+    const steps = architectureTrail(bi, { level: 'chip', tier: 'web', feature: 'fsd/pages/apps', chip: 'web:AppTile' })!
+    assert.deepEqual(steps[1].path, { level: 'features', tier: 'web' })
+    assert.deepEqual(steps[2].path, { level: 'chips', tier: 'web', feature: 'fsd/pages/apps' })
+    // A tier without an architecture has no such trail.
+    assert.equal(architectureTrail(indexBoard(indexGraph({ ...graph, board: { ...graph.board!, architectures: [] } })), { level: 'features', tier: 'web' }), null)
   })
 
   it('a tier shows its architecture’s features in their layers’ columns, labelled', async () => {

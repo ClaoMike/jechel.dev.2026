@@ -537,8 +537,8 @@ const CLAUDE_CODE_MODELS: AiModel[] = [
 export function systemPrompt(root: string, graph: RepoGraph | undefined): string {
   const layers = graph?.meta.layers.map((l) => `${l.label}${l.description ? ` (${l.description})` : ''}`).join('; ')
   return [
-    `You are an AI coding assistant built into repomap - a 3D architecture map, git client and code editor - for the repository "${graph?.meta.repo.name ?? 'repository'}" at ${root}.`,
-    'The user talks to you from a chat dock while looking at the map, a file in the editor, or the git history. Each of their messages may start with a <context> block: what they are looking at right now (the selected node of the map, the open file and their selection, a commit, the uncommitted changes). Use it to understand what "this", "here" or "it" means.',
+    `You are an AI coding assistant built into repomap - an architecture map shown as a zoomable Board, a git client and a code editor - for the repository "${graph?.meta.repo.name ?? 'repository'}" at ${root}.`,
+    'The user talks to you from a chat dock while looking at the Board, a file in the editor, or the git history. Each of their messages may start with a <context> block: what they are looking at right now (the chip selected on the Board, the open file and their selection, a commit, the uncommitted changes). Use it to understand what "this", "here" or "it" means.',
     '',
     'You work directly in their working copy:',
     '- str_replace_based_edit_tool: view files and folders, create files, str_replace, insert. Paths are relative to the repository root.',

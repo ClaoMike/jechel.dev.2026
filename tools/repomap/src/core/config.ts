@@ -2,7 +2,7 @@
  * Loads repomap.config.json (JSON with comments allowed) and resolves `extends` chains.
  *
  * Merge rules (child over parent):
- * - arrays of objects with an `id` (layers, roles, kinds, edgeTypes, presets, plugins) merge by id;
+ * - arrays of objects with an `id` (layers, roles, kinds, edgeTypes, plugins) merge by id;
  *   a child entry with `"enabled": false` removes a plugin; a new child entry with `"before": "<id>"`
  *   goes in front of that entry instead of at the end (e.g. a layer above the parent's first one)
  * - `exclude`, `layerRules`, `roleRules` concatenate, child first (child rules win: first match wins)
@@ -12,7 +12,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ArchitectureDef, RuleDef, TierDef } from '../shared/board.ts'
-import type { EdgeTypeDef, KindDef, LayerDef, PresetDef, RoleDef } from '../shared/types.ts'
+import type { EdgeTypeDef, KindDef, LayerDef, RoleDef } from '../shared/types.ts'
 
 export interface LayerRule {
   /** Globs (repo-relative). */
@@ -123,8 +123,6 @@ export interface RepoMapConfig {
   defaultRole: string
   kinds: KindDef[]
   edgeTypes: EdgeTypeDef[]
-  presets: PresetDef[]
-  layout: { layerGap: number; seed: number }
   history: HistoryConfig
   plugins: PluginConfig[]
   board: BoardConfig
@@ -167,8 +165,6 @@ export function loadConfig(configPath: string): RepoMapConfig {
     defaultRole: String(merged.defaultRole ?? 'production'),
     kinds: (merged.kinds as KindDef[] | undefined) ?? [],
     edgeTypes: (merged.edgeTypes as EdgeTypeDef[] | undefined) ?? [],
-    presets: (merged.presets as PresetDef[] | undefined) ?? [],
-    layout: { layerGap: 90, seed: 7, ...((merged.layout as Json | undefined) ?? {}) } as RepoMapConfig['layout'],
     history: { ...DEFAULT_HISTORY, ...((merged.history as Json | undefined) ?? {}) } as HistoryConfig,
     plugins,
     board: {

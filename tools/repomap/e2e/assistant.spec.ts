@@ -4,7 +4,7 @@
  * approving and declining changes (the code panel shows them), stopping, chats, and accessibility.
  */
 import type { Page } from '@playwright/test'
-import { mapLoaded, violations, watchErrors } from './helpers.ts'
+import { graphLoaded, violations, watchErrors } from './helpers.ts'
 import { BOOK_CARD_FILE, expect, test, type Repo } from './repo-fixture.ts'
 
 const dock = (page: Page) => page.getByTestId('assistant')
@@ -26,7 +26,7 @@ async function addKey(page: Page): Promise<void> {
 
 async function openApp(page: Page, repo: Repo, withKey = true): Promise<void> {
   await page.goto(`${repo.url}/`)
-  await mapLoaded(page)
+  await graphLoaded(page)
   await expect(page.getByTestId('assistant-toggle')).toBeVisible()
   if (withKey) await addKey(page)
 }
@@ -74,9 +74,9 @@ test.describe('assistant', () => {
   test('answers about the selected node, with it attached as context', async ({ page, repo }) => {
     const errors = watchErrors(page)
     await openApp(page, repo)
-    await page.getByTestId('search').fill('BookCard')
-    await page.getByTestId('search').press('Enter')
-    await expect(page.getByTestId('details').getByRole('heading', { name: 'BookCard' })).toBeVisible()
+    await page.getByTestId('board-search').fill('BookCard')
+    await page.getByTestId('board-search').press('Enter')
+    await expect(page.getByTestId('board-chip-details')).toContainText('BookCard')
     await page.keyboard.press('ControlOrMeta+j')
     await expect(dock(page)).toBeVisible()
     await expect(dock(page).getByTestId('chat-input')).toBeFocused()
@@ -98,9 +98,9 @@ test.describe('assistant', () => {
 
   test('edits the open file after approval, and the editor shows the change', async ({ page, repo }) => {
     await openApp(page, repo)
-    await page.getByTestId('search').fill('BookCard')
-    await page.getByTestId('search').press('Enter')
-    await page.getByTestId('view-code').click()
+    await page.getByTestId('board-search').fill('BookCard')
+    await page.getByTestId('board-search').press('Enter')
+    await page.getByTestId('board-read-code').click()
     const code = page.getByTestId('code-viewer')
     await expect(code.locator('.cm-content')).toContainText('export function BookCard', { timeout: 15_000 })
     // Select the return line, then ask about it.
@@ -142,8 +142,8 @@ test.describe('assistant', () => {
 
   test('a declined change is not made, and chips can be taken off', async ({ page, repo }) => {
     await openApp(page, repo)
-    await page.getByTestId('search').fill('BookCard')
-    await page.getByTestId('search').press('Enter')
+    await page.getByTestId('board-search').fill('BookCard')
+    await page.getByTestId('board-search').press('Enter')
     await page.getByTestId('assistant-toggle').click()
     const chip = dock(page).getByTestId('context-chips').getByRole('button', { name: /BookCard · Component/ })
     await chip.click()
@@ -224,7 +224,7 @@ for (const theme of ['dark', 'light'] as const) {
 
 test('is not offered when the server is read-only', async ({ page }) => {
   await page.goto('/')
-  await mapLoaded(page)
+  await graphLoaded(page)
   await expect(page.getByTestId('assistant-toggle')).toHaveCount(0)
   await page.keyboard.press('ControlOrMeta+j')
   await expect(page.getByTestId('assistant')).toHaveCount(0)

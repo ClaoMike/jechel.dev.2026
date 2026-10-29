@@ -37,18 +37,6 @@ export const BOOK_CARD_SOURCE = [
   '',
 ].join('\n')
 
-/** Where a node is drawn, once the camera has settled (the scene exposes this under Playwright only). */
-export async function nodePosition(page: Page, id: string): Promise<{ x: number; y: number }> {
-  let last: { x: number; y: number } | null = null
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const now = await page.evaluate((nodeId) => (window as unknown as { __repomapTest?: { screenPosition(id: string): { x: number; y: number } | null } }).__repomapTest?.screenPosition(nodeId) ?? null, id)
-    if (now && last && Math.abs(now.x - last.x) < 0.5 && Math.abs(now.y - last.y) < 0.5) return now
-    last = now
-    await page.waitForTimeout(150)
-  }
-  throw new Error(`node ${id} never settled on screen`)
-}
-
 /** Answers the code panel's source requests with fixed text. */
 export async function serveSource(page: Page, text = BOOK_CARD_SOURCE): Promise<void> {
   await page.route(
@@ -70,7 +58,7 @@ export async function violations(page: Page): Promise<string[]> {
   )
 }
 
-/** The map has loaded (the top bar shows the repository): searching before that finds nothing. */
-export async function mapLoaded(page: Page): Promise<void> {
+/** The graph has loaded (the top bar shows the repository): searching before that finds nothing. */
+export async function graphLoaded(page: Page): Promise<void> {
   await expect(page.locator('.topbar .repo')).toBeVisible({ timeout: 20_000 })
 }

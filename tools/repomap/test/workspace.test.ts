@@ -150,7 +150,7 @@ describe('file endpoints', () => {
     repo = freshRepo()
     const out = join(repo, '..', `out-${n}`)
     mkdirSync(out)
-    const graph = { version: 1, meta: { repo: { name: 'x', root: repo }, layers: [], roles: [], kinds: [], edgeTypes: [], presets: [] }, nodes: [], edges: [], unresolved: [] } as unknown as RepoGraph
+    const graph = { version: 1, meta: { repo: { name: 'x', root: repo }, layers: [], roles: [], kinds: [], edgeTypes: [] }, nodes: [], edges: [], unresolved: [] } as unknown as RepoGraph
     writeFileSync(join(out, 'graph.json'), JSON.stringify(graph))
     const common = { graphPath: join(out, 'graph.json'), repoRoot: repo, port: 0, host: '127.0.0.1', distDir: out }
     server = await startServer({

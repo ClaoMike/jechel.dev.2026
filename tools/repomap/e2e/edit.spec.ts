@@ -4,16 +4,16 @@
  * choose), and read-only when the server doesn't allow editing.
  */
 import type { Page } from '@playwright/test'
-import { BOOK_CARD_SOURCE, mapLoaded, serveSource, watchErrors } from './helpers.ts'
+import { BOOK_CARD_SOURCE, graphLoaded, serveSource, watchErrors } from './helpers.ts'
 import { BOOK_CARD_FILE, expect, test } from './repo-fixture.ts'
 
 /** Opens BookCard's code from the search, the way a user does. */
 async function openBookCard(page: Page, url = ''): Promise<ReturnType<Page['getByTestId']>> {
   await page.goto(`${url}/`)
-  await mapLoaded(page)
-  await page.getByTestId('search').fill('BookCard')
-  await page.getByTestId('search').press('Enter')
-  await page.getByTestId('view-code').click()
+  await graphLoaded(page)
+  await page.getByTestId('board-search').fill('BookCard')
+  await page.getByTestId('board-search').press('Enter')
+  await page.getByTestId('board-read-code').click()
   const code = page.getByTestId('code-viewer')
   // The editor is its own chunk: its first load can be slow on a busy machine.
   await expect(code.locator('.cm-content')).toContainText('export function BookCard', { timeout: 15_000 })
