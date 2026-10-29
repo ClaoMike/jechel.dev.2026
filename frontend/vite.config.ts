@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { playwright } from '@vitest/browser-playwright'
 import { defineConfig } from 'vitest/config'
+import { fileURLToPath } from 'node:url'
 
 // WEB_PORT and API_URL run a second copy next to the usual one (other ports, another API).
 const webPort = Number(process.env.WEB_PORT ?? 5173)
@@ -9,6 +10,8 @@ const apiUrl = process.env.API_URL ?? 'http://localhost:5105'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // @/<layer>/<slice>: Feature-Sliced Design's imports across slices (tsconfig.app.json's paths).
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   // Pre-bundled up front: found halfway through a test run (a fresh cache, as in CI), Vite would reload the
   // test page and the tests in it fail ("Vite unexpectedly reloaded a test").
   optimizeDeps: {

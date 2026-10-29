@@ -94,6 +94,16 @@ feature most of its neighbours share (≥ 60 %); the rest is `shared`. `board.fe
 `board.featureAliases` merges them; `board.hubFeatures` lists features everything uses (an API service), which
 don't pull their neighbours in.
 
+**Architectures** (`board.architectures`). Code that follows a layered architecture — Feature-Sliced Design, vertical
+slices — is shown as one: the folders under its `root` are its `layers`, in dependency order, and a layer's subfolders
+can be its features (`"parts": "slices"`, which don't use each other unless the layer is `open`, or `"segments"`, which
+may); otherwise the whole layer is one feature. A node there gets its slice as its feature (`fsd/pages/about`,
+`vsa/Features/Apps`; tests in a folder named like a slice join it), and its tier's board shows the layers as labelled
+columns in their order, with what's outside them last. `crossImports` names the folder through which a slice may still
+use another of its layer (FSD's `@x`). This repository's config has both: the frontend in Feature-Sliced Design, the
+backend in vertical slices (every endpoint an `IEndpoint` class: the .NET plugin follows `api.MapEndpoints()` into each
+slice's `Map`, so the routes keep their prefix, and shows the classes as *Endpoint slice* chips).
+
 **AI summaries** (`npm run summarize`, or the AI panel when served with `npm start`). Claude first
 places the chips nothing placed (through Claude Code or the API, as the assistant's settings say), then summarizes each chip from its code, each feature (per tier) from
 its chips, each tier from its features and the app from its tiers. Results live in `repomap.ai.json`
@@ -110,7 +120,9 @@ effects, what to check, tests, questions — from the diff and the map. Without 
 **Rules** (`rules` in the config, checked on every build, listed by `npm run check`). A rule selects
 edges (`from` / `to`: tiers, layers, features, kinds, roles; `edgeTypes`) and either denies them
 (`deny`) or keeps them inside one feature (`sameFeature`, with `allowFeatures` reachable from anywhere); a selector's
-`notFeatures` matches every feature but those.
+`notFeatures` matches every feature but those. A `layered` rule names an architecture and keeps its order: an edge to a
+layer before its own, or between two slices of a layer whose slices don't use each other, breaks it (type references
+count, links to a route don't).
 The AI can suggest rules the code already mostly follows (Rules panel, `node src/cli.ts suggest-rules`).
 
 **The assistant** can point at the board: its `show_on_board` tool opens the feature and lights the
@@ -122,6 +134,9 @@ without the link gets a 401. `--no-token` turns that off.
 
 ## Reading the map
 
+- **Only while it's shown**: the 3D map exists only while its tab is open. On the Board or the history, nothing of it is
+  left — no WebGL context, GPU buffers, label canvas, frame loop or listeners — and back on the map the camera is where
+  you left it (or where *In the 3D map* asked it to go meanwhile).
 - **Planes are layers** (from config): Frontend, Backend, Database, Infra & tooling. Tests, config, migrations
   and generated code of a layer float on thin sub-planes just **below** it, right under what they test or
   configure — so hiding them never leaves holes.

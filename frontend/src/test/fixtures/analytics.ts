@@ -1,4 +1,4 @@
-import type { AnalyticsSummary, Page, VisitDetails, VisitSummary } from '../../services/api'
+import type { AnalyticsSummary, Page, VisitDetails, VisitSummary } from '@/shared/api'
 
 /** A week of numbers, as the API sends them for the Engagement tab. */
 export const SUMMARY: AnalyticsSummary = {
@@ -79,7 +79,10 @@ export const VISIT_SUMMARY: VisitSummary = {
   lastTheme: 'dark',
 }
 
-export function pageOfVisits(items: VisitSummary[] = [VISIT_SUMMARY, { ...VISIT_SUMMARY, id: '3f2b8c1e-0000-4000-8000-000000000002', errorCount: 0, referrerHost: null, entryPath: '/' }], totalCount = items.length): Page<VisitSummary> {
+export function pageOfVisits(
+  items: VisitSummary[] = [VISIT_SUMMARY, { ...VISIT_SUMMARY, id: '3f2b8c1e-0000-4000-8000-000000000002', errorCount: 0, referrerHost: null, entryPath: '/' }],
+  totalCount = items.length,
+): Page<VisitSummary> {
   return { items, page: 1, pageSize: 20, totalCount }
 }
 

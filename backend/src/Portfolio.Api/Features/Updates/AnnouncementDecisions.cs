@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Alerts;
+using Portfolio.Api.Features.Apps;
 
 namespace Portfolio.Api.Features.Updates;
 
@@ -45,10 +46,10 @@ public static class AnnouncementDecisions
     /// </summary>
     public static async Task ProposeAppAsync(AppEntry app, PortfolioDbContext db, IPhoneAlerts alerts, SiteOptions site, TimeProvider time, CancellationToken cancellationToken)
     {
-        var visible = await Site.SiteEndpoints.VisibleAsync(db, site, cancellationToken);
+        var visible = await Site.SiteShared.VisibleAsync(db, site, cancellationToken);
         if (!visible.Pages["apps"] || !visible.Features["updates"]) return;
 
-        var token = UpdatesEndpoints.NewToken();
+        var token = UpdatesShared.NewToken();
         var announcement = new Announcement
         {
             Kind = UpdatesAnnouncer.AppKind,

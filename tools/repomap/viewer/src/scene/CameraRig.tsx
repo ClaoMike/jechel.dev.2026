@@ -4,8 +4,14 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import type { GraphIndex } from '../model/graph.ts'
 import { matches, NARROW, REDUCED_MOTION } from '../model/media.ts'
-import { useViewer } from '../model/store.ts'
+import { useViewer, type CameraCommand } from '../model/store.ts'
 import { framing } from './framing.ts'
+
+/**
+ * The last camera command carried out. The scene is unmounted while another tab is shown: back on the map, the camera
+ * returns where it was (the store's mapView) and only a command given meanwhile (e.g. the Board's "In the 3D map") moves it.
+ */
+let applied: CameraCommand | null = null
 
 const HOME_DIRECTION = new THREE.Vector3(0.62, 0.55, 0.9).normalize()
 /** Portrait screens: a lower angle makes the layer stack taller, filling the height instead of the width. */
@@ -25,7 +31,25 @@ export function CameraRig() {
 
   useEffect(() => {
     const target = controls.current
-    if (!command || !target || !index || size.width === 0 || size.height === 0) return
+    const saved = useViewer.getState().mapView
+    if (target && saved) {
+      first.current = false
+      void target.setLookAt(...saved.position, ...saved.target, false)
+    }
+    return () => {
+      if (!target) return
+      const position = new THREE.Vector3()
+      const lookAt = new THREE.Vector3()
+      target.getPosition(position)
+      target.getTarget(lookAt)
+      useViewer.getState().saveMapView({ position: position.toArray(), target: lookAt.toArray() })
+    }
+  }, [])
+
+  useEffect(() => {
+    const target = controls.current
+    if (!command || !target || !index || size.width === 0 || size.height === 0 || command === applied) return
+    applied = command
     const animate = !first.current && !matches(REDUCED_MOTION)
     first.current = false
     const visibility = useViewer.getState().visibility

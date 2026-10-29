@@ -181,8 +181,8 @@ docker exec -it portfolio-db psql -U portfolio -d portfolio
 ## Conventions
 
 - Git: work happens on `develop` (or `feature/*` / `chore/*` branches merged into it). `main` is production and only takes pull requests from `develop` that passed CI (see Deployment).
-- Backend: all routes under `/api`; minimal APIs grouped per feature (`Features/<Feature>/<Feature>Endpoints.cs` with a `Map<Feature>Endpoints` extension). Handlers are public static methods with typed results (`Results<Ok<T>, NotFound>`), so unit tests can call them directly.
-- Frontend: all HTTP goes through the `api` object in `src/services/api.ts`, called from RTK Query endpoints (`src/store/api/`); components hold their own state and call hooks directly (see State and caching); auth-dependent UI uses `useAuth()` / `<SignedIn>` / `<SignedOut>` from `src/auth`. Routes are declared in `src/App/App.tsx` (React Router), with one folder per page in `src/pages/` (`X/X.tsx`).
+- Backend: vertical slices (see [Code organisation](docs/architecture.md#code-organisation)): all routes under `/api`; every endpoint is its own class in its feature's folder (`Features/<Feature>/<Endpoint>.cs`, an `IEndpoint` with `Map` and `Handle`), found by `api.MapEndpoints()`. Handlers are public static methods with typed results (`Results<Ok<T>, NotFound>`), so unit tests can call them directly. The unit tests check the architecture (`Architecture/VerticalSliceTests.cs`).
+- Frontend: Feature-Sliced Design (see [Code organisation](docs/architecture.md#code-organisation)): layers `app`, `pages`, `widgets`, `features`, `entities`, `shared`, each slice imported only through its `index.ts` (`@/entities/session`); `npm run lint` checks it with Steiger. All HTTP goes through the `api` object in `src/shared/api`, called from RTK Query endpoints in the slices' `api/` segments; components hold their own state and call hooks directly (see State and caching). Routes are declared in `src/app/App.tsx` (React Router), with one slice per page in `src/pages/`.
 
 ## Troubleshooting
 

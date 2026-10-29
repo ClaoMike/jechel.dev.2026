@@ -37,7 +37,7 @@ Each feature end to end: terms, analytics, coffees, update emails, the résumé,
 
 The site records how it's used itself: no third parties, no cookies. The admin reads it in the **Engagement** tab.
 
-**Recording** (`src/features/analytics/tracker.ts`, mounted by `<AnalyticsTracker>` in `App/App.tsx`):
+**Recording** (`src/shared/lib/analytics/tracker.ts`, mounted by `<AnalyticsTracker>` (`src/features/analytics`) in `app/App.tsx`):
 
 - **What:** pages opened (with the query); clicks on buttons, links and fields (the label the visitor saw, plus a link's address; **never what was typed**), and clicks into embedded players (YouTube: the window loses focus to the frame); fields changed (`change`: a list's option, a slider's value, how many files; a text field only that it was edited); forms sent (`submit`, with Enter or a button); Escape; copying text (not what); videos played, paused and finished; how far down each page was read (`scroll`, in quarters, recorded on leaving the page); the tab hidden and back (`tab`); leaving (`leave`); the site's own events (`trackEvent`: Terms accepted, Message sent / not sent and why, Contact form invalid with the field left wrong (once per field), Subscribed / again / failed and why, Subscription confirmed, Unsubscribed, Support clicked, Swiped to another slide, Moved to another slide with the keyboard, Zoomed / Moved the map, Looked at a place on the map, Theme changed); and every **error**: script errors with file, line and stack (not a bare "Script error." with no file: that's a script the browser or an extension put in the page, such as Firefox on iPhone's on taps, since the site runs only its own; nor an error at an http(s) page address of this site rather than a script file (a `blob:` script's still counts), nor another site's script or stylesheet that didn't load: the CSP allows neither, so both are the browser's, such as Chrome on iPhone's Translate, whose RangeError is reported at the page and whose gstatic.com stylesheet is blocked), unhandled promise rejections, React crashes with the component stack (`createRoot` callbacks in `main.tsx`), requests that fail with 5xx or no answer (`onRequestFailed` in `api.ts`; 4xx answers are expected and skipped), and images or files that didn't load.
 - **A visit** is a browser tab: a random id in `sessionStorage`, so it survives reloads and ends with the tab. It starts with the page, the referring site (host and path; no query), `utm_*` tags, language, time zone, screen and window size, and theme.
@@ -70,7 +70,7 @@ The site records how it's used itself: no third parties, no cookies. The admin r
                    DELETE …/{id}            AnalyticsRetention: deletes visits after 12 months
 ```
 
-**The tab** (`src/pages/EngagementPage/EngagementPage.tsx`, `src/features/analytics/`): a period of 1 hour, 1 day, 7 / 30 / 90 days, 1 year, 5 years or all time, with
+**The tab** (`src/pages/engagement/`): a period of 1 hour, 1 day, 7 / 30 / 90 days, 1 year, 5 years or all time, with
 - counters: visitors, visits, page views, average visit, bounce rate (one page and nothing done on purpose: clicks, keys, changes, forms and site events count; scrolling, the tab and leaving don't; `AnalyticsRules.InteractionTypes`), errors
 - visitors, page views or errors as a column chart, one column per 5 minutes (1 hour), hour (1 day), day (7 to 90 days), month (1 and 5 years; all time) or year (all time beyond 6 years). Columns are aligned in UTC (`AnalyticsRange.cs`); "1 hour" and "1 day" are rolling. Visits count when they started, page views and errors when they happened. Hover a column for its number; a hidden table gives screen readers the same
 - top pages, where visitors come from, most clicked, **what visitors did** (the site's events, theme changes aside), errors, **preferred theme** (the one visits ended in), **theme switches** ("vice → dark"), devices, browsers, **countries** (Cloudflare's, by name), time zones
@@ -89,7 +89,7 @@ seen (`AnalyticsRetention`, daily; `TermsDefaults.VisitRetentionMonths`). IP add
 The header's amber **Buy me a coffee** button links to the page in `Support:Url` (Settings tab), hidden while it's empty; steam rises from its cup (paused while nobody is using the page, `<html data-idle>`), and on hover the cup fills with coffee, bottom to top (`.coffee-steam`, `.coffee-fill` in `glass.css`). The site
 uses **[Buy Me a Coffee](https://buymeacoffee.com/claomike)** (it keeps 5% of each coffee, plus the payment processor's fee).
 
-**Coffee alerts** come from its webhook (`Features/Support/SupportEndpoints.cs`): in the Buy Me a Coffee dashboard add a webhook to
+**Coffee alerts** come from its webhook (`Features/Support/BuyMeACoffeeWebhook.cs`): in the Buy Me a Coffee dashboard add a webhook to
 `https://<your-domain>/api/support/buymeacoffee`, and paste its secret into Settings. Each request must be signed (HMAC-SHA256 of the
 body with the secret, in hex, in `X-Signature-Sha256`, or `X-Bmc-Signature` as older webhooks did). Each **event on a payment** is
 stored once: unique on the event and the payment's id (`donation.created:58`), or a hash of the body, so a retried webhook isn't
@@ -137,7 +137,7 @@ require of bulk senders). The button's bell rings once every 10 seconds at rest,
 focus) it turns yellow and keeps ringing (`.bell-body`, `.bell-clapper` in `glass.css`; still for reduced motion, and paused
 while nobody is using the page, `<html data-idle>`).
 
-- **Subscribing** (`Features/Updates/UpdatesEndpoints.cs`): addresses are stored lower case, with a random 256-bit token used in
+- **Subscribing** (`Features/Updates/Subscribe.cs`): addresses are stored lower case, with a random 256-bit token used in
   the confirm and unsubscribe links. The confirmation email isn't sent to the same address more than once per 10 minutes, and each
   IP gets 5 tries per 10 minutes (`Updates:SubscribeLimitPer10Minutes`). The popup says whether a confirmation was sent, one is
   already on its way, or the address is already subscribed (this tells anyone whether an address is subscribed: a choice made

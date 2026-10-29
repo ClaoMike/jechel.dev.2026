@@ -22,16 +22,16 @@ public class AppOrderTests
     private async Task<AppDetails> CreateAsync(string title, bool? showInWhatsNew = null)
     {
         _time.Advance(TimeSpan.FromMinutes(1));
-        var result = await AppEndpoints.CreateApp(new AppRequest(title, "", [], ShowInWhatsNew: showInWhatsNew), _db, Files, new FakePhoneAlerts(), Options.Create(new SiteOptions()), _time, default);
+        var result = await CreateApp.Handle(new AppRequest(title, "", [], ShowInWhatsNew: showInWhatsNew), _db, Files, new FakePhoneAlerts(), Options.Create(new SiteOptions()), _time, default);
         return Assert.IsType<Created<AppDetails>>(result.Result).Value!;
     }
 
-    private async Task<IReadOnlyList<string>> ListedAsync() => [.. (await AppEndpoints.ListApps(_db, default)).Value!.Items.Select(a => a.Title)];
+    private async Task<IReadOnlyList<string>> ListedAsync() => [.. (await ListApps.Handle(_db, default)).Value!.Items.Select(a => a.Title)];
 
     private async Task<IReadOnlyList<AppOrderItem>> SaveAsync(params AppOrderRequest?[] order) =>
-        Assert.IsType<Ok<IReadOnlyList<AppOrderItem>>>((await AppEndpoints.SaveOrder(order, _db, default)).Result).Value!;
+        Assert.IsType<Ok<IReadOnlyList<AppOrderItem>>>((await SaveAppOrder.Handle(order, _db, default)).Result).Value!;
 
-    private async Task<string?> WhatsNewAsync() => (await AppEndpoints.GetWhatsNew(_db, default)).Value!.App?.Title;
+    private async Task<string?> WhatsNewAsync() => (await GetWhatsNewApp.Handle(_db, default)).Value!.App?.Title;
 
     [Fact]
     public async Task A_new_app_goes_first_and_the_others_keep_their_order()
@@ -43,7 +43,7 @@ public class AppOrderTests
         await CreateAsync("C");
 
         Assert.Equal(["C", "A", "B"], await ListedAsync());
-        Assert.Equal(["C", "A", "B"], (await AppEndpoints.ListOrder(_db, default)).Value!.Select(o => o.Title));
+        Assert.Equal(["C", "A", "B"], (await ListAppOrder.Handle(_db, default)).Value!.Select(o => o.Title));
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class AppOrderTests
         var saved = await SaveAsync([.. apps.Select(a => new AppOrderRequest(a.Id, true))]);
 
         Assert.Equal(apps.Select(a => a.Title), saved.Select(o => o.Title));
-        Assert.Equal(["App 10", "App 11"], (await AppEndpoints.ListApps(_db, default, page: 2)).Value!.Items.Select(a => a.Title));
+        Assert.Equal(["App 10", "App 11"], (await ListApps.Handle(_db, default, page: 2)).Value!.Items.Select(a => a.Title));
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class AppOrderTests
         var saved = await SaveAsync(new(c.Id, false), new(a.Id, false), new(b.Id, true));
         Assert.Equal([false, false, true], saved.Select(o => o.ShowInWhatsNew));
         Assert.Equal("B", await WhatsNewAsync());
-        Assert.False((await AppEndpoints.ListApps(_db, default)).Value!.Items[0].ShowInWhatsNew);
+        Assert.False((await ListApps.Handle(_db, default)).Value!.Items[0].ShowInWhatsNew);
 
         await SaveAsync(new(c.Id, false), new(a.Id, false), new(b.Id, false));
         Assert.Null(await WhatsNewAsync());
@@ -88,10 +88,10 @@ public class AppOrderTests
         Assert.Equal("Shown", await WhatsNewAsync());
 
         // Left out (an older page): kept.
-        var kept = await AppEndpoints.UpdateApp(hidden.Id, new AppRequest("Hidden", "", []), _db, Files, _time, default);
+        var kept = await UpdateApp.Handle(hidden.Id, new AppRequest("Hidden", "", []), _db, Files, _time, default);
         Assert.False(Assert.IsType<Ok<AppDetails>>(kept.Result).Value!.ShowInWhatsNew);
 
-        var changed = await AppEndpoints.UpdateApp(hidden.Id, new AppRequest("Hidden", "", [], ShowInWhatsNew: true), _db, Files, _time, default);
+        var changed = await UpdateApp.Handle(hidden.Id, new AppRequest("Hidden", "", [], ShowInWhatsNew: true), _db, Files, _time, default);
         Assert.True(Assert.IsType<Ok<AppDetails>>(changed.Result).Value!.ShowInWhatsNew);
         Assert.Equal("Hidden", await WhatsNewAsync());
     }
@@ -112,7 +112,7 @@ public class AppOrderTests
             [null, new(b.Id, true)],
         })
         {
-            Assert.IsType<ValidationProblem>((await AppEndpoints.SaveOrder(order, _db, default)).Result);
+            Assert.IsType<ValidationProblem>((await SaveAppOrder.Handle(order, _db, default)).Result);
         }
 
         Assert.Equal(["B", "A"], await ListedAsync());
@@ -137,7 +137,7 @@ public class AppOrderTests
         deleted = a.Id;
         deleteFirst.Armed = true;
 
-        var result = await AppEndpoints.SaveOrder([new(b.Id, true), new(a.Id, true)], db, default);
+        var result = await SaveAppOrder.Handle([new(b.Id, true), new(a.Id, true)], db, default);
 
         var problem = Assert.IsType<ValidationProblem>(result.Result);
         Assert.Equal(AppRules.OrderOutOfDate, problem.ProblemDetails.Errors[""][0]);

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using Portfolio.Api.Common;
 using Portfolio.Api.Features.Support;
 
 namespace Portfolio.Api.IntegrationTests.Features.Support;

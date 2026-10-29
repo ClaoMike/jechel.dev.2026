@@ -8,7 +8,7 @@ Mr Dafoe's own j has a long, thin tail loop that closes up when small (in a brow
 banana), so the site draws its own: `scripts/build_brand_j.py` traces a brush stroke (thick going down,
 thin going up, with a wide, open loop) in the font's units and writes two weights of it:
 
-- `frontend/src/assets/brand-j.svg`: the Vice title's j. `glass.css` (`.brand-j::before`) masks the neon gradient and the purple shadow layer with it, where the font's j would be; the letter stays in the page (at size 0) and the title link is named "jechel.dev", so screen readers still read the name. Other themes show the plain j.
+- `frontend/src/app/styles/brand-j.svg`: the Vice title's j. `glass.css` (`.brand-j::before`) masks the neon gradient and the purple shadow layer with it, where the font's j would be; the letter stays in the page (at size 0) and the title link is named "jechel.dev", so screen readers still read the name. Other themes show the plain j.
 - `frontend/public/favicon.svg`: the tab icon, a bolder j on a dark tile. `favicon.ico` (16, 32, 48 px, for Safari and old browsers) and `apple-touch-icon.png` (180 px) are renders of it.
 
 After changing the drawing, re-run the script, re-render the PNG copies (e.g. a Playwright screenshot of
@@ -17,7 +17,7 @@ on the icon links in `index.html` (browsers keep tab icons cached).
 
 ## Site sections and the contact feature
 
-The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch, whose icon turns once when picked: the sun's rays go round it, the moon flips over the X axis, the Vice mark over the Y axis; not on load, nor with reduced motion) above five tabs (six for the signed-in admin: **System**, written in the jechel.dev pink to violet, the same in every theme: `.tab-admin` in `glass.css`), each a route rendered inside `src/layout/AppLayout/AppLayout.tsx`.
+The site is a header (for the admin, a bar on top with who's signed in and **Sign out**; then the name, **Buy me a coffee**, **Get updates** and the theme switch, whose icon turns once when picked: the sun's rays go round it, the moon flips over the X axis, the Vice mark over the Y axis; not on load, nor with reduced motion) above five tabs (six for the signed-in admin: **System**, written in the jechel.dev pink to violet, the same in every theme: `.tab-admin` in `glass.css`), each a route rendered inside `src/app/layout/AppLayout.tsx`.
 
 **System** (`layout/tabs.ts`'s `SYSTEM_PAGES`, `layout/SystemNav/`) holds the admin's own pages: its tab opens the first
 (Engagement), and is marked current on any of them; above the page, a row of pills (`nav` "System") goes to each, and
@@ -39,7 +39,7 @@ before still work); `/system` opens the first. Visitors never see the row, not e
 | System → Feature Testing (BETA) | `/features`, `/features/:feature` | admin only: new features, tried out on the real site before visitors get them, with a navigation between them; "No features to test right now" when there are none (see below) |
 | (no tab) | `/updates/confirm`, `/updates/unsubscribe` | where the links in update emails land |
 
-**What's new?** (`src/pages/WhatsNewPage/WhatsNewPage.tsx`): an app or the newest YouTube video, whichever came last, shown in full. The app is the first in the admin's order (Apps → **Organise**) whose **Show in What's new?** is on, compared with the video by when it was added (the video by when it was published). An app switched off is skipped for the next one that's on. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`utils/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for that one app and the newest video, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later). The signed-in admin sees exactly what visitors see, with a note saying which section is left out and why; the empty and error messages name only what's shown (apps, videos, or both). If one list fails (e.g. YouTube isn't set up), the other is shown.
+**What's new?** (`src/pages/whats-new/`): an app or the newest YouTube video, whichever came last, shown in full. The app is the first in the admin's order (Apps → **Organise**) whose **Show in What's new?** is on, compared with the video by when it was added (the video by when it was published). An app switched off is skipped for the next one that's on. An app gets the popup's view (`AppDetailsView`: slider, labels, description, platforms, store links). A video gets YouTube's player (from `youtube-nocookie.com`, which sets no cookies until it's played), its full description with web addresses as links (`shared/lib/format/linkify.ts`), and a **Watch on YouTube** button. It only asks the API for that one app and the newest video, and only of the sections visitors may see (**Settings → Visitor pages**: with Apps hidden, the newest video shows even if an app came later). The signed-in admin sees exactly what visitors see, with a note saying which section is left out and why; the empty and error messages name only what's shown (apps, videos, or both). If one list fails (e.g. YouTube isn't set up), the other is shown.
 
 ```
   Settings → Visitor pages (GET/PUT /api/site; site_state)
@@ -66,7 +66,7 @@ before still work); `/system` opens the first. Visitors never see the row, not e
                          emails link to the video on YouTube, or to the Apps page
 ```
 
-**Apps** (`src/pages/AppsPage/AppsPage.tsx`, `src/features/apps/`, API in `backend/.../Features/Apps/`):
+**Apps** (`src/pages/apps/`, `src/entities/app/`, API in `backend/.../Features/Apps/`):
 
 ```
   Admin (signed in)                         API                                       Database
@@ -111,7 +111,7 @@ before still work); `/system` opens the first. Visitors never see the row, not e
 - Saving About Me or an app deletes uploads that **nothing** uses any more, once a day old (`FileCleanup.cs`).
 - Videos live in the database like every other upload and are read whole for each request. That's fine for a few short clips; for many or long videos, move `IFileStorage` to object storage (R2, S3) or link YouTube videos instead.
 
-**YouTube** (`src/pages/YouTubePage/YouTubePage.tsx`, API in `backend/.../Features/YouTube/`): the channel's public videos, newest first, in a 3 × 3 grid (2 columns on tablets, 1 on phones). Each card shows the thumbnail, title, date and the start of the description (cut after three lines), and opens the video on YouTube in a new tab. More than 9 videos get Previous / Next, with the page in the URL (`?page=2`).
+**YouTube** (`src/pages/youtube/`, API in `backend/.../Features/YouTube/`): the channel's public videos, newest first, in a 3 × 3 grid (2 columns on tablets, 1 on phones). Each card shows the thumbnail, title, date and the start of the description (cut after three lines), and opens the video on YouTube in a new tab. More than 9 videos get Previous / Next, with the page in the URL (`?page=2`).
 
 **The channel's page** (`GET /api/youtube/channel`, public, from **Settings → YouTube → Channel**: a handle gives
 `youtube.com/@handle`, an id `youtube.com/channel/UC…`; 204 when none is set, or it's neither, such as a pasted web address, and then
@@ -169,7 +169,7 @@ How the videos get to the page:
   `YouTubeVideoStore.LastError`, e.g. YouTube's own "403 (Forbidden)", with any API key blanked). 503 when YouTube
   isn't set up or can't be reached (the saved list stays). Every `ApiError` keeps the request and the API's `detail`
   and `cause` (`ProblemInfo`, `services/http.ts`) for this.
-- **Reusable for Apps:** `src/components/PagedGrid/PagedGrid.tsx` (takes the RTK Query hook for a page, e.g. `useListAppsQuery`, and its texts as one `PagedGridTexts` object from the page's view model; shows loading / empty / error and the pagination, and renders its children after the grid, e.g. the app popup) and `src/components/MediaCard.tsx` (image, title, meta line, clamped description; the whole card is a link). `Pagination.tsx` and `usePageParam.ts` are shared with the contact inbox.
+- **Reusable for Apps:** `src/shared/ui/PagedGrid/PagedGrid.tsx` (takes the RTK Query hook for a page, e.g. `useListAppsQuery`, and its texts as one `PagedGridTexts` object from the page; shows loading / empty / error and the pagination, and renders its children after the grid, e.g. the app popup) and `src/shared/ui/MediaCard.tsx` (image, title, meta line, clamped description; the whole card is a link). `Pagination.tsx` and `usePageParam.ts` are shared with the contact inbox.
 
 Unknown URLs redirect to `/`.
 
@@ -195,14 +195,14 @@ selected; nor while the page is down for maintenance or hidden in Vice. The page
 (`state.slide` on the navigation, read by `PageTransition` only on that navigation: back and forward to it later go by
 the tab order).
 
-**Feature Testing** (`src/pages/FeatureTestingPage/`, admin only, System's last page, marked BETA): where a new feature goes first,
+**Feature Testing** (`src/pages/feature-testing/`, admin only, System's last page, marked BETA): where a new feature goes first,
 to be tried on the real site before visitors see it. The features are listed in
-`src/features/featureTesting/testFeatures.ts` (an address, a title, and the component); a row
+`src/pages/feature-testing/config/testFeatures.ts` (an address, a title, and the component); a row
 of pills moves between them (the feature fills the card below them, with no heading of its own), each at `/features/<its address>`, and `/features` opens the first. Once a feature is
 ready, it moves to where visitors will see it and comes off the list. With none, the page shows a flask and "No
 features to test right now".
 
-**Work with me** (`src/features/workWithMe/`, in Feature Testing now; for visitors, where it goes is still to decide:
+**Work with me** (`src/features/work-with-me/`, in Feature Testing now; for visitors, where it goes is still to decide:
 Contact, or a page of its own). What I offer (websites end to end, APIs, automations for a company's own work: manual
 processes and integrations between its apps), how a project goes (a free call or meeting, online or in person; a plan;
 the plan presented; then the price agreed, building, and keeping each other in the loop), and the price an hour, the
@@ -217,16 +217,16 @@ Its switch, **Work with me** in Settings → Visitor pages, starts off (unlike t
 `Site:PagesVisibleByDefault` says: `SiteParts.OffUntilSwitchedOn`); switched on, the contact form asks **What's it
 about?** (anything, or a project), which arrives as a **project enquiry**.
 
-**Contact** (`src/pages/ContactPage/ContactPage.tsx`, `src/features/contact/`):
+**Contact** (`src/pages/contact/`):
 
 - **Visitors** (`<SignedOut>`) get a form: name (max 100), email, and a message of **100 to 1000 characters**, counted after trimming. **Send message** stays off until every field is right ("Fill in every field to send it." beside it); a field's error shows once it's been left with something in it (a field only tabbed through says nothing), then updates as you type. The rules are in `contactRules.ts`, mirroring the API's `ContactRules.cs`. The API has the final say, and its field errors are shown on the matching fields. With Work with me switched on, it also asks **What's it about?**: anything (the default), or a project (`topic: "project"`). A project enquiry is kept with the subject **Project enquiry**: the inbox marks it, the phone alert says "New project enquiry from …", and replies are sent under it.
 - **The admin** (`<SignedIn>`) gets the inbox: a table of conversations (name, last message, how many), 10 per page (the page is in the URL, `?page=2`). Unread messages are bold, with a blue dot. Clicking a row opens a popup with every field and a **Copy** button for each, and marks the message as read.
-- Each detail has a copy-to-clipboard icon button (`src/components/CopyButton/CopyButton.tsx`); the icons are in `src/components/icons/icons.tsx`.
+- Each detail has a copy-to-clipboard icon button (`src/shared/ui/CopyButton/CopyButton.tsx`); the icons are in `src/shared/ui/icons/icons.tsx`.
 - **Deleting:** each row has a trash button, and the popup a **Delete** button (`DELETE /api/contact/messages/{id}`, admin only). Both ask first.
-- The popup is `src/components/Modal/Modal.tsx`: it keeps focus inside (Tab wraps), closes with Escape, the × button or a click on the backdrop, and returns focus to the row's button. Keys and clicks inside a dialog stay inside it, so a dialog opened from another (or from a table row) behaves: Escape closes only the top one. Taller than the screen, only what's inside it scrolls (`.modal-body`): the frame and its glass rim stay put, and it fits the screen a phone's browser bar leaves (`100dvh`).
-- **Confirming:** `src/components/DeleteButton/DeleteButton.tsx` is the one delete button for the whole site: it opens `ConfirmDialog` ("Delete …?" with Cancel focused) and only then runs `onDelete`. If that is async, the popup waits and says so when it fails. About Me uses it with `action="Remove"` for every remove button, explaining that nothing is lost until the section is saved.
+- The popup is `src/shared/ui/Modal/Modal.tsx`: it keeps focus inside (Tab wraps), closes with Escape, the × button or a click on the backdrop, and returns focus to the row's button. Keys and clicks inside a dialog stay inside it, so a dialog opened from another (or from a table row) behaves: Escape closes only the top one. Taller than the screen, only what's inside it scrolls (`.modal-body`): the frame and its glass rim stay put, and it fits the screen a phone's browser bar leaves (`100dvh`).
+- **Confirming:** `src/shared/ui/DeleteButton/DeleteButton.tsx` is the one delete button for the whole site: it opens `ConfirmDialog` ("Delete …?" with Cancel focused) and only then runs `onDelete`. If that is async, the popup waits and says so when it fails. About Me uses it with `action="Remove"` for every remove button, explaining that nothing is lost until the section is saved.
 
-**About Me** (`src/pages/AboutPage/AboutPage.tsx`, `src/features/about/`, API in `backend/.../Features/About/`):
+**About Me** (`src/pages/about/`, API in `backend/.../Features/About/`):
 
 - The page is **one JSON document** (`AboutContent`), stored in the `about_page` table (`jsonb`, one row). It's always read and saved whole, so changing its shape means changing `AboutContent.cs` and the matching types in `api.ts`, with no new migration. Until the first save, `GET` returns `AboutDefaults` (placeholders).
 - **Sections:**
@@ -308,7 +308,7 @@ Only one refresh runs at a time (`RefreshLock`), so visitors arriving together c
 
 **City search** (`backend/.../Features/Places/`): `GET /api/places/search?q=manch` (admin) searches every place with 1,000+ people (~170k, from [GeoNames](https://www.geonames.org), CC BY 4.0) by the start of its name, largest first, ignoring accents. Text after a comma narrows by region or country (`manchester, new hampshire`). The list is `cities.tsv.gz`, embedded in the API and built by `python3 scripts/build_cities.py`.
 
-**The map's dots** are generated once by `node scripts/build-world-dots.ts` (in `frontend/`) from Natural Earth land shapes into `src/features/about/places/worldDots.ts`. Pins use the same projection (`projection.ts`), so they line up.
+**The map's dots** are generated once by `node scripts/build-world-dots.ts` (in `frontend/`) from Natural Earth land shapes into `src/pages/about/lib/worldDots.ts`. Pins use the same projection (`projection.ts`), so they line up.
 
 ## Visitor pages and maintenance
 

@@ -15,10 +15,10 @@ import { SettingsStore } from '../src/core/ai/settings.ts'
 import { buildBoard, readAiFile, summaryTargets } from '../src/core/board.ts'
 import type { RepoMapConfig } from '../src/core/config.ts'
 import { startServer, type ServerHandle } from '../src/core/serve.ts'
-import { assignFeatures, caseLabel, checkRules, isConditional, memberAt, resolveTiers, type RuleDef } from '../src/shared/board.ts'
+import { architecturePlace, assignFeatures, caseLabel, checkRules, featureDefs, isConditional, memberAt, resolveTiers, type ArchitectureDef, type RuleDef } from '../src/shared/board.ts'
 import { parseUnifiedDiff, touchedNodes } from '../src/shared/review.ts'
 import type { GraphEdge, GraphNode, RepoGraph } from '../src/shared/types.ts'
-import { layoutScene, wirePath, type ElkLike } from '../viewer/src/board/layout.ts'
+import { laneBoxes, layoutScene, wirePath, type ElkLike } from '../viewer/src/board/layout.ts'
 import { buildScene, chipGroups, chipsIn, indexBoard, parentPath, pathOfNode, trailOf, type BoardPath } from '../viewer/src/board/model.ts'
 import { computeImpact } from '../viewer/src/board/impact.ts'
 import { indexGraph } from '../viewer/src/model/graph.ts'
@@ -467,6 +467,143 @@ describe('board levels', () => {
     }
     const portrait = await layoutScene(scene({ level: 'features', tier: 'web' }), elk, { portrait: true })
     assert.ok(portrait.height > 0)
+  })
+})
+
+// ---------------------------------------------------------------- layered architectures
+
+const FSD: ArchitectureDef = {
+  id: 'fsd',
+  label: 'Feature-Sliced Design',
+  tier: 'web',
+  root: 'web/src',
+  crossImports: '@x',
+  layers: [
+    { id: 'app', label: 'App' },
+    { id: 'pages', label: 'Pages', parts: 'slices' },
+    { id: 'features', label: 'Features', parts: 'slices' },
+    { id: 'entities', label: 'Entities', parts: 'slices' },
+    { id: 'shared', label: 'Shared', parts: 'segments' },
+  ],
+}
+const VSA: ArchitectureDef = {
+  id: 'vsa',
+  label: 'Vertical slices',
+  tier: 'api',
+  root: 'api',
+  layers: [
+    { id: 'Features', label: 'Features', parts: 'slices', open: true },
+    { id: 'Common', label: 'Common' },
+  ],
+}
+
+describe('layered architectures', () => {
+  it('places a file in its layer and slice (or segment, or the whole layer)', () => {
+    assert.deepEqual(architecturePlace('web/src/pages/whats-new/ui/WhatsNewPage.tsx', [FSD]), { architecture: 'fsd', layer: 'pages', order: 1, part: 'whats-new', isolated: true, feature: 'fsd/pages/whats-new' })
+    assert.deepEqual(architecturePlace('web/src/shared/api/api.ts', [FSD]), { architecture: 'fsd', layer: 'shared', order: 4, part: 'api', isolated: false, feature: 'fsd/shared/api' })
+    assert.deepEqual(architecturePlace('web/src/app/App.tsx', [FSD]), { architecture: 'fsd', layer: 'app', order: 0, isolated: false, feature: 'fsd/app' })
+    assert.equal(architecturePlace('api/Features/WorkWithMe/GetPrice.cs', [FSD, VSA])?.feature, 'vsa/Features/WorkWithMe')
+    // Outside its layers: not in it.
+    assert.equal(architecturePlace('web/src/main.tsx', [FSD]), undefined)
+    assert.equal(architecturePlace('api/Program.cs', [VSA]), undefined)
+  })
+
+  it('labels slices by their folder and knows their layer', () => {
+    const defs = featureDefs(['fsd/pages/whats-new', 'fsd/app', 'vsa/Features/WorkWithMe', 'contact'], { 'fsd/app': 'The app' }, [FSD, VSA])
+    const by = new Map(defs.map((d) => [d.id, d]))
+    assert.equal(by.get('fsd/pages/whats-new')!.label, 'Whats new')
+    assert.deepEqual(by.get('fsd/pages/whats-new')!.layer, { architecture: 'fsd', id: 'pages', label: 'Pages', order: 1 })
+    assert.equal(by.get('fsd/app')!.label, 'The app')
+    assert.equal(by.get('vsa/Features/WorkWithMe')!.label, 'Work with me')
+    assert.equal(by.get('contact')!.layer, undefined)
+  })
+
+  it('a slice is its feature; tests tagged with a slice’s folder join it', () => {
+    const nodes = [
+      n('api:c:CreateApp', 'endpoint-slice', 'api', { file: 'api/Features/Apps/CreateApp.cs' }),
+      n('api:c:CreateAppTests', 'test-suite', 'api', { role: 'test/unit', file: 'tests/Features/Apps/CreateAppTests.cs', tags: ['feature:apps'] }),
+    ]
+    const assigned = assignFeatures(nodes, [], {
+      placed: new Map([['api:c:CreateApp', 'vsa/Features/Apps']]),
+      sliceFor: (_, key) => (key === 'apps' ? 'vsa/Features/Apps' : undefined),
+    })
+    assert.equal(assigned.get('api:c:CreateApp')!.feature, 'vsa/Features/Apps')
+    assert.equal(assigned.get('api:c:CreateAppTests')!.feature, 'vsa/Features/Apps')
+  })
+
+  it('a layered rule flags edges up a layer and between isolated slices, not @x, segments, open layers or routes', () => {
+    const file = (path: string) => ({ file: path })
+    const nodes = [
+      n('web:Page', 'page', 'views', file('web/src/pages/about/ui/AboutPage.tsx')),
+      n('web:OtherPage', 'page', 'views', file('web/src/pages/contact/ui/ContactPage.tsx')),
+      n('web:App', 'component', 'views', file('web/src/app/App.tsx')),
+      n('web:Route', 'route', 'views', file('web/src/app/App.tsx')),
+      n('web:useAuth', 'hook', 'model', file('web/src/entities/session/model/useAuth.ts')),
+      n('web:useSite', 'hook', 'model', file('web/src/entities/site/model/useSite.ts')),
+      n('web:Button', 'component', 'views', file('web/src/shared/ui/Button.tsx')),
+      n('web:http', 'module', 'model', file('web/src/shared/api/http.ts')),
+      n('web:format', 'module', 'model', file('web/src/shared/lib/format.ts')),
+      n('api:AppsShared', 'class', 'api', file('api/Features/Apps/AppShared.cs')),
+      n('api:Alerts', 'service', 'api', file('api/Features/Alerts/PhoneAlerts.cs')),
+      n('api:Paging', 'class', 'api', file('api/Common/PagedResponse.cs')),
+    ]
+    const edges = [
+      e('web:Page', 'renders', 'web:Button'), // down: fine
+      e('web:useAuth', 'uses', 'web:Page'), // up
+      e('web:Page', 'renders', 'web:OtherPage'), // across pages
+      e('web:Page', 'navigates', 'web:Route'), // a link: not a dependency
+      e('web:useSite', 'calls', 'web:useAuth', { evidence: [{ file: 'web/src/entities/site/model/useSite.ts', line: 1 }] }), // through @x
+      e('web:format', 'calls', 'web:http'), // segments of shared
+      e('api:AppsShared', 'calls', 'api:Alerts'), // an open layer's slices
+      e('api:Paging', 'uses-type', 'api:AppsShared'), // Common knows a feature: up
+    ]
+    const places = new Map(nodes.flatMap((node) => {
+      const place = architecturePlace(node.file, [FSD, VSA])
+      return place ? [[node.id, place] as const] : []
+    }))
+    const rules: RuleDef[] = [
+      { id: 'fsd', description: 'FSD', layered: 'fsd', severity: 'error' },
+      { id: 'vsa', description: 'VSA', layered: 'vsa', severity: 'error' },
+    ]
+    const sources: Record<string, string> = { 'web/src/entities/site/model/useSite.ts': "import { useAuth } from '@/entities/session/@x/site'" }
+    const violations = checkRules(nodes, edges, resolveTiers([{ id: 'views', label: 'Views', color: '#000000' }, { id: 'model', label: 'Model', color: '#000000' }, { id: 'api', label: 'API', color: '#000000' }], undefined), rules, () => undefined, {
+      placeOf: (id) => places.get(id),
+      allowCrossing: (edge, from, to) => (sources[edge.evidence?.[0]?.file ?? ''] ?? '').includes(`${to.layer}/${to.part}/@x/${from.part}`),
+    })
+    assert.deepEqual(violations.map((v) => `${v.rule}: ${v.from} → ${v.to}`).sort(), ['fsd: web:Page → web:OtherPage', 'fsd: web:useAuth → web:Page', 'vsa: api:Paging → api:AppsShared'])
+    // Without the @x import it's a crossing too.
+    delete sources['web/src/entities/site/model/useSite.ts']
+    const again = checkRules(nodes, edges, [], rules, () => undefined, { placeOf: (id) => places.get(id), allowCrossing: () => false })
+    assert.ok(again.some((v) => v.from === 'web:useSite' && v.message.includes("slices of entities don't use each other")))
+  })
+
+  it('a tier shows its architecture’s features in their layers’ columns, labelled', async () => {
+    const nodes = [
+      n('web:Page', 'page', 'views', { file: 'web/src/pages/about/ui/AboutPage.tsx', feature: 'fsd/pages/about' }),
+      n('web:Theme', 'component', 'views', { file: 'web/src/features/theme/ui/ThemeSwitch.tsx', feature: 'fsd/features/theme' }),
+      n('web:Button', 'component', 'views', { file: 'web/src/shared/ui/Button.tsx', feature: 'fsd/shared/ui' }),
+      n('web:main', 'module', 'views', { file: 'web/src/main.tsx', feature: 'shared' }),
+    ]
+    const edges = [e('web:Page', 'renders', 'web:Button'), e('web:Theme', 'renders', 'web:Button')]
+    const graph = {
+      ...sample(),
+      layers: [{ id: 'views', label: 'Views', color: '#38bdf8' }],
+      nodes,
+      edges,
+      board: { tiers: [{ id: 'web', label: 'Web', color: '#38bdf8', layers: ['views'] }], features: featureDefs(nodes.map((x) => x.feature!), {}, [FSD]), architectures: [FSD] },
+    } as unknown as RepoGraph
+    const bi = indexBoard(indexGraph(graph))
+    const s = buildScene(bi, { level: 'features', tier: 'web' }, { showHidden: false, typeLinks: false })
+    assert.deepEqual(s.lanes!.map((l) => `${l.partition} ${l.label}`), ['1 Pages', '2 Features', '4 Shared', '5 Outside Feature-Sliced Design'])
+    const partition = (id: string) => s.chips.find((c) => c.id === id)!.partition
+    assert.deepEqual(['f:fsd/pages/about', 'f:fsd/features/theme', 'f:fsd/shared/ui', 'f:shared'].map(partition), [1, 2, 4, 5])
+    const layout = await layoutScene(s, new (ELK as unknown as new () => ElkLike)())
+    const lanes = laneBoxes(s, layout)
+    assert.equal(lanes.length, 4)
+    // Columns in the layers' order, each around its own chips.
+    for (let k = 1; k < lanes.length; k++) assert.ok(lanes[k].x >= lanes[k - 1].x + lanes[k - 1].w - 1, `${lanes[k].label} is right of ${lanes[k - 1].label}`)
+    const page = layout.chips.get('f:fsd/pages/about')!
+    assert.ok(page.x >= lanes[0].x && page.x + page.w <= lanes[0].x + lanes[0].w)
   })
 })
 

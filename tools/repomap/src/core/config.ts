@@ -11,7 +11,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { RuleDef, TierDef } from '../shared/board.ts'
+import type { ArchitectureDef, RuleDef, TierDef } from '../shared/board.ts'
 import type { EdgeTypeDef, KindDef, LayerDef, PresetDef, RoleDef } from '../shared/types.ts'
 
 export interface LayerRule {
@@ -78,6 +78,11 @@ export interface BoardConfig {
   featureOverrides: Record<string, string>
   /** Features everything uses (an API service): their nodes don't pull neighbours into them. */
   hubFeatures?: string[]
+  /**
+   * Layered architectures the code follows (Feature-Sliced Design, vertical slices…): a node in one gets its slice as
+   * its feature, the tier's board shows the layers as columns, and rules with `layered` check their order.
+   */
+  architectures?: ArchitectureDef[]
 }
 
 /** Where AI results (feature placements, summaries, suggested rules) are kept: committed, so they're reused. */
@@ -252,8 +257,15 @@ function validateConfig(config: RepoMapConfig): void {
   ids(config.plugins, 'plugin')
   ids(config.rules, 'rule')
   for (const rule of config.rules) {
-    if (!rule.deny && !rule.sameFeature) problems.push(`rule "${rule.id}" needs "deny": true or "sameFeature": true`)
+    if (!rule.deny && !rule.sameFeature && !rule.layered) problems.push(`rule "${rule.id}" needs "deny": true, "sameFeature": true or "layered": "<architecture>"`)
     if (rule.severity && rule.severity !== 'error' && rule.severity !== 'warn') problems.push(`rule "${rule.id}": severity must be "error" or "warn"`)
+  }
+  for (const arch of config.board.architectures ?? []) {
+    if (!arch.id || !arch.root || !Array.isArray(arch.layers) || arch.layers.length === 0) problems.push(`board architecture "${arch.id}" needs a root and layers`)
+    if (arch.tier && config.board.tiers && !config.board.tiers.some((t) => t.id === arch.tier)) problems.push(`board architecture "${arch.id}": no tier "${arch.tier}"`)
+  }
+  for (const rule of config.rules) {
+    if (rule.layered && !(config.board.architectures ?? []).some((a) => a.id === rule.layered)) problems.push(`rule "${rule.id}": no architecture "${rule.layered}"`)
   }
   for (const tier of config.board.tiers ?? []) {
     if (!Array.isArray(tier.layers) || tier.layers.length === 0) problems.push(`board tier "${tier.id}" has no layers`)

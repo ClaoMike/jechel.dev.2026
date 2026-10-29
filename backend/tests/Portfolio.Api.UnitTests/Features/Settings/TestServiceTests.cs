@@ -21,7 +21,7 @@ public class TestServiceTests
 
     private static async Task<TestResult> Check(Exception failure)
     {
-        var result = await SettingsEndpoints.TestService("cal", null!, new FakeEmailSender(), null!, TestOptions.Monitor(new YouTubeOptions()), new FailingCal(failure), new ClaimsPrincipal(), default);
+        var result = await TestService.Handle("cal", null!, new FakeEmailSender(), null!, TestOptions.Monitor(new YouTubeOptions()), new FailingCal(failure), new ClaimsPrincipal(), default);
         return Assert.IsType<Ok<TestResult>>(result.Result).Value!;
     }
 
@@ -46,7 +46,7 @@ public class TestServiceTests
     [Fact]
     public async Task An_unknown_service_is_not_found()
     {
-        var result = await SettingsEndpoints.TestService("fax", null!, new FakeEmailSender(), null!, TestOptions.Monitor(new YouTubeOptions()), new Portfolio.Api.UnitTests.Features.Meetings.FakeCalClient(), new ClaimsPrincipal(), default);
+        var result = await TestService.Handle("fax", null!, new FakeEmailSender(), null!, TestOptions.Monitor(new YouTubeOptions()), new Portfolio.Api.UnitTests.Features.Meetings.FakeCalClient(), new ClaimsPrincipal(), default);
 
         Assert.IsType<NotFound>(result.Result);
     }

@@ -35,19 +35,19 @@ public class ResumeEndpointsTests
 
     private async Task<ResumeSettingsDto> SaveContactAsync(string? phone, string? email, string? headline)
     {
-        var result = await ResumeEndpoints.SaveContact(new ResumeContact(phone, email, headline), _db, default);
+        var result = await SaveResumeContact.Handle(new ResumeContact(phone, email, headline), _db, default);
         return Assert.IsType<Ok<ResumeSettingsDto>>(result.Result).Value!;
     }
 
     private async Task<string> HeadlineAsync(HttpContext? http = null)
     {
-        var result = await ResumeEndpoints.GetHeadline(_db, http ?? new DefaultHttpContext(), default);
+        var result = await GetResumeHeadline.Handle(_db, http ?? new DefaultHttpContext(), default);
         return result.Value!.Headline;
     }
 
     private async Task<ResumeSettingsDto> GenerateAsync(params string[] sections)
     {
-        var result = await ResumeEndpoints.Generate(new ResumeChoices(sections, []), _db, LeetCode, Site, _time, default);
+        var result = await GenerateResume.Handle(new ResumeChoices(sections, []), _db, LeetCode, Site, _time, default);
         return Assert.IsType<Ok<ResumeSettingsDto>>(result.Result).Value!;
     }
 
@@ -83,7 +83,7 @@ public class ResumeEndpointsTests
     {
         await SaveContactAsync(Phone, "me@example.com", "Engineer");
 
-        var result = await ResumeEndpoints.GetHeadline(_db, new DefaultHttpContext(), default);
+        var result = await GetResumeHeadline.Handle(_db, new DefaultHttpContext(), default);
 
         // A record with one property: the phone and email can't reach visitors this way.
         Assert.Equal(["Headline"], result.Value!.GetType().GetProperties().Select(p => p.Name));
@@ -94,7 +94,7 @@ public class ResumeEndpointsTests
     {
         var http = new DefaultHttpContext();
 
-        var settings = (await ResumeEndpoints.GetSettings(_db, http, default)).Value!;
+        var settings = (await GetResumeSettings.Handle(_db, http, default)).Value!;
 
         Assert.Equal(("", "", ""), (settings.Phone, settings.Email, settings.Headline));
         Assert.Equal(ResumeSections.Defaults, settings.Sections);
@@ -106,14 +106,14 @@ public class ResumeEndpointsTests
     [Fact]
     public async Task Saving_the_contact_trims_it_and_keeps_the_choices()
     {
-        await ResumeEndpoints.SaveChoices(new ResumeChoices([ResumeSections.Skills], ["Cobol"]), _db, default);
+        await SaveResumeChoices.Handle(new ResumeChoices([ResumeSections.Skills], ["Cobol"]), _db, default);
 
         var saved = await SaveContactAsync($" {Phone} ", " me@example.com ", " Engineer ");
 
         Assert.Equal((Phone, "me@example.com", "Engineer"), (saved.Phone, saved.Email, saved.Headline));
         Assert.Equal([ResumeSections.Skills], saved.Sections);
         Assert.Equal(["Cobol"], saved.ExcludedSkills);
-        var again = (await ResumeEndpoints.GetSettings(_db, new DefaultHttpContext(), default)).Value!;
+        var again = (await GetResumeSettings.Handle(_db, new DefaultHttpContext(), default)).Value!;
         Assert.Equal((saved.Phone, saved.Email, saved.Headline), (again.Phone, again.Email, again.Headline));
     }
 
@@ -122,7 +122,7 @@ public class ResumeEndpointsTests
     {
         await SaveContactAsync(Phone, "me@example.com", "Engineer");
 
-        var result = await ResumeEndpoints.SaveContact(new ResumeContact("call me", "nope", new string('h', ResumeRules.HeadlineMaxLength + 1)), _db, default);
+        var result = await SaveResumeContact.Handle(new ResumeContact("call me", "nope", new string('h', ResumeRules.HeadlineMaxLength + 1)), _db, default);
 
         Assert.Equal(["email", "headline", "phone"], Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors.Keys.Order());
         Assert.Equal("Engineer", await HeadlineAsync());
@@ -133,7 +133,7 @@ public class ResumeEndpointsTests
     {
         await SaveContactAsync(Phone, "", "Engineer");
 
-        var result = await ResumeEndpoints.SaveChoices(new ResumeChoices([ResumeSections.Places, ResumeSections.Experience, ResumeSections.Places], [" Cobol ", "cobol"]), _db, default);
+        var result = await SaveResumeChoices.Handle(new ResumeChoices([ResumeSections.Places, ResumeSections.Experience, ResumeSections.Places], [" Cobol ", "cobol"]), _db, default);
 
         var saved = Assert.IsType<Ok<ResumeSettingsDto>>(result.Result).Value!;
         Assert.Equal([ResumeSections.Experience, ResumeSections.Places], saved.Sections);
@@ -144,8 +144,8 @@ public class ResumeEndpointsTests
     [Fact]
     public async Task Invalid_choices_are_rejected()
     {
-        var result = await ResumeEndpoints.SaveChoices(new ResumeChoices(null, null), _db, default);
-        var generate = await ResumeEndpoints.Generate(new ResumeChoices(["summary"], null), _db, LeetCode, Site, _time, default);
+        var result = await SaveResumeChoices.Handle(new ResumeChoices(null, null), _db, default);
+        var generate = await GenerateResume.Handle(new ResumeChoices(["summary"], null), _db, LeetCode, Site, _time, default);
 
         Assert.Equal(["sections"], Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors.Keys);
         Assert.IsType<ValidationProblem>(generate.Result);
@@ -155,12 +155,12 @@ public class ResumeEndpointsTests
     [Fact]
     public async Task There_is_no_pdf_before_the_first_generation()
     {
-        Assert.IsType<NotFound>((await ResumeEndpoints.GetPublicPdf(_db, new DefaultHttpContext(), default)).Result);
-        Assert.IsType<NotFound>((await ResumeEndpoints.GetPrivatePdf(_db, new DefaultHttpContext(), default)).Result);
+        Assert.IsType<NotFound>((await GetResume.Handle(_db, new DefaultHttpContext(), default)).Result);
+        Assert.IsType<NotFound>((await GetPrivateResume.Handle(_db, new DefaultHttpContext(), default)).Result);
 
         // Saving the contact alone makes no PDF either.
         await SaveContactAsync(Phone, "", "");
-        Assert.IsType<NotFound>((await ResumeEndpoints.GetPublicPdf(_db, new DefaultHttpContext(), default)).Result);
+        Assert.IsType<NotFound>((await GetResume.Handle(_db, new DefaultHttpContext(), default)).Result);
     }
 
     [Fact]
@@ -172,9 +172,9 @@ public class ResumeEndpointsTests
 
         Assert.Equal(_time.GetUtcNow(), settings.GeneratedAt);
         var publicHttp = new DefaultHttpContext();
-        var publicPdf = Assert.IsType<FileContentHttpResult>((await ResumeEndpoints.GetPublicPdf(_db, publicHttp, default)).Result);
+        var publicPdf = Assert.IsType<FileContentHttpResult>((await GetResume.Handle(_db, publicHttp, default)).Result);
         var privateHttp = new DefaultHttpContext();
-        var privatePdf = Assert.IsType<FileContentHttpResult>((await ResumeEndpoints.GetPrivatePdf(_db, privateHttp, default, inline: true)).Result);
+        var privatePdf = Assert.IsType<FileContentHttpResult>((await GetPrivateResume.Handle(_db, privateHttp, default, inline: true)).Result);
 
         Assert.Equal("application/pdf", publicPdf.ContentType);
         var publicText = TextOf(publicPdf.FileContents.ToArray());
@@ -196,13 +196,13 @@ public class ResumeEndpointsTests
     [Fact]
     public async Task Generating_points_the_page_download_link_at_the_new_copy()
     {
-        var page = await AboutEndpoints.UpdateAbout(AboutDefaults.Content with { Links = AboutDefaults.Content.Links with { ResumeUrl = "/old.pdf" } }, _db, new Portfolio.Api.Features.Files.DatabaseFileStorage(_db, _time), _time, default);
+        var page = await UpdateAbout.Handle(AboutDefaults.Content with { Links = AboutDefaults.Content.Links with { ResumeUrl = "/old.pdf" } }, _db, new Portfolio.Api.Features.Files.DatabaseFileStorage(_db, _time), _time, default);
         Assert.IsType<Ok<AboutContent>>(page.Result);
         _time.Advance(TimeSpan.FromMinutes(5));
 
         await GenerateAsync(ResumeSections.Experience);
 
-        var about = await AboutEndpoints.LoadAsync(_db, default);
+        var about = await AboutShared.LoadAsync(_db, default);
         Assert.Equal($"/api/resume?v={_time.GetUtcNow().ToUnixTimeSeconds()}", about.Links.ResumeUrl);
         // Nothing else on the page changes.
         Assert.Equal(AboutDefaults.Content.Experience.Select(e => e.Title), about.Experience.Select(e => e.Title));
@@ -214,7 +214,7 @@ public class ResumeEndpointsTests
     {
         await GenerateAsync(ResumeSections.Experience);
 
-        var about = await AboutEndpoints.LoadAsync(_db, default);
+        var about = await AboutShared.LoadAsync(_db, default);
         Assert.StartsWith("/api/resume?v=", about.Links.ResumeUrl);
         Assert.Equal(AboutDefaults.Content.Experience.Select(e => e.Title), about.Experience.Select(e => e.Title));
     }
@@ -229,7 +229,7 @@ public class ResumeEndpointsTests
 
         var settings = await GenerateAsync(ResumeSections.Experience);
 
-        var text = TextOf(Assert.IsType<FileContentHttpResult>((await ResumeEndpoints.GetPublicPdf(_db, new DefaultHttpContext(), default)).Result).FileContents.ToArray());
+        var text = TextOf(Assert.IsType<FileContentHttpResult>((await GetResume.Handle(_db, new DefaultHttpContext(), default)).Result).FileContents.ToArray());
         Assert.Contains("Second headline", text);
         Assert.DoesNotContain("First headline", text);
         Assert.Equal(_time.GetUtcNow(), settings.GeneratedAt);
@@ -238,27 +238,27 @@ public class ResumeEndpointsTests
     [Fact]
     public async Task LeetCode_is_only_asked_when_problem_solving_is_printed_and_a_username_is_set()
     {
-        await AboutEndpoints.UpdateAbout(AboutDefaults.Content with { ProblemSolving = new ProblemSolving("neetcode", []) }, _db, new Portfolio.Api.Features.Files.DatabaseFileStorage(_db, _time), _time, default);
+        await UpdateAbout.Handle(AboutDefaults.Content with { ProblemSolving = new ProblemSolving("neetcode", []) }, _db, new Portfolio.Api.Features.Files.DatabaseFileStorage(_db, _time), _time, default);
 
         await GenerateAsync(ResumeSections.Experience);
         Assert.Equal(0, _leetCode.Calls);
 
         await GenerateAsync(ResumeSections.ProblemSolving);
         Assert.Equal(1, _leetCode.Calls);
-        var text = TextOf(Assert.IsType<FileContentHttpResult>((await ResumeEndpoints.GetPublicPdf(_db, new DefaultHttpContext(), default)).Result).FileContents.ToArray());
+        var text = TextOf(Assert.IsType<FileContentHttpResult>((await GetResume.Handle(_db, new DefaultHttpContext(), default)).Result).FileContents.ToArray());
         Assert.Contains("205 problems solved", text);
     }
 
     [Fact]
     public async Task A_resume_is_still_made_while_leetcode_is_down()
     {
-        await AboutEndpoints.UpdateAbout(AboutDefaults.Content with { ProblemSolving = new ProblemSolving("neetcode", [NeetCodeListIds.Blind75]) }, _db, new Portfolio.Api.Features.Files.DatabaseFileStorage(_db, _time), _time, default);
+        await UpdateAbout.Handle(AboutDefaults.Content with { ProblemSolving = new ProblemSolving("neetcode", [NeetCodeListIds.Blind75]) }, _db, new Portfolio.Api.Features.Files.DatabaseFileStorage(_db, _time), _time, default);
         _leetCode.Fails = true;
 
         var settings = await GenerateAsync(ResumeSections.ProblemSolving);
 
         Assert.NotNull(settings.GeneratedAt);
-        var text = TextOf(Assert.IsType<FileContentHttpResult>((await ResumeEndpoints.GetPublicPdf(_db, new DefaultHttpContext(), default)).Result).FileContents.ToArray());
+        var text = TextOf(Assert.IsType<FileContentHttpResult>((await GetResume.Handle(_db, new DefaultHttpContext(), default)).Result).FileContents.ToArray());
         Assert.Contains("Blind 75", text);
         Assert.DoesNotContain("problems solved", text);
     }

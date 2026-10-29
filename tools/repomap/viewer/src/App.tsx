@@ -186,13 +186,14 @@ export function App() {
   return (
     <div className={`app theme-${theme} tab-${tab}${sidebarOpen ? ' with-sidebar' : ''}${selected !== null ? ' with-details' : ''}${searchExpanded ? ' search-expanded' : ''}`}>
       <TopBar />
-      {/* Both tabs stay mounted (the 3D scene keeps its camera); the hidden one is inert and paused. */}
+      {/* Every tab stays mounted (inert while hidden) but the 3D scene: it exists only while the map is shown, so the other
+          tabs leave no WebGL context, GPU buffers or frame loop behind (its camera comes back where it was). */}
       <main className="panels">
         <div className={`workspace${tab === 'map' ? '' : ' inactive'}`} id="panel-map" role="tabpanel" aria-labelledby="tab-map" inert={tab !== 'map'}>
           <Sidebar />
           {narrow && sidebarOpen && <div className="drawer-backdrop" onClick={() => useViewer.getState().setSidebar(false)} aria-hidden="true" />}
           <div className="stage">
-            <Scene />
+            {tab === 'map' && <Scene />}
             <ContextMenu />
             <Banner />
             <Status />

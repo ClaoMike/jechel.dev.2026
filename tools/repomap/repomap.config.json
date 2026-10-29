@@ -9,7 +9,7 @@
   // everything else under them. They're laid out together as one tree from main.tsx.
   "layers": [
     { "id": "frontend-views", "label": "Frontend · Components", "color": "#38bdf8", "before": "frontend", "arrange": "tree", "description": "Components (*.tsx): main.tsx, App, pages and components, with their state, effects and store access" },
-    { "id": "frontend", "label": "Frontend · Store & the rest", "color": "#22d3ee", "gap": 50, "arrange": "tree", "description": "Redux store (slices, thunks, listeners), RTK Query endpoints, the API service, shared hooks, utilities and config" }
+    { "id": "frontend", "label": "Frontend · Store & the rest", "color": "#22d3ee", "gap": 50, "arrange": "tree", "description": "Everything but components: Redux slices and listeners, RTK Query endpoints, the API service (shared/api), hooks, helpers, strings" }
   ],
   "layerRules": [
     { "match": ["frontend/src/**/*.tsx"], "layer": "frontend-views", "reason": "a component" }
@@ -17,42 +17,94 @@
 
   "plugins": [{ "id": "typescript", "layers": ["frontend-views", "frontend"] }],
 
-  // The Board tab: the three frontend planes are one tier; features come from frontend/src/features/* and
-  // backend Features/* (folder names lowercased: workWithMe → workwithme).
+  // The Board tab. The frontend follows Feature-Sliced Design and the backend vertical slices (board.architectures): every
+  // node's feature is its slice (fsd/pages/about, vsa/Features/Apps…), and each tier's board shows the layers as columns.
   "board": {
     "tiers": [
-      { "id": "frontend", "label": "Frontend", "color": "#38bdf8", "layers": ["frontend-views", "frontend"], "description": "React + Vite app: components, the Redux store and the API service" },
-      { "id": "backend", "label": "Backend", "color": "#4ade80", "layers": ["backend"], "description": "ASP.NET Core minimal API: endpoints, services, EF Core" },
+      { "id": "frontend", "label": "Frontend", "color": "#38bdf8", "layers": ["frontend-views", "frontend"], "description": "React + Vite app in Feature-Sliced Design: app, pages, widgets, features, entities, shared" },
+      { "id": "backend", "label": "Backend", "color": "#4ade80", "layers": ["backend"], "description": "ASP.NET Core minimal API in vertical slices: one class per endpoint, grouped by feature; EF Core" },
       { "id": "database", "label": "Database", "color": "#fb923c", "layers": ["database"], "description": "PostgreSQL: tables and columns from the EF Core model" },
       { "id": "infra", "label": "Infra & tooling", "color": "#a78bfa", "layers": ["infra"] }
     ],
+    "architectures": [
+      {
+        "id": "fsd",
+        "label": "Feature-Sliced Design",
+        "tier": "frontend",
+        "root": "frontend/src",
+        "crossImports": "@x",
+        "description": "Each layer uses only the layers below it; slices of one layer don't use each other (entities only through @x)",
+        "layers": [
+          { "id": "app", "label": "App", "description": "Starts the app: routes, the store, the site's frame, styles" },
+          { "id": "pages", "label": "Pages", "parts": "slices", "description": "One slice per page, with what only that page uses" },
+          { "id": "widgets", "label": "Widgets", "parts": "slices", "description": "Big self-contained blocks: the header, the footer, the background, page transitions" },
+          { "id": "features", "label": "Features", "parts": "slices", "description": "What a visitor or the admin does: switching the theme, subscribing, accepting the terms…" },
+          { "id": "entities", "label": "Entities", "parts": "slices", "description": "The things the site is about: the session, the site, apps, videos, the terms" },
+          { "id": "shared", "label": "Shared", "parts": "segments", "description": "No business: the API service, UI kit, strings, helpers" }
+        ]
+      },
+      {
+        "id": "vsa",
+        "label": "Vertical slices",
+        "tier": "backend",
+        "root": "backend/src/Portfolio.Api",
+        "description": "Every endpoint is a slice (an IEndpoint) in its feature's folder; slices never use each other; Common knows no feature",
+        "layers": [
+          { "id": "Features", "label": "Features", "parts": "slices", "open": true, "description": "A folder per feature: its endpoint slices, its tables, and what they share" },
+          { "id": "Common", "label": "Common", "description": "The shared kernel: endpoint discovery, paging, proxy headers, encryption" }
+        ]
+      }
+    ],
     "featureLabels": {
-      "about": "About Me",
-      "workwithme": "Work with me",
-      "whatsnew": "What's new",
-      "youtube": "YouTube",
-      "leetcode": "LeetCode",
-      "featuretesting": "Feature Testing",
-      "site": "Site",
-      "api": "API",
-      "strings": "Strings"
+      "fsd/app": "App",
+      "fsd/pages/about": "About Me",
+      "fsd/pages/whats-new": "What's new",
+      "fsd/pages/youtube": "YouTube",
+      "fsd/pages/feature-testing": "Feature Testing",
+      "fsd/features/work-with-me": "Work with me",
+      "fsd/shared/api": "API",
+      "fsd/shared/i18n": "Strings",
+      "fsd/shared/ui": "UI kit",
+      "vsa/Features/YouTube": "YouTube",
+      "vsa/Features/LeetCode": "LeetCode"
     },
-    "featureAliases": {},
-    // The API service (services/: the one axios instance and every call to the backend, grouped by feature) is its own
-    // feature: every other one reaches the backend through it.
-    // Every text the site shows (src/strings.ts) is its own feature too: every component reads from it. The site's
-    // frame (layout/: header, tabs, page transitions, footer) is Site's.
-    "featureOverrides": { "frontend/src/services/**": "api", "frontend/src/strings.ts": "strings", "frontend/src/layout/**": "site" },
-    "hubFeatures": ["api", "strings"]
+    // The backend's tests of phone alerts and notifications are in tests/…/Features/Notifications.
+    "featureAliases": { "notifications": "vsa/Features/Alerts" },
+    "featureOverrides": {},
+    // The API service (shared/api: the one axios instance and every call to the backend) and the strings (shared/i18n)
+    // are used by everything: they don't pull their neighbours in.
+    "hubFeatures": ["fsd/shared/api", "fsd/shared/i18n"]
   },
 
   // Checked on every build: the Board marks the edges that break them, `npm run check` lists them.
   "rules": [
     {
+      "id": "fsd-layers",
+      "description": "Feature-Sliced Design: a layer uses only the layers below it, and slices of a layer don't use each other (entities only through @x)",
+      "severity": "error",
+      "layered": "fsd",
+      "from": { "roles": ["production"] }
+    },
+    {
+      "id": "vsa-layers",
+      "description": "Vertical slices: Common, the shared kernel, knows no feature",
+      "severity": "error",
+      "layered": "vsa",
+      "from": { "roles": ["production"] }
+    },
+    {
+      "id": "slices-dont-use-slices",
+      "description": "Vertical slices: an endpoint slice never uses another (what two share lives in their feature)",
+      "severity": "error",
+      "from": { "kinds": ["endpoint-slice"] },
+      "to": { "kinds": ["endpoint-slice"] },
+      "deny": true
+    },
+    {
       "id": "backend-only-through-the-api",
-      "description": "The frontend reaches the backend only through the API service (services/): no feature calls it on its own",
+      "description": "The frontend reaches the backend only through the API service (shared/api): no other slice calls it on its own",
       "severity": "warn",
-      "from": { "tiers": ["frontend"], "roles": ["production"], "notFeatures": ["api"] },
+      "from": { "tiers": ["frontend"], "roles": ["production"], "notFeatures": ["fsd/shared/api"] },
       "to": { "tiers": ["backend"] },
       "edgeTypes": ["http"],
       "deny": true

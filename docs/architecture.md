@@ -1,11 +1,62 @@
 # Architecture
 
-How the API and the frontend talk: conventions, the API service, state and caching. Part of the [README](../README.md).
+How the code is organised (Feature-Sliced Design in the frontend, vertical slices in the backend, both checked by lint and
+tests), how the API and the frontend talk, state and caching. Part of the [README](../README.md).
+
+## Code organisation
+
+### Frontend: Feature-Sliced Design
+
+`frontend/src` follows [Feature-Sliced Design](https://fsd.how). Its folders are **layers**; a layer may import only from the
+layers below it:
+
+| Layer | What's in it |
+| --- | --- |
+| `app/` | Starts the app: `App.tsx` (routes), the store (`model/`: `makeStore`, listeners), the site's frame (`layout/AppLayout.tsx`), styles |
+| `pages/` | One slice per page (`pages/about`, `pages/apps`…), holding everything only that page uses ("pages first") |
+| `widgets/` | Big self-contained blocks the frame puts together: `header`, `footer`, `background`, `page-transition` |
+| `features/` | What a visitor or the admin does, used on more than one page: `theme`, `preview`, `accept-terms`, `updates`, `support`, `analytics`, `work-with-me` |
+| `entities/` | The things the site is about, with their data: `session`, `site`, `app`, `video`, `terms-of-use` |
+| `shared/` | No business: `api` (the API service, RTK Query's base), `ui` (the UI kit), `i18n` (strings), `lib` (helpers by topic), `config` |
+
+- A **slice** (a folder of `pages`, `widgets`, `features` or `entities`) is split into **segments** by purpose: `ui` (components),
+  `model` (state, hooks), `api` (RTK Query endpoints), `lib` (plain functions), `config`. Its `index.ts` is its **public API**: the
+  rest of the app imports only that (`import { useAuth } from '@/entities/session'`), never a file inside it.
+- Slices of one layer don't import each other. The one exception is entities, through FSD's `@x` notation: what
+  `entities/site` may use of `entities/session` is in `entities/session/@x/site.ts`.
+- Imports: relative inside a slice (and inside `shared`), `@/<layer>/<slice>` across slices (`tsconfig.app.json` paths, Vite alias).
+- The store's types (`RootState`, `AppDispatch`, `AppThunk`) are declared globally by `app/model`, so slices and selectors use
+  them without importing the app; the typed hooks are in `@/shared/lib/store`.
+- Tests sit next to what they test. Tests that need several slices at once (a whole flow, the site's events) are in
+  `src/test/integration/`, outside the layers, like the test helpers.
+- **Checked by `npm run lint`** (oxlint, then [Steiger](https://github.com/feature-sliced/steiger), the FSD linter, configured in
+  `steiger.config.ts`): imports up a layer or across slices, imports that bypass a public API, relative imports across slices,
+  missing public APIs and misnamed segments all fail the lint, in CI too.
+
+### Backend: vertical slices
+
+`Portfolio.Api` is organised in vertical slices:
+
+- `Features/<Feature>/` holds a feature whole: **one class per endpoint** (`CreateApp.cs`, `ListApps.cs`…), its tables' entities
+  with their EF Core mapping (`AppEntry.cs`: the entity and its `IEntityTypeConfiguration`), and what its endpoints share
+  (`AppShared.cs`, rules, DTOs, services).
+- An endpoint is a slice: a sealed class implementing `IEndpoint` (`Common/IEndpoint.cs`), with a static `Map` (its route, under
+  `/api`) and a static `Handle` (typed results, so unit tests call it directly). `Program.cs` maps them all with
+  `api.MapEndpoints()`, which finds every `IEndpoint`: a new endpoint is a new class, nothing else to register.
+- Slices never use each other: what two of them need lives in their feature (`<Feature>Shared`, `using static` in the slices).
+- `Common/` is the shared kernel (endpoint discovery, paging, proxy headers, key encryption): it knows no feature. `Data/` has
+  the `PortfolioDbContext` (it applies every feature's mapping) and the migrations.
+- **Checked by the unit tests** (`tests/Portfolio.Api.UnitTests/Architecture/VerticalSliceTests.cs`, with NetArchTest): no
+  `*Endpoints` classes, every slice sealed and in its feature, nothing uses a slice, Common depends on no feature, features don't
+  depend on `Program`, every table is mapped in its own feature, and the model matches the migrations.
+
+The repo map's Board (`tools/repomap`) reads both: each tier's board shows the layers as columns with the slices in them, and
+its rules (`fsd-layers`, `vsa-layers`, `slices-dont-use-slices`) mark the wires that break them.
 
 ## API conventions
 
 - **Every endpoint lives under `/api`** (`app.MapGroup("/api")` in `Program.cs`). Feature endpoint files map *relative* routes onto that group.
-- The frontend always calls relative `/api/...` URLs, through `src/services/api.ts` (see [Frontend conventions](#frontend-api-service-and-auth-state)). In dev the Vite proxy forwards them to the API, so browser, cookies and API share one origin (no CORS). Production should do the same: serve the SPA and route `/api` to the API on one domain.
+- The frontend always calls relative `/api/...` URLs, through `src/shared/api` (see [Frontend conventions](#frontend-api-service-and-auth-state)). In dev the Vite proxy forwards them to the API, so browser, cookies and API share one origin (no CORS). Production should do the same: serve the SPA and route `/api` to the API on one domain.
 - The Vite proxy sends `X-Forwarded-Host/Proto` (`xfwd: true`) and the API runs `UseForwardedHeaders()`, so URLs the API generates use `localhost:5173`, the origin the browser sees. By default only loopback proxies are trusted; configure `KnownProxies`/`KnownNetworks` when deploying behind a real proxy.
 
 | Method | Route                       | Auth    | Description                                        |
@@ -66,10 +117,10 @@ How the API and the frontend talk: conventions, the API service, state and cachi
 
 ### `api`: the single API service
 
-Every backend call goes through the `api` object in `src/services/api.ts`, which uses one shared [axios](https://axios-http.com) instance. Components and hooks never call `fetch` or axios directly.
+Every backend call goes through the `api` object in `src/shared/api/api.ts`, which uses one shared [axios](https://axios-http.com) instance. Components and hooks never call `fetch` or axios directly.
 
 ```ts
-import { api } from '../services/api'
+import { api } from '@/shared/api'
 
 const firstName = await api.profile.getFirstName(signal)
 const user = await api.auth.me()          // CurrentUser | null
@@ -78,18 +129,18 @@ await api.auth.logout()
 ```
 
 - Endpoints are grouped by backend feature (`api.auth`, `api.profile`, ...), one file each:
-  `src/services/endpoints/<feature>.ts` holds the group (`<feature>Endpoints`) and its types, mirroring the backend
+  `src/shared/api/endpoints/<feature>.ts` holds the group (`<feature>Endpoints`) and its types, mirroring the backend
   records. A new endpoint goes into its feature's file; a new feature gets a new file, added to `api` in `api.ts`.
-- `api.ts` puts the groups together and re-exports their types: the rest of the app imports from `services/api`
+- `api.ts` puts the groups together and re-exports their types: the rest of the app imports from `@/shared/api`
   only, never from `endpoints/` or `http.ts` (the axios plumbing).
 - Non-2xx responses throw `ApiError` (with `.status`; `0` when there was no response). Cancelled requests reject with axios's cancellation error, not an `ApiError`. Every call accepts an optional `AbortSignal`.
 
 ### Auth state: `useAuth()`, `<SignedIn>`, `<SignedOut>`
 
-Import from `src/auth`. The session lives in the Redux store (`store/authSlice.ts`); `useSessionKeeper()` (called once, by App's view model) checks it on load, extends it on activity and signs out in the UI when it ends.
+Import from `@/entities/session`. The session lives in the Redux store (`entities/session/model/authSlice.ts`); `useSessionKeeper()` (called once, by App) checks it on load, extends it on activity and signs out in the UI when it ends.
 
 ```tsx
-import { SignedIn, SignedOut, useAuth } from '../auth'
+import { SignedIn, SignedOut, useAuth } from '@/entities/session'
 
 const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
@@ -106,8 +157,8 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
 
 ### Frontend: Redux and components
 
-- **Redux Toolkit** (`src/store/`). `makeStore()` builds the store in `main.tsx`; use the typed `useAppSelector` / `useAppDispatch`.
-  - **Server data: RTK Query** (`store/baseApi.ts`, endpoints per feature in `store/api/*Api.ts` via `injectEndpoints`). Each
+- **Redux Toolkit**. `makeStore()` (`app/model`) builds the store in `main.tsx`; use the typed `useAppSelector` / `useAppDispatch` (`@/shared/lib/store`).
+  - **Server data: RTK Query** (`shared/api/baseApi.ts`; each slice injects its own endpoints in its `api/` segment with `injectEndpoints`, e.g. `entities/app/api/appsApi.ts`). Each
     endpoint is a `queryFn` that calls the `api` service (`run(api.apps.list(page, pageSize, signal))`), so requests still go through
     the one axios instance, the preview switch and `ApiError`. Errors are stored as plain `ApiFailure` objects (`{ status, validationErrors }`);
     read any error with `failureOf(error)`. Saves keep views in sync with **tags** (`invalidatesTags`) or by patching the cache
@@ -115,7 +166,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
     back after 30 s. `toLoadable(result)` turns a hook's result into `loading | error | loaded`; `usePagedQuery` does paged lists.
   - **App state: slices.** `auth` (session), `site` (what visitors see; `fetchSite` / `saveSite`), `terms` (the popup, the accepted
     version), `theme` (the theme on show, the slow-scene notice), `preview` (the admin's preview switch).
-  - **Side effects in `store/listeners.ts`** (listener middleware), never in reducers: remembering the theme and `<html data-theme>`,
+  - **Side effects in `app/model/listeners.ts`** (listener middleware), never in reducers: remembering the theme and `<html data-theme>`,
     the accepted terms, the preview mode; applying the preview to requests and reloading everything when it changes; dropping
     admin-only data on sign-out.
   - Uploads (`api.files.*`) are called from components directly: their progress isn't the store's to keep.
@@ -130,7 +181,7 @@ const { isAuthenticated, isLoading, user, status, signOut } = useAuth()
     `places.ts`, `skills.ts`, `format.ts`). A `.tsx` file exports only components, types and simple constants, so Fast Refresh
     keeps working (oxlint's `only-export-components`); anything else it shares goes in a `.ts` module next to it
     (`components/PagedGrid/slide.ts`).
-- **Text: `src/strings.ts`.** Everything the site shows or reads out (headings, buttons, labels, hints, placeholders,
+- **Text: `src/shared/i18n/strings.ts`.** Everything the site shows or reads out (headings, buttons, labels, hints, placeholders,
   `aria-label`s, errors, the admin's notes) is in one object, grouped by component (`strings.whatsNewPage.loadingWhatsNew`),
   with what three or more components share in `strings.common`. Text with values in it is a function of them
   (`strings.signedInDevices.signedOutOther(count)`, which also picks "device" or "devices"). Components never write text

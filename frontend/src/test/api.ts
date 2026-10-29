@@ -4,7 +4,7 @@
  * The real API is never called.
  */
 import { vi } from 'vitest'
-import { api, type CurrentUser } from '../services/api'
+import { api, type CurrentUser } from '@/shared/api'
 import { ABOUT } from './fixtures/about'
 import { APPS, CATEGORIES, pageOf } from './fixtures/apps'
 import { LEETCODE, pageOfVideos, RESUME, SITE, SUPPORT_URL, TERMS, VIDEOS } from './fixtures/site'

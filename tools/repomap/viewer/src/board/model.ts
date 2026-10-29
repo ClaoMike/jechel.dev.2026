@@ -100,11 +100,20 @@ export interface BoardWire {
   conditional: boolean
 }
 
+/** A column of a board (a row when it flows down): an architecture's layer, holding the chips with its partition. */
+export interface BoardLane {
+  partition: number
+  label: string
+  description?: string
+}
+
 export interface BoardScene {
   path: BoardPath
   direction: 'RIGHT' | 'DOWN'
   chips: BoardChip[]
   wires: BoardWire[]
+  /** An architecture's layers, in order: its features stand in their layer's column. */
+  lanes?: BoardLane[]
   /** Chips the level left out (too many connectors…). */
   note?: string
 }
@@ -670,9 +679,15 @@ function featuresScene(bi: BoardIndex, path: Extract<BoardPath, { level: 'featur
   for (let i = 0; i < bi.index.nodes.length; i++) {
     if (bi.tierOf[i] === path.tier && visible(bi, i, options) && !counts.has(bi.featureOf[i])) counts.set(bi.featureOf[i], 0)
   }
+  // The tier's architecture (Feature-Sliced Design, vertical slices…): its features stand in their layers' columns, in
+  // the layers' order; what isn't in it gets a column of its own after them.
+  const architecture = bi.board.architectures?.find((a) => a.tier === path.tier)
+  const partitionOf = (feature: FeatureDef) =>
+    !architecture ? undefined : feature.layer?.architecture === architecture.id ? feature.layer.order : architecture.layers.length
   for (const feature of bi.features) {
     const count = counts.get(feature.id)
     if (count === undefined) continue
+    const partition = partitionOf(feature)
     chips.set(
       `f:${feature.id}`,
       blankChip({
@@ -684,8 +699,15 @@ function featuresScene(bi: BoardIndex, path: Extract<BoardPath, { level: 'featur
         count,
         enter: { level: 'chips', tier: path.tier, feature: feature.id },
         summary: summaryOf(bi, summaryKey.feature(feature.id, path.tier)),
+        ...(partition !== undefined ? { partition } : {}),
       }),
     )
+  }
+  let lanes: BoardLane[] | undefined
+  if (architecture) {
+    const used = new Set([...chips.values()].map((chip) => chip.partition))
+    lanes = architecture.layers.flatMap((layer, order) => (used.has(order) ? [{ partition: order, label: layer.label, ...(layer.description ? { description: layer.description } : {}) }] : []))
+    if (used.has(architecture.layers.length)) lanes.push({ partition: architecture.layers.length, label: `Outside ${architecture.label}` })
   }
   const connector = connectors(chips)
   const c = collector(bi, marks)
@@ -703,7 +725,7 @@ function featuresScene(bi: BoardIndex, path: Extract<BoardPath, { level: 'featur
     c.add(e, place(from, 'in'), place(to, 'out'))
   })
   mark(bi, chips, (i) => (bi.tierOf[i] === path.tier ? `f:${bi.featureOf[i]}` : undefined), marks)
-  return { path, direction: 'RIGHT', chips: [...chips.values()], wires: [...c.wires.values()] }
+  return { path, direction: 'RIGHT', chips: [...chips.values()], wires: [...c.wires.values()], ...(lanes ? { lanes } : {}) }
 }
 
 /** Pins a chip shows on a feature's board: its children in the feature, then members with wires. */

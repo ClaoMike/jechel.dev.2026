@@ -11,7 +11,7 @@ import { serverInfo } from '../model/server.ts'
 import { useViewer } from '../model/store.ts'
 import { Icon } from '../ui/icons.tsx'
 import { BoardPanel } from './BoardPanel.tsx'
-import { chipSize, HEADER, layoutScene, pinY, wirePath, type BoardLayout, type ChipBox } from './layout.ts'
+import { chipSize, HEADER, laneBoxes, layoutScene, pinY, wirePath, type BoardLayout, type ChipBox } from './layout.ts'
 import { buildScene, indexBoard, parentPath, trailOf, type BoardChip, type BoardScene, type BoardWire } from './model.ts'
 import { useBoard, type AiJob } from './store.ts'
 
@@ -387,6 +387,7 @@ function Board({ scene, layout, selected, focusIds, motion }: BoardProps) {
         <rect className="board-backdrop" width="100%" height="100%" fill="url(#board-grid)" />
         <g ref={group} className="board-world">
           <rect className="pcb" x={10} y={10} width={Math.max(0, layout.width - 20)} height={Math.max(0, layout.height - 20)} rx={22} />
+          {scene.lanes && <Lanes scene={scene} layout={layout} />}
           <g className="wires">
             {scene.wires.map((wire) => (
               <Wire key={wire.id} wire={wire} points={layout.wires.get(wire.id)} lit={litWires.has(wire.id)} dim={dimming && !litWires.has(wire.id)} />
@@ -442,6 +443,23 @@ function wireWidth(count: number): number {
   return Math.min(9, 1.6 + Math.log2(count) * 1.3)
 }
 
+
+/** An architecture's layers (Feature-Sliced Design, vertical slices…): a labelled band behind the chips of each. */
+function Lanes({ scene, layout }: { scene: BoardScene; layout: BoardLayout }) {
+  return (
+    <g className="lanes" data-testid="board-lanes">
+      {laneBoxes(scene, layout).map((lane) => (
+        <g key={lane.partition} className="lane" data-lane={lane.label}>
+          <title>{lane.description ? `${lane.label}: ${lane.description}` : lane.label}</title>
+          <rect className="lane-band" x={lane.x} y={lane.y} width={lane.w} height={lane.h} rx={14} />
+          <text className="lane-label" x={lane.x + 14} y={lane.y + 30}>
+            {lane.label}
+          </text>
+        </g>
+      ))}
+    </g>
+  )
+}
 function Wire({ wire, points, lit, dim }: { wire: BoardWire; points: { x: number; y: number }[] | undefined; lit: boolean; dim: boolean }) {
   if (!points) return null
   const d = wirePath(points)

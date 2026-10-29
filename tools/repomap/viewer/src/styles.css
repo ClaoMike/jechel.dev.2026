@@ -4410,6 +4410,22 @@ button.chip:hover {
   stroke-width: 2;
 }
 
+/* An architecture's layers (Feature-Sliced Design, vertical slices…): a band behind each layer's chips, labelled. */
+.lane-band {
+  fill: color-mix(in srgb, var(--muted) 7%, transparent);
+  stroke: color-mix(in srgb, var(--muted) 35%, transparent);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 5;
+}
+
+.lane-label {
+  fill: var(--muted);
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 /* Wires: a dark casing under a copper core; lit ones carry a moving pulse in their direction. */
 .wire path {
   fill: none;

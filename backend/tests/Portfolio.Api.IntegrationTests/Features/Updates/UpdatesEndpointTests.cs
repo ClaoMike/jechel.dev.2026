@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
+using Portfolio.Api.Common;
 using Portfolio.Api.Features.Updates;
 
 namespace Portfolio.Api.IntegrationTests.Features.Updates;

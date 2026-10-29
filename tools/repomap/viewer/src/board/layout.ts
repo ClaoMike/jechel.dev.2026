@@ -22,6 +22,8 @@ export interface BoardLayout {
   height: number
   chips: Map<string, ChipBox>
   wires: Map<string, Point[]>
+  /** Which way it flows (a pinless board on a phone flows down). */
+  direction?: 'RIGHT' | 'DOWN'
 }
 
 /** What layout needs from ELK (the bundled build in the browser and in tests). */
@@ -127,10 +129,11 @@ export function elkGraph(scene: BoardScene, hints: LayoutHints = {}): ElkNode {
       'elk.layered.spacing.edgeNodeBetweenLayers': '16',
       'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
       'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
-      'elk.separateConnectedComponents': 'true',
+      // An architecture's columns line up across the board: chips without wires stay in their layer's column.
+      'elk.separateConnectedComponents': scene.lanes ? 'false' : 'true',
       'elk.spacing.componentComponent': '60',
       'elk.aspectRatio': hints.portrait ? '0.6' : '1.6',
-      'elk.padding': '[top=50,left=50,bottom=50,right=50]',
+      'elk.padding': scene.lanes ? '[top=78,left=50,bottom=50,right=50]' : '[top=50,left=50,bottom=50,right=50]',
       ...(partitioned ? { 'elk.partitioning.activate': 'true' } : {}),
     },
     children,
@@ -139,7 +142,8 @@ export function elkGraph(scene: BoardScene, hints: LayoutHints = {}): ElkNode {
 }
 
 export async function layoutScene(scene: BoardScene, elk: ElkLike, hints: LayoutHints = {}): Promise<BoardLayout> {
-  const result = await elk.layout(elkGraph(scene, hints))
+  const graph = elkGraph(scene, hints)
+  const result = await elk.layout(graph)
   const chips = new Map<string, ChipBox>()
   for (const child of result.children ?? []) chips.set(child.id, { x: child.x ?? 0, y: child.y ?? 0, w: child.width ?? 0, h: child.height ?? 0 })
   const wires = new Map<string, Point[]>()
@@ -148,7 +152,37 @@ export async function layoutScene(scene: BoardScene, elk: ElkLike, hints: Layout
     if (!section) continue
     wires.set(edge.id, [section.startPoint, ...(section.bendPoints ?? []), section.endPoint])
   }
-  return { width: result.width ?? 0, height: result.height ?? 0, chips, wires }
+  return { width: result.width ?? 0, height: result.height ?? 0, chips, wires, direction: graph.layoutOptions?.['elk.direction'] === 'DOWN' ? 'DOWN' : 'RIGHT' }
+}
+
+export interface LaneBox {
+  partition: number
+  label: string
+  description?: string
+  /** The band behind its chips (a column, or a row when the board flows down), and where its label goes. */
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** Where each lane (an architecture's layer) is: around the chips in its partition. */
+export function laneBoxes(scene: BoardScene, layout: BoardLayout): LaneBox[] {
+  const boxes: LaneBox[] = []
+  for (const lane of scene.lanes ?? []) {
+    const members = scene.chips.filter((c) => c.kind !== 'connector' && c.partition === lane.partition).flatMap((c) => layout.chips.get(c.id) ?? [])
+    if (members.length === 0) continue
+    const minX = Math.min(...members.map((b) => b.x))
+    const maxX = Math.max(...members.map((b) => b.x + b.w))
+    const minY = Math.min(...members.map((b) => b.y))
+    const maxY = Math.max(...members.map((b) => b.y + b.h))
+    boxes.push(
+      layout.direction === 'DOWN'
+        ? { ...lane, x: 24, y: minY - 44, w: Math.max(0, layout.width - 48), h: maxY - minY + 58 }
+        : { ...lane, x: minX - 14, y: 22, w: maxX - minX + 28, h: Math.max(0, layout.height - 44) },
+    )
+  }
+  return boxes
 }
 
 /** An orthogonal polyline with rounded corners, as an SVG path. */

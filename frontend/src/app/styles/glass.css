@@ -1,0 +1,1543 @@
+/*
+ * Liquid glass (experiment): an iOS-style glass layer over index.css.
+ * Every surface becomes a translucent, blurred pane with a lit top edge.
+ * Themes come from <html data-theme> (layout/theme.ts): dark (default), light, and Vice
+ * (dark for now). Each theme only sets the tokens below; the rules after them are shared.
+ * Remove the import in main.tsx to switch it all off.
+ */
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --radius: 24px;
+  --glass-blur: blur(24px) saturate(180%);
+}
+
+/* ---------- Dark (and Vice, until it gets its own look) ---------- */
+
+:root,
+:root[data-theme='dark'],
+:root[data-theme='vice'] {
+  color-scheme: dark;
+
+  --background: #000;
+  --text: #f5f5f7;
+  --text-muted: rgb(235 235 245 / 0.6);
+  --accent: #0a84ff;
+  /* Behind white text (buttons, badges, pressed toggles): deep enough for 4.5:1 (#0a84ff is 3.6:1). */
+  --accent-fill: #0066d6;
+  --accent-text: #fff;
+  --error: #ff453a;
+  --success: #30d158;
+  --link: #64b5ff;
+
+  --surface: rgb(255 255 255 / 0.06);
+  --surface-muted: rgb(255 255 255 / 0.1);
+  --border: rgb(255 255 255 / 0.14);
+  --solid-surface: #1c1c1e; /* for things that can't be see-through, like <option> */
+
+  /* Panes: fill, specular edges, drop shadow, and the lit rim. */
+  --glass-fill: linear-gradient(160deg, rgb(255 255 255 / 0.11), rgb(255 255 255 / 0.03) 55%, rgb(255 255 255 / 0.06));
+  --glass-shine: inset 0 1px 0 rgb(255 255 255 / 0.28), inset 0 -1px 0 rgb(255 255 255 / 0.06), inset 0 0 24px rgb(255 255 255 / 0.03);
+  --glass-shadow: 0 10px 40px rgb(0 0 0 / 0.55);
+  --glass-hover-shadow: 0 16px 48px rgb(0 0 0 / 0.6);
+  --glass-rim: linear-gradient(150deg, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0.06) 35%, rgb(255 255 255 / 0.02) 65%, rgb(255 255 255 / 0.25));
+  --glass-edge: rgb(255 255 255 / 0.08); /* hairline around panes and rows */
+  --glass-highlight: rgb(255 255 255 / 0.22); /* lit top edge of small pieces */
+  --modal-fill: linear-gradient(160deg, rgb(44 44 46 / 0.72), rgb(28 28 30 / 0.6));
+  --modal-backdrop: rgb(0 0 0 / 0.5);
+  --header-fill: rgb(0 0 0 / 0.55);
+  --tooltip-fill: rgb(44 44 46 / 0.85);
+
+  /* Smaller pieces: wells (inputs, editor boxes), raised pills (buttons), the selected tab. */
+  --well: rgb(255 255 255 / 0.04);
+  --well-shade: inset 0 1px 2px rgb(0 0 0 / 0.35);
+  --raised: rgb(255 255 255 / 0.1);
+  --raised-hover: rgb(255 255 255 / 0.16);
+  --selected: rgb(255 255 255 / 0.16);
+  --selected-shadow: 0 2px 10px rgb(0 0 0 / 0.4);
+  --tint: rgb(10 132 255 / 0.18);
+  --tint-text: #64b5ff;
+  --track: rgb(255 255 255 / 0.1);
+  --dot: rgb(255 255 255 / 0.25);
+  --dot-on: #fff;
+  --map-land: rgb(255 255 255 / 0.25);
+  --map-pin-outline: #000;
+}
+
+/* Vice: dark glass, but more frosted and less see-through: it sits on the animated Riviera scene. */
+:root[data-theme='vice'] {
+  --glass-blur: blur(28px) saturate(160%);
+  --glass-fill: linear-gradient(160deg, rgb(30 26 44 / 0.62), rgb(14 12 24 / 0.5) 55%, rgb(22 18 34 / 0.58));
+  --glass-shadow: 0 10px 40px rgb(0 0 0 / 0.35);
+  --modal-fill: linear-gradient(160deg, rgb(36 32 50 / 0.82), rgb(18 16 28 / 0.76));
+  --modal-backdrop: rgb(0 0 0 / 0.35);
+  --header-fill: rgb(12 10 22 / 0.45);
+  --well: rgb(0 0 0 / 0.22);
+  --raised: rgb(255 255 255 / 0.13);
+  --raised-hover: rgb(255 255 255 / 0.2);
+}
+
+/* ---------- Light ---------- */
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --background: #f5f5f7;
+  --text: #1d1d1f;
+  /* 0.78, not 0.65: on the light background that's 5.2:1 instead of 3.8:1. */
+  --text-muted: rgb(60 60 67 / 0.78);
+  --accent: #007aff;
+  /* The accent as text: #007aff on the light glass is 4:1, under WCAG AA's 4.5:1 for small text. */
+  --accent-ink: #0062cc;
+  --accent-fill: #0062cc;
+  --accent-text: #fff;
+  /* Darker than iOS's #ff3b30 (3.3:1 on the light background): error text and danger buttons read at 5:1+. */
+  --error: #d70015;
+  --success: #248a3d;
+  --link: #0062cc;
+
+  --surface: rgb(255 255 255 / 0.7);
+  --surface-muted: rgb(0 0 0 / 0.04);
+  --border: rgb(0 0 0 / 0.1);
+  --solid-surface: #fff;
+
+  --glass-fill: linear-gradient(160deg, rgb(255 255 255 / 0.9), rgb(255 255 255 / 0.6) 55%, rgb(255 255 255 / 0.75));
+  --glass-shine: inset 0 1px 0 rgb(255 255 255 / 1), inset 0 -1px 0 rgb(0 0 0 / 0.03), inset 0 0 24px rgb(255 255 255 / 0.5);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.04);
+  --glass-hover-shadow: 0 16px 40px rgb(0 0 0 / 0.12);
+  --glass-rim: linear-gradient(150deg, rgb(255 255 255 / 1), rgb(255 255 255 / 0.4) 35%, rgb(0 0 0 / 0.05) 65%, rgb(255 255 255 / 0.9));
+  --glass-edge: rgb(0 0 0 / 0.07);
+  --glass-highlight: rgb(255 255 255 / 0.95);
+  --modal-fill: linear-gradient(160deg, rgb(255 255 255 / 0.88), rgb(250 250 252 / 0.78));
+  --modal-backdrop: rgb(0 0 0 / 0.2);
+  --header-fill: rgb(245 245 247 / 0.72);
+  --tooltip-fill: rgb(255 255 255 / 0.9);
+
+  --well: rgb(0 0 0 / 0.035);
+  --well-shade: inset 0 1px 2px rgb(0 0 0 / 0.06);
+  --raised: rgb(255 255 255 / 0.75);
+  --raised-hover: #fff;
+  --selected: #fff;
+  --selected-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  --tint: rgb(0 122 255 / 0.12);
+  --tint-text: #0062cc;
+  --track: rgb(0 0 0 / 0.08);
+  --dot: rgb(0 0 0 / 0.2);
+  --dot-on: #1d1d1f;
+  --map-land: rgb(0 0 0 / 0.22);
+  --map-pin-outline: #fff;
+}
+
+body {
+  background: var(--background);
+  -webkit-font-smoothing: antialiased;
+  transition:
+    background-color 0.3s,
+    color 0.3s;
+}
+
+/*
+ * Vice: the black goes on <html>, and <body> stays clear. The scene sits under the page (z-index: -1),
+ * which paints above the root's background but below <body>'s own. Body's background only moves down to
+ * the root while <html> has none: give <html> one (Firefox on iPhone does) and body's black covers the scene.
+ */
+:root[data-theme='vice'] {
+  background: var(--background);
+}
+
+:root[data-theme='vice'] body {
+  background: transparent;
+}
+
+a {
+  color: var(--link);
+}
+
+/* ---------- The Vice backdrop (layout/background) ---------- */
+
+/*
+ * As tall as the screen with the browser's bars hidden (lvh), not the visible area (inset: 0): on phones, those bars
+ * slide in and out while scrolling, and a scene that followed them would resize (and redraw) on every slide.
+ */
+.scene-background {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 100vh;
+  height: 100lvh;
+  z-index: -1;
+  background: #000;
+}
+
+.scene-background canvas,
+.scene-background img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 42% 50%;
+}
+
+.scene-background img {
+  position: absolute;
+  inset: 0;
+}
+
+.scene-background canvas {
+  opacity: 0;
+  transition: opacity 0.8s;
+}
+
+.scene-background[data-state='ready'] canvas {
+  opacity: 1;
+}
+
+/* ---------- Neon: the Vice look (the Vice mark always; the site name in Vice) ---------- */
+
+/*
+ * A sunset gradient (pink, orange, gold, magenta, violet, blue) that slowly flows through the
+ * letters like a Miami Beach hotel sign, over a hard purple drop shadow and a pink glow.
+ * The colour list repeats once and the image is twice as wide, so sliding it by half loops seamlessly.
+ *
+ * Cheap to run: the shadow and glow are a separate, still layer, and the colours only step 8 times
+ * a second. Each step re-blurs the frosted header behind them, so in Vice they don't animate on their
+ * own at all: the Riviera scene's frame loop moves them (--neon-shift on each of them, 8 times a
+ * second) on frames it draws anyway.
+ */
+.neon-text,
+.neon-fill,
+:root[data-theme='vice'] .brand-fill,
+:root[data-theme='vice'] .brand-fill .brand-j::before {
+  background-image: linear-gradient(90deg, #ff3ea5, #ff8a5c, #ffd36e, #ff5fc4, #9b5cff, #4fa3ff, #ff3ea5, #ff8a5c, #ffd36e, #ff5fc4, #9b5cff, #4fa3ff, #ff3ea5);
+  background-size: 200% 100%;
+  animation: neon-flow 16s steps(128) infinite;
+}
+
+:root[data-theme='vice'] .neon-text,
+:root[data-theme='vice'] .neon-fill,
+:root[data-theme='vice'] .brand-fill,
+:root[data-theme='vice'] .brand-fill .brand-j::before {
+  animation: none;
+  background-position: var(--neon-shift, 0%) 50%;
+}
+
+.neon-text,
+:root[data-theme='vice'] .brand-fill {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Nobody's used the page for a minute (layout/idle.ts): the colours hold still until someone does. */
+:root[data-idle] .neon-text,
+:root[data-idle] .neon-fill {
+  animation-play-state: paused;
+}
+
+@keyframes neon-flow {
+  from {
+    background-position: 0% 50%;
+  }
+
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+/* The site name: plain text, or in Vice the neon script over its shadow layer. */
+.brand-text {
+  position: relative;
+}
+
+.brand-shadow {
+  display: none;
+}
+
+:root[data-theme='vice'] .brand-text {
+  font-family: 'Mr Dafoe', cursive;
+  font-size: 46px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+:root[data-theme='vice'] .brand-shadow,
+:root[data-theme='vice'] .brand-fill {
+  display: inline-block;
+  /* room for the script's swashes, which would otherwise fall outside the gradient */
+  padding: 0.04em 0.18em 0.1em 0.06em;
+}
+
+:root[data-theme='vice'] .brand-shadow {
+  position: absolute;
+  inset: 0;
+  color: #3d1468;
+  transform: translate(3px, 3px);
+  text-shadow: -3px -3px 14px rgb(255 62 165 / 0.6);
+}
+
+:root[data-theme='vice'] .brand-fill {
+  position: relative;
+}
+
+:root[data-theme='vice'] .brand-dot {
+  /* the script's full stop is tiny and tucks under the d's swash */
+  margin: 0 0.14em 0 0.04em;
+  font-size: 1.25em;
+}
+
+/*
+ * The j, drawn (scripts/build_brand_j.py): a wide, open loop where Mr Dafoe's closes up. It takes the
+ * font's j's place (its advance, 160 of 1000 units), and the letter itself shrinks to nothing but stays
+ * for screen readers. The numbers are the drawing's bounds in font units, as the script prints them.
+ */
+:root[data-theme='vice'] .brand-j {
+  position: relative;
+  display: inline-block;
+  width: 0.16em;
+  height: 0;
+}
+
+:root[data-theme='vice'] .brand-j-letter {
+  /* out of the flow too: with no line of its own, the j's box sits exactly on the baseline */
+  position: absolute;
+  font-size: 0;
+}
+
+:root[data-theme='vice'] .brand-j::before {
+  content: '';
+  position: absolute;
+  left: -0.426em;
+  top: -0.528em;
+  width: 0.801em;
+  height: 0.956em;
+  -webkit-mask: url('./brand-j.svg') no-repeat 0 0 / 100% 100%;
+  mask: url('./brand-j.svg') no-repeat 0 0 / 100% 100%;
+}
+
+:root[data-theme='vice'] .brand-shadow .brand-j {
+  /* the layer's glow is a text-shadow, which a drawing doesn't get */
+  filter: drop-shadow(-3px -3px 14px rgb(255 62 165 / 0.6));
+}
+
+:root[data-theme='vice'] .brand-shadow .brand-j::before {
+  background: #3d1468;
+}
+
+:root[data-theme='vice'] .site-header-top h1 {
+  margin: -6px 0 -4px;
+}
+
+.vice-mark {
+  display: inline-grid;
+}
+
+.vice-layer {
+  grid-area: 1 / 1;
+  /* room for the script's swashes, which would otherwise fall outside the gradient */
+  padding: 1px 3px 3px 2px;
+  font-family: 'Mr Dafoe', cursive;
+  font-size: 15px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.vice-shadow {
+  color: #3d1468;
+  transform: translate(1px, 1px);
+  filter: drop-shadow(-1px -1px 3px rgb(255 62 165 / 0.6));
+}
+
+/* ---------- Page transitions (layout/PageTransition): pages slide toward the tab picked ---------- */
+
+/*
+ * Always keep the scrollbar's space. Otherwise a page shorter than the window (Contact) drops the
+ * scrollbar, the window gets wider, and everything jumps sideways, the Vice scene included.
+ */
+html {
+  scrollbar-gutter: stable;
+}
+
+.app {
+  overflow-x: clip; /* pages slide past the screen's edges without a sideways scrollbar */
+}
+
+.page-stage {
+  position: relative;
+}
+
+.page-leave {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+}
+
+.page-enter.page-to-left {
+  animation: page-in-from-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.page-enter.page-to-right {
+  animation: page-in-from-left 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.page-leave.page-to-left {
+  animation: page-out-to-left 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.page-leave.page-to-right {
+  animation: page-out-to-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/*
+ * A paged grid's pages (PagedGrid) slide the same way as the tabs' pages. While the grid's height
+ * follows (an animation from PagedGrid), what's past its bottom is cut off rather than drawn
+ * over Previous / Next; sideways, the pages still slide past the screen's edges.
+ */
+.paged-grid-stage.grid-resizing {
+  overflow-y: clip;
+  overflow-x: visible;
+}
+
+.grid-leave {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+}
+
+.grid-enter.grid-to-left {
+  animation: page-in-from-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.grid-enter.grid-to-right {
+  animation: page-in-from-left 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.grid-leave.grid-to-left {
+  animation: page-out-to-left 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.grid-leave.grid-to-right {
+  animation: page-out-to-right 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/*
+ * The page column is centred, so half the window plus half the page takes it just past the
+ * screen's edge, however wide the screen. Movement only: fading (opacity) would cut the glass off
+ * from the scene it blurs.
+ */
+@keyframes page-in-from-right {
+  from {
+    transform: translateX(calc(50vw + 50%));
+  }
+}
+
+@keyframes page-in-from-left {
+  from {
+    transform: translateX(calc(-50vw - 50%));
+  }
+}
+
+@keyframes page-out-to-left {
+  to {
+    transform: translateX(calc(-50vw - 50%));
+  }
+}
+
+@keyframes page-out-to-right {
+  to {
+    transform: translateX(calc(50vw + 50%));
+  }
+}
+
+/* ---------- Vice: hide the page to watch the scene (layout/ContentToggle) ---------- */
+
+/* The header flies up and the page drops away (moving, not fading, so the glass keeps its blur). */
+.site-header,
+.page,
+.site-footer {
+  transition:
+    transform 0.6s cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s;
+}
+
+.app[data-content-hidden] .site-header {
+  transform: translateY(-105%);
+}
+
+.app[data-content-hidden] .page,
+.app[data-content-hidden] .site-footer {
+  transform: translateY(100vh);
+}
+
+.app[data-content-hidden] .site-header,
+.app[data-content-hidden] .page,
+.app[data-content-hidden] .site-footer {
+  visibility: hidden;
+  transition:
+    transform 0.6s cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s 0.6s;
+}
+
+/* Nothing to scroll while the page is away (the scrollbar's space stays, so nothing shifts). */
+:root.content-hidden {
+  overflow: hidden;
+}
+
+.content-toggle {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 6;
+  transition: opacity 0.5s;
+}
+
+/* Phones: an icon in the header's row (rendered inside .content-toggle-slot by ContentToggle). */
+.content-toggle-slot {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .content-toggle-slot {
+    display: block;
+    flex: none;
+    width: 36px;
+    height: 36px;
+  }
+
+  .content-toggle-slot .content-toggle {
+    position: static;
+  }
+
+  .content-toggle.content-toggle-compact {
+    width: 36px;
+    min-height: 36px;
+    height: 36px;
+    padding: 0;
+  }
+
+  /* While the page is hidden: the bottom-right corner, clear of the phone's home bar, and a bigger target. */
+  .content-toggle.content-toggle-cornered {
+    right: max(20px, env(safe-area-inset-right));
+    bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
+    width: 48px;
+    min-height: 48px;
+    height: 48px;
+  }
+
+  /* The neon j's tail reaches left of its box: keep it off the screen's edge. */
+  :root[data-theme='vice'] .brand {
+    padding-left: 14px;
+  }
+}
+
+/* The eye on the button blinks every 15 seconds, in both modes (the slash over it stays still). */
+.content-toggle .eye-shape {
+  transform-box: view-box;
+  /* Closing onto the eye's middle line. */
+  transform-origin: 12px 12px;
+  animation: eye-blink 15s ease-in-out 15s infinite;
+}
+
+/* Nobody using the page (layout/idle.ts): the eye waits, and goes on blinking at the next input. */
+:root[data-idle] .content-toggle .eye-shape {
+  animation-play-state: paused;
+}
+
+/* One blink of about a third of a second at the start of every 15 seconds, then open. */
+@keyframes eye-blink {
+  0%,
+  2.4%,
+  100% {
+    transform: scaleY(1);
+  }
+
+  1.2% {
+    transform: scaleY(0.1);
+  }
+}
+
+.content-toggle-idle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Watching the scene: the cursor goes with the button. */
+:root.scene-idle,
+:root.scene-idle * {
+  cursor: none;
+}
+
+/* ---------- Glass panes ---------- */
+
+.card,
+.media-card,
+.modal,
+.login-card,
+.world-map-card,
+.world-map-controls,
+.place-popup {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shine), var(--glass-shadow);
+}
+
+/*
+ * Only the big panes blur what's behind them. Pieces inside them (buttons, map panels, tooltips)
+ * sit on glass that's already blurred, and each extra blur layer has to be redrawn on every frame
+ * of the Vice animation.
+ */
+.card,
+.media-card,
+.modal,
+.login-card {
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+/* A light rim that's brightest at the top-left and bottom-right corners, like a lit glass edge. */
+.card,
+.modal,
+.login-card,
+.media-card {
+  position: relative;
+}
+
+.card::before,
+.modal::before,
+.login-card::before,
+.media-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--glass-rim);
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.modal {
+  border-radius: 28px;
+  background: var(--modal-fill);
+}
+
+.modal-backdrop {
+  background: var(--modal-backdrop);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.media-card:hover {
+  box-shadow:
+    var(--glass-shine),
+    var(--glass-hover-shadow),
+    0 0 0 1px var(--glass-edge);
+  transform: translateY(-3px) scale(1.01);
+}
+
+.add-tile {
+  border: 2px dashed var(--border);
+  background: var(--well);
+}
+
+.add-tile::before {
+  display: none;
+}
+
+.add-tile:hover {
+  background: var(--raised);
+}
+
+/* ---------- Header: a floating glass bar with a pill tab switcher ---------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--header-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-edge);
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-left: auto;
+}
+
+/*
+ * Holds the bar and, when tabs are out of view, an arrow at that end. The glass pill is this frame, not the bar that
+ * scrolls inside it, so the fades below take only the tabs.
+ */
+.tabs-frame {
+  position: relative;
+  width: fit-content;
+  /* Wider than the page (880px) so the admin's nine tabs fit; narrower windows scroll it sideways. */
+  max-width: min(1000px, calc(100% - 32px));
+  margin: 0 auto 12px;
+  border-radius: 999px;
+  background: var(--glass-fill);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge);
+}
+
+/*
+ * The tabs fade out under an arrow, so it's clear the bar goes on. The fade is on this wrapper, not on the bar that
+ * scrolls inside it, and it changes only once the bar has stopped (TabNav.tsx): Safari on iPhone drew the tabs
+ * far past either end, with a gap beside them, when the scrolling bar's own fade changed mid-scroll.
+ */
+.tabs-frame[data-more-left] > .tabs-window {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 56px);
+  mask-image: linear-gradient(to right, transparent 0, #000 56px);
+}
+
+.tabs-frame[data-more-right] > .tabs-window {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 56px);
+  mask-image: linear-gradient(to left, transparent 0, #000 56px);
+}
+
+.tabs-frame[data-more-left][data-more-right] > .tabs-window {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 56px, #000 calc(100% - 56px), transparent 100%);
+}
+
+.tabs-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--selected);
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--selected-shadow);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.tabs-arrow:hover {
+  background: var(--raised-hover, var(--selected));
+}
+
+.tabs-arrow-left {
+  left: 4px;
+}
+
+.tabs-arrow-right {
+  right: 4px;
+}
+
+.tabs {
+  max-width: 100%;
+  margin: 0;
+  padding: 4px;
+  gap: 2px;
+  /* The current tab, scrolled into view, stops clear of the arrows (34px, 4px in), or right at the bar's end. */
+  scroll-padding-inline: 44px;
+}
+
+.tab {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
+}
+
+/* The current tab's text; its pill is .tab-indicator, which glides from tab to tab. */
+.tab[aria-current='page'] {
+  color: var(--text);
+  /* The mouse's drag handle. A finger's swipe on it scrolls the bar, as on any other tab. */
+  cursor: grab;
+}
+
+.tabs {
+  position: relative;
+}
+
+.tabs .tab {
+  position: relative;
+  z-index: 1;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/*
+ * The admin's own tabs (Engagement, Community, Terms, Settings): the jechel.dev pink to violet, the
+ * same in every theme so they're easy to spot (and the labels of fields only the admin sees: the résumé's
+ * email and phone). Mid-tones, about 4.4:1 on black, Vice and light alike.
+ */
+.tabs .tab-admin,
+.tabs .tab-admin:hover,
+.tabs .tab-admin[aria-current='page'],
+.label-admin {
+  background: linear-gradient(90deg, #d91289, #9942f0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
+}
+
+/* Windows high contrast: forced colours drop the gradient, so the text keeps a colour of its own. */
+@media (forced-colors: active) {
+  .tabs .tab-admin,
+  .tabs .tab-admin:hover,
+  .tabs .tab-admin[aria-current='page'],
+  .label-admin {
+    background: none;
+    color: LinkText;
+  }
+}
+
+.tab-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: 999px;
+  background: var(--selected);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--selected-shadow);
+  pointer-events: none;
+}
+
+.tab-indicator[data-animate] {
+  transition:
+    transform 0.38s cubic-bezier(0.3, 0.8, 0.25, 1),
+    width 0.38s cubic-bezier(0.3, 0.8, 0.25, 1);
+}
+
+/* While dragged it follows the finger; only its width eases between tabs. */
+.tabs[data-dragging] .tab-indicator {
+  transition: width 0.2s ease-out;
+}
+
+.tabs[data-dragging],
+.tabs[data-dragging] .tab {
+  cursor: grabbing;
+}
+
+/* ---------- Footer: a small glass pill, like the tab switcher ---------- */
+
+.site-footer-bar {
+  border: 0;
+  background: var(--glass-fill);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+/* Previous / Page 2 of 5 / Next: a glass pill too, so it reads over the scene in Vice (it sits outside any card). */
+.pagination {
+  width: fit-content;
+  margin: 16px auto 0;
+  padding: 6px;
+  border-radius: 999px;
+  background: var(--glass-fill);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+/*
+ * Buttons and pills that sit on the page itself, outside any card ("Visit my YouTube page", the admin's page actions,
+ * Engagement's periods, System's pages, Feature Testing's features): the same glass, for the same reason. Hovered or open, they light
+ * up over the glass, not instead of it (on its own, that light is see-through).
+ */
+.youtube-channel .button-secondary,
+.youtube-channel .refresh-button,
+.page-actions .button-secondary,
+.engagement-toggle .button-secondary,
+.engagement-toggle .licence-toggle:not([aria-pressed='true']),
+.pill-nav-link {
+  border-color: transparent;
+  background: var(--glass-fill);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+.youtube-channel .button-secondary:not(:disabled):hover,
+.youtube-channel .refresh-button:hover,
+.page-actions .button-secondary:not(:disabled):hover,
+.engagement-toggle .button-secondary:not(:disabled):hover,
+.engagement-toggle .licence-toggle:not([aria-pressed='true']):hover,
+.pill-nav-link:hover {
+  background: linear-gradient(var(--raised-hover), var(--raised-hover)), var(--glass-fill);
+}
+
+/* "Couldn't be loaded" on the page itself (not in a card): its red tint over the glass. */
+.error-state:not(.card .error-state) {
+  background: linear-gradient(rgb(255 69 58 / 0.1), rgb(255 69 58 / 0.1)), var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+.pill-nav-link[aria-current='page'] {
+  background: linear-gradient(var(--selected), var(--selected)), var(--glass-fill);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--accent);
+}
+
+.pagination > span {
+  color: var(--text);
+}
+
+/* The consents are wells in the glass, lit when ticked. */
+.terms-consent {
+  border-color: var(--glass-edge);
+  background: var(--well);
+  box-shadow: var(--well-shade);
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.terms-consent:has(input:checked) {
+  border-color: transparent;
+  background: var(--tint);
+}
+
+.terms-section {
+  border-top-color: var(--glass-edge);
+}
+
+@media (max-width: 520px) {
+  .tabs {
+    padding: 3px;
+  }
+
+  .tab {
+    padding: 7px 10px;
+  }
+}
+
+/* ---------- Theme slider: three stops, with a glass thumb that slides to the chosen one ---------- */
+
+.theme-switch {
+  --stop: 36px;
+  position: relative;
+  display: inline-flex;
+  margin: 0;
+  padding: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--glass-fill);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge);
+}
+
+.theme-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: var(--stop);
+  height: 30px;
+  border-radius: 999px;
+  background: var(--selected);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--selected-shadow);
+  transform: translateX(calc(var(--theme-index, 0) * var(--stop)));
+  transition: transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.theme-switch-option {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--stop);
+  height: 30px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.theme-switch-option:hover,
+.theme-switch-option:has(input:checked) {
+  color: var(--text);
+}
+
+.theme-switch-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* The icon just picked turns once: the sun's rays around it, the moon head over heels, the Vice mark side over side. */
+.theme-switch-option[data-theme-option='light'][data-picked] .sun-rays {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: theme-sun-rays 0.7s ease-in-out;
+}
+
+.theme-switch-option[data-theme-option='dark'][data-picked] svg {
+  animation: theme-flip-x 0.7s ease-in-out;
+}
+
+.theme-switch-option[data-theme-option='vice'][data-picked] .vice-mark {
+  animation: theme-flip-y 0.7s ease-in-out;
+}
+
+@keyframes theme-sun-rays {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes theme-flip-x {
+  from {
+    transform: perspective(80px) rotateX(0);
+  }
+
+  to {
+    transform: perspective(80px) rotateX(360deg);
+  }
+}
+
+@keyframes theme-flip-y {
+  from {
+    transform: perspective(120px) rotateY(0);
+  }
+
+  to {
+    transform: perspective(120px) rotateY(360deg);
+  }
+}
+
+/* On / Off (components/OnOffSwitch): the theme slider with two stops, wide enough for a word each. */
+.on-off-switch {
+  --stop: 46px;
+  flex: none;
+}
+
+.on-off-switch .theme-switch-option {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.on-off-switch:disabled {
+  opacity: 0.6;
+}
+
+.on-off-switch:disabled .theme-switch-option {
+  cursor: progress;
+}
+
+/* ---------- Buttons ---------- */
+
+.button {
+  border: 0;
+  border-radius: 999px;
+  /* White on it is at least 4.8:1, top to bottom. */
+  background: linear-gradient(180deg, #1570d6, var(--accent-fill));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    inset 0 -1px 0 rgb(0 0 0 / 0.15),
+    0 4px 16px rgb(0 102 214 / 0.3);
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.button-secondary,
+.google-button,
+.licence-toggle {
+  border: 0;
+  background: var(--raised);
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 0 0 1px var(--glass-edge);
+}
+
+.button-secondary:not(:disabled):hover,
+.google-button:hover,
+.licence-toggle:hover {
+  background: var(--raised-hover);
+}
+
+.button-danger {
+  background: linear-gradient(180deg, rgb(255 105 97 / 0.95), rgb(255 69 58 / 0.88));
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    0 4px 16px rgb(255 69 58 / 0.3);
+}
+
+/* "Buy me a coffee": warm amber glass, so it reads as coffee in every theme. */
+.support-button {
+  background: linear-gradient(180deg, rgb(255 214 102 / 0.97), rgb(255 179 64 / 0.92));
+  color: #3b2300;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 0 -1px 0 rgb(0 0 0 / 0.12),
+    0 4px 16px rgb(255 170 50 / 0.3);
+}
+
+.support-button:hover {
+  background: linear-gradient(180deg, rgb(255 222 128), rgb(255 188 80));
+}
+
+/* The coffee's steam: three waves that rise, sway and fade, one after another, like heat leaving the cup. */
+.coffee-steam path {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: coffee-steam 1.5s ease-in-out infinite;
+}
+
+.coffee-steam path:nth-child(2) {
+  animation-delay: 0.5s;
+}
+
+.coffee-steam path:nth-child(3) {
+  animation-delay: 1s;
+}
+
+/* Nobody using the page (layout/idle.ts): the steam holds still, the bell too (below), until someone does. */
+:root[data-idle] .coffee-steam path {
+  animation-play-state: paused;
+}
+
+/* The coffee: empty at rest; on hover (or keyboard focus) it pours in, filling the cup bottom to top. */
+.coffee-fill {
+  fill: currentColor;
+  stroke: none;
+  opacity: 0.75;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: scaleY(0);
+  transition: transform 0.25s ease-in;
+}
+
+.support-button:is(:hover, :focus-visible) .coffee-fill {
+  transform: scaleY(1);
+  transition: transform 0.9s ease-out;
+}
+
+@keyframes coffee-steam {
+  0% {
+    opacity: 0;
+    transform: translate(0, 2px) scaleY(0.7);
+  }
+
+  30% {
+    opacity: 1;
+  }
+
+  60% {
+    transform: translate(0.6px, -0.5px) scaleY(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-0.4px, -2.5px) scaleY(1.1);
+  }
+}
+
+/*
+ * The Get updates bell: at rest it rings now and then; on hover (or keyboard focus) it turns YouTube's yellow and keeps ringing. The bell
+ * swings from its top; the clapper hangs from the same point, a beat behind and further out, so it strikes
+ * the rim as a real one does. Yellow fill, amber outline: it shows on the light buttons as on the dark.
+ */
+.subscribe-button:is(:hover, :focus-visible) .bell-icon {
+  color: #e8a800;
+}
+
+.subscribe-button:is(:hover, :focus-visible) .bell-body {
+  fill: #ffcc00;
+}
+
+.bell-body,
+.bell-clapper {
+  transform-box: view-box;
+  /* The hook at the top of the bell. */
+  transform-origin: 12px 2px;
+}
+
+/* At rest, in its own colours and empty, it rings once every 10 seconds (the same swing, then still). */
+.bell-body {
+  animation: bell-ring-idle 10s ease-in-out 2s infinite;
+}
+
+.bell-clapper {
+  animation: bell-clapper-idle 10s ease-in-out 2s infinite;
+}
+
+.subscribe-button:is(:hover, :focus-visible) .bell-body {
+  animation: bell-ring 1.2s ease-in-out infinite;
+}
+
+.subscribe-button:is(:hover, :focus-visible) .bell-clapper {
+  animation: bell-clapper 1.2s ease-in-out infinite;
+}
+
+:root[data-idle] .bell-body,
+:root[data-idle] .bell-clapper {
+  animation-play-state: paused;
+}
+
+@keyframes bell-ring {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0);
+  }
+
+  10% {
+    transform: rotate(16deg);
+  }
+
+  20% {
+    transform: rotate(-14deg);
+  }
+
+  30% {
+    transform: rotate(11deg);
+  }
+
+  40% {
+    transform: rotate(-8deg);
+  }
+
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+/* The same swing, later and wider: the clapper lags the bell, then strikes each side. */
+@keyframes bell-clapper {
+  0%,
+  65%,
+  100% {
+    transform: rotate(0);
+  }
+
+  14% {
+    transform: rotate(24deg) translateX(1px);
+  }
+
+  24% {
+    transform: rotate(-22deg) translateX(-1px);
+  }
+
+  34% {
+    transform: rotate(17deg) translateX(0.6px);
+  }
+
+  44% {
+    transform: rotate(-12deg) translateX(-0.6px);
+  }
+
+  55% {
+    transform: rotate(6deg);
+  }
+}
+
+/* bell-ring and bell-clapper's frames, squeezed into the first 1.2s of 10s (× 0.12): one ring, then rest. */
+@keyframes bell-ring-idle {
+  0%,
+  7.2%,
+  100% {
+    transform: rotate(0);
+  }
+
+  1.2% {
+    transform: rotate(16deg);
+  }
+
+  2.4% {
+    transform: rotate(-14deg);
+  }
+
+  3.6% {
+    transform: rotate(11deg);
+  }
+
+  4.8% {
+    transform: rotate(-8deg);
+  }
+
+  6% {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes bell-clapper-idle {
+  0%,
+  7.8%,
+  100% {
+    transform: rotate(0);
+  }
+
+  1.68% {
+    transform: rotate(24deg) translateX(1px);
+  }
+
+  2.88% {
+    transform: rotate(-22deg) translateX(-1px);
+  }
+
+  4.08% {
+    transform: rotate(17deg) translateX(0.6px);
+  }
+
+  5.28% {
+    transform: rotate(-12deg) translateX(-0.6px);
+  }
+
+  6.6% {
+    transform: rotate(6deg);
+  }
+}
+
+/* Reduce motion: the colour and the waves' shape, without the movement; on hover the cup is full at once. */
+@media (prefers-reduced-motion: reduce) {
+  .coffee-steam path,
+  .subscribe-button .bell-body,
+  .subscribe-button .bell-clapper,
+  .content-toggle .eye-shape,
+  .theme-switch-option .sun-rays,
+  .theme-switch-option svg,
+  .theme-switch-option .vice-mark {
+    animation: none !important;
+  }
+
+  .coffee-fill {
+    transition: none;
+  }
+}
+
+.licence-toggle[aria-pressed='true'] {
+  background: var(--accent-fill, var(--accent));
+  color: var(--accent-text);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 0 0 1px var(--accent);
+}
+
+.icon-button:not(:disabled):hover {
+  background: var(--raised);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+/* ---------- Inputs ---------- */
+
+.field input,
+.field textarea,
+.currency-button,
+.select,
+.year-input,
+.month-field select,
+.month-field input {
+  border: 1px solid var(--glass-edge);
+  border-radius: 12px;
+  background: var(--well);
+  box-shadow: var(--well-shade);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.field input:focus,
+.field textarea:focus,
+.currency-button:focus-visible,
+.currency-button[aria-expanded='true'],
+.select:focus,
+.year-input:focus,
+.month-field select:focus,
+.month-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow:
+    var(--well-shade),
+    0 0 0 4px var(--tint);
+}
+
+.select option,
+.month-field option {
+  background: var(--solid-surface);
+}
+
+/* The currency picker's list: solid (a blur inside a card that's blurred already has nothing to blur), with the glass's lit edge. */
+.currency-list {
+  border: 0;
+  border-radius: 16px;
+  background: var(--solid-surface);
+  box-shadow:
+    var(--glass-shine),
+    0 0 0 1px var(--glass-edge),
+    var(--glass-shadow);
+}
+
+.currency-option[data-active] {
+  background: var(--raised);
+}
+
+/* ---------- Smaller glass pieces ---------- */
+
+.chip {
+  border: 0;
+  background: var(--raised);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 0 0 1px var(--glass-edge);
+}
+
+.app-category,
+.tag {
+  background: var(--tint);
+  color: var(--tint-text);
+}
+
+.editor-item,
+.upload,
+.media-list-item,
+.organise-row,
+.city-search-results {
+  border-color: var(--glass-edge);
+  border-radius: 16px;
+  background: var(--well);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+.editor-subitem,
+.editor-status {
+  border-radius: 12px;
+  background: var(--well);
+}
+
+.world-map {
+  border-radius: 18px;
+  background: var(--well);
+}
+
+.world-map-land {
+  stroke: var(--map-land);
+}
+
+.world-map-pin-outline {
+  stroke: var(--map-pin-outline);
+}
+
+.world-map-card,
+.place-popup {
+  border-radius: 16px;
+}
+
+.world-map-controls {
+  border-radius: 14px;
+}
+
+.skill-tooltip {
+  background: var(--tooltip-fill);
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--glass-shadow);
+}
+
+.carousel-track,
+.video-player {
+  box-shadow: 0 0 0 1px var(--glass-edge);
+}
+
+.carousel-dot {
+  background: var(--dot);
+}
+
+.carousel-dot[aria-current='true'] {
+  background: var(--dot-on);
+}
+
+.message-row:hover {
+  background: var(--well);
+}
+
+.messages-table th,
+.messages-table td,
+.detail-row,
+.places-list li {
+  border-color: var(--glass-edge);
+}
+
+.leetcode-ring-track {
+  stroke: var(--track);
+}
+
+.leetcode-bar,
+.language-step {
+  background: var(--track);
+}
+
+.language-step-on {
+  background: var(--accent-fill, var(--accent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .tab,
+  .button,
+  .tab-indicator[data-animate],
+  .theme-switch-thumb,
+  .theme-switch-option,
+  .scene-background canvas {
+    transition: none;
+  }
+
+  .neon-text,
+  .neon-fill,
+  :root[data-theme='vice'] .brand-fill,
+  :root[data-theme='vice'] .brand-fill .brand-j::before {
+    animation: none;
+  }
+
+  .site-header,
+  .page,
+  .site-footer,
+  .terms-consent,
+  .app[data-content-hidden] .site-header,
+  .app[data-content-hidden] .page,
+  .app[data-content-hidden] .site-footer,
+  .content-toggle {
+    transition: none;
+  }
+
+  .media-card:hover,
+  .button:not(:disabled):active {
+    transform: none;
+  }
+}

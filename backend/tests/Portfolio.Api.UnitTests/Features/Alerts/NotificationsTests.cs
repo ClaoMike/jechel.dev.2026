@@ -78,7 +78,7 @@ public class NotificationsTests
     }
 
     private async Task<IReadOnlyList<NotificationKindDto>> Save(string kind, bool enabled) =>
-        Assert.IsType<Ok<IReadOnlyList<NotificationKindDto>>>((await NotificationsEndpoints.SaveKind(kind, new SaveNotificationKindRequest(enabled), _db, _preferences, _time, default)).Result).Value!;
+        Assert.IsType<Ok<IReadOnlyList<NotificationKindDto>>>((await SaveNotificationKind.Handle(kind, new SaveNotificationKindRequest(enabled), _db, _preferences, _time, default)).Result).Value!;
 
     [Fact]
     public async Task Switching_a_kind_off_applies_at_once_and_on_again_too()
@@ -112,8 +112,8 @@ public class NotificationsTests
     [Fact]
     public async Task A_save_that_doesnt_say_on_or_off_is_refused_never_read_as_off()
     {
-        var missing = await NotificationsEndpoints.SaveKind(AlertKinds.Message, new SaveNotificationKindRequest(null), _db, _preferences, _time, default);
-        var noBody = await NotificationsEndpoints.SaveKind(AlertKinds.Message, null!, _db, _preferences, _time, default);
+        var missing = await SaveNotificationKind.Handle(AlertKinds.Message, new SaveNotificationKindRequest(null), _db, _preferences, _time, default);
+        var noBody = await SaveNotificationKind.Handle(AlertKinds.Message, null!, _db, _preferences, _time, default);
 
         Assert.Equal(["enabled"], Assert.IsType<ValidationProblem>(missing.Result).ProblemDetails.Errors.Keys);
         Assert.IsType<ValidationProblem>(noBody.Result);
@@ -138,7 +138,7 @@ public class NotificationsTests
     [InlineData("")]
     public async Task An_unknown_kind_is_not_found_and_nothing_is_kept(string kind)
     {
-        var result = await NotificationsEndpoints.SaveKind(kind, new SaveNotificationKindRequest(false), _db, _preferences, _time, default);
+        var result = await SaveNotificationKind.Handle(kind, new SaveNotificationKindRequest(false), _db, _preferences, _time, default);
 
         Assert.IsType<NotFound>(result.Result);
         Assert.Empty(_db.AlertPreferences);
@@ -160,7 +160,7 @@ public class NotificationsTests
         Log(AlertKinds.Message, Now.AddHours(-1), AlertStatus.Off);
         Log(AlertKinds.Coffee, Now.AddDays(-31));
 
-        var kinds = (await NotificationsEndpoints.ListKinds(_db, _time, default)).Value!;
+        var kinds = (await ListNotificationKinds.Handle(_db, _time, default)).Value!;
 
         Assert.Equal(AlertKinds.All.Select(k => k.Key), kinds.Select(k => k.Kind));
         var message = kinds.Single(k => k.Kind == AlertKinds.Message);
@@ -177,10 +177,10 @@ public class NotificationsTests
     {
         for (var i = 0; i < 25; i++) Log(i % 5 == 0 ? AlertKinds.Coffee : AlertKinds.Message, Now.AddMinutes(-i), title: $"#{i}");
 
-        var first = (await NotificationsEndpoints.ListNotifications(_db, default, pageSize: 10)).Value!;
-        var third = (await NotificationsEndpoints.ListNotifications(_db, default, page: 3, pageSize: 10)).Value!;
-        var coffee = (await NotificationsEndpoints.ListNotifications(_db, default, kind: AlertKinds.Coffee)).Value!;
-        var none = (await NotificationsEndpoints.ListNotifications(_db, default, kind: AlertKinds.ApiCrash)).Value!;
+        var first = (await ListNotifications.Handle(_db, default, pageSize: 10)).Value!;
+        var third = (await ListNotifications.Handle(_db, default, page: 3, pageSize: 10)).Value!;
+        var coffee = (await ListNotifications.Handle(_db, default, kind: AlertKinds.Coffee)).Value!;
+        var none = (await ListNotifications.Handle(_db, default, kind: AlertKinds.ApiCrash)).Value!;
 
         Assert.Equal(["#0", "#1", "#2"], first.Items.Take(3).Select(n => n.Title));
         Assert.Equal(25, first.TotalCount);
@@ -192,10 +192,10 @@ public class NotificationsTests
 
     [Theory]
     [InlineData(0, 0, 1, 1)]
-    [InlineData(-2, 999, 1, NotificationsEndpoints.MaxPageSize)]
+    [InlineData(-2, 999, 1, NotificationsShared.MaxPageSize)]
     public async Task Pages_out_of_range_are_brought_into_it(int page, int pageSize, int expectedPage, int expectedSize)
     {
-        var list = (await NotificationsEndpoints.ListNotifications(_db, default, page: page, pageSize: pageSize)).Value!;
+        var list = (await ListNotifications.Handle(_db, default, page: page, pageSize: pageSize)).Value!;
 
         Assert.Equal((expectedPage, expectedSize), (list.Page, list.PageSize));
     }

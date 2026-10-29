@@ -16,7 +16,7 @@ public class TermsEndpointsTests
     [Fact]
     public async Task GetTerms_returns_the_defaults_with_their_own_date_before_the_first_save()
     {
-        var terms = (await TermsEndpoints.GetTerms(_db, CancellationToken.None)).Value!;
+        var terms = (await GetTerms.Handle(_db, CancellationToken.None)).Value!;
 
         Assert.Equal(TermsDefaults.Content.Title, terms.Title);
         Assert.Equal(TermsDefaults.Content.Sections.Count, terms.Sections.Count);
@@ -100,11 +100,11 @@ public class TermsEndpointsTests
     {
         var content = new TermsContent(" House rules ", "", [new TermsSection("Be nice", [new TermsBlock(TermsBlockKinds.Bullets, "", ["No spam", " "])])]);
 
-        var saved = await TermsEndpoints.UpdateTerms(content, _db, _time, CancellationToken.None);
+        var saved = await UpdateTerms.Handle(content, _db, _time, CancellationToken.None);
 
         var ok = Assert.IsType<Ok<TermsDocument>>(saved.Result);
         Assert.Equal(("House rules", _time.GetUtcNow()), (ok.Value!.Title, ok.Value.UpdatedAt));
-        var loaded = (await TermsEndpoints.GetTerms(_db, CancellationToken.None)).Value!;
+        var loaded = (await GetTerms.Handle(_db, CancellationToken.None)).Value!;
         Assert.Equal("House rules", loaded.Title);
         Assert.Equal(["No spam"], Assert.Single(Assert.Single(loaded.Sections).Blocks).Items);
         Assert.Equal(_time.GetUtcNow(), loaded.UpdatedAt);
@@ -113,13 +113,13 @@ public class TermsEndpointsTests
     [Fact]
     public async Task UpdateTerms_replaces_the_previous_version_and_moves_the_date()
     {
-        await TermsEndpoints.UpdateTerms(TermsDefaults.Content, _db, _time, CancellationToken.None);
+        await UpdateTerms.Handle(TermsDefaults.Content, _db, _time, CancellationToken.None);
         _time.Advance(TimeSpan.FromDays(1));
 
-        await TermsEndpoints.UpdateTerms(TermsDefaults.Content with { Sections = [] }, _db, _time, CancellationToken.None);
+        await UpdateTerms.Handle(TermsDefaults.Content with { Sections = [] }, _db, _time, CancellationToken.None);
 
         Assert.Single(_db.TermsPages);
-        var loaded = (await TermsEndpoints.GetTerms(_db, CancellationToken.None)).Value!;
+        var loaded = (await GetTerms.Handle(_db, CancellationToken.None)).Value!;
         Assert.Empty(loaded.Sections);
         Assert.Equal(_time.GetUtcNow(), loaded.UpdatedAt);
     }
@@ -127,7 +127,7 @@ public class TermsEndpointsTests
     [Fact]
     public async Task UpdateTerms_rejects_invalid_terms_and_keeps_the_old_ones()
     {
-        var result = await TermsEndpoints.UpdateTerms(TermsDefaults.Content with { Title = "" }, _db, _time, CancellationToken.None);
+        var result = await UpdateTerms.Handle(TermsDefaults.Content with { Title = "" }, _db, _time, CancellationToken.None);
 
         var problem = Assert.IsType<ValidationProblem>(result.Result);
         Assert.Equal(["title"], problem.ProblemDetails.Errors.Keys);

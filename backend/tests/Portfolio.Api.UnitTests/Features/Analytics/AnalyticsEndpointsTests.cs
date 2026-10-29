@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Time.Testing;
+using Portfolio.Api.Common;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Analytics;
 using Portfolio.Api.UnitTests.Features.Alerts;
@@ -41,7 +42,7 @@ public class AnalyticsEndpointsTests
         new(seq, type, path, label, detail, ageMs);
 
     private Task<Results<NoContent, ValidationProblem>> Collect(Guid id, HttpContext? http = null, params EventInput[] events) =>
-        AnalyticsEndpoints.Collect(new CollectRequest(id, Info, [.. events]), http ?? Http(), _db, _visitors, _time, Alerts, CancellationToken.None);
+        CollectAnalyticsEvents.Handle(new CollectRequest(id, Info, [.. events]), http ?? Http(), _db, _visitors, _time, Alerts, CancellationToken.None);
 
     [Fact]
     public async Task Collect_records_the_visit_with_where_it_came_from_and_what_it_ran_on()
@@ -145,7 +146,7 @@ public class AnalyticsEndpointsTests
         _time.Advance(TimeSpan.FromDays(1));
         await Collect(Guid.NewGuid(), Http(IPhone, "198.51.100.1"), Event(1, "pageview", "/apps"), Event(2, "error", "/apps", "TypeError: boom"));
 
-        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "7d")).Value!;
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "7d")).Value!;
 
         Assert.Equal(("7d", "day", new DateTimeOffset(2026, 10, 7, 0, 0, 0, TimeSpan.Zero)), (summary.Range, summary.BucketSize, summary.From));
         Assert.Equal(new AnalyticsTotals(Visitors: 2, Sessions: 3, PageViews: 4, AverageSessionSeconds: 0, BounceRate: 2 / 3.0, Errors: 1), summary.Totals);
@@ -193,7 +194,7 @@ public class AnalyticsEndpointsTests
     {
         await Collect(Guid.NewGuid(), null, Event(1, "pageview"), Event(2, type, label: "x"));
 
-        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "7d")).Value!;
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "7d")).Value!;
 
         Assert.Equal(bounce ? 1 : 0, summary.Totals.BounceRate);
     }
@@ -209,7 +210,7 @@ public class AnalyticsEndpointsTests
             Event(5, "click", label: "Apps"));
         await Collect(Guid.NewGuid(), Http(ip: "198.51.100.9"), Event(1, "event", label: "Message sent"), Event(2, "event"));
 
-        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "7d")).Value!;
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "7d")).Value!;
 
         Assert.Equal([new NamedCount("Message sent", 2), new NamedCount("Subscribed", 1)], summary.SiteEvents);
         Assert.Equal([new NamedCount("Apps", 1)], summary.TopClicks);
@@ -229,7 +230,7 @@ public class AnalyticsEndpointsTests
         again.Request.Headers["CF-IPCountry"] = "GB";
         foreach (var http in new[] { britain, romania, tor, again }) await Collect(Guid.NewGuid(), http, Event(1, "pageview"));
 
-        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "7d")).Value!;
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "7d")).Value!;
 
         Assert.Equal([new NamedCount("GB", 2), new NamedCount("RO", 1), new NamedCount("Unknown", 1)], summary.Countries);
     }
@@ -240,13 +241,13 @@ public class AnalyticsEndpointsTests
         var switched = Guid.NewGuid();
         await Collect(switched, null, Event(1, "pageview"));
         var themeChanged = Event(2, "event", label: AnalyticsRules.ThemeChangedEvent, detail: new() { ["from"] = "vice", ["to"] = "dark" });
-        await AnalyticsEndpoints.Collect(new CollectRequest(switched, Info with { CurrentTheme = "dark" }, [themeChanged]), Http(), _db, _visitors, _time, Alerts, CancellationToken.None);
+        await CollectAnalyticsEvents.Handle(new CollectRequest(switched, Info with { CurrentTheme = "dark" }, [themeChanged]), Http(), _db, _visitors, _time, Alerts, CancellationToken.None);
         await Collect(Guid.NewGuid(), null, Event(1, "pageview"));
 
         var session = await _db.VisitSessions.SingleAsync(s => s.Id == switched);
         Assert.Equal(("vice", "dark"), (session.Theme, session.LastTheme));
 
-        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "7d")).Value!;
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "7d")).Value!;
         Assert.Equal([new NamedCount("dark", 1), new NamedCount("vice", 1)], summary.Themes);
         Assert.Equal([new NamedCount("vice → dark", 1)], summary.ThemeSwitches);
     }
@@ -257,7 +258,7 @@ public class AnalyticsEndpointsTests
         await Collect(Guid.NewGuid(), null, Event(1, "pageview"));
         _time.Advance(TimeSpan.FromDays(10));
 
-        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "7d")).Value!;
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "7d")).Value!;
 
         Assert.Equal(0, summary.Totals.Sessions);
         Assert.Empty(summary.TopPages);
@@ -270,7 +271,7 @@ public class AnalyticsEndpointsTests
         var id = Guid.NewGuid();
         await Collect(id, null, Event(1, "pageview", "/", ageMs: 30 * 60_000), Event(2, "pageview", "/apps"));
 
-        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "1h")).Value!;
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "1h")).Value!;
 
         Assert.Equal(("1h", "5m", 12), (summary.Range, summary.BucketSize, summary.Series.Count));
         Assert.Equal(Now, summary.Series[^1].Start);
@@ -286,7 +287,7 @@ public class AnalyticsEndpointsTests
         _time.Advance(TimeSpan.FromDays(70));
         await Collect(Guid.NewGuid(), null, Event(1, "pageview"));
 
-        var summary = (await AnalyticsEndpoints.GetSummary(_db, _time, CancellationToken.None, range: "all")).Value!;
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "all")).Value!;
 
         Assert.Equal(("all", "month"), (summary.Range, summary.BucketSize));
         Assert.Equal(new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero), summary.From);
@@ -303,8 +304,8 @@ public class AnalyticsEndpointsTests
         _time.Advance(TimeSpan.FromMinutes(5));
         await Collect(newer, null, Event(1, "pageview"));
 
-        var all = (await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None)).Value!;
-        var errors = (await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None, errorsOnly: true)).Value!;
+        var all = (await ListVisitSessions.Handle(_db, CancellationToken.None)).Value!;
+        var errors = (await ListVisitSessions.Handle(_db, CancellationToken.None, errorsOnly: true)).Value!;
 
         Assert.Equal([newer, older], all.Items.Select(s => s.Id));
         Assert.Equal([older], errors.Items.Select(s => s.Id));
@@ -324,20 +325,20 @@ public class AnalyticsEndpointsTests
         }
 
         var pages = new List<PagedResponse<SessionSummary>>();
-        for (var page = 1; page <= 3; page++) pages.Add((await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None, page, 20)).Value!);
+        for (var page = 1; page <= 3; page++) pages.Add((await ListVisitSessions.Handle(_db, CancellationToken.None, page, 20)).Value!);
 
         Assert.Equal([20, 20, 5], pages.Select(p => p.Items.Count));
         Assert.All(pages, p => Assert.Equal(45, p.TotalCount));
         Assert.Equal(Enumerable.Reverse(ids), pages.SelectMany(p => p.Items).Select(s => s.Id));
-        Assert.Empty((await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None, 4, 20)).Value!.Items);
+        Assert.Empty((await ListVisitSessions.Handle(_db, CancellationToken.None, 4, 20)).Value!.Items);
     }
 
     [Theory]
     [InlineData(0, 0, 1, 1)]
-    [InlineData(-5, 10_000, 1, AnalyticsEndpoints.MaxPageSize)]
+    [InlineData(-5, 10_000, 1, AnalyticsShared.MaxPageSize)]
     public async Task ListSessions_brings_page_numbers_and_sizes_into_range(int page, int pageSize, int expectedPage, int expectedSize)
     {
-        var list = (await AnalyticsEndpoints.ListSessions(_db, CancellationToken.None, page, pageSize)).Value!;
+        var list = (await ListVisitSessions.Handle(_db, CancellationToken.None, page, pageSize)).Value!;
 
         Assert.Equal((expectedPage, expectedSize), (list.Page, list.PageSize));
     }
@@ -348,12 +349,12 @@ public class AnalyticsEndpointsTests
         var id = Guid.NewGuid();
         await Collect(id, null, Event(2, "click", label: "Apps"), Event(1, "pageview", "/"), Event(3, "error", label: "boom", detail: new() { ["stack"] = "at x" }));
 
-        var details = Assert.IsType<Ok<SessionDetails>>((await AnalyticsEndpoints.GetSession(id, _db, CancellationToken.None)).Result).Value!;
+        var details = Assert.IsType<Ok<SessionDetails>>((await GetVisitSession.Handle(id, _db, CancellationToken.None)).Result).Value!;
 
         Assert.Equal([1, 2, 3], details.Events.Select(e => e.Seq));
         Assert.Equal("at x", details.Events[2].Detail!["stack"]);
         Assert.Null(details.Events[0].Detail);
-        Assert.IsType<NotFound>((await AnalyticsEndpoints.GetSession(Guid.NewGuid(), _db, CancellationToken.None)).Result);
+        Assert.IsType<NotFound>((await GetVisitSession.Handle(Guid.NewGuid(), _db, CancellationToken.None)).Result);
     }
 
     [Fact]
@@ -362,8 +363,8 @@ public class AnalyticsEndpointsTests
         var id = Guid.NewGuid();
         await Collect(id, null, Event(1, "pageview"));
 
-        Assert.IsType<NoContent>((await AnalyticsEndpoints.DeleteSession(id, _db, CancellationToken.None)).Result);
+        Assert.IsType<NoContent>((await DeleteVisitSession.Handle(id, _db, CancellationToken.None)).Result);
         Assert.Empty(await _db.VisitSessions.ToListAsync());
-        Assert.IsType<NotFound>((await AnalyticsEndpoints.DeleteSession(id, _db, CancellationToken.None)).Result);
+        Assert.IsType<NotFound>((await DeleteVisitSession.Handle(id, _db, CancellationToken.None)).Result);
     }
 }

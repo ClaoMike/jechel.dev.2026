@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Portfolio.Api.Common;
 using Portfolio.Api.Features.Apps;
 using Portfolio.Api.Features.Files;
 using SkiaSharp;
@@ -150,7 +151,7 @@ public class AppEndpointTests(PortfolioApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
 
         var visitor = factory.CreateBrowserClient();
-        var listed = (await visitor.GetFromJsonAsync<PagedResponse<AppDetails>>($"/api/apps?pageSize={AppEndpoints.MaxPageSize}"))!;
+        var listed = (await visitor.GetFromJsonAsync<PagedResponse<AppDetails>>($"/api/apps?pageSize={AppShared.MaxPageSize}"))!;
         Assert.Equal(older.Id, listed.Items[^1].Id);
         Assert.Equal(older.Id, (await visitor.GetFromJsonAsync<WhatsNewApp>("/api/apps/whats-new"))!.App!.Id);
 

@@ -1,2 +1,1 @@
-export { AnalyticsTracker } from './AnalyticsTracker/AnalyticsTracker'
-export { trackEvent, tracker } from './tracker'
+export { AnalyticsTracker } from './ui/AnalyticsTracker/AnalyticsTracker'

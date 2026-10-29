@@ -1,5 +1,5 @@
 /** What the API says about the site, the terms, the support link and videos, for tests. */
-import type { LeetCodeStats, Page, ResumeSettingsDetails, SiteStatus, TermsDocument, YouTubeVideo } from '../../services/api'
+import type { LeetCodeStats, Page, ResumeSettingsDetails, SiteStatus, TermsDocument, YouTubeVideo } from '@/shared/api'
 import thumbA from './thumb-a.svg?url'
 import thumbB from './thumb-b.svg?url'
 
