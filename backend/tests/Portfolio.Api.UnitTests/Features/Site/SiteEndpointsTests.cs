@@ -14,12 +14,12 @@ public class SiteEndpointsTests
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 19, 9, 0, 0, TimeSpan.Zero));
 
     private static async Task<SiteStatus> Status(IServiceProvider services) =>
-        (await SiteEndpoints.GetStatus(services.Cache(), services, new DefaultHttpContext(), default)).Value!;
+        (await GetSiteStatus.Handle(services.Cache(), services, new DefaultHttpContext(), default)).Value!;
 
     private Task<Results<Ok<SiteStatus>, ValidationProblem>> Save(IServiceProvider services, SaveSiteRequest request)
     {
         var scope = services.CreateScope();
-        return SiteEndpoints.SaveStatus(request, scope.ServiceProvider.GetRequiredService<PortfolioDbContext>(), services.Cache(), services.GetRequiredService<IOptions<SiteOptions>>(), _time, default);
+        return SaveSiteStatus.Handle(request, scope.ServiceProvider.GetRequiredService<PortfolioDbContext>(), services.Cache(), services.GetRequiredService<IOptions<SiteOptions>>(), _time, default);
     }
 
     [Fact]
@@ -116,9 +116,9 @@ public class SiteEndpointsTests
     [Fact]
     public void Reads_a_damaged_saved_row_as_the_defaults()
     {
-        var row = new Portfolio.Api.Data.SiteState { Id = Portfolio.Api.Data.SiteState.SingletonId, Pages = "not json", Features = "", MaintenanceMessage = "" };
+        var row = new Portfolio.Api.Features.Site.SiteState { Id = Portfolio.Api.Features.Site.SiteState.SingletonId, Pages = "not json", Features = "", MaintenanceMessage = "" };
 
-        var status = SiteEndpoints.ToStatus(row, visibleByDefault: true);
+        var status = SiteShared.ToStatus(row, visibleByDefault: true);
 
         Assert.All(status.Pages.Values, Assert.True);
         Assert.Equal(SiteParts.Features.ToDictionary(f => f, f => !SiteParts.OffUntilSwitchedOn.Contains(f)), status.Features);
@@ -131,7 +131,7 @@ public class SiteEndpointsTests
         await Save(services, new SaveSiteRequest(new Dictionary<string, bool> { ["youtube"] = true }, null, null, null));
         using var scope = services.CreateScope();
 
-        var visible = await SiteEndpoints.VisibleAsync(scope.ServiceProvider.GetRequiredService<Portfolio.Api.Data.PortfolioDbContext>(), new Portfolio.Api.Features.Alerts.SiteOptions(), default);
+        var visible = await SiteShared.VisibleAsync(scope.ServiceProvider.GetRequiredService<Portfolio.Api.Data.PortfolioDbContext>(), new Portfolio.Api.Features.Alerts.SiteOptions(), default);
 
         Assert.True(visible.Pages["youtube"]);
         Assert.False(visible.Pages["apps"]);

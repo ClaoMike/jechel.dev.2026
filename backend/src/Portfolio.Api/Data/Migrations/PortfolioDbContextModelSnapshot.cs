@@ -44,7 +44,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("data_protection_keys", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.AboutPage", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.About.AboutPage", b =>
                 {
                     b.Property<int>("Id")
                         .HasColumnType("integer")
@@ -64,7 +64,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("about_page", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.AdminSession", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Auth.AdminSession", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
@@ -122,7 +122,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("admin_sessions", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.AlertChannelSetting", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Alerts.AlertChannelSetting", b =>
                 {
                     b.Property<string>("Channel")
                         .HasMaxLength(20)
@@ -142,7 +142,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("alert_channels", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.AlertPreference", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Alerts.AlertPreference", b =>
                 {
                     b.Property<string>("Kind")
                         .HasMaxLength(40)
@@ -162,7 +162,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("alert_preferences", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.Announcement", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Updates.Announcement", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -220,7 +220,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("announcements", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.AppCategory", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Apps.AppCategory", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -244,7 +244,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("app_categories", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.AppEntry", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Apps.AppEntry", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -314,7 +314,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("apps", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.ContactMessage", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Contact.ContactMessage", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -382,7 +382,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("contact_messages", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.ContactReply", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Contact.ContactReply", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -429,7 +429,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("contact_replies", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.Donation", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Support.Donation", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -500,7 +500,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("donations", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.LeetCodeSnapshot", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.LeetCode.LeetCodeSnapshot", b =>
                 {
                     b.Property<string>("Username")
                         .HasMaxLength(50)
@@ -521,7 +521,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("leetcode_stats", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.Meeting", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Meetings.Meeting", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -605,7 +605,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("meetings", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.PhoneAlertLog", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Alerts.PhoneAlertLog", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -661,7 +661,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("phone_alerts", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.Profile", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Profile.Profile", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -688,7 +688,7 @@ namespace Portfolio.Api.Data.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.PushDevice", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Alerts.PushDevice", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -737,7 +737,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("push_devices", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.ResumeSettings", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Resume.ResumeSettings", b =>
                 {
                     b.Property<int>("Id")
                         .HasColumnType("integer")
@@ -790,7 +790,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("resume", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.SiteSetting", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Settings.SiteSetting", b =>
                 {
                     b.Property<string>("Key")
                         .HasMaxLength(100)
@@ -815,7 +815,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("site_settings", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.SiteState", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Site.SiteState", b =>
                 {
                     b.Property<int>("Id")
                         .HasColumnType("integer")
@@ -850,7 +850,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("site_state", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.StoredFile", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Files.StoredFile", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
@@ -882,7 +882,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("stored_files", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.Subscriber", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Updates.Subscriber", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -926,7 +926,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("subscribers", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.TermsPage", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Terms.TermsPage", b =>
                 {
                     b.Property<int>("Id")
                         .HasColumnType("integer")
@@ -946,7 +946,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("terms_page", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.UpdateEmailsPage", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Updates.UpdateEmailsPage", b =>
                 {
                     b.Property<int>("Id")
                         .HasColumnType("integer")
@@ -966,7 +966,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("update_emails", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.UpdatesState", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Updates.UpdatesState", b =>
                 {
                     b.Property<int>("Id")
                         .HasColumnType("integer")
@@ -981,7 +981,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("updates_state", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.VisitEvent", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Analytics.VisitEvent", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -1033,7 +1033,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("visit_events", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.VisitSession", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Analytics.VisitSession", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
@@ -1172,7 +1172,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("visit_sessions", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.WebPushKeys", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Alerts.WebPushKeys", b =>
                 {
                     b.Property<int>("Id")
                         .HasColumnType("integer")
@@ -1199,7 +1199,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("web_push_keys", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.WorkWithMePrice", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.WorkWithMe.WorkWithMePrice", b =>
                 {
                     b.Property<int>("Id")
                         .HasColumnType("integer")
@@ -1225,7 +1225,7 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("work_with_me_price", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.YouTubeSnapshot", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.YouTube.YouTubeSnapshot", b =>
                 {
                     b.Property<string>("Channel")
                         .HasMaxLength(100)
@@ -1246,25 +1246,25 @@ namespace Portfolio.Api.Data.Migrations
                     b.ToTable("youtube_videos", (string)null);
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.ContactReply", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Contact.ContactReply", b =>
                 {
-                    b.HasOne("Portfolio.Api.Data.ContactMessage", null)
+                    b.HasOne("Portfolio.Api.Features.Contact.ContactMessage", null)
                         .WithMany()
                         .HasForeignKey("MessageId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.VisitEvent", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Analytics.VisitEvent", b =>
                 {
-                    b.HasOne("Portfolio.Api.Data.VisitSession", null)
+                    b.HasOne("Portfolio.Api.Features.Analytics.VisitSession", null)
                         .WithMany("Events")
                         .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Portfolio.Api.Data.VisitSession", b =>
+            modelBuilder.Entity("Portfolio.Api.Features.Analytics.VisitSession", b =>
                 {
                     b.Navigation("Events");
                 });

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Time.Testing;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Alerts;
 using Portfolio.Api.Features.Auth;
+using Portfolio.Api.Features.Contact;
 using Portfolio.Api.Features.Meetings;
 using Portfolio.Api.Features.Settings;
 using Portfolio.Api.UnitTests.Features.Alerts;
@@ -79,13 +80,13 @@ public class MeetingsTests
     }
 
     private Task<Results<Ok, BadRequest, UnauthorizedHttpResult, ProblemHttpResult>> Webhook(string body, string secret = Secret) =>
-        MeetingsEndpoints.CalWebhook(Request(body, secret), _db, TestOptions.Monitor(new CalOptions { WebhookSecret = Secret }), Options.Create(new SiteOptions { PublicUrl = "https://jechel.dev" }), _alerts, _time, default);
+        CalWebhook.Handle(Request(body, secret), _db, TestOptions.Monitor(new CalOptions { WebhookSecret = Secret }), Options.Create(new SiteOptions { PublicUrl = "https://jechel.dev" }), _alerts, _time, default);
 
     private Task<Results<Ok<MeetingDecisionResult>, NotFound, UnauthorizedHttpResult, ValidationProblem, ProblemHttpResult>> Decide(int id, bool accept, string? message = null, string? token = null, bool admin = true) =>
-        MeetingsEndpoints.Decide(id, token, accept, new MeetingDecisionRequest(message), Http(admin), _db, _cal, _emails, TestOptions.Monitor(new AdminOptions { AdminEmails = ["me@example.com"] }), TestOptions.Monitor(_emailOptions), _time, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, default);
+        MeetingsShared.Decide(id, token, accept, new MeetingDecisionRequest(message), Http(admin), _db, _cal, _emails, TestOptions.Monitor(new AdminOptions { AdminEmails = ["me@example.com"] }), TestOptions.Monitor(_emailOptions), _time, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, default);
 
     private Task<Results<Ok<MeetingDecisionResult>, NotFound, ValidationProblem, ProblemHttpResult>> Cancel(int id, string? message = null) =>
-        MeetingsEndpoints.Cancel(id, new MeetingDecisionRequest(message), _db, _cal, _time, default);
+        CancelMeeting.Handle(id, new MeetingDecisionRequest(message), _db, _cal, _time, default);
 
     private static HttpContext Http(bool admin)
     {
@@ -179,7 +180,7 @@ public class MeetingsTests
 
         await Cancel(_db.Meetings.Single().Id, "   ");
 
-        Assert.Equal([$"cancel b1 {MeetingsEndpoints.DefaultCancelReason}"], _cal.Calls);
+        Assert.Equal([$"cancel b1 {MeetingsShared.DefaultCancelReason}"], _cal.Calls);
     }
 
     [Fact]
@@ -192,7 +193,7 @@ public class MeetingsTests
         await Decide(id, accept: true);
         await Cancel(id);
         Assert.Equal(MeetingStatus.Cancelled, Assert.IsType<Ok<MeetingDecisionResult>>((await Cancel(id)).Result).Value!.Status);
-        Assert.Equal(["confirm b1", $"cancel b1 {MeetingsEndpoints.DefaultCancelReason}"], _cal.Calls);
+        Assert.Equal(["confirm b1", $"cancel b1 {MeetingsShared.DefaultCancelReason}"], _cal.Calls);
 
         await Webhook(Booking("BOOKING_CREATED", uid: "b2"));
         _time.SetUtcNow(new DateTimeOffset(2026, 10, 22, 14, 30, 0, TimeSpan.Zero));
@@ -257,7 +258,7 @@ public class MeetingsTests
     {
         await Webhook(Booking("BOOKING_CREATED"));
 
-        var result = await Cancel(_db.Meetings.Single().Id, new string('x', MeetingsEndpoints.MessageMaxLength + 1));
+        var result = await Cancel(_db.Meetings.Single().Id, new string('x', MeetingsShared.MessageMaxLength + 1));
 
         Assert.Contains("message", Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors.Keys);
         Assert.Empty(_cal.Calls);
@@ -304,7 +305,7 @@ public class MeetingsTests
     [Fact]
     public async Task Without_a_webhook_secret_Cal_com_is_told_it_isnt_set_up()
     {
-        var result = await MeetingsEndpoints.CalWebhook(Request(Booking("BOOKING_REQUESTED")), _db, TestOptions.Monitor(new CalOptions { WebhookSecret = "  " }), Options.Create(new SiteOptions()), _alerts, _time, default);
+        var result = await CalWebhook.Handle(Request(Booking("BOOKING_REQUESTED")), _db, TestOptions.Monitor(new CalOptions { WebhookSecret = "  " }), Options.Create(new SiteOptions()), _alerts, _time, default);
 
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
         Assert.Empty(_db.Meetings);
@@ -315,7 +316,7 @@ public class MeetingsTests
     {
         var unsigned = Request(Booking("BOOKING_REQUESTED"));
         unsigned.Headers.Remove("x-cal-signature-256");
-        Assert.IsType<UnauthorizedHttpResult>((await MeetingsEndpoints.CalWebhook(unsigned, _db, TestOptions.Monitor(new CalOptions { WebhookSecret = Secret }), Options.Create(new SiteOptions()), _alerts, _time, default)).Result);
+        Assert.IsType<UnauthorizedHttpResult>((await CalWebhook.Handle(unsigned, _db, TestOptions.Monitor(new CalOptions { WebhookSecret = Secret }), Options.Create(new SiteOptions()), _alerts, _time, default)).Result);
 
         Assert.IsType<BadRequest>((await Webhook("not json")).Result);
         Assert.IsType<BadRequest>((await Webhook("[1,2]")).Result);
@@ -414,9 +415,9 @@ public class MeetingsTests
     [Fact]
     public void Notes_can_come_as_plain_text_too()
     {
-        Assert.Equal("Plain notes", MeetingsEndpoints.ParseCal("""{"triggerEvent":"BOOKING_CREATED","payload":{"uid":"b1","responses":{"notes":"Plain notes"}}}""")!.Notes);
-        Assert.Equal("old", MeetingsEndpoints.ParseCal("""{"triggerEvent":"BOOKING_RESCHEDULED","payload":{"uid":"b2","fromReschedule":"old"}}""")!.RescheduledFromUid);
-        Assert.Null(MeetingsEndpoints.ParseCal("null"));
+        Assert.Equal("Plain notes", MeetingsShared.ParseCal("""{"triggerEvent":"BOOKING_CREATED","payload":{"uid":"b1","responses":{"notes":"Plain notes"}}}""")!.Notes);
+        Assert.Equal("old", MeetingsShared.ParseCal("""{"triggerEvent":"BOOKING_RESCHEDULED","payload":{"uid":"b2","fromReschedule":"old"}}""")!.RescheduledFromUid);
+        Assert.Null(MeetingsShared.ParseCal("null"));
     }
 
     [Fact]
@@ -486,7 +487,7 @@ public class MeetingsTests
     {
         await Webhook(Booking("BOOKING_REQUESTED"));
 
-        var result = await Decide(_db.Meetings.Single().Id, accept: true, message: new string('x', MeetingsEndpoints.MessageMaxLength + 1));
+        var result = await Decide(_db.Meetings.Single().Id, accept: true, message: new string('x', MeetingsShared.MessageMaxLength + 1));
 
         Assert.IsType<ValidationProblem>(result.Result);
         Assert.Empty(_cal.Calls);
@@ -531,10 +532,10 @@ public class MeetingsTests
         Add("too far", Now.AddDays(90));
         await _db.SaveChangesAsync();
 
-        var next = (await MeetingsEndpoints.ListMeetings(_db, _time, default)).Value!;
+        var next = (await ListMeetings.Handle(_db, _time, default)).Value!;
         Assert.Equal(["sooner", "later"], next.Select(m => m.Title));
 
-        var september = (await MeetingsEndpoints.ListMeetings(_db, _time, default, Now.AddDays(-35), Now.AddDays(-5))).Value!;
+        var september = (await ListMeetings.Handle(_db, _time, default, Now.AddDays(-35), Now.AddDays(-5))).Value!;
         Assert.Equal(["long ago"], september.Select(m => m.Title));
     }
 
@@ -546,12 +547,12 @@ public class MeetingsTests
     [InlineData("REJECTED", MeetingStatus.Declined)]
     [InlineData("AWAITING_HOST", MeetingStatus.Accepted)]
     public void A_created_booking_takes_Cal_com_s_own_status(string calStatus, string expected) =>
-        Assert.Equal(expected, MeetingsEndpoints.ParseCal($$$"""{"triggerEvent":"BOOKING_CREATED","payload":{"uid":"b1","status":"{{{calStatus}}}"}}""")!.Status);
+        Assert.Equal(expected, MeetingsShared.ParseCal($$$"""{"triggerEvent":"BOOKING_CREATED","payload":{"uid":"b1","status":"{{{calStatus}}}"}}""")!.Status);
 
     [Fact]
     public void A_body_with_no_payload_is_read_from_its_top()
     {
-        var booking = MeetingsEndpoints.ParseCal("""{"triggerEvent":"BOOKING_CANCELLED","uid":"b9","title":"Flat"}""")!;
+        var booking = MeetingsShared.ParseCal("""{"triggerEvent":"BOOKING_CANCELLED","uid":"b9","title":"Flat"}""")!;
 
         Assert.Equal(("b9", MeetingStatus.Cancelled, "Flat"), (booking.Uid, booking.Status, booking.Title));
     }
@@ -565,7 +566,7 @@ public class MeetingsTests
 
         var alert = _alerts.Sent.Single();
         Assert.Equal("Meeting request: Mallory", alert.Title);
-        Assert.StartsWith($"{MeetingsEndpoints.NotFromConversation}\nThu 22 Oct, 15:00 (Europe/London)", alert.Message);
+        Assert.StartsWith($"{MeetingsShared.NotFromConversation}\nThu 22 Oct, 15:00 (Europe/London)", alert.Message);
         // Still decidable from the phone: declining it is one tap.
         Assert.Equal(["Accept", "Decline"], alert.Actions!.Select(a => a.Label));
     }
@@ -575,7 +576,7 @@ public class MeetingsTests
     {
         await Webhook(Booking("BOOKING_REQUESTED"));
 
-        Assert.DoesNotContain(MeetingsEndpoints.NotFromConversation, _alerts.Sent.Single().Message);
+        Assert.DoesNotContain(MeetingsShared.NotFromConversation, _alerts.Sent.Single().Message);
     }
 
     [Fact]
@@ -585,8 +586,8 @@ public class MeetingsTests
         await Webhook(Stranger("BOOKING_CANCELLED"));
 
         Assert.Equal(["Meeting booked: Mallory", "Meeting cancelled: Mallory"], _alerts.Sent.Select(a => a.Title));
-        Assert.StartsWith(MeetingsEndpoints.NotFromConversation, _alerts.Sent[0].Message);
-        Assert.DoesNotContain(MeetingsEndpoints.NotFromConversation, _alerts.Sent[1].Message);
+        Assert.StartsWith(MeetingsShared.NotFromConversation, _alerts.Sent[0].Message);
+        Assert.DoesNotContain(MeetingsShared.NotFromConversation, _alerts.Sent[1].Message);
     }
 
     [Fact]
@@ -595,7 +596,7 @@ public class MeetingsTests
         await Webhook(Booking("BOOKING_REQUESTED"));
         await Webhook(Stranger("BOOKING_REQUESTED"));
 
-        var meetings = (await MeetingsEndpoints.ListMeetings(_db, _time, default)).Value!;
+        var meetings = (await ListMeetings.Handle(_db, _time, default)).Value!;
 
         Assert.Equal([("Ada", true), ("Mallory", false)], meetings.Select(m => (m.AttendeeName, m.FromConversation)).OrderBy(m => m.AttendeeName));
     }
@@ -606,7 +607,7 @@ public class MeetingsTests
     [InlineData("", "")]
     [InlineData("https://evil.example/x", "")]
     public void The_admin_gets_the_booking_link_to_send(string link, string expected) =>
-        Assert.Equal(expected, MeetingsEndpoints.GetInfo(TestOptions.Monitor(new CalOptions { Link = link })).Value!.BookingUrl);
+        Assert.Equal(expected, GetMeetingsInfo.Handle(TestOptions.Monitor(new CalOptions { Link = link })).Value!.BookingUrl);
 
     [Theory]
     [InlineData("claomike/30min", "claomike/30min")]

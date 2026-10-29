@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Portfolio.Api.Common;
 
 namespace Portfolio.Api.UnitTests;
 

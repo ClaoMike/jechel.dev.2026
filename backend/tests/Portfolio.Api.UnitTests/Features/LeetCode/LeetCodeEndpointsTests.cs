@@ -21,12 +21,12 @@ public class LeetCodeEndpointsTests
     private LeetCodeStatsService Stats => new(_db, _leetCode, new LeetCodeMemoryCache(), _time, NullLogger<LeetCodeStatsService>.Instance);
 
     private Task SetUsernameAsync(string username) =>
-        AboutEndpoints.UpdateAbout(AboutDefaults.Content with { ProblemSolving = new ProblemSolving(username, []) }, _db, new DatabaseFileStorage(_db, _time), _time, default);
+        UpdateAbout.Handle(AboutDefaults.Content with { ProblemSolving = new ProblemSolving(username, []) }, _db, new DatabaseFileStorage(_db, _time), _time, default);
 
     [Fact]
     public async Task Without_a_username_there_is_nothing_to_show_and_leetcode_is_not_asked()
     {
-        var result = await LeetCodeEndpoints.GetStats(_db, Stats, default);
+        var result = await GetLeetCodeStats.Handle(_db, Stats, default);
 
         Assert.IsType<NoContent>(result.Result);
         Assert.Equal(0, _leetCode.Calls);
@@ -37,7 +37,7 @@ public class LeetCodeEndpointsTests
     {
         await SetUsernameAsync("neetcode");
 
-        var result = await LeetCodeEndpoints.GetStats(_db, Stats, default);
+        var result = await GetLeetCodeStats.Handle(_db, Stats, default);
 
         var stats = Assert.IsType<Ok<LeetCodeStats>>(result.Result).Value!;
         Assert.Equal(("neetcode", 205), (stats.Username, stats.Solved.All));
@@ -49,7 +49,7 @@ public class LeetCodeEndpointsTests
     {
         await SetUsernameAsync("nobody");
 
-        Assert.IsType<NotFound>((await LeetCodeEndpoints.GetStats(_db, Stats, default)).Result);
+        Assert.IsType<NotFound>((await GetLeetCodeStats.Handle(_db, Stats, default)).Result);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class LeetCodeEndpointsTests
         await SetUsernameAsync("neetcode");
         _leetCode.Fails = true;
 
-        var problem = Assert.IsType<ProblemHttpResult>((await LeetCodeEndpoints.GetStats(_db, Stats, default)).Result);
+        var problem = Assert.IsType<ProblemHttpResult>((await GetLeetCodeStats.Handle(_db, Stats, default)).Result);
 
         Assert.Equal(503, problem.StatusCode);
     }
@@ -67,11 +67,11 @@ public class LeetCodeEndpointsTests
     public async Task While_leetcode_is_down_the_saved_stats_are_shown()
     {
         await SetUsernameAsync("neetcode");
-        await LeetCodeEndpoints.GetStats(_db, Stats, default);
+        await GetLeetCodeStats.Handle(_db, Stats, default);
         _time.Advance(TimeSpan.FromDays(2));
         _leetCode.Fails = true;
 
-        var result = await LeetCodeEndpoints.GetStats(_db, Stats, default);
+        var result = await GetLeetCodeStats.Handle(_db, Stats, default);
 
         Assert.Equal(205, Assert.IsType<Ok<LeetCodeStats>>(result.Result).Value!.Solved.All);
         Assert.Equal(2, _leetCode.Calls);

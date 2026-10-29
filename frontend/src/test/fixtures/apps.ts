@@ -1,5 +1,5 @@
 /** Apps for tests: realistic, with local images so screenshots never depend on the network. */
-import type { AppCategory, AppDetails, Page } from '../../services/api'
+import type { AppCategory, AppDetails, Page } from '@/shared/api'
 import forest from './tile-forest.svg?url'
 import sunset from './tile-sunset.svg?url'
 

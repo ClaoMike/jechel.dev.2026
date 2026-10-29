@@ -117,10 +117,10 @@ public class InboundEmailTests
     [Fact]
     public async Task A_long_email_is_kept_to_the_longest_message_and_a_long_subject_cut()
     {
-        await Email("grace@example.com", new string('x', ContactEndpoints.ReplyMaxLength + 50), subject: new string('s', 400));
+        await Email("grace@example.com", new string('x', ContactShared.ReplyMaxLength + 50), subject: new string('s', 400));
 
         var stored = _db.ContactMessages.Single();
-        Assert.Equal((ContactEndpoints.ReplyMaxLength, 300), (stored.Message.Length, stored.Subject!.Length));
+        Assert.Equal((ContactShared.ReplyMaxLength, 300), (stored.Message.Length, stored.Subject!.Length));
     }
 
     [Fact]
@@ -384,7 +384,7 @@ public class InboundEmailTests
     [InlineData("jechel.dev <onboarding@resend.dev>", "whsec_x", "me@example.com")]
     [InlineData("", "whsec_x", "me@example.com")]
     public void Answers_ask_for_replies_to_the_admin_until_the_site_receives_them(string from, string secret, string? expected) =>
-        Assert.Equal(expected, ContactEndpoints.ReplyToFor(new EmailOptions { From = from, InboundWebhookSecret = secret }, new Portfolio.Api.Features.Auth.AdminOptions { AdminEmails = ["me@example.com"] }));
+        Assert.Equal(expected, ContactShared.ReplyToFor(new EmailOptions { From = from, InboundWebhookSecret = secret }, new Portfolio.Api.Features.Auth.AdminOptions { AdminEmails = ["me@example.com"] }));
 
     [Theory]
     [InlineData(null, "Re: your message to jechel.dev")]

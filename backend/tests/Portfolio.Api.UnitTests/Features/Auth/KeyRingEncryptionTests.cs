@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Portfolio.Api.Common;
 using Portfolio.Api.Data;
 
 namespace Portfolio.Api.UnitTests.Features.Auth;

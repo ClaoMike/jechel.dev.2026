@@ -43,7 +43,7 @@ public class UpdatesAnnouncer(
         var now = time.GetUtcNow();
         await ForgetUnconfirmedAsync(now, cancellationToken);
         // What visitors can see (Settings → Visitor pages): only that is announced.
-        var visible = await Site.SiteEndpoints.VisibleAsync(db, site.Value, cancellationToken);
+        var visible = await Site.SiteShared.VisibleAsync(db, site.Value, cancellationToken);
         var state = await db.UpdatesStates.FindAsync([UpdatesState.SingletonId], cancellationToken);
         if (state is null)
         {
@@ -83,7 +83,7 @@ public class UpdatesAnnouncer(
             .Select(s => new { s.Email, s.Token })
             .ToListAsync(cancellationToken);
 
-        var wording = await UpdateEmailsEndpoints.LoadAsync(db, cancellationToken);
+        var wording = await UpdateEmailsShared.LoadAsync(db, cancellationToken);
         var sent = 0;
         foreach (var announcement in approved)
         {

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using Portfolio.Api.Common;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Alerts;
 using Portfolio.Api.Features.Apps;
@@ -24,12 +25,12 @@ public class AppListingTests
         for (var i = 1; i <= count; i++)
         {
             if (!sameTime) _time.Advance(TimeSpan.FromMinutes(1));
-            await AppEndpoints.CreateApp(new AppRequest($"App {i}", "", []), _db, Files, _alerts, Options.Create(new SiteOptions()), _time, default);
+            await CreateApp.Handle(new AppRequest($"App {i}", "", []), _db, Files, _alerts, Options.Create(new SiteOptions()), _time, default);
         }
     }
 
-    private async Task<PagedResponse<AppDetails>> ListAsync(int page = 1, int pageSize = AppEndpoints.DefaultPageSize) =>
-        (await AppEndpoints.ListApps(_db, default, page, pageSize)).Value!;
+    private async Task<PagedResponse<AppDetails>> ListAsync(int page = 1, int pageSize = AppShared.DefaultPageSize) =>
+        (await ListApps.Handle(_db, default, page, pageSize)).Value!;
 
     [Fact]
     public async Task Lists_nine_a_page_newest_first_with_the_total()
@@ -89,8 +90,8 @@ public class AppListingTests
     [Fact]
     public async Task Changing_or_deleting_an_app_that_isnt_there_is_not_found()
     {
-        var update = await AppEndpoints.UpdateApp(404, new AppRequest("App", "", []), _db, Files, _time, default);
-        var delete = await AppEndpoints.DeleteApp(404, _db, Files, _time, default);
+        var update = await UpdateApp.Handle(404, new AppRequest("App", "", []), _db, Files, _time, default);
+        var delete = await DeleteApp.Handle(404, _db, Files, _time, default);
 
         Assert.IsType<NotFound>(update.Result);
         Assert.IsType<NotFound>(delete.Result);
@@ -102,7 +103,7 @@ public class AppListingTests
         await AddAsync(1);
         var id = (await ListAsync()).Items[0].Id;
 
-        var update = await AppEndpoints.UpdateApp(id, new AppRequest("", "", []), _db, Files, _time, default);
+        var update = await UpdateApp.Handle(id, new AppRequest("", "", []), _db, Files, _time, default);
 
         Assert.IsType<ValidationProblem>(update.Result);
         Assert.Equal("App 1", (await ListAsync()).Items[0].Title);
@@ -115,7 +116,7 @@ public class AppListingTests
         var older = (await ListAsync()).Items[1];
         _time.Advance(TimeSpan.FromDays(3));
 
-        var changed = Assert.IsType<Ok<AppDetails>>((await AppEndpoints.UpdateApp(older.Id, new AppRequest("Renamed", "", []), _db, Files, _time, default)).Result).Value!;
+        var changed = Assert.IsType<Ok<AppDetails>>((await UpdateApp.Handle(older.Id, new AppRequest("Renamed", "", []), _db, Files, _time, default)).Result).Value!;
 
         Assert.Equal(older.CreatedAt, changed.CreatedAt);
         Assert.Equal(["App 2", "Renamed"], (await ListAsync()).Items.Select(a => a.Title));
@@ -126,7 +127,7 @@ public class AppListingTests
     {
         var media = new[] { new AppMedia(" https://cdn.example.com/b.png ", "image"), new AppMedia("https://youtu.be/dQw4w9WgXcQ", "youtube"), new AppMedia("https://cdn.example.com/a.mp4", "video") };
 
-        var created = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(new AppRequest("App", "", media), _db, Files, _alerts, Options.Create(new SiteOptions()), _time, default)).Result).Value!;
+        var created = Assert.IsType<Created<AppDetails>>((await CreateApp.Handle(new AppRequest("App", "", media), _db, Files, _alerts, Options.Create(new SiteOptions()), _time, default)).Result).Value!;
 
         Assert.Equal(
             ["https://cdn.example.com/b.png", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://cdn.example.com/a.mp4"],

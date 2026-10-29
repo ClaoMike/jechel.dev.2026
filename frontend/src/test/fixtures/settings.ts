@@ -1,5 +1,5 @@
 /** What the API says about the connection settings, for tests. */
-import type { Setting, SettingsResponse } from '../../services/api'
+import type { Setting, SettingsResponse } from '@/shared/api'
 
 const setting = (key: string, label: string, value = '', isSecret = false): Setting => ({
   key,

@@ -8,7 +8,7 @@ going up, with a wide, open loop at the bottom that crosses the stem and leads i
 Mr Dafoe's units (1000 per em, y up, baseline 0, advance 160), so it sits where the font's j would.
 
 Writes:
-    frontend/src/assets/brand-j.svg   the title's j (a mask; glass.css fills it with the neon gradient)
+    frontend/src/app/styles/brand-j.svg   the title's j (a mask; glass.css fills it with the neon gradient)
     frontend/public/favicon.svg       the tab icon: a bolder j on a dark tile
 
     python3 scripts/build_brand_j.py
@@ -144,9 +144,9 @@ def icon_svg():
 
 
 def main():
-    (ROOT / "frontend/src/assets/brand-j.svg").write_text(title_svg())
+    (ROOT / "frontend/src/app/styles/brand-j.svg").write_text(title_svg())
     (ROOT / "frontend/public/favicon.svg").write_text(icon_svg())
-    print("wrote frontend/src/assets/brand-j.svg and frontend/public/favicon.svg")
+    print("wrote frontend/src/app/styles/brand-j.svg and frontend/public/favicon.svg")
 
 
 if __name__ == "__main__":

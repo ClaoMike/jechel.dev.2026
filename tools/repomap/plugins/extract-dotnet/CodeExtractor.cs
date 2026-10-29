@@ -108,6 +108,8 @@ public sealed class CodeExtractor
     private readonly Dictionary<IPropertySymbol, string> _entityProperties = new(SymbolEqualityComparer.Default);
     private readonly HashSet<INamedTypeSymbol> _dbContexts = new(SymbolEqualityComparer.Default);
     private readonly HashSet<INamedTypeSymbol> _endpointOwners = new(SymbolEqualityComparer.Default);
+    /// <summary>Vertical slices: types implementing an endpoint contract that a discovery call maps (see SliceContracts).</summary>
+    private readonly HashSet<INamedTypeSymbol> _slices = new(SymbolEqualityComparer.Default);
     private readonly Dictionary<INamedTypeSymbol, string> _registered = new(SymbolEqualityComparer.Default);
     private readonly HashSet<INamedTypeSymbol> _injected = new(SymbolEqualityComparer.Default);
     private readonly HashSet<INamedTypeSymbol> _returned = new(SymbolEqualityComparer.Default);
@@ -431,6 +433,15 @@ public sealed class CodeExtractor
             _ => null,
         };
         if (body is null) return;
+        if (SliceContracts(body, targetDoc) is { Count: > 0 } contracts)
+        {
+            // Endpoint discovery (vertical slices): a method that maps every type implementing an interface with a static
+            // abstract Map(IEndpointRouteBuilder), e.g. api.MapEndpoints() finding each IEndpoint. Each slice's Map is
+            // interpreted with the route scope the discovery was called on.
+            var builder = method.ReducedFrom is not null ? receiver : invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+            var scope = builder is null ? null : ScopeOf(builder, doc, env) ?? (IsRouteBuilder(builder, doc) ? RouteScope.Root : null);
+            if (scope is not null) InterpretSlices(contracts, scope, depth, visiting);
+        }
         var bindings = new Dictionary<string, RouteScope>();
         if (method.ReducedFrom is not null && receiver is not null && definition.Parameters.Length > 0)
         {
@@ -453,6 +464,45 @@ public sealed class CodeExtractor
         if (!visiting.Add(key)) return;
         Interpret(body, targetDoc, bindings, definition.ContainingType.OriginalDefinition, depth + 1, visiting);
     }
+
+    /// <summary>Interfaces a method's body looks types up by (typeof) whose static abstract method takes a route builder: slice contracts.</summary>
+    private static List<(INamedTypeSymbol Contract, IMethodSymbol Map)> SliceContracts(SyntaxNode body, DocInfo doc)
+    {
+        var found = new List<(INamedTypeSymbol, IMethodSymbol)>();
+        foreach (var typeOf in body.DescendantNodes().OfType<TypeOfExpressionSyntax>())
+        {
+            if (doc.Model.GetTypeInfo(typeOf.Type).Type is not INamedTypeSymbol { TypeKind: TypeKind.Interface } contract) continue;
+            var map = contract.GetMembers().OfType<IMethodSymbol>().FirstOrDefault(m => m is { IsStatic: true, IsAbstract: true } && m.Parameters.Any(p => IsRouteBuilderType(p.Type)));
+            if (map is not null && !found.Any(f => SymbolEqualityComparer.Default.Equals(f.Item1, contract))) found.Add((contract.OriginalDefinition, map));
+        }
+        return found;
+    }
+
+    /// <summary>Every type of ours implementing a slice contract: its Map, with the route builder bound to the scope.</summary>
+    private void InterpretSlices(List<(INamedTypeSymbol Contract, IMethodSymbol Map)> contracts, RouteScope scope, int depth, HashSet<string> visiting)
+    {
+        foreach (var (symbol, _) in _types.ToList())
+        {
+            foreach (var (contract, map) in contracts)
+            {
+                if (!symbol.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, contract))) continue;
+                if (symbol.FindImplementationForInterfaceMember(map) is not IMethodSymbol implementation) continue;
+                var reference = implementation.DeclaringSyntaxReferences.FirstOrDefault();
+                if (reference is null || !_docByTree.TryGetValue(reference.SyntaxTree, out var sliceDoc)) continue;
+                if (reference.GetSyntax() is not MethodDeclarationSyntax declaration) continue;
+                SyntaxNode? body = (SyntaxNode?)declaration.Body ?? declaration.ExpressionBody;
+                var parameter = implementation.Parameters.FirstOrDefault(p => IsRouteBuilderType(p.Type));
+                if (body is null || parameter is null) continue;
+                _slices.Add(symbol);
+                var key = implementation.ToDisplayString() + "|" + scope.Prefix;
+                if (!visiting.Add(key)) continue;
+                Interpret(body, sliceDoc, new Dictionary<string, RouteScope> { [parameter.Name] = scope }, symbol, depth + 1, visiting);
+            }
+        }
+    }
+
+    private static bool IsRouteBuilderType(ITypeSymbol type) =>
+        RouteBuilderTypes.Contains(type.Name) || type.AllInterfaces.Any(i => i.Name == "IEndpointRouteBuilder");
 
     private RouteScope? ScopeOf(ExpressionSyntax expression, DocInfo doc, Dictionary<string, RouteScope> env)
     {
@@ -871,6 +921,7 @@ public sealed class CodeExtractor
                 _ when _dbContexts.Contains(symbol) => "dbcontext",
                 _ when IsController(symbol, node) => "controller",
                 _ when IsSetup(symbol) => "setup",
+                _ when _slices.Contains(symbol) => "endpoint-slice",
                 _ when _endpointOwners.Contains(symbol) => "endpoint-group",
                 _ when _entities.Contains(symbol) => "entity",
                 _ when IsMiddleware(symbol) => "middleware",

@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Portfolio.Api.Common;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Alerts;
 using Portfolio.Api.Features.Settings;
@@ -151,7 +152,7 @@ public static class InboundEmail
             return TypedResults.Ok();
         }
 
-        var text = Cut(MessageOf(email), ContactEndpoints.ReplyMaxLength);
+        var text = Cut(MessageOf(email), ContactShared.ReplyMaxLength);
         var now = time.GetUtcNow();
         var address = sender.Address.ToLowerInvariant();
         var conversation = await db.ContactMessages

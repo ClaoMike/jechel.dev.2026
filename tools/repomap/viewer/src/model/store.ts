@@ -35,6 +35,12 @@ export type CameraCommand =
 
 /** Omit that distributes over union members (plain Omit collapses a union to its shared keys). */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+/** A camera position and what it looks at. */
+export interface MapView {
+  position: [number, number, number]
+  target: [number, number, number]
+}
+
 export type CameraRequest = DistributiveOmit<CameraCommand, 'nonce'>
 
 export interface GraphSource {
@@ -80,6 +86,8 @@ interface State {
   /** The user has touched/clicked the scene (hides the gesture hint). */
   interacted: boolean
   camera: CameraCommand | null
+  /** Where the 3D camera was when the map tab was left (the scene is unmounted meanwhile): it comes back there. */
+  mapView: MapView | null
   toast: { text: string; nonce: number } | null
   /** Right-click / long-press menu on a node, at scene coordinates. */
   contextMenu: { node: number; x: number; y: number } | null
@@ -96,6 +104,7 @@ interface State {
 
 interface Actions {
   setTab(tab: Tab): void
+  saveMapView(view: MapView | null): void
   setGraph(graph: RepoGraph, source: GraphSource, view?: ViewState | null, keepView?: boolean): void
   setLoading(loading: boolean): void
   setError(error: string | null): void
@@ -190,6 +199,7 @@ export const useViewer = create<State & Actions>((set, get) => {
     sheetExpanded: false,
     interacted: false,
     camera: null,
+    mapView: null,
     toast: null,
     contextMenu: null,
     codeView: null,
@@ -200,6 +210,10 @@ export const useViewer = create<State & Actions>((set, get) => {
       if (get().tab === tab) return
       set({ tab, contextMenu: null, viewMenuOpen: false, searchExpanded: false, helpOpen: false })
       writeHashParams({ tab: tab === 'map' ? null : tab })
+    },
+
+    saveMapView(view) {
+      set({ mapView: view })
     },
 
     setGraph(graph, source, view, keepView) {

@@ -1,4 +1,4 @@
-import type { ContactMessageDetails, ContactMessageSummary, Page } from '../../services/api'
+import type { ContactMessageDetails, ContactMessageSummary, Page } from '@/shared/api'
 
 const LONG = 'Hello Claudiu! I played the Space Game and loved the lighthouse level. Could we talk about how you built the beam? Thanks!'
 

@@ -1,4 +1,4 @@
-import type { AlertChannelState, Notification, NotificationKind, Page, PushSetup } from '../../services/api'
+import type { AlertChannelState, Notification, NotificationKind, Page, PushSetup } from '@/shared/api'
 
 /** The kinds as the API lists them (AlertKinds.cs), some with alerts lately. */
 export const KINDS: NotificationKind[] = [
@@ -18,7 +18,16 @@ export const KINDS: NotificationKind[] = [
 ]
 
 export const NOTIFICATIONS: Notification[] = [
-  { id: 3, kind: 'message', title: 'New message from Ada', message: 'Hello! I loved the Space Game.', path: '/contact', status: 'sent', createdAt: '2026-10-22T20:15:00Z', sentTo: ['ntfy', 'push'] },
+  {
+    id: 3,
+    kind: 'message',
+    title: 'New message from Ada',
+    message: 'Hello! I loved the Space Game.',
+    path: '/contact',
+    status: 'sent',
+    createdAt: '2026-10-22T20:15:00Z',
+    sentTo: ['ntfy', 'push'],
+  },
   {
     id: 2,
     kind: 'site-error',
@@ -29,7 +38,16 @@ export const NOTIFICATIONS: Notification[] = [
     createdAt: '2026-10-22T18:00:00Z',
     sentTo: [],
   },
-  { id: 1, kind: 'sign-in', title: 'Signed in to jechel.dev', message: 'Chrome on macOS · 203.0.113.7 (GB)', path: null, status: 'failed', createdAt: '2026-10-22T09:00:00Z', sentTo: [] },
+  {
+    id: 1,
+    kind: 'sign-in',
+    title: 'Signed in to jechel.dev',
+    message: 'Chrome on macOS · 203.0.113.7 (GB)',
+    path: null,
+    status: 'failed',
+    createdAt: '2026-10-22T09:00:00Z',
+    sentTo: [],
+  },
 ]
 
 export function pageOfNotifications(items: Notification[] = NOTIFICATIONS, totalCount = items.length, page = 1): Page<Notification> {
@@ -51,4 +69,3 @@ export const PUSH: PushSetup = {
     { id: 1, label: 'Mac · Chrome', endpoint: 'https://fcm.googleapis.com/fcm/send/mac', createdAt: '2026-10-23T09:00:00Z', lastSentAt: null },
   ],
 }
-

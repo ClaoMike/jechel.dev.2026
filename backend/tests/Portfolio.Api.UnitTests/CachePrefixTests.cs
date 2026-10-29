@@ -1,3 +1,5 @@
+using Portfolio.Api.Common;
+
 namespace Portfolio.Api.UnitTests;
 
 public class CachePrefixTests

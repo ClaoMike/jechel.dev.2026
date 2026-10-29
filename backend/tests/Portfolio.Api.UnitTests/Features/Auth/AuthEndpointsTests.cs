@@ -29,7 +29,7 @@ public class AuthEndpointsTests
     [InlineData("/ /evil.example.com", "/")]
     [InlineData("/about?tab=1#top", "/about?tab=1#top")]
     public void Only_lets_sign_in_return_to_a_path_on_this_site(string? input, string expected) =>
-        Assert.Equal(expected, AuthEndpoints.ToSafeReturnUrl(input));
+        Assert.Equal(expected, AuthShared.ToSafeReturnUrl(input));
 
     [Fact]
     public async Task Says_who_is_signed_in_and_the_seconds_left_rounded_up()
@@ -49,7 +49,7 @@ public class AuthEndpointsTests
         // The database keeps microseconds: a fraction of one early.
         time.Advance(TimeSpan.FromTicks(1));
 
-        var me = AuthEndpoints.GetCurrentUser(user, sessions, time).Value!;
+        var me = GetCurrentUser.Handle(user, sessions, time).Value!;
 
         Assert.Equal(new CurrentUserResponse("admin@example.com", "The Admin", "https://example.com/me.png", 600), me);
     }
@@ -60,7 +60,7 @@ public class AuthEndpointsTests
         var sessions = new AdminSessionService(null!, new FakeTimeProvider(), TestOptions.Monitor(new AdminOptions()));
         var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Email, "admin@example.com")], "Google"));
 
-        Assert.Equal(0, AuthEndpoints.GetCurrentUser(user, sessions, new FakeTimeProvider()).Value!.SessionExpiresInSeconds);
+        Assert.Equal(0, GetCurrentUser.Handle(user, sessions, new FakeTimeProvider()).Value!.SessionExpiresInSeconds);
     }
 
     [Fact]

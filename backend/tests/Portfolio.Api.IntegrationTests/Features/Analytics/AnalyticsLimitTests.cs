@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Portfolio.Api.Common;
 using Portfolio.Api.Features.Analytics;
 
 namespace Portfolio.Api.IntegrationTests.Features.Analytics;

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint",
+    "lint": "oxlint && steiger ./src",
     "typecheck": "tsc -b",
     "pretest": "node scripts/screenshots.ts",
     "test": "vitest run --coverage",
@@ -25,6 +25,7 @@
     "react-router": "^8.4.0"
   },
   "devDependencies": {
+    "@feature-sliced/steiger-plugin": "^0.8.0",
     "@types/d3-geo": "^3.1.1",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
@@ -37,6 +38,7 @@
     "d3-geo": "^3.1.1",
     "oxlint": "^1.81.0",
     "playwright": "^1.64.1",
+    "steiger": "^0.8.0",
     "topojson-client": "^3.1.0",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",

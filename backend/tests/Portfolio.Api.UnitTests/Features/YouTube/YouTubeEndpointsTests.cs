@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using Portfolio.Api.Common;
 using Portfolio.Api.Features.YouTube;
 
 namespace Portfolio.Api.UnitTests.Features.YouTube;
@@ -16,11 +17,11 @@ public class YouTubeEndpointsTests
 
     private YouTubeVideoStore Store => _store ??= new YouTubeVideoStore(new TestDatabase().Scopes, _youTube, TestOptions.Monitor(_options), new FakeTimeProvider(), NullLogger<YouTubeVideoStore>.Instance);
 
-    private Task<Results<Ok<PagedResponse<YouTubeVideo>>, ProblemHttpResult>> List(int page = 1, int pageSize = YouTubeEndpoints.DefaultPageSize) =>
-        YouTubeEndpoints.ListVideos(TestOptions.Monitor(_options), Store, _http, CancellationToken.None, page, pageSize);
+    private Task<Results<Ok<PagedResponse<YouTubeVideo>>, ProblemHttpResult>> List(int page = 1, int pageSize = YouTubeShared.DefaultPageSize) =>
+        ListYouTubeVideos.Handle(TestOptions.Monitor(_options), Store, _http, CancellationToken.None, page, pageSize);
 
     private Task<Results<Ok<RefreshResult>, ProblemHttpResult>> Refresh() =>
-        YouTubeEndpoints.Refresh(TestOptions.Monitor(_options), Store, CancellationToken.None);
+        RefreshYouTubeVideos.Handle(TestOptions.Monitor(_options), Store, CancellationToken.None);
 
     [Fact]
     public async Task Lists_the_first_nine_videos_newest_first_with_the_total()
@@ -145,7 +146,7 @@ public class YouTubeEndpointsTests
     {
         _options.Channel = channel;
 
-        var ok = Assert.IsType<Ok<YouTubeChannel>>(YouTubeEndpoints.GetChannel(TestOptions.Monitor(_options), _http).Result);
+        var ok = Assert.IsType<Ok<YouTubeChannel>>(GetYouTubeChannel.Handle(TestOptions.Monitor(_options), _http).Result);
 
         Assert.Equal(url, ok.Value!.Url);
         Assert.Equal("public, max-age=300", _http.Response.Headers.CacheControl.ToString());
@@ -156,7 +157,7 @@ public class YouTubeEndpointsTests
     {
         _options.ApiKey = "";
 
-        Assert.IsType<Ok<YouTubeChannel>>(YouTubeEndpoints.GetChannel(TestOptions.Monitor(_options), _http).Result);
+        Assert.IsType<Ok<YouTubeChannel>>(GetYouTubeChannel.Handle(TestOptions.Monitor(_options), _http).Result);
         Assert.Equal(0, _youTube.Calls);
     }
 
@@ -172,7 +173,7 @@ public class YouTubeEndpointsTests
     {
         _options.Channel = channel;
 
-        Assert.IsType<NoContent>(YouTubeEndpoints.GetChannel(TestOptions.Monitor(_options), _http).Result);
+        Assert.IsType<NoContent>(GetYouTubeChannel.Handle(TestOptions.Monitor(_options), _http).Result);
     }
 
     [Fact]
@@ -180,7 +181,7 @@ public class YouTubeEndpointsTests
     {
         _options.Channel = "@a b/c";
 
-        var ok = Assert.IsType<Ok<YouTubeChannel>>(YouTubeEndpoints.GetChannel(TestOptions.Monitor(_options), _http).Result);
+        var ok = Assert.IsType<Ok<YouTubeChannel>>(GetYouTubeChannel.Handle(TestOptions.Monitor(_options), _http).Result);
 
         Assert.Equal("https://www.youtube.com/@a%20b%2Fc", ok.Value!.Url);
     }

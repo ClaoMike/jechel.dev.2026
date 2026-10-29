@@ -44,7 +44,7 @@ public class ContactEndpointsTests
     {
         var request = new SendMessageRequest("  Ada  ", " ada@example.com ", $"  {LongMessage}  ");
 
-        var result = await ContactEndpoints.SendMessage(request, _db, _time, _alerts, CancellationToken.None);
+        var result = await SendContactMessage.Handle(request, _db, _time, _alerts, CancellationToken.None);
 
         Assert.IsType<Created>(result.Result);
         var stored = await _db.ContactMessages.SingleAsync();
@@ -61,12 +61,12 @@ public class ContactEndpointsTests
     [Fact]
     public async Task SendMessage_keeps_a_project_enquiry_as_one_subject_and_alert_and_inbox_say()
     {
-        var result = await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "ada@example.com", LongMessage, "project"), _db, _time, _alerts, CancellationToken.None);
+        var result = await SendContactMessage.Handle(new SendMessageRequest("Ada", "ada@example.com", LongMessage, "project"), _db, _time, _alerts, CancellationToken.None);
 
         Assert.IsType<Created>(result.Result);
         Assert.Equal("Project enquiry", (await _db.ContactMessages.SingleAsync()).Subject);
         Assert.Equal("New project enquiry from Ada", Assert.Single(_alerts.Sent).Title);
-        var listed = Assert.Single((await ContactEndpoints.ListMessages(_db, CancellationToken.None)).Value!.Items);
+        var listed = Assert.Single((await ListContactMessages.Handle(_db, CancellationToken.None)).Value!.Items);
         Assert.Equal("Project enquiry", listed.Subject);
     }
 
@@ -75,18 +75,18 @@ public class ContactEndpointsTests
     {
         foreach (var topic in new[] { null, "" })
         {
-            await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "ada@example.com", LongMessage, topic), _db, _time, _alerts, CancellationToken.None);
+            await SendContactMessage.Handle(new SendMessageRequest("Ada", "ada@example.com", LongMessage, topic), _db, _time, _alerts, CancellationToken.None);
         }
 
         Assert.All(await _db.ContactMessages.ToListAsync(), m => Assert.Null(m.Subject));
         Assert.All(_alerts.Sent, a => Assert.Equal("New message from Ada", a.Title));
-        Assert.All((await ContactEndpoints.ListMessages(_db, CancellationToken.None)).Value!.Items, m => Assert.Null(m.Subject));
+        Assert.All((await ListContactMessages.Handle(_db, CancellationToken.None)).Value!.Items, m => Assert.Null(m.Subject));
     }
 
     [Fact]
     public async Task SendMessage_rejects_an_invalid_request_and_stores_nothing()
     {
-        var result = await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "nope", "too short"), _db, _time, _alerts, CancellationToken.None);
+        var result = await SendContactMessage.Handle(new SendMessageRequest("Ada", "nope", "too short"), _db, _time, _alerts, CancellationToken.None);
 
         var problem = Assert.IsType<ValidationProblem>(result.Result);
         Assert.Equal(["email", "message"], problem.ProblemDetails.Errors.Keys.Order());
@@ -102,8 +102,8 @@ public class ContactEndpointsTests
             Seed($"Sender{i:00}", Now.AddMinutes(i), readAt: i % 2 == 0 ? Now : null);
         }
 
-        var first = (await ContactEndpoints.ListMessages(_db, CancellationToken.None, page: 1, pageSize: 5)).Value!;
-        var last = (await ContactEndpoints.ListMessages(_db, CancellationToken.None, page: 3, pageSize: 5)).Value!;
+        var first = (await ListContactMessages.Handle(_db, CancellationToken.None, page: 1, pageSize: 5)).Value!;
+        var last = (await ListContactMessages.Handle(_db, CancellationToken.None, page: 3, pageSize: 5)).Value!;
 
         Assert.Equal(12, first.TotalCount);
         Assert.Equal(["Sender12", "Sender11", "Sender10", "Sender09", "Sender08"], first.Items.Select(m => m.Name));
@@ -114,10 +114,10 @@ public class ContactEndpointsTests
 
     [Theory]
     [InlineData(0, 0, 1, 1)]
-    [InlineData(-5, 500, 1, ContactEndpoints.MaxPageSize)]
+    [InlineData(-5, 500, 1, ContactShared.MaxPageSize)]
     public async Task ListMessages_clamps_page_and_page_size(int page, int pageSize, int expectedPage, int expectedPageSize)
     {
-        var result = (await ContactEndpoints.ListMessages(_db, CancellationToken.None, page, pageSize)).Value!;
+        var result = (await ListContactMessages.Handle(_db, CancellationToken.None, page, pageSize)).Value!;
 
         Assert.Equal(expectedPage, result.Page);
         Assert.Equal(expectedPageSize, result.PageSize);
@@ -128,7 +128,7 @@ public class ContactEndpointsTests
     {
         Seed("Ada", Now);
 
-        var result = (await ContactEndpoints.ListMessages(_db, CancellationToken.None, page: 2)).Value!;
+        var result = (await ListContactMessages.Handle(_db, CancellationToken.None, page: 2)).Value!;
 
         Assert.Empty(result.Items);
         Assert.Equal(1, result.TotalCount);
@@ -139,7 +139,7 @@ public class ContactEndpointsTests
     {
         var seeded = Seed("Ada", Now);
 
-        var result = await ContactEndpoints.GetMessage(seeded.Id, _db, CancellationToken.None);
+        var result = await GetContactMessage.Handle(seeded.Id, _db, CancellationToken.None);
 
         var details = Assert.IsType<Ok<ContactMessageDetails>>(result.Result).Value!;
         Assert.Equal((seeded.Id, "Ada", "ada@example.com", LongMessage, Now, (DateTimeOffset?)null), (details.Id, details.Name, details.Email, details.Message, details.ReceivedAt, details.ReadAt));
@@ -151,7 +151,7 @@ public class ContactEndpointsTests
     [Fact]
     public async Task GetMessage_returns_not_found_for_an_unknown_id()
     {
-        Assert.IsType<NotFound>((await ContactEndpoints.GetMessage(404, _db, CancellationToken.None)).Result);
+        Assert.IsType<NotFound>((await GetContactMessage.Handle(404, _db, CancellationToken.None)).Result);
     }
 
     [Fact]
@@ -159,9 +159,9 @@ public class ContactEndpointsTests
     {
         var seeded = Seed("Ada", Now.AddHours(-1));
 
-        Assert.IsType<NoContent>((await ContactEndpoints.MarkAsRead(seeded.Id, _db, _time, CancellationToken.None)).Result);
+        Assert.IsType<NoContent>((await MarkContactMessageAsRead.Handle(seeded.Id, _db, _time, CancellationToken.None)).Result);
         _time.Advance(TimeSpan.FromHours(1));
-        Assert.IsType<NoContent>((await ContactEndpoints.MarkAsRead(seeded.Id, _db, _time, CancellationToken.None)).Result);
+        Assert.IsType<NoContent>((await MarkContactMessageAsRead.Handle(seeded.Id, _db, _time, CancellationToken.None)).Result);
 
         Assert.Equal(Now, (await _db.ContactMessages.SingleAsync()).ReadAt);
     }
@@ -169,7 +169,7 @@ public class ContactEndpointsTests
     [Fact]
     public async Task MarkAsRead_returns_not_found_for_an_unknown_id()
     {
-        Assert.IsType<NotFound>((await ContactEndpoints.MarkAsRead(404, _db, _time, CancellationToken.None)).Result);
+        Assert.IsType<NotFound>((await MarkContactMessageAsRead.Handle(404, _db, _time, CancellationToken.None)).Result);
     }
 
     [Fact]
@@ -178,10 +178,10 @@ public class ContactEndpointsTests
         var kept = Seed("Kept", Now);
         var deleted = Seed("Deleted", Now);
 
-        Assert.IsType<NoContent>((await ContactEndpoints.DeleteMessage(deleted.Id, _db, CancellationToken.None)).Result);
+        Assert.IsType<NoContent>((await DeleteContactMessage.Handle(deleted.Id, _db, CancellationToken.None)).Result);
 
         Assert.Equal([kept.Id], _db.ContactMessages.Select(m => m.Id));
-        Assert.IsType<NotFound>((await ContactEndpoints.DeleteMessage(deleted.Id, _db, CancellationToken.None)).Result);
+        Assert.IsType<NotFound>((await DeleteContactMessage.Handle(deleted.Id, _db, CancellationToken.None)).Result);
     }
 
     [Fact]
@@ -191,14 +191,14 @@ public class ContactEndpointsTests
         var emails = new Updates.FakeEmailSender();
         var admins = TestOptions.Monitor(new Portfolio.Api.Features.Auth.AdminOptions { AdminEmails = ["me@example.com"] });
 
-        var result = await ContactEndpoints.Reply(seeded.Id, new ReplyRequest("  Thanks, let's talk!  "), _db, emails, admins, NotReceiving, _time, CancellationToken.None);
+        var result = await ReplyToContactMessage.Handle(seeded.Id, new ReplyRequest("  Thanks, let's talk!  "), _db, emails, admins, NotReceiving, _time, CancellationToken.None);
 
         Assert.IsType<Ok<ContactReplyDto>>(result.Result);
         var email = Assert.Single(emails.Sent);
         Assert.Equal(("ada@example.com", "me@example.com"), (email.To, email.ReplyTo));
         Assert.Contains("Thanks, let's talk!", email.Text);
         Assert.Contains("> " + LongMessage[..20], email.Text);
-        var details = Assert.IsType<Ok<ContactMessageDetails>>((await ContactEndpoints.GetMessage(seeded.Id, _db, CancellationToken.None)).Result).Value!;
+        var details = Assert.IsType<Ok<ContactMessageDetails>>((await GetContactMessage.Handle(seeded.Id, _db, CancellationToken.None)).Result).Value!;
         Assert.Equal("Thanks, let's talk!", Assert.Single(details.Replies).Text);
         Assert.Equal(Now, details.ReadAt);
     }
@@ -210,9 +210,9 @@ public class ContactEndpointsTests
         var emails = new Updates.FakeEmailSender();
         var admins = TestOptions.Monitor(new Portfolio.Api.Features.Auth.AdminOptions());
 
-        Assert.IsType<ValidationProblem>((await ContactEndpoints.Reply(seeded.Id, new ReplyRequest(" "), _db, emails, admins, NotReceiving, _time, CancellationToken.None)).Result);
+        Assert.IsType<ValidationProblem>((await ReplyToContactMessage.Handle(seeded.Id, new ReplyRequest(" "), _db, emails, admins, NotReceiving, _time, CancellationToken.None)).Result);
         emails.FailWith = new Portfolio.Api.Features.Settings.ServiceException("Resend refused it: domain not verified");
-        var failed = await ContactEndpoints.Reply(seeded.Id, new ReplyRequest("Hi"), _db, emails, admins, NotReceiving, _time, CancellationToken.None);
+        var failed = await ReplyToContactMessage.Handle(seeded.Id, new ReplyRequest("Hi"), _db, emails, admins, NotReceiving, _time, CancellationToken.None);
 
         var problem = Assert.IsType<ProblemHttpResult>(failed.Result);
         Assert.Equal(503, problem.StatusCode);
@@ -225,7 +225,7 @@ public class ContactEndpointsTests
     private static readonly Portfolio.Api.Features.Auth.AdminOptions Admin = new() { AdminEmails = ["me@example.com"] };
 
     private async Task<ContactReplyDto> Answer(ContactMessage message, string text, Updates.FakeEmailSender? emails = null, TestOptions<EmailOptions>? email = null) =>
-        Assert.IsType<Ok<ContactReplyDto>>((await ContactEndpoints.Reply(message.Id, new ReplyRequest(text), _db, emails ?? new Updates.FakeEmailSender(), TestOptions.Monitor(Admin), email ?? Receiving, _time, default)).Result).Value!;
+        Assert.IsType<Ok<ContactReplyDto>>((await ReplyToContactMessage.Handle(message.Id, new ReplyRequest(text), _db, emails ?? new Updates.FakeEmailSender(), TestOptions.Monitor(Admin), email ?? Receiving, _time, default)).Result).Value!;
 
     /// <summary>The visitor's emailed answer, as <see cref="InboundEmail"/> keeps it.</summary>
     private void TheyWrite(ContactMessage message, string text, string? messageId = null)
@@ -237,7 +237,7 @@ public class ContactEndpointsTests
     [Fact]
     public async Task A_new_message_starts_a_conversation()
     {
-        await ContactEndpoints.SendMessage(new SendMessageRequest("Ada", "ada@example.com", LongMessage), _db, _time, _alerts, default);
+        await SendContactMessage.Handle(new SendMessageRequest("Ada", "ada@example.com", LongMessage), _db, _time, _alerts, default);
 
         var stored = _db.ContactMessages.Single();
         Assert.Equal((Now, (string?)null, (string?)null), (stored.LastActivityAt, stored.Subject, stored.EmailId));
@@ -288,7 +288,7 @@ public class ContactEndpointsTests
         Assert.Equal(["Re: Website question", "Re: Website question"], emails.Sent.Select(e => e.Subject));
         Assert.Equal(["<first@mail.example.com>", "<second@mail.example.com>"], emails.Sent.Select(e => e.InReplyTo));
         Assert.Contains("> Great, Tuesday?", emails.Sent[1].Text);
-        Assert.Equal("Website question", Assert.IsType<Ok<ContactMessageDetails>>((await ContactEndpoints.GetMessage(message.Id, _db, default)).Result).Value!.Subject);
+        Assert.Equal("Website question", Assert.IsType<Ok<ContactMessageDetails>>((await GetContactMessage.Handle(message.Id, _db, default)).Result).Value!.Subject);
     }
 
     [Fact]
@@ -316,7 +316,7 @@ public class ContactEndpointsTests
         var emails = new Updates.FakeEmailSender();
         await Answer(message, "Second answer", emails);
 
-        var details = Assert.IsType<Ok<ContactMessageDetails>>((await ContactEndpoints.GetMessage(message.Id, _db, default)).Result).Value!;
+        var details = Assert.IsType<Ok<ContactMessageDetails>>((await GetContactMessage.Handle(message.Id, _db, default)).Result).Value!;
         Assert.Equal([("First answer", false), ("Their follow-up", true), ("Second answer", false)], details.Replies.Select(r => (r.Text, r.FromVisitor)));
         // Quoted under the answer: their follow-up, not their first message.
         Assert.Contains("> Their follow-up", Assert.Single(emails.Sent).Text);
@@ -330,7 +330,7 @@ public class ContactEndpointsTests
         await Answer(message, "Hi");
         TheyWrite(message, "Hello");
 
-        await ContactEndpoints.DeleteMessage(message.Id, _db, default);
+        await DeleteContactMessage.Handle(message.Id, _db, default);
 
         Assert.Empty(_db.ContactReplies);
     }

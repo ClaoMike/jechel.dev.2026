@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
+using Portfolio.Api.Common;
 using Portfolio.Api.Features.Contact;
 
 namespace Portfolio.Api.IntegrationTests.Features.Contact;
@@ -34,7 +35,7 @@ public class ContactEndpointTests(PortfolioApiFactory factory)
     private static async Task<ContactMessageSummary> FindAsync(HttpClient admin, string name)
     {
         var page = await admin.GetFromJsonAsync<PagedResponse<ContactMessageSummary>>(
-            $"/api/contact/messages?pageSize={ContactEndpoints.MaxPageSize}");
+            $"/api/contact/messages?pageSize={ContactShared.MaxPageSize}");
         return page!.Items.Single(m => m.Name == name);
     }
 

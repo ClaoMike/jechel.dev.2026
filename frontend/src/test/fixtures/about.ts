@@ -1,5 +1,5 @@
 /** A full About Me page for tests: every section has something, links included. */
-import type { AboutContent } from '../../services/api'
+import type { AboutContent } from '@/shared/api'
 import photo from './photo.svg?no-inline'
 
 export const ABOUT: AboutContent = {
@@ -19,20 +19,46 @@ export const ABOUT: AboutContent = {
     places: { worked: '#f97316', studied: '#06b6d4', visited: '#eab308' },
   },
   places: [
-    { id: 2643123, name: 'Manchester', region: 'England', country: 'United Kingdom', latitude: 53.48, longitude: -2.24, visits: [{ kind: 'studied', note: 'BSc at [Manchester](https://www.manchester.ac.uk)' }, { kind: 'worked', note: '' }] },
+    {
+      id: 2643123,
+      name: 'Manchester',
+      region: 'England',
+      country: 'United Kingdom',
+      latitude: 53.48,
+      longitude: -2.24,
+      visits: [
+        { kind: 'studied', note: 'BSc at [Manchester](https://www.manchester.ac.uk)' },
+        { kind: 'worked', note: '' },
+      ],
+    },
     { id: 683506, name: 'Bucharest', region: 'Bucureşti', country: 'Romania', latitude: 44.43, longitude: 26.1, visits: [{ kind: 'visited', note: 'Home town' }] },
   ],
   problemSolving: { leetCodeUsername: 'jechel', neetCodeLists: ['blind75', 'neetcode150'] },
   skills: [
     { name: 'C#', periods: [{ start: '2018-09-01', end: null, uses: ['work', 'academic'] }] },
-    { name: 'React', periods: [{ start: '2020-03-01', end: '2022-06-01', uses: ['personal'] }, { start: '2023-01-01', end: null, uses: ['work'] }] },
+    {
+      name: 'React',
+      periods: [
+        { start: '2020-03-01', end: '2022-06-01', uses: ['personal'] },
+        { start: '2023-01-01', end: null, uses: ['work'] },
+      ],
+    },
     { name: 'COBOL', periods: [] },
   ],
   experience: [
-    { title: 'Software Engineer', company: '[Acme](https://acme.example)', location: 'Manchester', start: '2022-07-01', end: null, bullets: ['Built the [booking system](https://acme.example/booking).', 'Led the move to .NET 10.'] },
+    {
+      title: 'Software Engineer',
+      company: '[Acme](https://acme.example)',
+      location: 'Manchester',
+      start: '2022-07-01',
+      end: null,
+      bullets: ['Built the [booking system](https://acme.example/booking).', 'Led the move to .NET 10.'],
+    },
     { title: 'Intern', company: 'Globex', location: '', start: '2021-06-01', end: '2021-09-01', bullets: [] },
   ],
-  education: [{ title: 'BSc Computer Science', institution: '[The University of Manchester](https://www.manchester.ac.uk)', location: 'Manchester', start: '2018-09-01', end: '2022-06-01' }],
+  education: [
+    { title: 'BSc Computer Science', institution: '[The University of Manchester](https://www.manchester.ac.uk)', location: 'Manchester', start: '2018-09-01', end: '2022-06-01' },
+  ],
   papers: [
     { title: 'Fast tries for [autocomplete](https://example.com/tries)', fileUrl: '/api/files/papers/tries.pdf' },
     { title: 'An unpublished note', fileUrl: '' },

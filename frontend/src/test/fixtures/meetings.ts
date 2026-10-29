@@ -1,4 +1,4 @@
-import type { Meeting } from '../../services/api'
+import type { Meeting } from '@/shared/api'
 
 export const BOOKING_LINK = 'https://cal.com/claudiu/30min'
 

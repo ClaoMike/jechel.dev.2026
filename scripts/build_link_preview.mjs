@@ -8,7 +8,7 @@ const require = createRequire(new URL('../frontend/package.json', import.meta.ur
 const { chromium } = require('playwright')
 
 const asDataUrl = (path, type) => `data:${type};base64,${readFileSync(new URL(path, import.meta.url)).toString('base64')}`
-const art = asDataUrl('../frontend/src/assets/riviera/riviera-3840.webp', 'image/webp')
+const art = asDataUrl('../frontend/src/widgets/background/artwork/riviera-3840.webp', 'image/webp')
 const font = asDataUrl('../frontend/node_modules/@fontsource/mr-dafoe/files/mr-dafoe-latin-400-normal.woff2', 'font/woff2')
 
 const page = `<!doctype html>

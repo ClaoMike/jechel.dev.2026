@@ -21,7 +21,7 @@ public class AboutEndpointsTests
     [Fact]
     public async Task GetAbout_returns_the_placeholders_before_the_first_save()
     {
-        var result = await AboutEndpoints.GetAbout(_db, CancellationToken.None);
+        var result = await GetAbout.Handle(_db, CancellationToken.None);
 
         Assert.Same(AboutDefaults.Content, result.Value);
     }
@@ -31,11 +31,11 @@ public class AboutEndpointsTests
     {
         var content = AboutDefaults.Content with { PhotoUrl = " /me.jpg ", Skills = [Rust] };
 
-        var saved = await AboutEndpoints.UpdateAbout(content, _db, Files, _time, CancellationToken.None);
+        var saved = await UpdateAbout.Handle(content, _db, Files, _time, CancellationToken.None);
 
         var ok = Assert.IsType<Ok<AboutContent>>(saved.Result);
         Assert.Equal("/me.jpg", ok.Value!.PhotoUrl);
-        var loaded = (await AboutEndpoints.GetAbout(_db, CancellationToken.None)).Value!;
+        var loaded = (await GetAbout.Handle(_db, CancellationToken.None)).Value!;
         Assert.Equal("/me.jpg", loaded.PhotoUrl);
         Assert.Equal("Rust", Assert.Single(loaded.Skills).Name);
         var period = Assert.Single(loaded.Skills[0].Periods);
@@ -48,12 +48,12 @@ public class AboutEndpointsTests
     [Fact]
     public async Task UpdateAbout_replaces_the_previous_version()
     {
-        await AboutEndpoints.UpdateAbout(AboutDefaults.Content, _db, Files, _time, CancellationToken.None);
+        await UpdateAbout.Handle(AboutDefaults.Content, _db, Files, _time, CancellationToken.None);
 
-        await AboutEndpoints.UpdateAbout(AboutDefaults.Content with { Papers = [] }, _db, Files, _time, CancellationToken.None);
+        await UpdateAbout.Handle(AboutDefaults.Content with { Papers = [] }, _db, Files, _time, CancellationToken.None);
 
         Assert.Single(_db.AboutPages);
-        Assert.Empty((await AboutEndpoints.GetAbout(_db, CancellationToken.None)).Value!.Papers);
+        Assert.Empty((await GetAbout.Handle(_db, CancellationToken.None)).Value!.Papers);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class AboutEndpointsTests
     {
         var invalid = AboutDefaults.Content with { Links = AboutDefaults.Content.Links with { ResumeUrl = "javascript:alert(1)" } };
 
-        var result = await AboutEndpoints.UpdateAbout(invalid, _db, Files, _time, CancellationToken.None);
+        var result = await UpdateAbout.Handle(invalid, _db, Files, _time, CancellationToken.None);
 
         var problem = Assert.IsType<ValidationProblem>(result.Result);
         Assert.Equal(["links.resumeUrl"], problem.ProblemDetails.Errors.Keys);
@@ -83,7 +83,7 @@ public class AboutEndpointsTests
             Papers = [new Paper("My paper", FileRules.UrlFor(paper, "Paper.pdf"))],
         };
 
-        await AboutEndpoints.UpdateAbout(content, _db, Files, _time, CancellationToken.None);
+        await UpdateAbout.Handle(content, _db, Files, _time, CancellationToken.None);
 
         Assert.Null(await Files.GetAsync(oldPhoto, CancellationToken.None));
         Assert.NotNull(await Files.GetAsync(resume, CancellationToken.None));
@@ -97,7 +97,7 @@ public class AboutEndpointsTests
         _db.AboutPages.Add(new AboutPage { Id = AboutPage.SingletonId, Content = """{"photoUrl":"","links":{"resumeUrl":"","gitHubUrl":"","linkedInUrl":"","instagramUrl":""},"skills":[{"name":"C#","level":90}],"experience":[],"education":[],"papers":[],"qualifications":["Cert"]}""" });
         await _db.SaveChangesAsync();
 
-        var page = (await AboutEndpoints.GetAbout(_db, CancellationToken.None)).Value!;
+        var page = (await GetAbout.Handle(_db, CancellationToken.None)).Value!;
 
         Assert.Empty(page.Skills[0].Periods);
         Assert.Equal("Cert", page.Qualifications[0].Title);

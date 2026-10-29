@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Alerts;
+using Portfolio.Api.Features.Apps;
 using Portfolio.Api.Features.Settings;
 using Portfolio.Api.Features.Updates;
 using Portfolio.Api.Features.YouTube;
@@ -40,18 +41,18 @@ public class UpdateEmailsEndpointsTests
 
     private YouTubeVideoStore Videos() => new(_database.Scopes, _youTube, TestOptions.Monitor(_youTubeOptions), _time, NullLogger<YouTubeVideoStore>.Instance);
 
-    private async Task<UpdateEmailsDocument> Get() => (await UpdateEmailsEndpoints.GetWording(_db, default)).Value!;
+    private async Task<UpdateEmailsDocument> Get() => (await GetUpdateEmails.Handle(_db, default)).Value!;
 
     private async Task<Results<Ok<UpdateEmailsDocument>, ValidationProblem>> Save(UpdateEmailWording wording) =>
-        await UpdateEmailsEndpoints.SaveWording(wording, _db, _time, default);
+        await SaveUpdateEmails.Handle(wording, _db, _time, default);
 
     private async Task<Results<Ok<UpdateEmailPreview>, ValidationProblem>> Preview(string? kind, UpdateEmailWording? wording = null, YouTubeVideoStore? videos = null) =>
-        await UpdateEmailsEndpoints.Preview(new UpdateEmailPreviewRequest(kind, wording ?? Defaults), _db, Options.Create(_site), TestOptions.Monitor(_emailOptions), TestOptions.Monitor(_youTubeOptions), videos ?? Videos(), Admin(), default);
+        await PreviewUpdateEmail.Handle(new UpdateEmailPreviewRequest(kind, wording ?? Defaults), _db, Options.Create(_site), TestOptions.Monitor(_emailOptions), TestOptions.Monitor(_youTubeOptions), videos ?? Videos(), Admin(), default);
 
     private static UpdateEmailPreview Shown(Results<Ok<UpdateEmailPreview>, ValidationProblem> result) => Assert.IsType<Ok<UpdateEmailPreview>>(result.Result).Value!;
 
     private async Task<Results<Ok<TestResult>, ValidationProblem>> Test(string kind, UpdateEmailWording? wording = null, IEmailSender? sender = null, ClaimsPrincipal? admin = null) =>
-        await UpdateEmailsEndpoints.SendTest(new UpdateEmailPreviewRequest(kind, wording ?? Defaults), _db, sender ?? _emails, Options.Create(_site), TestOptions.Monitor(_youTubeOptions), Videos(), admin ?? Admin(), default);
+        await TestUpdateEmail.Handle(new UpdateEmailPreviewRequest(kind, wording ?? Defaults), _db, sender ?? _emails, Options.Create(_site), TestOptions.Monitor(_youTubeOptions), Videos(), admin ?? Admin(), default);
 
     private static TestResult Outcome(Results<Ok<TestResult>, ValidationProblem> result) => Assert.IsType<Ok<TestResult>>(result.Result).Value!;
 
@@ -107,8 +108,8 @@ public class UpdateEmailsEndpointsTests
     {
         await Save(Mine);
 
-        var reset = (await UpdateEmailsEndpoints.ResetWording(_db, default)).Value!;
-        var again = (await UpdateEmailsEndpoints.ResetWording(_db, default)).Value!;
+        var reset = (await ResetUpdateEmails.Handle(_db, default)).Value!;
+        var again = (await ResetUpdateEmails.Handle(_db, default)).Value!;
 
         Assert.Equal(Defaults, reset.Wording);
         Assert.Null(reset.UpdatedAt);
@@ -122,7 +123,7 @@ public class UpdateEmailsEndpointsTests
     {
         await Save(Mine);
 
-        await UpdatesEndpoints.Subscribe(new SubscribeRequest("ada@example.com"), _db, _emails, Options.Create(_site), new FakePhoneAlerts(), _time, NullLoggerFactory.Instance, default);
+        await Subscribe.Handle(new SubscribeRequest("ada@example.com"), _db, _emails, Options.Create(_site), new FakePhoneAlerts(), _time, NullLoggerFactory.Instance, default);
 
         var email = Assert.Single(_emails.Sent);
         Assert.Equal("Say yes to jechel.dev", email.Subject);
@@ -214,7 +215,7 @@ public class UpdateEmailsEndpointsTests
     public async Task The_preview_checks_the_wording_and_the_kind_of_email()
     {
         var bad = Assert.IsType<ValidationProblem>((await Preview("newsletter", Mine with { App = Mine.App with { Button = "" } })).Result);
-        var missing = Assert.IsType<ValidationProblem>((await UpdateEmailsEndpoints.Preview(new UpdateEmailPreviewRequest(null, null), _db, Options.Create(_site), TestOptions.Monitor(_emailOptions), TestOptions.Monitor(_youTubeOptions), Videos(), Admin(), default)).Result);
+        var missing = Assert.IsType<ValidationProblem>((await PreviewUpdateEmail.Handle(new UpdateEmailPreviewRequest(null, null), _db, Options.Create(_site), TestOptions.Monitor(_emailOptions), TestOptions.Monitor(_youTubeOptions), Videos(), Admin(), default)).Result);
 
         Assert.Equal(["app.button", "kind"], bad.ProblemDetails.Errors.Keys.Order());
         Assert.Equal(["", "kind"], missing.ProblemDetails.Errors.Keys.Order());
@@ -241,8 +242,8 @@ public class UpdateEmailsEndpointsTests
     public void The_test_code_is_the_one_the_sites_pages_know()
     {
         // frontend/src/features/updates/useTokenAction.ts: TEST_TOKEN. Real codes are 43 random characters, never this.
-        Assert.Equal("test", UpdateEmailsEndpoints.TestToken);
-        Assert.NotEqual(UpdateEmailsEndpoints.TestToken.Length, UpdatesEndpoints.NewToken().Length);
+        Assert.Equal("test", UpdateEmailsShared.TestToken);
+        Assert.NotEqual(UpdateEmailsShared.TestToken.Length, UpdatesShared.NewToken().Length);
     }
 
     [Fact]
@@ -256,7 +257,7 @@ public class UpdateEmailsEndpointsTests
         Assert.Equal("https://jechel.dev/api/updates/unsubscribe?token=admins-own", email.UnsubscribeUrl);
         Assert.Contains("https://jechel.dev/updates/unsubscribe?token=admins-own", email.Html);
 
-        await UpdatesEndpoints.Unsubscribe("admins-own", _db, default);
+        await Unsubscribe.Handle("admins-own", _db, default);
         Assert.Empty(_db.Subscribers);
     }
 

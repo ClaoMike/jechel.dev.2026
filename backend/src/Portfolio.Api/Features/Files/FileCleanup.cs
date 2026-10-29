@@ -15,7 +15,7 @@ public static class FileCleanup
     /// <summary>Call after saving anything that holds file URLs.</summary>
     public static async Task DeleteUnusedAsync(PortfolioDbContext db, IFileStorage files, TimeProvider time, CancellationToken cancellationToken)
     {
-        var page = await AboutEndpoints.LoadAsync(db, cancellationToken);
+        var page = await AboutShared.LoadAsync(db, cancellationToken);
         var appMedia = await db.Apps.AsNoTracking().Select(a => a.Media).ToListAsync(cancellationToken);
 
         IEnumerable<string> urls = [page.PhotoUrl, page.Links.ResumeUrl, .. page.Papers.Select(p => p.FileUrl)];

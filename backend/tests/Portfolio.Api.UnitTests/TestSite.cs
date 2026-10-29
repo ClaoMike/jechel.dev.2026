@@ -6,7 +6,7 @@ using Portfolio.Api.Features.Alerts;
 
 namespace Portfolio.Api.UnitTests;
 
-/// <summary>What SiteEndpoints.LoadAsync needs: the database (in memory), the site options and a HybridCache.</summary>
+/// <summary>What SiteShared.LoadAsync needs: the database (in memory), the site options and a HybridCache.</summary>
 public static class TestSite
 {
     public static ServiceProvider Services(bool visibleByDefault = true, string? database = null)

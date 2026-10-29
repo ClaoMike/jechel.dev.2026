@@ -26,6 +26,81 @@ export interface FeatureDef {
   id: string
   label: string
   color: string
+  /** A slice (or segment, or whole layer) of an architecture: the layer it is in, shown as its column. */
+  layer?: { architecture: string; id: string; label: string; order: number }
+}
+
+/**
+ * A layered architecture the code follows (Feature-Sliced Design, vertical slices…), from config: the folders under `root`
+ * are its layers, in dependency order (a layer may use the ones after it, never one before it). A layer's subfolders
+ * can be its features: `slices` (which don't use each other, unless the layer is `open`) or `segments` (which may);
+ * otherwise the whole layer is one feature. Its features are shown in their layers' columns on `tier`'s board.
+ */
+export interface ArchitectureDef {
+  id: string
+  label: string
+  /** The tier whose board shows it. */
+  tier: string
+  /** Repo-relative folder holding the layers. */
+  root: string
+  layers: ArchitectureLayer[]
+  /**
+   * How a slice may still use another of its layer: through a folder of that slice meant for it, e.g. "@x"
+   * (Feature-Sliced Design: entities/session/@x/site.ts is what entities/site may use of entities/session).
+   */
+  crossImports?: string
+  description?: string
+}
+
+export interface ArchitectureLayer {
+  /** Its folder under the root. */
+  id: string
+  label: string
+  parts?: 'slices' | 'segments'
+  /** Its slices may use each other (e.g. a vertical slice architecture's features calling each other's services). */
+  open?: boolean
+  description?: string
+}
+
+/** Where a file sits in an architecture. */
+export interface ArchitecturePlace {
+  architecture: string
+  layer: string
+  /** The layer's position: lower ones may use higher ones. */
+  order: number
+  /** Its slice or segment (none: the layer is one feature, or a file right in a sliced layer). */
+  part?: string
+  /** Slices of its layer don't use each other. */
+  isolated: boolean
+  feature: string
+}
+
+/** The feature of a place in an architecture: `<architecture>/<layer>[/<slice>]`, e.g. fsd/pages/about, vsa/Features/Apps. */
+export function architectureFeature(architecture: string, layer: string, part?: string): string {
+  return [architecture, layer, part].filter(Boolean).join('/')
+}
+
+/** Where a file is in one of the architectures (its layer, slice and feature), or undefined. */
+export function architecturePlace(file: string | undefined, architectures: ArchitectureDef[] | undefined): ArchitecturePlace | undefined {
+  if (!file || !architectures) return undefined
+  for (const arch of architectures) {
+    const root = `${arch.root.replace(/\/+$/, '')}/`
+    if (!file.startsWith(root)) continue
+    const parts = file.slice(root.length).split('/')
+    const order = arch.layers.findIndex((l) => l.id === parts[0])
+    if (order < 0) continue
+    const layer = arch.layers[order]
+    const part = layer.parts && parts.length > 2 ? parts[1] : undefined
+    return {
+      architecture: arch.id,
+      layer: layer.id,
+      order,
+      ...(part ? { part } : {}),
+      isolated: layer.parts === 'slices' && !layer.open,
+      feature: architectureFeature(arch.id, layer.id, part),
+    }
+  }
+  return undefined
 }
 
 export type FeatureSource = 'path' | 'manual' | 'llm' | 'derived' | 'shared'
@@ -94,6 +169,11 @@ export interface RuleDef {
   deny?: boolean
   sameFeature?: boolean
   allowFeatures?: string[]
+  /**
+   * An architecture's id (`board.architectures`): its layers keep their order. An edge between two of its places
+   * breaks it when it goes to a layer before its own, or between two slices of a layer whose slices don't use each other.
+   */
+  layered?: string
 }
 
 export interface Violation {
@@ -109,6 +189,7 @@ export interface Violation {
 export interface BoardData {
   tiers: TierDef[]
   features: FeatureDef[]
+  architectures?: ArchitectureDef[]
   /** Keys: a node id, `app`, `tier:<tier>`, `feature:<feature>@<tier>`. */
   summaries?: Record<string, Summary>
   rules?: RuleDef[]
@@ -154,6 +235,10 @@ export interface AssignOptions {
   aliases?: Record<string, string>
   /** Set by config (globs resolved by the builder): wins over everything. */
   manual?: Map<string, string>
+  /** Node id → its architecture feature (its slice, from its folder): next after config. */
+  placed?: Map<string, string>
+  /** The architecture feature a folder's feature tag stands for on the node's tier (tests/Features/Apps → vsa/Features/Apps). */
+  sliceFor?: (node: GraphNode, key: string) => string | undefined
   /** Set by the AI for nodes nothing else placed. */
   llm?: Map<string, string>
   /** Features whose nodes don't vote (used by everything, like an API service): neighbours aren't pulled into them. */
@@ -171,7 +256,8 @@ export function assignFeatures(nodes: GraphNode[], edges: GraphEdge[], options: 
   const alias = (key: string) => {
     const k = featureKey(key)
     const target = options.aliases?.[k]
-    return target ? featureKey(target) : k
+    // An architecture's feature (fsd/pages/about) is taken as it is.
+    return target ? (target.includes('/') ? target : featureKey(target)) : k
   }
   const result = new Map<string, { feature: string; source: FeatureSource }>()
   for (const node of nodes) {
@@ -180,9 +266,14 @@ export function assignFeatures(nodes: GraphNode[], edges: GraphEdge[], options: 
       result.set(node.id, { feature: alias(manual), source: 'manual' })
       continue
     }
+    const placed = options.placed?.get(node.id)
+    if (placed) {
+      result.set(node.id, { feature: placed, source: 'path' })
+      continue
+    }
     const tagged = taggedFeature(node)
     if (tagged) {
-      result.set(node.id, { feature: alias(tagged), source: 'path' })
+      result.set(node.id, { feature: options.sliceFor?.(node, tagged) ?? alias(tagged), source: 'path' })
       continue
     }
     const llm = options.llm?.get(node.id)
@@ -248,16 +339,42 @@ export function assignFeatures(nodes: GraphNode[], edges: GraphEdge[], options: 
   return result
 }
 
-/** Feature definitions for the keys in use: labels from config, else title case; shared last, grey. */
-export function featureDefs(keys: Iterable<string>, labels: Record<string, string> = {}): FeatureDef[] {
+/**
+ * Feature definitions for the keys in use: labels from config, else title case (an architecture's slice: its folder's
+ * name in words, a whole layer: the layer's label); shared last, grey.
+ */
+export function featureDefs(keys: Iterable<string>, labels: Record<string, string> = {}, architectures: ArchitectureDef[] = []): FeatureDef[] {
+  const layers = new Map<string, { def: NonNullable<FeatureDef['layer']>; part?: string; label: string }>()
+  for (const arch of architectures) {
+    arch.layers.forEach((layer, order) => {
+      const def = { architecture: arch.id, id: layer.id, label: layer.label, order }
+      layers.set(architectureFeature(arch.id, layer.id), { def, label: layer.label })
+    })
+  }
+  const layerOf = (id: string) => {
+    const whole = layers.get(id)
+    if (whole) return whole
+    const slash = id.lastIndexOf('/')
+    const parent = slash > 0 ? layers.get(id.slice(0, slash)) : undefined
+    return parent ? { def: parent.def, part: id.slice(slash + 1), label: words(id.slice(slash + 1)) } : undefined
+  }
   const sorted = [...new Set(keys)].filter((k) => k !== SHARED_FEATURE).sort()
-  const defs = sorted.map((id, i) => ({ id, label: labels[id] ?? titleCase(id), color: FEATURE_COLORS[i % FEATURE_COLORS.length] }))
+  const defs: FeatureDef[] = sorted.map((id, i) => {
+    const layer = layerOf(id)
+    return { id, label: labels[id] ?? layer?.label ?? titleCase(id), color: FEATURE_COLORS[i % FEATURE_COLORS.length], ...(layer ? { layer: layer.def } : {}) }
+  })
   defs.push({ id: SHARED_FEATURE, label: labels[SHARED_FEATURE] ?? 'Shared', color: '#94a3b8' })
   return defs
 }
 
 function titleCase(id: string): string {
   return id.charAt(0).toUpperCase() + id.slice(1)
+}
+
+/** A folder's name in words: "whats-new" → "Whats new", "workWithMe" → "Work with me". */
+function words(name: string): string {
+  const spaced = name.replace(/[-_]+/g, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()
+  return titleCase(spaced)
 }
 
 /** The members an extractor listed for a node (`attrs.members`). */
@@ -283,6 +400,8 @@ export function memberAt(node: GraphNode, line: number | undefined): Member | un
 
 /** Edge types rules skip unless they name them. */
 const RULE_SKIP = new Set(['contains', 'uses-type'])
+/** Layered rules count type references (an import is an import) but not links to a route (navigating isn't using its code). */
+const LAYERED_SKIP = new Set(['contains', 'navigates'])
 
 export function roleCovers(roles: string[], role: string): boolean {
   return roles.some((r) => role === r || role.startsWith(`${r}/`))
@@ -301,8 +420,27 @@ function matchesSelector(selector: RuleSelector | undefined, node: GraphNode, ti
   )
 }
 
+export interface RuleContext {
+  /** Where a node is in the architectures (layered rules). */
+  placeOf?: (id: string) => ArchitecturePlace | undefined
+  /** A crossing between two slices the architecture allows anyway (e.g. Feature-Sliced Design's @x imports). */
+  allowCrossing?: (edge: GraphEdge, from: ArchitecturePlace, to: ArchitecturePlace) => boolean
+}
+
+/** Why an edge breaks a layered architecture, or undefined. */
+function layeredBreak(rule: RuleDef, from: GraphNode, to: GraphNode, edge: GraphEdge, context: RuleContext): string | undefined {
+  const a = context.placeOf?.(from.id)
+  const b = context.placeOf?.(to.id)
+  if (!a || !b || a.architecture !== rule.layered || b.architecture !== rule.layered) return undefined
+  if (b.order < a.order) return `${from.label} (${a.layer}) → ${to.label} (${b.layer}) goes up a layer`
+  if (b.order === a.order && a.isolated && a.part !== b.part && a.part && b.part && !context.allowCrossing?.(edge, a, b)) {
+    return `${from.label} (${a.layer}/${a.part}) → ${to.label} (${b.layer}/${b.part}): slices of ${a.layer} don't use each other`
+  }
+  return undefined
+}
+
 /** The edges that break the rules (nodes need `feature` set; tiers map layers). */
-export function checkRules(nodes: GraphNode[], edges: GraphEdge[], tiers: TierDef[], rules: RuleDef[], featureOf: (id: string) => string | undefined): Violation[] {
+export function checkRules(nodes: GraphNode[], edges: GraphEdge[], tiers: TierDef[], rules: RuleDef[], featureOf: (id: string) => string | undefined, context: RuleContext = {}): Violation[] {
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const tierOf = new Map<string, string>()
   for (const tier of tiers) for (const layer of tier.layers) tierOf.set(layer, tier.id)
@@ -310,16 +448,17 @@ export function checkRules(nodes: GraphNode[], edges: GraphEdge[], tiers: TierDe
   for (const rule of rules) {
     const severity = rule.severity ?? 'warn'
     for (const edge of edges) {
-      if (rule.edgeTypes ? !rule.edgeTypes.includes(edge.type) : RULE_SKIP.has(edge.type)) continue
+      if (rule.edgeTypes ? !rule.edgeTypes.includes(edge.type) : (rule.layered ? LAYERED_SKIP : RULE_SKIP).has(edge.type)) continue
       const from = byId.get(edge.from)
       const to = byId.get(edge.to)
-      if (!from || !to) continue
+      if (!from || !to || from.id === to.id) continue
       const fromFeature = featureOf(from.id)
       const toFeature = featureOf(to.id)
       if (!matchesSelector(rule.from, from, tierOf.get(from.layer), fromFeature)) continue
       if (!matchesSelector(rule.to, to, tierOf.get(to.layer), toFeature)) continue
       let message: string | undefined
-      if (rule.deny) message = `${from.label} → ${to.label} (${edge.type}) is not allowed`
+      if (rule.layered) message = layeredBreak(rule, from, to, edge, context)
+      else if (rule.deny) message = `${from.label} → ${to.label} (${edge.type}) is not allowed`
       else if (rule.sameFeature && fromFeature !== toFeature) {
         const allowed = [SHARED_FEATURE, ...(rule.allowFeatures ?? [])]
         if (!allowed.includes(toFeature ?? '') && !allowed.includes(fromFeature ?? '')) {

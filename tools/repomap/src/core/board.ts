@@ -5,9 +5,11 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  architecturePlace,
   assignFeatures,
   checkRules,
   featureDefs,
+  featureKey,
   resolveTiers,
   summarizable,
   summaryKey,
@@ -48,6 +50,21 @@ export function writeAiFile(path: string, data: AiFile): void {
   const sortObject = <T>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b)))
   const out = { version: 1, features: sortObject(data.features), summaries: sortObject(data.summaries), ...(data.suggestedRules ? { suggestedRules: data.suggestedRules } : {}) }
   writeFileSync(path, `${JSON.stringify(out, null, 1)}\n`)
+}
+
+/** Reads a repo file's text, caching it (undefined when it can't be read). */
+function sourceReader(repoRoot: string): (file: string) => string | undefined {
+  const files = new Map<string, string | undefined>()
+  return (file) => {
+    if (!files.has(file)) {
+      try {
+        files.set(file, readFileSync(join(repoRoot, file), 'utf8'))
+      } catch {
+        files.set(file, undefined)
+      }
+    }
+    return files.get(file)
+  }
 }
 
 /** Reads a node's code (its lines), caching files. */
@@ -152,9 +169,23 @@ export function buildBoard(config: RepoMapConfig, nodes: GraphNode[], edges: Gra
   const tiers = resolveTiers(layers, config.board.tiers)
   const ai = readAiFile(config.ai.file)
   const llm = new Map(Object.entries(ai.features).map(([id, entry]) => [id, entry.feature]))
+  const architectures = config.board.architectures ?? []
+  const places = new Map(nodes.flatMap((n) => {
+    const place = architecturePlace(n.file, architectures)
+    return place ? [[n.id, place] as const] : []
+  }))
+  // A folder's feature tag that names a slice of the tier's architecture is that slice (backend tests in Features/Apps).
+  const tierOfLayer = new Map(tiers.flatMap((t) => t.layers.map((l) => [l, t.id] as const)))
+  const slices = new Map<string, Map<string, string>>()
+  for (const arch of architectures) {
+    const keys = slices.get(arch.tier) ?? slices.set(arch.tier, new Map()).get(arch.tier)!
+    for (const place of places.values()) if (place.architecture === arch.id && place.part && !keys.has(featureKey(place.part))) keys.set(featureKey(place.part), place.feature)
+  }
   const assigned = assignFeatures(nodes, edges, {
+    sliceFor: (node, key) => slices.get(tierOfLayer.get(node.layer) ?? '')?.get(key),
     aliases: config.board.featureAliases,
     manual: manualFeatures(nodes, config.board.featureOverrides),
+    placed: new Map([...places].map(([id, place]) => [id, place.feature])),
     hubs: config.board.hubFeatures,
     llm,
   })
@@ -166,6 +197,7 @@ export function buildBoard(config: RepoMapConfig, nodes: GraphNode[], edges: Gra
   const features = featureDefs(
     nodes.map((n) => n.feature!),
     config.board.featureLabels,
+    architectures,
   )
   const summaries: Record<string, Summary> = {}
   for (const target of summaryTargets(nodes, tiers, codeReader(config.repoRoot))) {
@@ -175,8 +207,18 @@ export function buildBoard(config: RepoMapConfig, nodes: GraphNode[], edges: Gra
     if (!summaries[target.key].stale) delete summaries[target.key].stale
   }
   const featureOf = new Map(nodes.map((n) => [n.id, n.feature]))
-  const violations = checkRules(nodes, edges, tiers, config.rules, (id) => featureOf.get(id))
-  const board: BoardData = { tiers, features }
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  const source = sourceReader(config.repoRoot)
+  const violations = checkRules(nodes, edges, tiers, config.rules, (id) => featureOf.get(id), {
+    placeOf: (id) => places.get(id),
+    // A slice reaching another through the folder that slice keeps for it (FSD: entities/session/@x/site.ts).
+    allowCrossing: (edge, from, to) => {
+      const via = architectures.find((a) => a.id === from.architecture)?.crossImports
+      const file = edge.evidence?.[0]?.file ?? byId.get(edge.from)?.file
+      return !!via && !!file && (source(file) ?? '').includes(`${to.layer}/${to.part}/${via}/${from.part}`)
+    },
+  })
+  const board: BoardData = { tiers, features, ...(architectures.length > 0 ? { architectures } : {}) }
   if (Object.keys(summaries).length > 0) board.summaries = summaries
   if (config.rules.length > 0) {
     board.rules = config.rules

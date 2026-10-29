@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Portfolio.Api.Common;
 using Portfolio.Api.Features.Analytics;
 
 namespace Portfolio.Api.IntegrationTests.Features.Analytics;
@@ -55,7 +56,7 @@ public class AnalyticsEndpointTests(PortfolioApiFactory factory)
         Assert.Equal("at AppsPage.tsx:10", details.Events[3].Detail!["stack"]);
         Assert.Equal(("Chrome", "macOS", "www.linkedin.com/feed"), (details.Browser, details.OperatingSystem, details.Referrer));
 
-        var errors = await admin.GetFromJsonAsync<PagedResponse<SessionSummary>>($"/api/analytics/sessions?errorsOnly=true&pageSize={AnalyticsEndpoints.MaxPageSize}");
+        var errors = await admin.GetFromJsonAsync<PagedResponse<SessionSummary>>($"/api/analytics/sessions?errorsOnly=true&pageSize={AnalyticsShared.MaxPageSize}");
         var summary = errors!.Items.Single(s => s.Id == id);
         Assert.Equal((2, 4, 1, "/"), (summary.PageViews, summary.EventCount, summary.ErrorCount, summary.EntryPath));
     }
