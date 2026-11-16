@@ -218,6 +218,65 @@ public class AnalyticsEndpointsTests
     }
 
     [Fact]
+    public async Task GetSummary_leaves_out_a_theme_change_that_doesnt_say_from_what_to_what()
+    {
+        await Collect(Guid.NewGuid(), null,
+            Event(1, "pageview"),
+            Event(2, "event", label: AnalyticsRules.ThemeChangedEvent, detail: new() { ["from"] = "vice", ["to"] = "light" }),
+            Event(3, "event", label: AnalyticsRules.ThemeChangedEvent, detail: new() { ["from"] = "light" }),
+            Event(4, "event", label: AnalyticsRules.ThemeChangedEvent, detail: new() { ["to"] = "dark" }),
+            Event(5, "event", label: AnalyticsRules.ThemeChangedEvent));
+
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "7d")).Value!;
+
+        Assert.Equal([new NamedCount("vice → light", 1)], summary.ThemeSwitches);
+        // Still not among what the site reported.
+        Assert.Empty(summary.SiteEvents);
+    }
+
+    [Fact]
+    public async Task GetSummary_counts_every_kind_of_event_once_in_its_own_list_and_column()
+    {
+        // One visit doing a bit of everything: each event lands in its total, its column and its list, and nowhere else.
+        await Collect(Guid.NewGuid(), null,
+            Event(1, "pageview", path: "/apps?page=2"),
+            Event(2, "pageview", path: "/apps"),
+            Event(3, "pageview", path: "/about"),
+            Event(4, "click", path: "/about", label: "Download CV"),
+            Event(5, "click", path: "/about"),
+            Event(6, "error", path: "/about", label: "x is not a function", detail: new() { ["kind"] = "script", ["stack"] = new string('s', 3000) }),
+            Event(7, "error", path: "/about"),
+            Event(8, "event", path: "/about", label: "Message sent"),
+            Event(9, "scroll", path: "/about", label: "75%"),
+            Event(10, "leave", path: "/about"));
+
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "7d")).Value!;
+
+        Assert.Equal((3, 2), (summary.Totals.PageViews, summary.Totals.Errors));
+        Assert.Equal((3, 2), (summary.Series.Sum(p => p.PageViews), summary.Series.Sum(p => p.Errors)));
+        Assert.Equal((3, 2), (summary.Series[^1].PageViews, summary.Series[^1].Errors));
+        Assert.Equal([new NamedCount("/apps", 2), new NamedCount("/about", 1)], summary.TopPages);
+        Assert.Equal([new NamedCount("Download CV", 1)], summary.TopClicks);
+        Assert.Equal([new NamedCount("Unknown error", 1), new NamedCount("x is not a function", 1)], summary.TopErrors);
+        Assert.Equal([new NamedCount("Message sent", 1)], summary.SiteEvents);
+        Assert.Empty(summary.ThemeSwitches);
+    }
+
+    [Fact]
+    public async Task GetSummary_lists_only_the_ten_most_common_ties_in_alphabetical_order()
+    {
+        var events = new List<EventInput>();
+        foreach (var name in new[] { "k", "j", "i", "h", "g", "f", "e", "d", "c", "b", "a" }) events.Add(Event(events.Count + 1, "click", label: name));
+        events.Add(Event(events.Count + 1, "click", label: "k"));
+        await Collect(Guid.NewGuid(), null, [.. events]);
+
+        var summary = (await GetAnalyticsSummary.Handle(_db, _time, CancellationToken.None, range: "7d")).Value!;
+
+        Assert.Equal(["k", "a", "b", "c", "d", "e", "f", "g", "h", "i"], summary.TopClicks.Select(c => c.Name));
+        Assert.Equal(2, summary.TopClicks[0].Count);
+    }
+
+    [Fact]
     public async Task GetSummary_counts_visits_by_country_from_cloudflare()
     {
         var britain = Http();

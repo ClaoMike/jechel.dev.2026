@@ -47,6 +47,23 @@ describe('the pages opened', () => {
     expect(queued().map((e) => e.seq)).toEqual([1, 2, 3])
   })
 
+  it("leaves out the ids ad networks add to a link to follow a click (Instagram's fbclid), keeping the rest of the query", () => {
+    tracker.pageview('/?utm_source=ig&utm_medium=social&fbclid=PAZXh0bgNhZW0CMTEAcGRv_aem_XarsSg')
+    expect(last().path).toBe('/?utm_source=ig&utm_medium=social')
+    add('<button>Play</button>').click()
+    expect(last().path).toBe('/?utm_source=ig&utm_medium=social')
+
+    tracker.pageview('/youtube?gclid=abc&page=2&MSCLKID=def')
+    expect(last().path).toBe('/youtube?page=2')
+    tracker.pageview('/about?fbclid=abc')
+    expect(last().path).toBe('/about')
+
+    // The same page with and without one is one page.
+    const before = queued().length
+    tracker.pageview('/about')
+    expect(queued()).toHaveLength(before)
+  })
+
   it('dates every event on the page it happened on', () => {
     add('<button>Play</button>').click()
     tracker.pageview('/about')
@@ -90,6 +107,19 @@ describe('clicks', () => {
     expect(describeElement(add('<a href="/x"><img alt="GitHub"></a>'))).toBe('GitHub')
     expect(describeElement(add('<button title="Edit"></button>'))).toBe('Edit')
     expect(describeElement(add('<input placeholder="Search">'))).toBe('Search')
+  })
+
+  it("leaves decoration out of a name: what's hidden from screen readers isn't what the visitor was told", () => {
+    // The theme switch's Vice option: the mark spells "Vice" in two layers, next to its real label.
+    const option = add<HTMLLabelElement>(
+      '<label><input type="radio" name="theme"><span aria-hidden="true"><span>Vice</span><span>Vice</span></span><span>Vice mode</span></label>',
+    )
+    option.querySelector('input')!.click()
+    expect(last()).toMatchObject({ type: 'click', label: 'Vice mode', detail: { checked: 'true' } })
+
+    add('<button><span aria-hidden="true">★★★</span> Favourite</button>').click()
+    expect(last().label).toBe('Favourite')
+    expect(describeElement(add('<button><span aria-hidden="true">×</span></button>'))).toBe('')
   })
 
   it("records a link's address: this site's with its query, another site's without (it can hold tokens)", () => {
@@ -474,6 +504,38 @@ describe('errors nobody caught', () => {
         .slice(before)
         .map((e) => e.label),
     ).toEqual(['one', 'two', 'three', 'four'])
+  })
+
+  it("leaves out an error in a script an app or an extension put in the page (Instagram's in-app browser, as its tab closes)", () => {
+    const before = queued().length
+    const gone = new Error('Error invoking postMessage: Java object is gone')
+    gone.stack =
+      'Error: Error invoking postMessage: Java object is gone\n    at sendDataToNative (iabjs://navigation_performance_logger_android:1:11722)\n    at sendBeforeUnloadMessage (iabjs://navigation_performance_logger_android:1:15376)\n    at iabjs://navigation_performance_logger_android:1:20806'
+    window.dispatchEvent(
+      new ErrorEvent('error', { message: 'Uncaught Error: Error invoking postMessage: Java object is gone', filename: 'iabjs://navigation_performance_logger_android', lineno: 1, colno: 11722, error: gone }),
+    )
+    window.dispatchEvent(new ErrorEvent('error', { message: 'boom', filename: 'chrome-extension://abcdefgh/content.js', lineno: 3, colno: 9 }))
+    window.dispatchEvent(new ErrorEvent('error', { message: 'boom', filename: 'webkit-masked-url://hidden/' }))
+    // Without a file, its stack says where it was thrown; a promise it left unhandled too.
+    window.dispatchEvent(new ErrorEvent('error', { message: 'Uncaught Error: gone', error: gone }))
+    window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason: gone }))
+    const firefox = new Error('no tab')
+    firefox.stack = 'send@moz-extension://1f2e3d4c/background.js:10:5\n@moz-extension://1f2e3d4c/background.js:22:1'
+    window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason: firefox }))
+    expect(queued()).toHaveLength(before)
+
+    // The site's own code calling into one, or an error that only mentions one, still counts.
+    const mixed = new Error('mixed')
+    mixed.stack = `Error: mixed\n    at hook (chrome-extension://abcdefgh/content.js:1:1)\n    at render (${location.origin}/assets/index-abc.js:5:9)`
+    window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason: mixed }))
+    const mentioned = new Error("Couldn't open iabjs://thing")
+    mentioned.stack = "Error: Couldn't open iabjs://thing"
+    window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason: mentioned }))
+    expect(
+      queued()
+        .slice(before)
+        .map((e) => e.label),
+    ).toEqual(['Error: mixed', "Error: Couldn't open iabjs://thing"])
   })
 
   it("leaves out another site's script or stylesheet that didn't load (the CSP allows none: the browser added it), not an image", () => {

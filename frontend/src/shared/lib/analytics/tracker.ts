@@ -2,7 +2,7 @@ import { api, ApiError, onRequestFailed, type FailedRequest, type VisitBatch, ty
 
 /**
  * Records what a visit does, to see how the site is used and to replay what led to an error:
- * pages opened, clicks (the label of what was clicked, never what was typed), clicks into embedded
+ * pages opened (without the click ids ad networks add to links: fbclid, gclid…), clicks (the label of what was clicked, never what was typed), clicks into embedded
  * content (the YouTube player), fields changed (a choice's option; for text, only that it was edited),
  * forms sent, Escape, copying text, how far each page was scrolled, the tab hidden and back, the
  * site's own events (e.g. "Message sent") and every error: script errors, crashes, failed requests and
@@ -89,7 +89,7 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
   const session = loadSession()
 
   function currentPath() {
-    return lastPageview ?? location.pathname + location.search
+    return lastPageview ?? withoutClickIds(location.pathname + location.search)
   }
 
   function record(type: VisitEventType, label?: string, detail?: Record<string, string>, path = currentPath()) {
@@ -268,12 +268,15 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
    * For the same reason: an error "in" a page's address rather than a script file (the CSP runs no script written
    * in the page, so it's one the browser injected: Chrome on iPhone's Translate is reported at a page, and its
    * RangeError there isn't the site's), and a script or stylesheet from another site that didn't load (the CSP
-   * allows none, so the site never adds one: Translate's stylesheet from gstatic.com is blocked on every page).
+   * allows none, so the site never adds one: Translate's stylesheet from gstatic.com is blocked on every page), and
+   * an error in a script that isn't on the web at all (iabjs://, chrome-extension://…): one an app or an extension put
+   * in the page. Instagram's in-app browser does, and its script throws "Java object is gone" as its tab closes.
    */
   function onError(event: Event) {
     if (event instanceof ErrorEvent) {
       if (!event.filename && (!event.message || event.message === 'Script error.')) return
-      if (event.filename && isPage(event.filename)) return
+      if (event.filename && (isPage(event.filename) || !isWebAddress(event.filename))) return
+      if (!event.filename && isInjected(event.error)) return
       error(event.message || 'Script error', { kind: 'script', source: event.filename ? `${event.filename}:${event.lineno}:${event.colno}` : '', stack: stackOf(event.error) })
       return
     }
@@ -291,6 +294,8 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
     if (reason instanceof DOMException && reason.name === 'AbortError') return
     // Failed requests are recorded as they fail (below), with their address.
     if (reason instanceof ApiError && (reason.status === 0 || reason.status >= 500)) return
+    // Thrown inside a script an app or an extension put in the page: not the site's (see onError).
+    if (isInjected(reason)) return
     error(messageOf(reason), { kind: 'unhandled-rejection', stack: stackOf(reason) })
   }
 
@@ -378,7 +383,8 @@ export function createTracker(transport: TrackerTransport = api.analytics) {
     },
 
     /** A page opened (path with its query). The same page twice in a row counts once. Says how far the last one was scrolled. */
-    pageview(path: string) {
+    pageview(address: string) {
+      const path = withoutClickIds(address)
       if (path === lastPageview) return
       recordScroll()
       scrollDepth = 0
@@ -471,6 +477,24 @@ function visitInfo(path: string, theme: string): VisitInfo {
   }
 }
 
+/**
+ * The ids ad networks and apps add to a link to follow one person's click (Instagram's link in bio adds a 180-character
+ * fbclid). They say nothing about the page, would be on every step of the visit, and aren't the site's to keep.
+ * utm_… stays: it names the link that was shared, not the person.
+ */
+const CLICK_IDS = ['fbclid', 'gclid', 'gbraid', 'wbraid', 'dclid', 'msclkid', 'twclid', 'ttclid', 'igshid', 'li_fat_id', 'yclid', 'mc_eid']
+
+/** A path with its query ("/apps?page=2"), without click ids. Untouched when it has none. */
+function withoutClickIds(path: string): string {
+  const at = path.indexOf('?')
+  if (at < 0) return path
+  const kept = path
+    .slice(at + 1)
+    .split('&')
+    .filter((part) => !CLICK_IDS.includes(part.split('=')[0].toLowerCase()))
+  return kept.length > 0 ? `${path.slice(0, at)}?${kept.join('&')}` : path.slice(0, at)
+}
+
 function cut(text: string, max: number) {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`
 }
@@ -504,7 +528,7 @@ export function describe(element: Element): string {
     return labelText(label) || element.name || ('placeholder' in element ? element.placeholder : '') || ''
   }
 
-  const text = squash(element.textContent)
+  const text = shownText(element)
   if (text) return text
   return squash(element.querySelector('img[alt]')?.getAttribute('alt')) || squash(element.getAttribute('title'))
 }
@@ -524,9 +548,18 @@ function formName(form: HTMLFormElement): string {
 
 /** A label's own words: a field inside it (a list's options, a text box's text) is left out. */
 function labelText(label: HTMLLabelElement | undefined): string {
-  if (!label) return ''
-  const copy = label.cloneNode(true) as HTMLLabelElement
-  copy.querySelectorAll('select, textarea, input, button').forEach((field) => field.remove())
+  return label ? shownText(label, 'select, textarea, input, button') : ''
+}
+
+/**
+ * An element's words without its decoration (aria-hidden: the Vice mark's layers spell "Vice" twice next to the
+ * theme's real label, which made it "ViceViceVice mode") and without what matches `leaveOut`.
+ */
+function shownText(element: Element, leaveOut?: string): string {
+  const skip = leaveOut ? `[aria-hidden="true"], ${leaveOut}` : '[aria-hidden="true"]'
+  if (!element.querySelector(skip)) return squash(element.textContent)
+  const copy = element.cloneNode(true) as Element
+  copy.querySelectorAll(skip).forEach((part) => part.remove())
   return squash(copy.textContent)
 }
 
@@ -563,6 +596,24 @@ function stackOf(value: unknown) {
 function isPage(address: string) {
   const url = parseUrl(address)
   return !!url && /^https?:$/.test(url.protocol) && url.origin === location.origin && !url.pathname.startsWith('/@') && !/\.[a-z0-9]+$/i.test(url.pathname)
+}
+
+/** On the web (or made by the page: blob:), rather than inside an app or an extension (iabjs://, chrome-extension://, webkit-masked-url://). */
+function isWebAddress(address: string) {
+  const url = parseUrl(address)
+  return !!url && /^(https?|blob):$/.test(url.protocol)
+}
+
+/** An error whose stack names script files, none of them on the web: thrown and left uncaught inside an injected script. */
+function isInjected(value: unknown) {
+  if (!(value instanceof Error) || !value.stack) return false
+  // A frame's line: "at name (address:1:2)" in Chrome, "name@address:1:2" elsewhere. The message's own lines aren't frames.
+  const files = value.stack
+    .split('\n')
+    .filter((line) => /^\s*at\s|@/.test(line))
+    .map((line) => /[a-z][a-z0-9+.-]*:\/\/[^\s)]+/i.exec(line)?.[0])
+    .filter((file) => file !== undefined)
+  return files.length > 0 && !files.some(isWebAddress)
 }
 
 function isSameSite(address: string) {

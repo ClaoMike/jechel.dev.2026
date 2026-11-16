@@ -8,8 +8,8 @@ namespace Portfolio.Api.Features.Analytics;
 
 /// <summary>
 /// The period <paramref name="range"/> (see <see cref="AnalyticsRange.Names"/>; 30 days by default),
-/// split into the chart's columns. Aggregated in memory: fine for a personal site's traffic; move
-/// the grouping into SQL if it grows to millions of events.
+/// split into the chart's columns. Visits are loaded (one small row each); their events are counted as they
+/// stream from the database, so the memory used doesn't grow with how many there are.
 /// </summary>
 public sealed class GetAnalyticsSummary : IEndpoint
 {
@@ -49,24 +49,59 @@ public sealed class GetAnalyticsSummary : IEndpoint
             })
             .ToListAsync(cancellationToken);
 
-        var events = await db.VisitEvents
-            .AsNoTracking()
-            .Where(e => e.OccurredAt >= from && (e.Type == "pageview" || e.Type == "click" || e.Type == "error"))
-            .Select(e => new { e.Type, e.Path, e.Label, e.OccurredAt })
-            .ToListAsync(cancellationToken);
+        // Events are counted as they're read, never held: a year of visits is millions of rows, and the server has 1 GB.
+        // Only what's counted is asked for (an error's stack stays in the database).
+        var pageViewsByBucket = new Dictionary<DateTimeOffset, int>();
+        var errorsByBucket = new Dictionary<DateTimeOffset, int>();
+        var topPages = new Dictionary<string, int>();
+        var topClicks = new Dictionary<string, int>();
+        var topErrors = new Dictionary<string, int>();
+        var siteEvents = new Dictionary<string, int>();
+        var themeSwitches = new Dictionary<string, int>();
+        var pageViewCount = 0;
+        var errorCount = 0;
 
-        var siteEvents = await db.VisitEvents
+        var events = db.VisitEvents
             .AsNoTracking()
-            .Where(e => e.OccurredAt >= from && e.Type == "event")
-            .Select(e => new { e.Label, e.Detail })
-            .ToListAsync(cancellationToken);
-        var themeChanges = siteEvents.Where(e => e.Label == AnalyticsRules.ThemeChangedEvent && e.Detail != null).Select(e => e.Detail!);
+            .Where(e => e.OccurredAt >= from && (e.Type == "pageview" || e.Type == "click" || e.Type == "error" || e.Type == "event"))
+            .Select(e => new
+            {
+                e.Type,
+                e.Path,
+                e.Label,
+                e.OccurredAt,
+                // A theme change says from what to what.
+                Detail = e.Type == "event" && e.Label == AnalyticsRules.ThemeChangedEvent ? e.Detail : null,
+            })
+            .AsAsyncEnumerable();
+        await foreach (var e in events.WithCancellation(cancellationToken))
+        {
+            switch (e.Type)
+            {
+                case "pageview":
+                    pageViewCount++;
+                    Count(pageViewsByBucket, period.BucketOf(e.OccurredAt));
+                    Count(topPages, WithoutQuery(e.Path));
+                    break;
+                case "click":
+                    if (e.Label is not null) Count(topClicks, e.Label);
+                    break;
+                case "error":
+                    errorCount++;
+                    Count(errorsByBucket, period.BucketOf(e.OccurredAt));
+                    Count(topErrors, e.Label ?? "Unknown error");
+                    break;
+                // Theme changes have their own list.
+                case "event" when e.Label == AnalyticsRules.ThemeChangedEvent:
+                    if (e.Detail is not null && ThemeSwitch(e.Detail) is { } change) Count(themeSwitches, change);
+                    break;
+                case "event":
+                    if (e.Label is not null) Count(siteEvents, e.Label);
+                    break;
+            }
+        }
 
         var sessionsByBucket = sessions.ToLookup(s => period.BucketOf(s.StartedAt));
-        var pageViews = events.Where(e => e.Type == "pageview").ToList();
-        var errors = events.Where(e => e.Type == "error").ToList();
-        var pageViewsByBucket = pageViews.ToLookup(e => period.BucketOf(e.OccurredAt));
-        var errorsByBucket = errors.ToLookup(e => period.BucketOf(e.OccurredAt));
 
         // A visitor's id changes every UTC day, so a column counts the distinct (day, visitor) pairs in it.
         static int Visitors<T>(IEnumerable<T> rows, Func<T, DateTimeOffset> startedAt, Func<T, string> hash) =>
@@ -77,17 +112,17 @@ public sealed class GetAnalyticsSummary : IEndpoint
                 start,
                 Visitors(sessionsByBucket[start], s => s.StartedAt, s => s.VisitorHash),
                 sessionsByBucket[start].Count(),
-                pageViewsByBucket[start].Count(),
-                errorsByBucket[start].Count()))
+                pageViewsByBucket.GetValueOrDefault(start),
+                errorsByBucket.GetValueOrDefault(start)))
             .ToList();
 
         var totals = new AnalyticsTotals(
             Visitors: Visitors(sessions, s => s.StartedAt, s => s.VisitorHash),
             Sessions: sessions.Count,
-            PageViews: pageViews.Count,
+            PageViews: pageViewCount,
             AverageSessionSeconds: sessions.Count == 0 ? 0 : sessions.Average(s => (s.LastSeenAt - s.StartedAt).TotalSeconds),
             BounceRate: sessions.Count == 0 ? 0 : sessions.Count(s => s.PageViews <= 1 && s.InteractionCount == 0) / (double)sessions.Count,
-            Errors: errors.Count);
+            Errors: errorCount);
 
         return TypedResults.Ok(new AnalyticsSummary(
             period.Name,
@@ -95,17 +130,16 @@ public sealed class GetAnalyticsSummary : IEndpoint
             from,
             totals,
             series,
-            TopPages: Top(pageViews.Select(e => WithoutQuery(e.Path))),
+            TopPages: Top(topPages),
             Referrers: Top(sessions.Select(s => s.ReferrerHost ?? s.UtmSource ?? "Direct")),
             Devices: Top(sessions.Select(s => s.Device)),
             Browsers: Top(sessions.Select(s => s.Browser)),
             TimeZones: Top(sessions.Select(s => s.TimeZone ?? "Unknown")),
             Countries: Top(sessions.Select(s => s.Country ?? "Unknown")),
-            TopClicks: Top(events.Where(e => e.Type == "click" && e.Label is not null).Select(e => e.Label!)),
-            TopErrors: Top(errors.Select(e => e.Label ?? "Unknown error")),
+            TopClicks: Top(topClicks),
+            TopErrors: Top(topErrors),
             Themes: Top(sessions.Select(s => s.LastTheme ?? s.Theme ?? "Unknown")),
-            ThemeSwitches: Top(themeChanges.Select(ThemeSwitch).OfType<string>()),
-            // Theme changes have their own list.
-            SiteEvents: Top(siteEvents.Where(e => e.Label is not null && e.Label != AnalyticsRules.ThemeChangedEvent).Select(e => e.Label!))));
+            ThemeSwitches: Top(themeSwitches),
+            SiteEvents: Top(siteEvents)));
     }
 }

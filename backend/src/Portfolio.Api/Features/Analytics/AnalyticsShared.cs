@@ -129,11 +129,22 @@ public static class AnalyticsShared
     internal static string WithoutQuery(string path) => path.IndexOf('?') is var i and >= 0 ? path[..i] : path;
 
     /// <summary>The most common values, most first (ties alphabetically).</summary>
-    internal static List<NamedCount> Top(IEnumerable<string> values) =>
-        [.. values
-            .GroupBy(v => v)
-            .Select(g => new NamedCount(g.Key, g.Count()))
+    internal static List<NamedCount> Top(IEnumerable<string> values)
+    {
+        var counts = new Dictionary<string, int>();
+        foreach (var value in values) Count(counts, value);
+        return Top(counts);
+    }
+
+    /// <summary>The same, of values already counted.</summary>
+    internal static List<NamedCount> Top(IReadOnlyDictionary<string, int> counts) =>
+        [.. counts
+            .Select(c => new NamedCount(c.Key, c.Value))
             .OrderByDescending(c => c.Count)
             .ThenBy(c => c.Name, StringComparer.Ordinal)
             .Take(TopListSize)];
+
+    /// <summary>One more of <paramref name="key"/>.</summary>
+    internal static void Count<TKey>(Dictionary<TKey, int> counts, TKey key) where TKey : notnull =>
+        counts[key] = counts.GetValueOrDefault(key) + 1;
 }
