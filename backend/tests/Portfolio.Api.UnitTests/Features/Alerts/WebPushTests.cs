@@ -233,11 +233,11 @@ public class WebPushTests
     [Fact]
     public async Task Lists_both_ways_on_at_first_and_whether_each_can_send()
     {
-        var channels = (await PushEndpoints.ListChannels(_database.Open(), TestOptions.Monitor(new AlertOptions()), default)).Value!;
+        var channels = (await ListAlertChannels.Handle(_database.Open(), TestOptions.Monitor(new AlertOptions()), default)).Value!;
         Assert.Equal([new AlertChannelDto("ntfy", true, false), new AlertChannelDto("push", true, false)], channels);
 
         AddDevice("iPhone", "https://web.push.apple.com/abc");
-        channels = (await PushEndpoints.ListChannels(_database.Open(), TestOptions.Monitor(new AlertOptions { NtfyTopic = "t" }), default)).Value!;
+        channels = (await ListAlertChannels.Handle(_database.Open(), TestOptions.Monitor(new AlertOptions { NtfyTopic = "t" }), default)).Value!;
         Assert.Equal([new AlertChannelDto("ntfy", true, true), new AlertChannelDto("push", true, true)], channels);
     }
 
@@ -258,8 +258,8 @@ public class WebPushTests
     {
         var db = _database.Open();
         var ntfy = TestOptions.Monitor(new AlertOptions());
-        Assert.IsType<NotFound>((await PushEndpoints.SaveChannel("email", new SaveAlertChannelRequest(true), db, _preferences, ntfy, _time, default)).Result);
-        Assert.IsType<ValidationProblem>((await PushEndpoints.SaveChannel("push", new SaveAlertChannelRequest(null), db, _preferences, ntfy, _time, default)).Result);
+        Assert.IsType<NotFound>((await SaveAlertChannel.Handle("email", new SaveAlertChannelRequest(true), db, _preferences, ntfy, _time, default)).Result);
+        Assert.IsType<ValidationProblem>((await SaveAlertChannel.Handle("push", new SaveAlertChannelRequest(null), db, _preferences, ntfy, _time, default)).Result);
         Assert.Empty(db.AlertChannels);
     }
 
@@ -271,7 +271,7 @@ public class WebPushTests
         AddDevice("iPhone · Safari", "https://web.push.apple.com/b");
         var sender = Sender();
 
-        var setup = (await PushEndpoints.GetPush(_database.Open(), sender, default)).Value!;
+        var setup = (await GetPushSetup.Handle(_database.Open(), sender, default)).Value!;
 
         Assert.Equal((await sender.KeysAsync(default)).PublicKey, setup.PublicKey);
         Assert.Equal(["iPhone · Safari", "Mac · Chrome"], setup.Devices.Select(d => d.Label));
@@ -281,12 +281,12 @@ public class WebPushTests
     public async Task Keeps_a_device_that_allowed_notifications_and_updates_one_it_knows()
     {
         var device = new TestDevice("https://web.push.apple.com/abc");
-        var added = await PushEndpoints.AddDevice(device.Request("  iPhone · Safari  "), _database.Open(), Production, _time, default);
+        var added = await AddPushDevice.Handle(device.Request("  iPhone · Safari  "), _database.Open(), Production, _time, default);
         Assert.Equal(["iPhone · Safari"], Assert.IsType<Ok<IReadOnlyList<PushDeviceDto>>>(added.Result).Value!.Select(d => d.Label));
 
         // Allowed again (after the keys changed): the same device, new keys.
         var renewed = new TestDevice("https://web.push.apple.com/abc");
-        await PushEndpoints.AddDevice(renewed.Request(""), _database.Open(), Production, _time, default);
+        await AddPushDevice.Handle(renewed.Request(""), _database.Open(), Production, _time, default);
 
         var kept = Assert.Single(_database.Open().PushDevices);
         Assert.Equal((renewed.P256dh, "A browser"), (kept.P256dh, kept.Label));
@@ -300,7 +300,7 @@ public class WebPushTests
     [InlineData("ftp://web.push.apple.com/abc")]
     public void Refuses_a_push_address_that_isnt_https(string endpoint)
     {
-        var errors = PushEndpoints.Validate(new TestDevice(endpoint).Request("x"), Production);
+        var errors = PushShared.Validate(new TestDevice(endpoint).Request("x"), Production);
 
         Assert.Equal(["endpoint"], errors.Keys);
     }
@@ -309,17 +309,39 @@ public class WebPushTests
     public void Takes_a_plain_http_address_on_this_computer_only_in_development_and_the_end_to_end_tests()
     {
         var local = new TestDevice("http://localhost:5299/push/1").Request("x");
-        Assert.Empty(PushEndpoints.Validate(local, Environment(Environments.Development)));
-        Assert.Empty(PushEndpoints.Validate(local, Environment("E2E")));
-        Assert.Equal(["endpoint"], PushEndpoints.Validate(new TestDevice("http://example.com/push").Request("x"), Environment("E2E")).Keys);
+        Assert.Empty(PushShared.Validate(local, Environment(Environments.Development)));
+        Assert.Empty(PushShared.Validate(local, Environment("E2E")));
+        Assert.Equal(["endpoint"], PushShared.Validate(new TestDevice("http://example.com/push").Request("x"), Environment("E2E")).Keys);
     }
 
     [Fact]
     public void Refuses_a_device_without_its_keys()
     {
-        var errors = PushEndpoints.Validate(new AddPushDeviceRequest("https://web.push.apple.com/abc", new PushKeysRequest(" ", null), "x"), Production);
+        var errors = PushShared.Validate(new AddPushDeviceRequest("https://web.push.apple.com/abc", new PushKeysRequest(" ", null), "x"), Production);
 
         Assert.Equal(["keys.auth", "keys.p256dh"], errors.Keys.Order());
+    }
+
+    [Fact]
+    public void Refuses_a_device_with_no_keys_at_all_or_keys_too_long_to_be_real()
+    {
+        const string endpoint = "https://web.push.apple.com/abc";
+
+        Assert.Equal(["keys.auth", "keys.p256dh"], PushShared.Validate(new AddPushDeviceRequest(endpoint, null!, "x"), Production).Keys.Order());
+        Assert.Equal(["keys.auth", "keys.p256dh"], PushShared.Validate(new AddPushDeviceRequest(endpoint, new PushKeysRequest("", ""), "x"), Production).Keys.Order());
+        Assert.Equal(["keys.p256dh"], PushShared.Validate(new AddPushDeviceRequest(endpoint, new PushKeysRequest(new string('k', 201), "secret"), "x"), Production).Keys);
+        Assert.Equal(["keys.auth"], PushShared.Validate(new AddPushDeviceRequest(endpoint, new PushKeysRequest("key", new string('s', 101)), "x"), Production).Keys);
+        Assert.Empty(PushShared.Validate(new AddPushDeviceRequest(endpoint, new PushKeysRequest(new string('k', 200), new string('s', 100)), "x"), Production));
+    }
+
+    [Fact]
+    public void Refuses_a_push_address_too_long_or_missing()
+    {
+        var keys = new PushKeysRequest("key", "secret");
+
+        Assert.Equal(["endpoint"], PushShared.Validate(new AddPushDeviceRequest("https://web.push.apple.com/" + new string('a', 1000), keys, "x"), Production).Keys);
+        Assert.Equal(["endpoint"], PushShared.Validate(new AddPushDeviceRequest(null!, keys, "x"), Production).Keys);
+        Assert.Equal(["endpoint"], PushShared.Validate(new AddPushDeviceRequest("  ", keys, "x"), Production).Keys);
     }
 
     [Fact]
@@ -329,10 +351,10 @@ public class WebPushTests
         AddDevice("New", "https://web.push.apple.com/new");
         var id = _database.Open().PushDevices.Single(d => d.Label == "Old").Id;
 
-        var removed = await PushEndpoints.RemoveDevice(id, _database.Open(), default);
+        var removed = await RemovePushDevice.Handle(id, _database.Open(), default);
 
         Assert.Equal(["New"], Assert.IsType<Ok<IReadOnlyList<PushDeviceDto>>>(removed.Result).Value!.Select(d => d.Label));
-        Assert.IsType<NotFound>((await PushEndpoints.RemoveDevice(id, _database.Open(), default)).Result);
+        Assert.IsType<NotFound>((await RemovePushDevice.Handle(id, _database.Open(), default)).Result);
         Assert.NotNull(gone);
     }
 
@@ -344,15 +366,15 @@ public class WebPushTests
         var db = _database.Open();
         var id = db.PushDevices.Single(d => d.Label == "iPhone").Id;
 
-        Assert.IsType<NoContent>((await PushEndpoints.TestDevice(id, db, Sender(), default)).Result);
+        Assert.IsType<NoContent>((await TestPushDevice.Handle(id, db, Sender(), default)).Result);
         var received = Assert.Single(_service.Received);
         Assert.Equal("It works!", JsonDocument.Parse(phone.Decrypt(received.Body)).RootElement.GetProperty("title").GetString());
         Assert.Equal(Now, _database.Open().PushDevices.Single(d => d.Id == id).LastSentAt);
 
         _service.Answers["https://web.push.apple.com/abc"] = HttpStatusCode.InternalServerError;
-        var failed = Assert.IsType<ProblemHttpResult>((await PushEndpoints.TestDevice(id, _database.Open(), Sender(), default)).Result);
+        var failed = Assert.IsType<ProblemHttpResult>((await TestPushDevice.Handle(id, _database.Open(), Sender(), default)).Result);
         Assert.Equal(502, failed.StatusCode);
-        Assert.IsType<NotFound>((await PushEndpoints.TestDevice(999, _database.Open(), Sender(), default)).Result);
+        Assert.IsType<NotFound>((await TestPushDevice.Handle(999, _database.Open(), Sender(), default)).Result);
     }
 
     // ---------- Helpers ----------
@@ -374,7 +396,7 @@ public class WebPushTests
     }
 
     private async Task<Results<Ok<IReadOnlyList<AlertChannelDto>>, NotFound, ValidationProblem>> SwitchChannel(string channel, bool on) =>
-        await PushEndpoints.SaveChannel(channel, new SaveAlertChannelRequest(on), _database.Open(), _preferences, TestOptions.Monitor(new AlertOptions()), _time, default);
+        await SaveAlertChannel.Handle(channel, new SaveAlertChannelRequest(on), _database.Open(), _preferences, TestOptions.Monitor(new AlertOptions()), _time, default);
 
     /// <summary>Runs the worker over one alert (ntfy answers OK), and gives what the history recorded.</summary>
     private async Task<PhoneAlertLog> RunWorker(PhoneAlert alert, string ntfyTopic = "jechel-abc")

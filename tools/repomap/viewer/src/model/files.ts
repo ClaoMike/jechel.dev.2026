@@ -1,7 +1,7 @@
 /**
  * The repository's files for the explorer, and creating, deleting and renaming them (when `repomap
  * serve` allows editing). After a change the server rebuilds the map; the viewer reloads it, and a
- * new or renamed file is selected in the map once it shows up there (see `revealFile` in the store).
+ * new or renamed file is shown on the Board once it shows up there (see `revealFile` in the store).
  */
 import { create } from 'zustand'
 import { WRITE_HEADER } from '../../../src/shared/git-actions.ts'

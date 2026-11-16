@@ -2,16 +2,17 @@
  * Loads repomap.config.json (JSON with comments allowed) and resolves `extends` chains.
  *
  * Merge rules (child over parent):
- * - arrays of objects with an `id` (layers, roles, kinds, edgeTypes, presets, plugins) merge by id;
+ * - arrays of objects with an `id` (layers, roles, kinds, edgeTypes, plugins) merge by id;
  *   a child entry with `"enabled": false` removes a plugin; a new child entry with `"before": "<id>"`
  *   goes in front of that entry instead of at the end (e.g. a layer above the parent's first one)
  * - `exclude`, `layerRules`, `roleRules` concatenate, child first (child rules win: first match wins)
  * - everything else: child replaces parent
  */
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, isAbsolute, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { EdgeTypeDef, KindDef, LayerDef, PresetDef, RoleDef } from '../shared/types.ts'
+import type { ArchitectureDef, RuleDef, TierDef } from '../shared/board.ts'
+import type { EdgeTypeDef, KindDef, LayerDef, RoleDef } from '../shared/types.ts'
 
 export interface LayerRule {
   /** Globs (repo-relative). */
@@ -65,6 +66,35 @@ export interface HistoryConfig {
   maxPullRequests: number
 }
 
+/** The Board tab. */
+export interface BoardConfig {
+  /** Groups of layers shown as one board (layers no tier names get their own). */
+  tiers?: TierDef[]
+  /** Feature key → display name (keys are folder names lowercased, without separators: workWithMe → workwithme). */
+  featureLabels: Record<string, string>
+  /** Feature key → the feature it belongs to (e.g. "whatsnew": "updates"). */
+  featureAliases: Record<string, string>
+  /** Globs (repo-relative file paths) or node ids → feature. Wins over folders and the AI. */
+  featureOverrides: Record<string, string>
+  /** Features everything uses (an API service): their nodes don't pull neighbours into them. */
+  hubFeatures?: string[]
+  /**
+   * Layered architectures the code follows (Feature-Sliced Design, vertical slices…): a node in one gets its slice as
+   * its feature, the tier's board shows the layers as columns, and rules with `layered` check their order.
+   */
+  architectures?: ArchitectureDef[]
+}
+
+/** Where AI results (feature placements, summaries, suggested rules) are kept: committed, so they're reused. */
+export interface AiConfig {
+  /** Absolute path (config: relative to the config file). */
+  file: string
+  /** Model for summaries and placements (cheap and fast: many small calls). */
+  summaryModel: string
+  /** Model for review briefings and rule suggestions. */
+  reviewModel: string
+}
+
 export const DEFAULT_HISTORY: HistoryConfig = {
   enabled: true,
   maxCommits: 2000,
@@ -93,10 +123,29 @@ export interface RepoMapConfig {
   defaultRole: string
   kinds: KindDef[]
   edgeTypes: EdgeTypeDef[]
-  presets: PresetDef[]
-  layout: { layerGap: number; seed: number }
   history: HistoryConfig
   plugins: PluginConfig[]
+  board: BoardConfig
+  /** Architecture rules checked on every build (the Board shows what breaks them; `check` fails on errors). */
+  rules: RuleDef[]
+  ai: AiConfig
+  /** Running the project with docker compose (Start, Stop and Reload in the top bar). */
+  docker: DockerConfig
+}
+
+/** How the project runs in Docker. */
+export interface DockerConfig {
+  /** The compose file, relative to the repository (default: docker-compose.yml, or compose.yaml). */
+  file?: string
+  /** Compose profiles to run too (services that only start with them, e.g. the site's API and web server). */
+  profiles: string[]
+  /** Where the running site answers (Open). */
+  url?: string
+}
+
+/** Where a project's graph goes instead of the config's own output (repomap keeps other projects' maps itself). */
+export interface ConfigOverrides {
+  output?: string
 }
 
 export const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -105,14 +154,17 @@ type Json = Record<string, unknown>
 
 const CONCAT_KEYS = new Set(['exclude', 'layerRules', 'roleRules'])
 
-export function loadConfig(configPath: string): RepoMapConfig {
+const DEFAULT_SUMMARY_MODEL = 'claude-haiku-5-5'
+const DEFAULT_REVIEW_MODEL = 'claude-opus-5-5'
+
+export function loadConfig(configPath: string, overrides: ConfigOverrides = {}): RepoMapConfig {
   const absolute = resolve(configPath)
   if (!existsSync(absolute)) throw new Error(`Config not found: ${absolute}`)
   const merged = loadWithExtends(absolute, new Set())
   const baseDir = dirname(absolute)
 
   const repoRoot = resolve(baseDir, String(merged.repoRoot ?? '.'))
-  const output = resolve(baseDir, String(merged.output ?? '.out/graph.json'))
+  const output = overrides.output ?? resolve(baseDir, String(merged.output ?? '.out/graph.json'))
   const plugins = ((merged.plugins as PluginConfig[] | undefined) ?? []).filter((p) => p.enabled !== false)
 
   const config: RepoMapConfig = {
@@ -130,10 +182,22 @@ export function loadConfig(configPath: string): RepoMapConfig {
     defaultRole: String(merged.defaultRole ?? 'production'),
     kinds: (merged.kinds as KindDef[] | undefined) ?? [],
     edgeTypes: (merged.edgeTypes as EdgeTypeDef[] | undefined) ?? [],
-    presets: (merged.presets as PresetDef[] | undefined) ?? [],
-    layout: { layerGap: 90, seed: 7, ...((merged.layout as Json | undefined) ?? {}) } as RepoMapConfig['layout'],
     history: { ...DEFAULT_HISTORY, ...((merged.history as Json | undefined) ?? {}) } as HistoryConfig,
     plugins,
+    board: {
+      featureLabels: {},
+      featureAliases: {},
+      featureOverrides: {},
+      ...((merged.board as Json | undefined) ?? {}),
+    } as BoardConfig,
+    rules: (merged.rules as RuleDef[] | undefined) ?? [],
+    ai: {
+      summaryModel: DEFAULT_SUMMARY_MODEL,
+      reviewModel: DEFAULT_REVIEW_MODEL,
+      ...((merged.ai as Json | undefined) ?? {}),
+      file: resolve(baseDir, String((merged.ai as Json | undefined)?.file ?? 'repomap.ai.json')),
+    } as AiConfig,
+    docker: { profiles: [], ...((merged.docker as Json | undefined) ?? {}) } as DockerConfig,
   }
   for (const item of [...config.layers, ...config.roles, ...config.kinds, ...config.edgeTypes]) item.color = normalizeColor(item.color)
   validateConfig(config)
@@ -154,7 +218,12 @@ function loadWithExtends(path: string, seen: Set<string>): Json {
   const parentRef = raw.extends
   delete raw.extends
   if (typeof parentRef !== 'string') return raw
-  const parentPath = isAbsolute(parentRef) ? parentRef : resolve(dirname(path), parentRef)
+  // "preset:<name>": one of repomap's own stack presets, wherever the config is.
+  const parentPath = parentRef.startsWith('preset:')
+    ? join(TOOL_ROOT, 'presets', `${parentRef.slice('preset:'.length)}.json`)
+    : isAbsolute(parentRef)
+      ? parentRef
+      : resolve(dirname(path), parentRef)
   const parent = loadWithExtends(parentPath, seen)
   return mergeConfig(parent, raw)
 }
@@ -205,6 +274,23 @@ function validateConfig(config: RepoMapConfig): void {
   ids(config.kinds, 'kind')
   ids(config.edgeTypes, 'edge type')
   ids(config.plugins, 'plugin')
+  ids(config.rules, 'rule')
+  for (const rule of config.rules) {
+    if (!rule.deny && !rule.sameFeature && !rule.layered) problems.push(`rule "${rule.id}" needs "deny": true, "sameFeature": true or "layered": "<architecture>"`)
+    if (rule.severity && rule.severity !== 'error' && rule.severity !== 'warn') problems.push(`rule "${rule.id}": severity must be "error" or "warn"`)
+  }
+  for (const arch of config.board.architectures ?? []) {
+    if (!arch.id || !arch.root || !Array.isArray(arch.layers) || arch.layers.length === 0) problems.push(`board architecture "${arch.id}" needs a root and layers`)
+    if (arch.tier && config.board.tiers && !config.board.tiers.some((t) => t.id === arch.tier)) problems.push(`board architecture "${arch.id}": no tier "${arch.tier}"`)
+  }
+  for (const rule of config.rules) {
+    if (rule.layered && !(config.board.architectures ?? []).some((a) => a.id === rule.layered)) problems.push(`rule "${rule.id}": no architecture "${rule.layered}"`)
+  }
+  for (const tier of config.board.tiers ?? []) {
+    if (!Array.isArray(tier.layers) || tier.layers.length === 0) problems.push(`board tier "${tier.id}" has no layers`)
+    tier.color = normalizeColor(tier.color)
+    if (!/^#[0-9a-f]{6}$/i.test(tier.color ?? '')) problems.push(`board tier "${tier.id}": color must look like #1e90ff`)
+  }
   for (const plugin of config.plugins) {
     if (!Array.isArray(plugin.command) || plugin.command.length === 0) problems.push(`plugin "${plugin.id}" has no command`)
     if (plugin.kind !== 'extractor' && plugin.kind !== 'linker') problems.push(`plugin "${plugin.id}" kind must be extractor or linker`)

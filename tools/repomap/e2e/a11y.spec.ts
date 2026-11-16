@@ -1,32 +1,32 @@
 import { expect, test } from '@playwright/test'
-import { BOOK_CARD, commitRow, DEMO, nodePosition, serveSource, violations } from './helpers.ts'
+import { commitRow, DEMO, graphLoaded, serveSource, violations } from './helpers.ts'
 
 for (const theme of ['dark', 'light'] as const) {
   test.describe(`accessibility, ${theme} theme`, () => {
     // Reduced motion: nothing is half-way through a fade when the page is checked.
     test.use({ colorScheme: theme, reducedMotion: 'reduce' })
 
-    test('the map, its details, menu, code and help', async ({ page }) => {
+    test('the board, a chip, the files, code and help', async ({ page }) => {
       await serveSource(page)
       await page.goto('/')
-      await expect(page.locator('.sidebar-footer').first()).toContainText('253/253 nodes')
+      await graphLoaded(page)
+      await expect(page.locator('[data-chip="app"]')).toBeVisible()
       expect(await violations(page)).toEqual([])
 
-      const at = await nodePosition(page, BOOK_CARD)
-      await page.mouse.click(at.x, at.y, { button: 'right' })
-      await expect(page.getByTestId('context-menu')).toBeVisible()
+      await page.getByTestId('board-search').fill('BookCard')
+      await page.getByTestId('board-search').press('Enter')
+      await expect(page.getByTestId('board-chip-details')).toContainText('BookCard')
       expect(await violations(page)).toEqual([])
-      await page.getByRole('menuitem').click()
+      await page.getByTestId('board-read-code').click()
       await expect(page.getByTestId('code-viewer').locator('.cm-content')).toContainText('BookCard')
       expect(await violations(page)).toEqual([])
       await page.keyboard.press('Escape')
 
-      await page.getByTestId('search').fill('BooksPage')
-      await page.getByTestId('search').press('Enter')
-      await expect(page.getByTestId('details')).toBeVisible()
+      await page.getByTestId('board-panel-files').click()
+      await expect(page.getByTestId('explorer')).toBeVisible()
       expect(await violations(page)).toEqual([])
 
-      await page.locator('.scene').click({ position: { x: 4, y: 4 } })
+      await page.locator('.board-canvas').click({ position: { x: 4, y: 300 } })
       await page.keyboard.press('?')
       await expect(page.getByRole('dialog', { name: 'Help' })).toBeVisible()
       expect(await violations(page)).toEqual([])

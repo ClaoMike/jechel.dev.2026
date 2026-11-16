@@ -50,6 +50,14 @@ secret set, the API answers 404 to anything without it (except `/api/health`, fo
 and takes the host (Google's callback URL) and the visitor's IP (rate limits, analytics) from the proxy
 (`ProxyHeaders.cs`). So the auth cookie stays first-party and there's no CORS, as with the Vite proxy locally.
 
+**Uploaded files stay at Cloudflare's edge.** The API keeps uploads in its database and reads each one whole to serve it,
+so the Pages Function keeps every `GET /api/files/{id}/{name}` it has fetched in Cloudflare's cache (the Cache API, per data
+centre, by the address alone: no query, no cookie), for as long as the API's `Cache-Control` says (a year: a new upload is
+a new id). The next visitor's images and PDFs never reach the server. Only whole files (200) are kept: a video asked for in
+parts (`Range`, 206) is answered from the kept file when there is one, and otherwise passed on to the API as before.
+Nothing else under `/api` is kept. A file deleted from the site can still be answered from the edge by its old address
+until it expires there (as browsers that already have it do).
+
 **Data Protection keys** (they encrypt the sign-in cookie and the secrets saved in Settings) are kept in the
 database (`data_protection_keys`), so they survive redeploys, encrypted with `DataProtection:KeyEncryptionKey`.
 

@@ -1,15 +1,21 @@
 # repomap
 
-An interactive 3D architecture map of a repository. Frontend, backend and database are stacked planes;
-every route, component, API call, endpoint, service, entity, table and column is a node; edges show how
-they connect — inside a layer and across layers. Click anything to trace its full chain, e.g.
+An architecture map of a repository. Every route, component, API call, endpoint, service, entity, table and
+column is a node, and edges show how they connect — inside a layer and across layers, e.g.
 `HomePage → api.profile.getFirstName → GET /api/firstname → Profile.FirstName → profiles.first_name`.
 
+The **Board** shows it as circuit boards you zoom through: the app → its tiers (frontend, backend, database) → a
+tier's features → a feature's chips → one chip, whose pins are its functions, props, state and fields, wired to the
+chips they call. Code that follows a layered architecture (Feature-Sliced Design, vertical slices) is drawn in its
+layers, and you always see where you are in it. Claude summarizes every level, a review mode lights up what a change
+touches and what depends on it, and architecture rules mark the wires that break them. It works on a phone too
+(`npm run phone`).
+
 A second tab shows the **git history** as a graph: every branch, merge, tag and pull request, the
-uncommitted changes, and for any commit the files it changed — linked both ways with the map. Served
+uncommitted changes, and for any commit the files it changed — linked both ways with the Board. Served
 from your checkout, it is also a git client (commit, push, pull, fetch, branches, merges, stashes…),
 the code panel is an editor that saves as you type, a file explorer creates, renames and deletes
-files — the map is rebuilt and shows them on their plane — and an AI assistant (Claude) works in the
+files — the map is rebuilt and the Board opens on them — and an AI assistant (Claude) works in the
 repository from a chat docked under everything, like Claude Code.
 
 It runs in the browser (a static site — deployable anywhere) and is self-contained: nothing here imports
@@ -19,16 +25,17 @@ the app it maps.
 tools/repomap/
   src/cli.ts                 CLI: build · history · serve · validate · diff · build-viewer
   src/core/                  config, file rules, plugin runner, cache, merge, git history, serve
-  src/shared/                graph types, layout, route matching (used by CLI, plugins and viewer)
+  src/shared/                graph types, the Board's model and rules, route matching (used by CLI, plugins and viewer)
   plugins/
     extract-dotnet/          C# (Roslyn): endpoints, services, DI, entities, tests…  + EF Core snapshot/migrations
     extract-ts/              TypeScript/React (ts-morph): routes, pages, components, hooks, API client, Redux, tests
     extract-files/           any file no other plugin claimed (config, CI, docs, scripts)
     link-http/               calls/mocks/requests/links → endpoints and routes
     link-contracts/          frontend types ↔ backend DTOs
-  presets/                   stack presets: vocabulary, detection rules, filter presets, plugins
+  presets/                   stack presets: vocabulary, detection rules, plugins
+  templates/                 skeletons of new projects (react-aspnet-postgres: the standard structure)
   schema/                    JSON Schemas of graph.json and of plugin output
-  viewer/                    Vite + React + three.js (react-three-fiber) web app (viewer/src/git: the history tab)
+  viewer/                    Vite + React web app (viewer/src/board: the Board, viewer/src/git: the history tab)
   samples/                   demo/stress graph generator, demo git history generator
   repomap.config.json        config for this repository
 ```
@@ -47,49 +54,122 @@ Other commands:
 
 | Command | What it does |
 | --- | --- |
-| `npm run map` | Build `.out/graph.json` and `.out/git.json` (`-- --relayout` to lay out from scratch, `-- --no-cache` to re-run every plugin) |
+| `npm run map` | Build `.out/graph.json` and `.out/git.json` (`-- --no-cache` to re-run every plugin) |
 | `npm run history` | Only re-read the git history (`.out/git.json`) |
 | `npm run view` | Serve the viewer + the last graph on http://127.0.0.1:5199 (`-- --read-only`: no editing, no git commands) |
 | `npm start` | `map` + `view` + watch the repo and live-reload the browser |
 | `npm run dev` | Viewer development (Vite, port 5198), serving the last built graph (no assistant: use `npm start`) |
 | `npm run build:viewer` | Static site in `viewer/dist` (deploy anywhere) |
+| `npm run phone` | `start` on your network, read-only, behind a token: open the printed link (or scan the QR code) on a phone on the same Wi-Fi |
+| `npm run summarize` | AI: place unplaced chips in features, then summarize chips → features → tiers → app, only what changed (`-- --limit 50`) |
+| `npm run check` | Build, then list the architecture rules' violations (exit 1 on an `error` rule) |
+| `npm run review` | Where the uncommitted changes land, per feature (`-- <base> <head>`, `-- --brief` for the AI briefing) |
 | `npm run demo` | Regenerate the bundled demo graph and demo history |
 | `npm run diff` | Structural diff of the last two builds |
 | `npm test` · `npm run test:e2e` · `npm run typecheck` | Unit + whole-repo pipeline tests · browser tests · types |
 
 The CLI is `node src/cli.ts <command>` (`node src/cli.ts help` lists the options).
 
-## Reading the map
+## The board
 
-- **Planes are layers** (from config): Frontend, Backend, Database, Infra & tooling. Tests, config, migrations
-  and generated code of a layer float on thin sub-planes just **below** it, right under what they test or
-  configure — so hiding them never leaves holes.
-- **This repository's frontend is three planes** (its MVVM, `repomap.config.json`): **Views** (`*.tsx`) on top,
-  **View models** (`*.viewModel.ts`) under them, then **Model & the rest** (Redux store, RTK Query, the API
-  service, utilities). The three are laid out together as one **radial tree**: `main.tsx` in the centre, each
-  ring one step further along renders/uses/calls, so a page's view model sits one ring out on the plane below,
-  and its query hooks and API calls further out below that. Only the tree's own links are drawn there
-  (*Display → Tree edges only*); hover or click a node to see all its edges.
-- **Shapes and colours are kinds** (◆ routes/endpoints, ● pages/components, ▲ hooks/API calls, ■ services,
-  classes, cylinders for tables, rings for tests…). The side menu doubles as the legend.
-- **Edges between planes** are S-curves: when you look from the side (`S`), a chain reads top to bottom.
-  Translucent nodes are generated code; dashed lines are rolled-up edges of hidden children; red stubs are
-  calls that point at nothing (e.g. a frontend call to a route that doesn't exist).
-- **Trace**: click a node. Everything it depends on (↓ downstream) and everything that depends on it
-  (↑ upstream) lights up, with particles flowing along the dependency direction; the details panel lists the
-  chain per layer. Tests, migrations and config appear one hop around the selection (tick *tests* to include
-  test code).
-- **Filters** (left): every layer, kind, role and edge type is shown, dimmed (half-moon button) or hidden.
-  ⌥/Alt-click a row = solo. Presets: *Everything*, *Architecture* (production only), *Tests*, *Data model*,
-  *API surface*. Nodes never move when you filter. The view is kept in the URL, so links are shareable.
-- **Keys**: `/` or `⌘K` search · `F` fit · `S` side view · `1`–`9` top view of a layer · `R` reset ·
-  `C` colour by kind/layer/role/feature · `L` labels · `[` filters · `?` help · `Esc` clear.
-- **Changes**: nodes added since the previous build glow green (*Display → Highlight changes*).
-- **Read and edit the code**: right-click a node (Ctrl+click on a Mac trackpad, long-press on a touch
-  screen) → *View code*, or *Code* in the details panel. The file opens in an editor coloured like VS Code
-  (Dark+/Light+), scrolled to the node, with its declaration highlighted; ⌘F searches the file. Source is
-  served by `repomap serve` from your checkout — only files that belong to a node of the graph, never
-  anything outside the repository — so a static deployment of the viewer shows "not available" instead.
+The Board tab (first tab) draws the map as nested circuit boards. Zoom with the wheel, a trackpad or
+two fingers; zoom far into a chip and it opens (the level below), far out and you go up a level. A tap
+selects a chip (the panel describes it), a second tap or **Open** goes in, Esc or the trail at the top
+goes back.
+
+| Level | Chips | Wires |
+| --- | --- | --- |
+| App | the repository, its tiers | — |
+| Tiers | frontend, backend, database, infra (`board.tiers` groups layers) | every connection between them, by type |
+| A tier | its features (folder, then config, AI or neighbours; the rest is *Shared*) | between features; connectors lead to the other tiers |
+| A feature | its chips (top-level nodes); a big feature shows its folders first | pin to pin: a wire leaves from the function its code is in |
+| A chip | one chip with every member (`attrs.members`: functions, props, state, values, fields, methods) | to each chip it uses or is used by |
+
+Wire thickness is the number of connections; red wires break a rule. Tap a wire for the edges it
+carries (each opens its code at the line). **Read the code** opens the chip (or a member) in the code
+panel; **History** follows its file in the git history. The panel's search finds any chip.
+
+**Where you are.** Under the trail of levels, a second line says where the level is in its tier's architecture
+(`board.architectures`): *Feature-Sliced Design › Pages › Apps › ui › AppTile › AppTile.tsx* — the architecture, the
+layer, the slice, then the chip's folders and file. Its steps go to the tier's board (the layers) and to the slice.
+
+**Features.** Each node gets one: config `board.featureOverrides` (globs or ids), then its folder
+(`features/<x>`, `Features/<X>`), then the AI's placement (`repomap.ai.json`), then its parent, then the
+feature most of its neighbours share (≥ 60 %); the rest is `shared`. `board.featureLabels` names them,
+`board.featureAliases` merges them; `board.hubFeatures` lists features everything uses (an API service), which
+don't pull their neighbours in.
+
+**Architectures** (`board.architectures`). Code that follows a layered architecture — Feature-Sliced Design, vertical
+slices — is shown as one: the folders under its `root` are its `layers`, in dependency order, and a layer's subfolders
+can be its features (`"parts": "slices"`, which don't use each other unless the layer is `open`, or `"segments"`, which
+may); otherwise the whole layer is one feature. A node there gets its slice as its feature (`fsd/pages/about`,
+`vsa/Features/Apps`; tests in a folder named like a slice join it), and its tier's board shows the layers as labelled
+columns in their order, with what's outside them last. `crossImports` names the folder through which a slice may still
+use another of its layer (FSD's `@x`). This repository's config has both: the frontend in Feature-Sliced Design, the
+backend in vertical slices (every endpoint an `IEndpoint` class: the .NET plugin follows `api.MapEndpoints()` into each
+slice's `Map`, so the routes keep their prefix, and shows the classes as *Endpoint slice* chips).
+
+**AI summaries** (`npm run summarize`, or the AI panel when served with `npm start`). Claude first
+places the chips nothing placed (through Claude Code or the API, as the assistant's settings say), then summarizes each chip from its code, each feature (per tier) from
+its chips, each tier from its features and the app from its tiers. Results live in `repomap.ai.json`
+(commit it) with a hash of what was read: a run only redoes what changed, and a summary whose code moved
+on is marked *the code changed since*. Models: `ai.summaryModel` (default `claude-haiku-5-5`) and
+`ai.reviewModel` (`claude-opus-5-5`); the key is the assistant's.
+
+**Review mode** (the Review panel). Pick the uncommitted changes, a branch (against the default branch)
+or a commit: changed chips turn orange, what depends on them (two steps) yellow, and the tests that
+cover them are listed. **Brief me** asks Claude for a briefing — what it does, where it lands, ripple
+effects, what to check, tests, questions — from the diff and the map. Without the repository (a
+`--graph` file, a static site) a commit's files from git.json are used instead (whole files).
+
+**Rules** (`rules` in the config, checked on every build, listed by `npm run check`). A rule selects
+edges (`from` / `to`: tiers, layers, features, kinds, roles; `edgeTypes`) and either denies them
+(`deny`) or keeps them inside one feature (`sameFeature`, with `allowFeatures` reachable from anywhere); a selector's
+`notFeatures` matches every feature but those. A `layered` rule names an architecture and keeps its order: an edge to a
+layer before its own, or between two slices of a layer whose slices don't use each other, breaks it (type references
+count, links to a route don't).
+The AI can suggest rules the code already mostly follows (Rules panel, `node src/cli.ts suggest-rules`).
+
+**The assistant** can point at the board: its `show_on_board` tool opens the feature and lights the
+chips up.
+
+**On a phone.** `npm run phone` serves on your network (read-only: no editing, git or AI) and prints a
+link with a one-time token (also as a QR code); the phone keeps it in a cookie. Anyone on the network
+without the link gets a 401. `--no-token` turns that off.
+
+## Projects and Docker
+
+Served from your checkout (`npm start`), repomap is a home for several projects:
+
+- **The Projects menu** (the project's name in the top bar) lists the projects it knows: the one it was started with,
+  and every repository opened or created here (kept in `~/.config/repomap/projects.json`; `REPOMAP_PROJECTS` moves it).
+  Picking one builds its map, then serves it on the same address: the page comes back on it. A project is mapped with
+  its own `repomap.config.json` when it has one (`"extends": "preset:react-aspnet-efcore-postgres"` reaches repomap's
+  presets from anywhere), else with the stack preset; its graph, history and chats stay in repomap's
+  `.out/projects/<id>/`, never in the project.
+- **New project…** creates a project from `templates/react-aspnet-postgres`, the standard structure, in
+  `<folder>/<name>` as a new git repository (its files staged, the first commit yours):
+  - a React + TypeScript frontend (Vite, Redux Toolkit) in **Feature-Sliced Design**, with `npm run lint` = oxlint +
+    Steiger (the FSD linter), so the layers and public APIs stay as they are;
+  - an ASP.NET Core API in **vertical slices** (an `IEndpoint` class per endpoint, found by `api.MapEndpoints()`), EF
+    Core with its migrations, and unit tests that check the architecture (NetArchTest) and that the model matches the
+    migrations;
+  - PostgreSQL, and a `docker-compose.yml` that runs all three (nginx serves the site and forwards `/api`);
+  - a `repomap.config.json` with both architectures and their rules, a README, and ports nothing else uses (each new
+    project gets its own: site from 8081, API from 5201, database from 5441).
+- **Start, Stop, Reload** (top bar): `docker compose up -d --build`, `down` (the data is kept) and
+  `up -d --build --force-recreate` in the project's folder, with the profiles its config names (`"docker":
+  { "profiles": ["site"], "url": "http://localhost:8080" }`: this website's API and web server are in the `site`
+  profile). The dot says whether every service runs; clicking it shows the services and the output of the last action
+  (streamed while it runs). With `url` set, ↗ opens the running site. One action at a time per project; an action
+  keeps running while you look at another project. `REPOMAP_DOCKER` replaces the docker command (the tests use a fake).
+
+## Code and files
+
+- **Read and edit the code**: *Read the code* on a chip (or a member, a wire's connection). The file opens in an
+  editor coloured like VS Code (Dark+/Light+), scrolled to the node, with its declaration highlighted; ⌘F searches
+  the file. Source is served by `repomap serve` from your checkout — only files that belong to a node of the graph,
+  never anything outside the repository — so a static deployment of the viewer shows "not available" instead.
 - **Autosave**: when `repomap serve` maps your own repository on localhost (`npm start`), what you type is
   saved a moment after you stop, on ⌘S, and when you close the panel or leave the page; the status bar
   says *Unsaved changes* → *Saving…* → *Saved*. Undo/redo, Tab indentation and the file's own line
@@ -98,18 +178,16 @@ The CLI is `node src/cli.ts <command>` (`node src/cli.ts help` lists the options
   *Load the disk version*. On touch screens editing starts after tapping the pencil (so reading doesn't pop
   up the keyboard). Only existing text files of the graph can be written. With `--watch` each save rebuilds
   the map; the panel stays open on the file even when the node you opened it from is renamed.
-
-- **Files**: the side panel's *Files* tab is an explorer of the repository (every file git lists; ignored
-  ones like `.env` are left out), each file with the colour of the plane it is drawn on — a dashed dot means
-  "not in the map (yet)". Click a file to find it in the map, double-click to open it. Served from your
-  checkout (`npm start`), the ⋯ menus and the details panel (*New file here…*, *Rename or move…*,
-  *Delete…*) create, rename, move and delete files and whole folders. The new-file dialog shows where the
-  path lands — *Frontend · Production*, or "not in the map" when the config excludes it — from the same
-  rules the build uses, and starts the file from a template the extractors recognise (a React component or
-  hook, a module, a test, a C# class in its project's namespace…). The file opens in the editor; the map is
-  rebuilt and selects the new node once it is there. Paths must stay inside the repository and out of
-  `.git`, never through a symlink out; nothing is overwritten, and a folder holding another repository is
-  never deleted. Deletions are uncommitted changes: the History tab can discard them.
+- **Files**: the Board panel's *Files* tab is an explorer of the repository (every file git lists; ignored
+  ones like `.env` are left out), each file with the colour of its layer — a dashed dot means "not in the map
+  (yet)". Click a file to show it on the Board, double-click to open it. Served from your checkout (`npm start`),
+  the ⋯ menus (*New file here…*, *Rename or move…*, *Delete…*) create, rename, move and delete files and whole
+  folders. The new-file dialog shows where the path lands — *Frontend · Production*, or "not in the map" when the
+  config excludes it — from the same rules the build uses, and starts the file from a template the extractors
+  recognise (a React component or hook, a module, a test, a C# class in its project's namespace…). The file opens in
+  the editor; the map is rebuilt and the Board opens on the new node once it is there. Paths must stay inside the
+  repository and out of `.git`, never through a symlink out; nothing is overwritten, and a folder holding another
+  repository is never deleted. Deletions are uncommitted changes: the History tab can discard them.
 
 ## The AI assistant
 
@@ -117,7 +195,16 @@ Served from your checkout (`npm start`), a chat docked at the bottom of every vi
 history, the code editor — lets you ask Claude about the repository and have it change things.
 **⌘J** (Ctrl+J) shows and hides it; drag its top edge to resize it.
 
-- **Settings** (the gear in the top bar): provider (Anthropic; others are planned), the API key, the
+- **Claude Code instead of a key**: pick the provider *Claude Code (your subscription)* and repomap runs
+  the `claude` CLI installed on this machine (`claude -p`, signed in as you are in the terminal; found
+  on the server's PATH, or `REPOMAP_CLAUDE`). The chat then is Claude Code itself working in the
+  repository with its own tools (streamed into the dock: text, each step, edited files; chats continue
+  their Claude Code session), and the Board's summaries, briefings and rule suggestions go through it too
+  (one-shot prompts: no tools, no session, only your user settings). It can't stop to ask: *Ask* lets it
+  only read (and look in the map with `node src/cli.ts map-query`), *Accept edits* adds file edits,
+  *Auto* adds shell commands — on top of your own Claude Code permissions for the repository. It points
+  at the board by ending an answer with `show-on-board: <names>`.
+- **Settings** (the gear in the top bar): provider (Claude Code, or the Anthropic API with a key), the API key, the
   model (listed live from the API), the effort, and what Claude may do without asking. The key is kept
   by `repomap serve` in `~/.config/repomap/settings.json` (`REPOMAP_SETTINGS` moves it), readable only by
   you; the page never sees it again (only `sk-ant-…abcd`), and it is sent only to Anthropic. Without a
@@ -209,7 +296,7 @@ requests from the viewer itself: a localhost `Host` (no DNS rebinding), the same
 git ls-files ─► classify (layer + role per file, from config rules)
             ─► extractors (separate processes, cached)  ─► nodes, edges, facts, claims
             ─► file refs ─► linkers (see the merged graph + facts) ─► more edges, unresolved links
-            ─► merge + validate ─► layered layout (warm-started) ─► .out/graph.json ─► viewer
+            ─► merge + validate ─► the Board (features, rules, summaries) ─► .out/graph.json ─► viewer
 ```
 
 Everything stack-specific is a **plugin**. A plugin is any executable: it reads a JSON request on stdin
@@ -284,12 +371,8 @@ confidence slider filters them.
 
 The preset defines everything the viewer shows — nothing is hard-coded:
 
-- `layers` (top to bottom; `gap` = distance to the layer above, `arrange: "tree"` = laid out with the other
-  tree layers as one radial tree from the `entrypoint`, `flat` = no sub-planes; in a child config,
-  `"before": "<id>"` inserts a new layer above that one), `roles` (tree via `parent`; `planeOffset` =
-  sub-plane depth, `style: "ghost"`),
-  `kinds` (colour, `shape`, size, label priority), `edgeTypes` (`flow` = followed by traces, `context` =
-  shown one hop around the selection), `presets` (filters; `"*"` wildcards; parent roles cover children).
+- `layers` (in order; in a child config, `"before": "<id>"` inserts a new layer before that one), `roles` (a tree
+  via `parent`), `kinds` and `edgeTypes` (a label, a colour and a description each).
 - `layerRules` (globs, or `marker`: every file under a folder containing e.g. a `package.json` with React) and
   `roleRules` (ordered globs, first match wins; each node records *why* it got its role).
 - `plugins`: `command`, optional `build` step, `include`/`exclude` globs, `layers`, `requires`, `options`.
@@ -321,10 +404,7 @@ The history tab has its own (optional) section; these are the defaults:
   and contents). Unchanged plugins are skipped; a rebuild after editing one file takes about a second for
   the frontend, ~4 s when C# changed. Linkers always run.
 - `.out/history/` — the last 30 graphs that differ; `npm run diff` compares the last two. `meta.changes` in
-  graph.json records what was added/removed since the previous build (the viewer highlights it).
-- Layout positions are baked into graph.json and warm-started from the previous build, so the picture stays
-  put as the code evolves; when nothing that shapes the layout changed, positions are kept exactly.
-  `--relayout` starts fresh. Tree layers don't need it: the same graph always gives the same tree.
+  graph.json records what was added/removed since the previous build (the viewer says so when it reloads).
 
 ## Putting it on the web
 
@@ -339,9 +419,9 @@ used for "Open in VS Code" links) and your uncommitted changes out of git.json.
 
 `npm run typecheck`, `npm test` and `npm run test:e2e` keep the tool in its current state:
 
-- **Unit and integration** (`test/`, Node's test runner): routes, layout (and that unchanged builds keep
-  positions exactly), config (colours included), file rules, merge; the viewer's filters, trace, search, camera
-  framing, code languages and links; git output parsing, pull request detection, GitHub enrichment (stubbed —
+- **Unit and integration** (`test/`, Node's test runner): routes, config (colours included), file rules, merge; the
+  Board (features, architectures and their layers, rules, levels, lanes, the architecture trail, layout, AI); the
+  viewer's graph index, search and code languages; git output parsing, pull request detection, GitHub enrichment (stubbed —
   tests never touch the network) and a real temporary repository; the history tab's lanes, ref filters and
   search; the server's routes, the source-file guard (traversal, symlinks, size, binaries) and live-reload
   events; builds with misbehaving plugins (crashing, garbage, schema violations, timeouts, missing tools),
@@ -360,19 +440,23 @@ used for "Open in VS Code" links) and your uncommitted changes out of git.json.
   settings (key stored owner-only, never returned) and its HTTP routes behind the guard. Plus a run of every plugin on this repository that
   checks the facts that matter (every endpoint of the README's API table, the HomePage →
   `profiles.first_name` chain, DI, migrations, test tagging, no unresolved links, a valid git.json).
+- **Projects** (`test/projects.test.ts`, `e2e/projects.spec.ts`): the names and skeleton of a new project (every
+  placeholder filled in, nothing overwritten), its ports, the registry and the configs projects are mapped with,
+  compose's arguments and output against a fake docker, the routes behind the guard, and in the browser the real switch
+  between projects, creating one, and Start / Stop / Reload.
 - **Browser** (`e2e/`, Playwright against the demo graph and history), in Chromium and WebKit (Firefox in CI or
-  with `ALL_BROWSERS=1`) and on a phone (Pixel 7): the map (presets, filters, search + trace, right-click →
-  code, theme and view settings, shortcuts, opening and dropping files, `?graph=`, live reload), the history
-  tab (graph, details, keyboard, search, branch filters, pull requests, deep links, map ↔ history), the phone
-  layout (drawers, bottom sheets, long-press, no sideways scrolling) and WCAG 2.1 AA checks (axe) of both
+  with `ALL_BROWSERS=1`) and on a phone (Pixel 7): the Board (levels, zoom and pinch, the trail, search,
+  review, rules, the Files tab, code, help, opening and dropping files, `?graph=`, live reload, no WebGL anywhere),
+  the history tab (graph, details, keyboard, search, branch filters, pull requests, deep links, Board ↔ history),
+  the phone layout (sheets, no sideways scrolling) and WCAG 2.1 AA checks (axe) of both
   tabs in both themes. Editing and git commands run against a real repository per test (`e2e/repo-fixture.ts`:
   a bare origin, a clone served by repomap, a teammate's clone): typing and autosave, ⌘S, closing, undo,
   files changed on disk, CRLF, read-only servers; committing ticked files, publishing and pushing, fetching
   and pulling, a merge conflict resolved in the editor, abort, switching and deleting branches, tags,
   revert, undo, cherry-pick, discard, stash, failures, keyboard menus, axe on all of it, and on a phone.
   With `realMap` the fixture builds the map with the real pipeline and rebuilds it after every change: a
-  component created from the explorer lands on the Frontend plane, renames and deletions from the details
-  panel update the map, a deleted folder comes back through the History tab. With `withAI` it talks to
+  component created from the explorer opens the Board on it, renames and deletions from the explorer update the
+  Board, a deleted folder comes back through the History tab. With `withAI` it talks to
   the fake API: settings and the key, context chips, streamed Markdown answers, approving an edit (the
   open editor shows it), declining a command, stopping, chats across tabs, and axe on the dock.
   Every test fails on page errors.
@@ -380,10 +464,13 @@ used for "Open in VS Code" links) and your uncommitted changes out of git.json.
 
 ## Limitations and next steps
 
-- Routes built at runtime (loops, reflection, assembly scanning) can't be seen statically; an OpenAPI-based
-  route source would cover them.
+- Routes built at runtime (loops, reflection) can't be seen statically — except endpoint discovery of the
+  vertical-slice kind (`api.MapEndpoints()` mapping every `IEndpoint`), which the .NET plugin follows; an
+  OpenAPI-based route source would cover the rest.
 - The database layer comes from the EF Core snapshot. A PostgreSQL catalog extractor would support non-EF
   projects and detect drift.
-- Not yet built: an optional LLM enrichment plugin (descriptions for undocumented nodes, classifying files of
-  unknown stacks, suggested edges marked `source: "llm"`) — the schema and viewer already support it.
+- The AI summarizes chips and places unplaced ones in features (the Board); not yet: classifying files of
+  unknown stacks, or suggesting edges marked `source: "llm"` (the schema and viewer support them).
+- The pipeline test on this repository has 4 failures that predate the Board: the app gained calls the
+  extractors don't resolve (dynamic URLs in tests) and a test whose `tests` edge is lost.
 - Standalone packaging (an `npx` CLI + a published .NET tool + `repomap init`) comes when this moves out of the repo.

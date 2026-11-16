@@ -1,5 +1,5 @@
 /**
- * The assistant's chat, docked at the bottom of every view (the map, the history, the code editor).
+ * The assistant's chat, docked at the bottom of every view (the Board, the history, the code editor).
  * ⌘J shows and hides it; dragging its top edge resizes it. What you are looking at is attached as
  * chips (take one off with a click); every step Claude takes shows up, and changes wait for approval.
  */
@@ -10,6 +10,7 @@ import { useGitActions } from '../git/actions.ts'
 import { relativeTime } from '../git/model.ts'
 import { useGit } from '../git/store.ts'
 import { useEditor } from '../model/editor.ts'
+import { useBoard } from '../board/store.ts'
 import { useViewer } from '../model/store.ts'
 import { ActionMenu, type MenuItem } from '../ui/ActionMenu.tsx'
 import { Icon, type IconName } from '../ui/icons.tsx'
@@ -27,7 +28,10 @@ const MODES: { value: PermissionMode; label: string; hint: string }[] = [
 export function useCurrentContext(): ContextItem[] {
   const tab = useViewer((s) => s.tab)
   const index = useViewer((s) => s.index)
-  const selected = useViewer((s) => s.selected)
+  // On the Board, the selected chip (a node) is what you're looking at.
+  const boardChip = useBoard((s) => (s.selected && !s.selected.startsWith('wire:') ? s.selected : null))
+  const boardNode = boardChip && index ? (index.byId.get(boardChip) ?? null) : null
+  const selected = tab === 'board' ? boardNode : null
   const editor = useEditor()
   const commit = useGit((s) => s.selected)
   const model = useGit((s) => s.model)

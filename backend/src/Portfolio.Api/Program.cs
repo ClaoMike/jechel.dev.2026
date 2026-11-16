@@ -2,26 +2,19 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
-using Portfolio.Api;
+using Portfolio.Api.Common;
 using Portfolio.Api.Data;
-using Portfolio.Api.Features.About;
 using Portfolio.Api.Features.Alerts;
 using Portfolio.Api.Features.Analytics;
-using Portfolio.Api.Features.Apps;
 using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.Contact;
 using Portfolio.Api.Features.Files;
 using Portfolio.Api.Features.LeetCode;
 using Portfolio.Api.Features.Meetings;
 using Portfolio.Api.Features.Places;
-using Portfolio.Api.Features.Profile;
-using Portfolio.Api.Features.Resume;
 using Portfolio.Api.Features.Settings;
-using Portfolio.Api.Features.Site;
 using Portfolio.Api.Features.Support;
-using Portfolio.Api.Features.Terms;
 using Portfolio.Api.Features.Updates;
-using Portfolio.Api.Features.WorkWithMe;
 using Portfolio.Api.Features.YouTube;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -149,13 +142,13 @@ var analyticsLimit = builder.Configuration.GetValue("Analytics:LimitPer10Minutes
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy(Portfolio.Api.Features.Contact.ContactEndpoints.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
+    options.AddPolicy(Portfolio.Api.Features.Contact.ContactShared.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
         http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = contactLimit, Window = TimeSpan.FromMinutes(10) }));
-    options.AddPolicy(AnalyticsEndpoints.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
+    options.AddPolicy(AnalyticsShared.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
         http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = analyticsLimit, Window = TimeSpan.FromMinutes(10) }));
-    options.AddPolicy(UpdatesEndpoints.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
+    options.AddPolicy(UpdatesShared.RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
         http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = subscribeLimit, Window = TimeSpan.FromMinutes(10) }));
 });
@@ -217,26 +210,8 @@ api.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
         return context.Response.WriteAsync(report.Status.ToString());
     },
 });
-api.MapProfileEndpoints();
-api.MapAuthEndpoints();
-api.MapContactEndpoints();
-api.MapAboutEndpoints();
-api.MapFileEndpoints();
-api.MapPlaceEndpoints();
-api.MapLeetCodeEndpoints();
-api.MapYouTubeEndpoints();
-api.MapAppEndpoints();
-api.MapTermsEndpoints();
-api.MapAnalyticsEndpoints();
-api.MapSupportEndpoints();
-api.MapUpdatesEndpoints();
-api.MapUpdateEmailsEndpoints();
-api.MapResumeEndpoints();
-api.MapSettingsEndpoints();
-api.MapNotificationsEndpoints();
-api.MapPushEndpoints();
-api.MapMeetingsEndpoints();
-api.MapSiteEndpoints();
-api.MapWorkWithMeEndpoints();
+
+// Every endpoint is a slice of its feature (Features/<Feature>/<Endpoint>.cs, an IEndpoint): all of them, found in the assembly.
+api.MapEndpoints();
 
 app.Run();

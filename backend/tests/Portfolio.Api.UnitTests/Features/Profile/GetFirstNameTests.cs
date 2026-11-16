@@ -16,10 +16,10 @@ public class GetFirstNameTests
     public async Task Returns_first_name_when_profile_exists()
     {
         await using var db = CreateDbContext();
-        db.Profiles.Add(new Data.Profile { Id = 1, FirstName = "Claudiu" });
+        db.Profiles.Add(new Api.Features.Profile.Profile { Id = 1, FirstName = "Claudiu" });
         await db.SaveChangesAsync();
 
-        var result = await ProfileEndpoints.GetFirstName(db, CancellationToken.None);
+        var result = await GetFirstName.Handle(db, CancellationToken.None);
 
         var ok = Assert.IsType<Ok<FirstNameResponse>>(result.Result);
         Assert.Equal("Claudiu", ok.Value!.FirstName);
@@ -30,7 +30,7 @@ public class GetFirstNameTests
     {
         await using var db = CreateDbContext();
 
-        var result = await ProfileEndpoints.GetFirstName(db, CancellationToken.None);
+        var result = await GetFirstName.Handle(db, CancellationToken.None);
 
         Assert.IsType<NotFound>(result.Result);
     }

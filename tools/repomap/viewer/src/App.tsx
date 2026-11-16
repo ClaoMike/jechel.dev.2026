@@ -1,40 +1,34 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { ChatDock } from './ai/ChatDock.tsx'
 import { SettingsDialog } from './ai/SettingsDialog.tsx'
-import { FILES_CHANGED_EVENT, useAssistant } from './ai/store.ts'
+import { BOARD_FOCUS_EVENT, FILES_CHANGED_EVENT, useAssistant } from './ai/store.ts'
+import { showOnBoard } from './board/show.ts'
+import { useBoard } from './board/store.ts'
 import { useGitActions } from './git/actions.ts'
 import { ensureGitHistory, reloadServerHistory } from './git/load.ts'
 import { useGit } from './git/store.ts'
-import type { ColorBy } from './model/colors.ts'
 import { useFiles } from './model/files.ts'
 import { loadInitialGraph } from './model/load.ts'
-import { COARSE, matches, NARROW, useMediaQuery } from './model/media.ts'
-import { useViewer, type LabelMode } from './model/store.ts'
-import { writeViewToHash } from './model/url.ts'
-import { Scene } from './scene/Scene.tsx'
-import { ContextMenu } from './ui/ContextMenu.tsx'
-import { DetailsPanel } from './ui/DetailsPanel.tsx'
+import { matches, NARROW } from './model/media.ts'
+import { useViewer } from './model/store.ts'
 import { FileDialogs } from './ui/FileDialogs.tsx'
+import { DockerLog } from './projects/DockerControls.tsx'
+import { ProjectOverlays } from './projects/ProjectMenu.tsx'
 import { Banner, DropZone, HelpOverlay, Status, Toast } from './ui/Overlays.tsx'
-import { Sidebar } from './ui/Sidebar.tsx'
 import { TopBar } from './ui/TopBar.tsx'
 
 // The editor (CodeMirror + grammars) loads only when code is first opened, the history tab when first shown.
 const CodeViewer = lazy(() => import('./ui/code/CodeViewer.tsx'))
 const GitView = lazy(() => import('./git/GitView.tsx'))
-
-const COLOR_CYCLE: ColorBy[] = ['kind', 'layer', 'role', 'feature']
-const LABEL_CYCLE: LabelMode[] = ['auto', 'all', 'none']
+const BoardView = lazy(() => import('./board/BoardView.tsx'))
 
 export function App() {
   const tab = useViewer((s) => s.tab)
   const theme = useViewer((s) => s.theme)
-  const sidebarOpen = useViewer((s) => s.sidebarOpen)
-  const selected = useViewer((s) => s.selected)
   const codeView = useViewer((s) => s.codeView)
-  const searchExpanded = useViewer((s) => s.searchExpanded)
-  const narrow = useMediaQuery(NARROW)
+  const revealed = useViewer((s) => s.revealed)
   const [gitShown, setGitShown] = useState(tab === 'git')
+  const [boardShown, setBoardShown] = useState(tab === 'board')
 
   useEffect(() => {
     void loadInitialGraph().then(() => {
@@ -47,6 +41,7 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    if (tab === 'board') setBoardShown(true)
     if (tab !== 'git') return
     setGitShown(true)
     ensureGitHistory()
@@ -67,22 +62,23 @@ export function App() {
     return () => window.removeEventListener(FILES_CHANGED_EVENT, refresh)
   }, [])
 
-  // Keep the URL hash (and localStorage) in sync with the view, so links are shareable.
+  // The assistant pointed at parts of the app: open the board on them.
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    return useViewer.subscribe((state, previous) => {
-      if (!state.index) return
-      if (
-        state.filters === previous.filters &&
-        state.presetId === previous.presetId &&
-        state.selected === previous.selected &&
-        state.colorBy === previous.colorBy &&
-        state.labels === previous.labels
-      ) return
-      clearTimeout(timer)
-      timer = setTimeout(() => writeViewToHash(useViewer.getState().viewState()), 250)
-    })
+    const onFocus = (event: Event) => {
+      const refs = (event as CustomEvent<unknown>).detail
+      const index = useViewer.getState().index
+      if (!index || !Array.isArray(refs)) return
+      const nodes = refs.map((ref) => (typeof ref === 'string' ? (index.byId.get(ref) ?? index.nodes.findIndex((n) => n.label === ref)) : -1)).filter((i) => i >= 0)
+      showOnBoard(nodes)
+    }
+    window.addEventListener(BOARD_FOCUS_EVENT, onFocus)
+    return () => window.removeEventListener(BOARD_FOCUS_EVENT, onFocus)
   }, [])
+
+  // A file created or renamed here, once a rebuild brought it in: the board opens on it.
+  useEffect(() => {
+    if (revealed) showOnBoard([revealed.node])
+  }, [revealed])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -100,76 +96,32 @@ export function App() {
         onGitKey(event, !!typing)
         return
       }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        document.querySelector<HTMLInputElement>('[data-testid="search"]')?.focus()
-        return
-      }
-      // The code panel, the node menu and dialogs handle their own keys.
-      if (store.codeView || store.contextMenu || target?.closest('[role="dialog"], [role="menu"]')) return
-      if (typing || event.metaKey || event.ctrlKey || event.altKey) return
-      switch (event.key) {
-        case '/':
-          event.preventDefault()
-          document.querySelector<HTMLInputElement>('[data-testid="search"]')?.focus()
-          break
-        case 'Escape':
-          if (store.helpOpen) store.setHelp(false)
-          else store.select(null)
-          break
-        case 'f':
-        case 'F':
-          store.command({ type: 'fit' })
-          break
-        case 's':
-        case 'S':
-          store.command({ type: 'side' })
-          break
-        case 'r':
-        case 'R':
-          store.command({ type: 'reset' })
-          break
-        case 'c':
-        case 'C':
-          store.setColorBy(COLOR_CYCLE[(COLOR_CYCLE.indexOf(store.colorBy) + 1) % COLOR_CYCLE.length])
-          break
-        case 'l':
-        case 'L':
-          store.setLabels(LABEL_CYCLE[(LABEL_CYCLE.indexOf(store.labels) + 1) % LABEL_CYCLE.length])
-          break
-        case '[':
-          store.toggleSidebar()
-          break
-        case '?':
-          store.setHelp(!store.helpOpen)
-          break
-        default:
-          if (/^[1-9]$/.test(event.key) && store.index) {
-            const plane = store.index.planes[Number(event.key) - 1]
-            if (plane) store.command({ type: 'layer', layer: plane.layer })
-          }
-      }
+      if (!store.codeView && !target?.closest('[role="dialog"], [role="menu"]')) onBoardKey(event, !!typing)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   return (
-    <div className={`app theme-${theme} tab-${tab}${sidebarOpen ? ' with-sidebar' : ''}${selected !== null ? ' with-details' : ''}${searchExpanded ? ' search-expanded' : ''}`}>
+    <div className={`app theme-${theme} tab-${tab}`}>
       <TopBar />
-      {/* Both tabs stay mounted (the 3D scene keeps its camera); the hidden one is inert and paused. */}
+      {/* Both tabs stay mounted (inert while hidden), each loaded when first shown. */}
       <main className="panels">
-        <div className={`workspace${tab === 'map' ? '' : ' inactive'}`} id="panel-map" role="tabpanel" aria-labelledby="tab-map" inert={tab !== 'map'}>
-          <Sidebar />
-          {narrow && sidebarOpen && <div className="drawer-backdrop" onClick={() => useViewer.getState().setSidebar(false)} aria-hidden="true" />}
-          <div className="stage">
-            <Scene />
-            <ContextMenu />
-            <Banner />
-            <Status />
-            <Hint />
-          </div>
-          <DetailsPanel />
+        <div className={`workspace board-tab${tab === 'board' ? '' : ' inactive'}`} id="panel-board" role="tabpanel" aria-labelledby="tab-board" inert={tab !== 'board'} data-testid="board-view">
+          {boardShown && (
+            <Suspense
+              fallback={
+                <div className="status">
+                  <div className="spinner" aria-hidden="true" />
+                  <p>Loading the board…</p>
+                </div>
+              }
+            >
+              <BoardView />
+            </Suspense>
+          )}
+          <Status />
+          <Banner />
         </div>
         <div className={`workspace git-workspace${tab === 'git' ? '' : ' inactive'}`} id="panel-git" role="tabpanel" aria-labelledby="tab-git" inert={tab !== 'git'} data-testid="git-view">
           {gitShown && (
@@ -202,11 +154,52 @@ export function App() {
       <ChatDock />
       <SettingsDialog />
       <FileDialogs />
+      <ProjectOverlays />
+      <DockerLog />
       <HelpOverlay />
       <DropZone />
       <Toast />
     </div>
   )
+}
+
+/** Board tab: Esc goes up a level (or clears the selection), F fits, / finds a chip. */
+function onBoardKey(event: KeyboardEvent, typing: boolean): void {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    document.querySelector<HTMLInputElement>('[data-testid="board-search"]')?.focus()
+    return
+  }
+  if (typing || event.metaKey || event.ctrlKey || event.altKey) return
+  const viewer = useViewer.getState()
+  const board = useBoard.getState()
+  const command = (detail: string) => window.dispatchEvent(new CustomEvent('repomap:board', { detail }))
+  switch (event.key) {
+    case 'Escape': {
+      if (viewer.helpOpen) viewer.setHelp(false)
+      else if (board.selected) board.select(null)
+      else board.back()
+      break
+    }
+    case '/':
+      event.preventDefault()
+      document.querySelector<HTMLInputElement>('[data-testid="board-search"]')?.focus()
+      break
+    case 'f':
+    case 'F':
+      command('fit')
+      break
+    case '+':
+    case '=':
+      command('in')
+      break
+    case '-':
+      command('out')
+      break
+    case '?':
+      viewer.setHelp(!viewer.helpOpen)
+      break
+  }
 }
 
 function focusGitSearch(): void {
@@ -268,25 +261,4 @@ function onGitKey(event: KeyboardEvent, typing: boolean): void {
       else if (git.path) git.setPath(null)
       break
   }
-}
-
-function Hint() {
-  const selected = useViewer((s) => s.selected)
-  const index = useViewer((s) => s.index)
-  const interacted = useViewer((s) => s.interacted)
-  const touch = useMediaQuery(COARSE)
-  if (!index || selected !== null) return null
-  if (touch) {
-    if (interacted) return null
-    return (
-      <div className="hint touch" data-testid="hint">
-        drag to rotate · pinch to zoom · two fingers to pan · tap a node to trace it · long-press for code
-      </div>
-    )
-  }
-  return (
-    <div className="hint" data-testid="hint">
-      <kbd>drag</kbd> rotate · <kbd>right-drag</kbd> pan · <kbd>scroll</kbd> zoom · <kbd>click</kbd> a node to trace it · <kbd>right-click</kbd> code · <kbd>?</kbd> help
-    </div>
-  )
 }

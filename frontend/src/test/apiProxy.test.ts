@@ -62,3 +62,74 @@ describe('forwarding', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 })
+
+describe("uploaded files at Cloudflare's edge", () => {
+  const env = { API_ORIGIN: 'https://api.example', PROXY_SECRET: 's' }
+  const FILE = 'https://jechel.dev/api/files/0192f3a1-7c2e-7b1a-9f00-3c1d2e4f5a6b/screenshot.webp'
+
+  /** A stand-in for caches.default: keeps what's put, by address. */
+  function stubEdge() {
+    const kept = new Map<string, Response>()
+    const edge = {
+      match: vi.fn(async (request: Request) => kept.get(request.url)?.clone()),
+      put: vi.fn(async (request: Request, response: Response) => void kept.set(request.url, response)),
+    }
+    vi.stubGlobal('caches', { default: edge })
+    return { edge, kept }
+  }
+
+  it('asks the API for a file once, then answers from the edge', async () => {
+    const { edge } = stubEdge()
+    const fetch = vi.fn(async () => new Response('image bytes', { status: 200, headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } }))
+    vi.stubGlobal('fetch', fetch)
+    const waiting: Promise<unknown>[] = []
+    const context = () => ({ request: new Request(`${FILE}?v=2`, { headers: { Cookie: 'portfolio.auth=abc' } }), env, waitUntil: (p: Promise<unknown>) => void waiting.push(p) })
+
+    const first = await onRequest(context())
+    expect(await first.text()).toBe('image bytes')
+    await Promise.all(waiting)
+    // Kept by its address alone, and asked for without the admin's cookie: the same answer for everyone.
+    expect(edge.put.mock.calls[0][0].url).toBe(FILE)
+    expect((fetch.mock.calls[0] as unknown as [URL, { headers: Headers }])[1].headers.get('cookie')).toBeNull()
+
+    const second = await onRequest(context())
+    expect(await second.text()).toBe('image bytes')
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it("asks the kept file for the part a video wants, and doesn't keep a part or a missing file", async () => {
+    const { edge, kept } = stubEdge()
+    const fetch = vi.fn(async (_url: URL, init: { headers: Headers }) => (init.headers.get('range') ? new Response('part', { status: 206 }) : new Response(null, { status: 404 })))
+    vi.stubGlobal('fetch', fetch)
+
+    const part = await onRequest({ request: new Request(FILE, { headers: { Range: 'bytes=0-3' } }), env })
+    expect(part.status).toBe(206)
+    expect((edge.match.mock.calls[0][0] as Request).headers.get('range')).toBe('bytes=0-3')
+    expect((await onRequest({ request: new Request(FILE), env })).status).toBe(404)
+    expect(edge.put).not.toHaveBeenCalled()
+    expect(kept.size).toBe(0)
+  })
+
+  it('keeps nothing else: live data, the résumé, uploads on their way in', async () => {
+    const { edge } = stubEdge()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}')))
+
+    for (const request of [
+      new Request('https://jechel.dev/api/apps'),
+      new Request('https://jechel.dev/api/resume/private'),
+      new Request('https://jechel.dev/api/files/photo', { method: 'POST', body: 'x' }),
+      new Request(FILE, { method: 'HEAD' }),
+    ])
+      await onRequest({ request, env })
+    expect(edge.match).not.toHaveBeenCalled()
+    expect(edge.put).not.toHaveBeenCalled()
+  })
+
+  it('still answers when the edge refuses to keep a file', async () => {
+    const { edge } = stubEdge()
+    edge.put.mockRejectedValue(new Error('too large'))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('bytes')))
+
+    expect(await (await onRequest({ request: new Request(FILE), env })).text()).toBe('bytes')
+  })
+})

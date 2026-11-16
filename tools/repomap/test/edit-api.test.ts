@@ -31,10 +31,8 @@ const graph: RepoGraph = {
     generatedAt: '2026-01-01T00:00:00Z',
     layers: [{ id: 'app', label: 'App', color: '#fff' }],
     roles: [],
-    kinds: [{ id: 'file', label: 'File', color: '#fff', shape: 'box' }],
+    kinds: [{ id: 'file', label: 'File', color: '#fff' }],
     edgeTypes: [],
-    presets: [],
-    layout: { algorithm: 'test', layerGap: 90, seed: 1 },
   },
   nodes: ['src/a.ts', 'src/crlf.ts', 'blob.bin', 'escape.ts', 'gone.ts'].map((file) => ({ id: `app:file:${file}`, label: file, kind: 'file', layer: 'app', role: 'production', file })),
   edges: [],
@@ -208,7 +206,7 @@ describe('the editing API', () => {
   })
 
   it('says whether it is writable', async () => {
-    assert.deepEqual(JSON.parse((await send(server.url, 'GET', '/api/info')).body), { writable: true, ai: false })
+    assert.deepEqual(JSON.parse((await send(server.url, 'GET', '/api/info')).body), { writable: true, ai: false, boardAi: false, projects: false, docker: false })
     const locked = await send(readOnly.url, 'GET', '/api/info')
     assert.equal(locked.status, 200)
     assert.deepEqual(JSON.parse(locked.body), { writable: false })

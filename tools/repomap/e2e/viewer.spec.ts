@@ -1,66 +1,41 @@
-import { expect, test, type Page } from '@playwright/test'
-import { watchErrors } from './helpers.ts'
-
-const footer = (page: Page) => page.locator('.sidebar-footer')
+import { expect, test } from '@playwright/test'
+import { graphLoaded, watchErrors } from './helpers.ts'
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('sidebar')).toBeVisible()
-  await expect(footer(page)).toContainText('253/253 nodes')
+  await graphLoaded(page)
 })
 
-test('renders the demo graph in 3D without errors', async ({ page }) => {
+test('opens on the board of the demo graph, without errors and without any 3D scene', async ({ page }) => {
   const errors = watchErrors(page)
-  await expect(page.locator('.scene canvas').first()).toBeVisible()
   await expect(page.locator('.repo')).toContainText('bookshelf (demo)')
+  await expect(page.locator('#tab-board')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-chip="app"]')).toBeVisible()
+  // The views are the Board and the history: nothing draws in WebGL.
+  const views = page.getByRole('tablist', { name: 'Views' }).getByRole('tab')
+  await expect(views).toHaveCount(2)
+  await expect(views.nth(0)).toContainText('Board')
+  await expect(views.nth(1)).toContainText('Git history')
+  await expect(page.locator('canvas')).toHaveCount(0)
   await page.waitForTimeout(500)
   expect(errors).toEqual([])
 })
 
-test('presets filter nodes and edges without moving anything', async ({ page }) => {
-  await page.getByTestId('preset-architecture').click()
-  await expect(page.getByTestId('preset-architecture')).toHaveClass(/active/)
-  await expect(footer(page)).not.toContainText('253/253 nodes')
-  await expect(page.getByTestId('role-test')).toContainText('0/')
-  await page.getByTestId('preset-everything').click()
-  await expect(footer(page)).toContainText('253/253 nodes')
-})
-
-test('a role can be hidden and dimmed', async ({ page }) => {
-  const tests = page.getByTestId('role-test')
-  await tests.getByRole('checkbox').click()
-  await expect(tests.getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
-  await expect(page.locator('.chip.custom')).toBeVisible() // no preset hides only the tests
-  await tests.getByRole('checkbox').click()
-  await tests.hover()
-  await tests.getByRole('button', { name: /Dim Tests/ }).click()
-  await expect(tests).toHaveClass(/dim/)
-})
-
-test('search selects a node and shows its trace', async ({ page }) => {
+test('search finds a chip and opens the board where it is', async ({ page }) => {
   const errors = watchErrors(page)
-  await page.getByTestId('search').fill('BooksPage')
-  await page.getByTestId('search').press('Enter')
-  const details = page.getByTestId('details')
-  await expect(details.getByRole('heading', { name: 'BooksPage' })).toBeVisible()
-  await expect(details.getByText('Trace')).toBeVisible()
-  await expect(details.getByRole('button', { name: /GET \/api\/books/ }).first()).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(details).toHaveCount(0)
+  await page.getByTestId('board-search').fill('BooksPage')
+  await page.getByTestId('board-search').press('Enter')
+  await expect(page.getByTestId('board-chip-details')).toContainText('BooksPage')
+  await expect(page.locator('.board-trail')).toContainText('Book')
   expect(errors).toEqual([])
 })
 
-test('the view is kept in the URL', async ({ page }) => {
-  await page.getByTestId('preset-data').click()
-  await expect.poll(() => page.url()).toContain('#view=')
-  await page.reload()
-  await expect(page.getByTestId('preset-data')).toHaveClass(/active/)
-})
-
 test('help opens with ? and closes with Escape', async ({ page }) => {
-  await page.locator('.scene').click({ position: { x: 5, y: 5 } })
+  await page.locator('.board-canvas').click({ position: { x: 5, y: 300 } })
   await page.keyboard.press('?')
-  await expect(page.getByRole('dialog', { name: 'Help' })).toBeVisible()
+  const help = page.getByRole('dialog', { name: 'Help' })
+  await expect(help).toBeVisible()
+  await expect(help).toContainText('How to read and drive the board')
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog', { name: 'Help' })).toHaveCount(0)
+  await expect(help).toHaveCount(0)
 })

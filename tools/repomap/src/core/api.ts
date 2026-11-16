@@ -10,6 +10,13 @@
  *   POST /api/files       create / delete / rename a file or folder (JSON FileOperation)
  *   /api/ai/…             the assistant: settings, models, chats, a message (streamed), approvals, stop
  *   POST /api/git         run one GitAction (JSON)
+ *   GET  /api/board/ai    the Board's AI job (summaries): running, progress, last result
+ *   POST /api/board/summarize · /api/board/stop · /api/board/briefing · /api/board/suggest-rules
+ *   GET  /api/projects    the projects (the Projects menu) and the open one
+ *   POST /api/projects/open {id} · /api/projects/add {path, name?} · /api/projects/create {name, parent}
+ *   GET  /api/docker      the open project's services · POST /api/docker {action: start | stop | reload}
+ *
+ * (GET /api/review, the read-only diff for review mode, is served by serve.ts on every server.)
  *
  * Only served when enabled (by default: `repomap serve` of your own repository on a loopback
  * address). Every request must come from the viewer itself: a loopback Host (no DNS rebinding), the
@@ -19,7 +26,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AiSettingsUpdate, ApprovalDecision, ChatEvent } from '../shared/ai.ts'
 import { WRITE_HEADER, type GitAction } from '../shared/git-actions.ts'
+import { DOCKER_ACTIONS, type DockerAction, type DockerStatus, type ProjectInfo, type ProjectsView } from '../shared/projects.ts'
 import type { RepoGraph } from '../shared/types.ts'
+import { DockerError } from './docker.ts'
+import { ProjectError } from './projects.ts'
+import { ScaffoldError } from './scaffold.ts'
+import { BoardAiError, reviewBriefing, suggestRules, summarizeBoard, type BriefingInput, type SummarizeProgress } from './ai/board-ai.ts'
+import type { RepoMapConfig } from './config.ts'
+import { readReviewDiff, ReviewError } from './review.ts'
 import { apiError, AssistantError, type Assistant, type SendRequest } from './ai/assistant.ts'
 import { publicConversation, type ConversationStore } from './ai/conversations.ts'
 import { SettingsError, type SettingsStore } from './ai/settings.ts'
@@ -39,8 +53,37 @@ export interface ApiContext {
   /** The layer and role the build would give a path (undefined: excluded from the map). */
   classify?(path: string): { layer: string; role: string; reason: string } | undefined
   /** The AI assistant (absent: not offered). */
-  ai?: { assistant: Assistant; settings: SettingsStore; conversations: ConversationStore }
+  ai?: { assistant: Assistant; settings: SettingsStore; conversations: ConversationStore; baseURL?: string }
+  /** The Board's AI work: the config (ai file, models), a rebuild, and a way to tell the viewers. */
+  board?: { config: RepoMapConfig; rebuild(): Promise<RepoGraph>; broadcast(event: string, data: unknown): void }
+  projects?: ProjectsContext
+  docker?: DockerContext
 }
+
+/** The Projects menu: what serve.ts does with the registry (switching restarts the server on the same port). */
+export interface ProjectsContext {
+  view(): ProjectsView
+  /** Starts switching (answered at once: the `project` event follows). */
+  open(id: string): void
+  add(path: string, name?: string): ProjectInfo
+  create(name: string, parent: string): Promise<ProjectInfo>
+}
+
+/** The open project's Docker. */
+export interface DockerContext {
+  status(): Promise<DockerStatus>
+  start(action: DockerAction): Promise<DockerStatus>
+}
+
+/** The one summaries run a server does at a time. */
+interface BoardJob {
+  running: boolean
+  progress?: SummarizeProgress
+  result?: { placed: number; written: number; failed: number; remaining: number }
+  error?: string
+  controller?: AbortController
+}
+const boardJobs = new WeakMap<object, BoardJob>()
 
 /** On a writable server the code panel may open every file git lists, not only the graph's. */
 export function workspaceAllows(repoRoot: string): (path: string) => boolean {
@@ -58,7 +101,17 @@ export function isLoopbackHost(host: string): boolean {
 export async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL, context: ApiContext): Promise<boolean> {
   const route = `${req.method} ${url.pathname}`
   if (route === 'GET /api/info') {
-    sendJson(res, 200, { writable: true, ai: !!context.ai })
+    sendJson(res, 200, { writable: true, ai: !!context.ai, boardAi: !!(context.ai && context.board), projects: !!context.projects, docker: !!context.docker })
+    return true
+  }
+  if (url.pathname.startsWith('/api/projects')) {
+    if (!allowed(req, res, req.method !== 'GET')) return true
+    await projectsRoute(req, res, url, context)
+    return true
+  }
+  if (url.pathname === '/api/docker') {
+    if (!allowed(req, res, req.method !== 'GET')) return true
+    await dockerRoute(req, res, context)
     return true
   }
   if (url.pathname === '/source' && req.method === 'PUT') {
@@ -112,6 +165,11 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, url: 
       return true
     }
     await aiRoute(req, res, url, context.ai)
+    return true
+  }
+  if (url.pathname.startsWith('/api/board/')) {
+    if (!allowed(req, res, req.method !== 'GET')) return true
+    await boardRoute(req, res, url, context)
     return true
   }
   if (url.pathname.startsWith('/api/')) {
@@ -206,6 +264,46 @@ async function fileOperation(req: IncomingMessage, res: ServerResponse, context:
   }
 }
 
+/** The Projects menu's routes (the guard has run). */
+async function projectsRoute(req: IncomingMessage, res: ServerResponse, url: URL, context: ApiContext): Promise<void> {
+  const projects = context.projects
+  if (!projects) return sendJson(res, 404, { error: 'Projects are not available on this server' })
+  const route = `${req.method} ${url.pathname}`
+  try {
+    if (route === 'GET /api/projects') return sendJson(res, 200, projects.view())
+    const body = await jsonBody<{ id?: unknown; path?: unknown; name?: unknown; parent?: unknown }>(req)
+    const text = (value: unknown) => (typeof value === 'string' ? value : '')
+    if (route === 'POST /api/projects/open') {
+      projects.open(text(body.id))
+      return sendJson(res, 202, { ok: true })
+    }
+    if (route === 'POST /api/projects/add') return sendJson(res, 200, projects.add(text(body.path), text(body.name) || undefined))
+    if (route === 'POST /api/projects/create') return sendJson(res, 201, await projects.create(text(body.name), text(body.parent)))
+    sendJson(res, 404, { error: 'Not found' })
+  } catch (error) {
+    if (error instanceof ProjectError || error instanceof ScaffoldError) return sendJson(res, error.status, { error: error.message })
+    if (error instanceof SettingsError || error instanceof SyntaxError) return sendJson(res, 400, { error: error.message })
+    sendJson(res, 500, { error: (error as Error).message })
+  }
+}
+
+/** Start, Stop and Reload (the guard has run). */
+async function dockerRoute(req: IncomingMessage, res: ServerResponse, context: ApiContext): Promise<void> {
+  const docker = context.docker
+  if (!docker) return sendJson(res, 404, { error: 'Docker is not available on this server' })
+  try {
+    if (req.method === 'GET') return sendJson(res, 200, await docker.status())
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' })
+    const { action } = await jsonBody<{ action?: unknown }>(req)
+    if (!DOCKER_ACTIONS.includes(action as DockerAction)) return sendJson(res, 400, { error: `action: one of ${DOCKER_ACTIONS.join(', ')}` })
+    sendJson(res, 202, await docker.start(action as DockerAction))
+  } catch (error) {
+    if (error instanceof DockerError) return sendJson(res, error.status, { error: error.message })
+    if (error instanceof SettingsError || error instanceof SyntaxError) return sendJson(res, 400, { error: error.message })
+    sendJson(res, 500, { error: (error as Error).message })
+  }
+}
+
 /** The assistant's routes (the guard has run). */
 async function aiRoute(req: IncomingMessage, res: ServerResponse, url: URL, ai: NonNullable<ApiContext['ai']>): Promise<void> {
   const { assistant, settings } = ai
@@ -242,6 +340,78 @@ async function aiRoute(req: IncomingMessage, res: ServerResponse, url: URL, ai: 
     const failure = apiError(error)
     if (!res.headersSent) sendJson(res, failure.status, { error: failure.message })
   }
+}
+
+/** The Board's AI routes (the guard has run). */
+async function boardRoute(req: IncomingMessage, res: ServerResponse, url: URL, context: ApiContext): Promise<void> {
+  const { board, ai } = context
+  if (!board || !ai) return sendJson(res, 404, { error: 'The AI is not available on this server' })
+  let job = boardJobs.get(board)
+  if (!job) boardJobs.set(board, (job = { running: false }))
+  const status = () => ({ running: job.running, progress: job.progress, result: job.result, error: job.error })
+  const path = url.pathname.slice('/api/board/'.length)
+  const options = { settings: ai.settings, baseURL: ai.baseURL }
+  try {
+    if (req.method === 'GET' && path === 'ai') return sendJson(res, 200, status())
+    if (req.method === 'POST' && path === 'summarize') {
+      if (job.running) return sendJson(res, 409, { error: 'Summaries are already being written' })
+      const body = await jsonBody<{ limit?: number; place?: boolean }>(req)
+      const problem = ai.settings.notReady()
+      if (problem) return sendJson(res, 400, { error: problem })
+      const controller = new AbortController()
+      Object.assign(job, { running: true, progress: undefined, result: undefined, error: undefined, controller })
+      board.broadcast('board-ai', status())
+      void summarizeBoard(board.config, {
+        ...options,
+        signal: controller.signal,
+        limit: typeof body.limit === 'number' && body.limit > 0 ? body.limit : undefined,
+        place: body.place !== false,
+        rebuild: board.rebuild,
+        onProgress: (progress) => {
+          job.progress = progress
+          board.broadcast('board-ai', status())
+        },
+      })
+        .then((result) => (job.result = result))
+        .catch((error: Error) => (job.error = controller.signal.aborted ? 'Stopped' : error.message))
+        .finally(() => {
+          job.running = false
+          job.controller = undefined
+          board.broadcast('board-ai', status())
+        })
+      return sendJson(res, 202, status())
+    }
+    if (req.method === 'POST' && path === 'stop') {
+      job.controller?.abort()
+      return sendJson(res, 200, { ok: true })
+    }
+    if (req.method === 'POST' && path === 'briefing') {
+      const body = await jsonBody<{ base?: string; head?: string; touched?: string[]; impacted?: string[]; tests?: string[] }>(req)
+      const graph = context.graph()
+      if (!graph) return sendJson(res, 409, { error: 'The map is not built yet' })
+      const diff = await readReviewDiff(context.repoRoot(), body.base ?? null, body.head ?? null)
+      const input: BriefingInput = { diff, touched: strings(body.touched), impacted: strings(body.impacted), tests: strings(body.tests) }
+      const controller = new AbortController()
+      res.on('close', () => {
+        if (!res.writableEnded) controller.abort()
+      })
+      return sendJson(res, 200, { markdown: await reviewBriefing(board.config, graph, input, { ...options, signal: controller.signal }) })
+    }
+    if (req.method === 'POST' && path === 'suggest-rules') {
+      const graph = context.graph()
+      if (!graph) return sendJson(res, 409, { error: 'The map is not built yet' })
+      return sendJson(res, 200, { rules: await suggestRules(board.config, graph, options) })
+    }
+    sendJson(res, 404, { error: 'Not found' })
+  } catch (error) {
+    if (error instanceof BoardAiError || error instanceof ReviewError || error instanceof SettingsError || error instanceof SyntaxError) return sendJson(res, 400, { error: error.message })
+    const failure = apiError(error)
+    if (!res.headersSent) sendJson(res, failure.status, { error: failure.message })
+  }
+}
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string').slice(0, 500) : []
 }
 
 /** One message: the reply streams back as JSON lines (ChatEvent), until "done". */

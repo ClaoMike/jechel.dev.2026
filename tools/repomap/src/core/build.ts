@@ -1,9 +1,8 @@
 /**
- * The pipeline: files → extractors (cached) → file refs → linkers → merge → layout → graph.json.
+ * The pipeline: files → extractors (cached) → file refs → linkers → merge → the Board → graph.json.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { computeLayout, vocabularyOptions, type Vec3 } from '../shared/layout.ts'
 import { hashString } from '../shared/rng.ts'
 import { edgeKey, GRAPH_VERSION, PROTOCOL_VERSION } from '../shared/types.ts'
 import type {
@@ -22,6 +21,7 @@ import type {
   RoleDef,
   Vocabulary,
 } from '../shared/types.ts'
+import { buildBoard } from './board.ts'
 import { hashFiles, hashSources, PluginCache, sha256 } from './cache.ts'
 import type { PluginConfig, RepoMapConfig } from './config.ts'
 import { classifyFiles, listRepoFiles, matcher } from './files.ts'
@@ -37,8 +37,6 @@ export interface BuildOptions {
   noCache?: boolean
   /** Leave the absolute repo path out of graph.json (for publishing). */
   publicOutput?: boolean
-  /** Ignore the previous positions and lay everything out from scratch. */
-  relayout?: boolean
   /** Also refresh git.json (default true). */
   history?: boolean
 }
@@ -106,29 +104,17 @@ export async function buildGraph(config: RepoMapConfig, options: BuildOptions): 
 
   const { nodes, edges, unresolved } = assembler.finalize()
   const meta = buildMeta(config, nodes, edges, toolVersion, options.publicOutput)
+  // ---- The Board: tiers, features (set on the nodes), AI summaries, rule violations
+  const board = buildBoard(config, nodes, edges, meta.layers)
 
-  // ---- Layout: warm-started from the previous graph so the picture stays put between builds
   const previous = readGraph(config.output)
-  const previousPositions = new Map<string, Vec3>()
-  if (!options.relayout) for (const node of previous?.nodes ?? []) if (node.pos) previousPositions.set(node.id, node.pos)
-  const layoutStarted = performance.now()
-  const layoutNodes = nodes.map((n) => ({ id: n.id, layer: n.layer, role: n.role, parent: n.parent, tags: n.tags, size: kindSize(meta.kinds, n.kind), kind: n.kind }))
-  const layoutOptions = {
-    ...vocabularyOptions(meta.layers, meta.roles),
-    layerGap: config.layout.layerGap,
-    seed: config.layout.seed,
-  }
-  // Same layout inputs as last time: keep the positions exactly (a re-run would nudge them, and nudges add up).
-  const signature = hashString(JSON.stringify([layoutNodes, edges.map(edgeKey).sort(), layoutOptions])).toString(36)
-  const reuse = !options.relayout && previous?.meta.layout?.signature === signature && nodes.every((n) => previousPositions.has(n.id))
-  const positions = reuse ? previousPositions : computeLayout(layoutNodes, edges, { ...layoutOptions, previous: previousPositions })
-  for (const node of nodes) node.pos = positions.get(node.id)
-  if (meta.layout) meta.layout.signature = signature
-  log.debug(`layout: ${reuse ? 'unchanged, positions kept' : formatMs(performance.now() - layoutStarted)}`)
 
   // ---- Changes since the previous build
   const changes = computeChanges(previous, nodes, edges)
-  const changed = !previous || changes !== undefined
+  // Features and summaries change without the nodes or edges changing (config, repomap.ai.json).
+  const previousFeatures = new Map(previous?.nodes.map((n) => [n.id, n.feature]))
+  const boardChanged = JSON.stringify(previous?.board) !== JSON.stringify(board) || nodes.some((n) => previousFeatures.get(n.id) !== n.feature)
+  const changed = !previous || changes !== undefined || boardChanged
   meta.changes = changes ?? previous?.meta.changes
   meta.plugins = runs
   const durationMs = Math.round(performance.now() - started)
@@ -141,6 +127,7 @@ export async function buildGraph(config: RepoMapConfig, options: BuildOptions): 
     edges,
     unresolved,
     diagnostics: assembler.diagnostics.length > 0 ? assembler.diagnostics : undefined,
+    board,
   }
   if (!graph.diagnostics) delete graph.diagnostics
 
@@ -240,10 +227,6 @@ async function execute(
   return output
 }
 
-function kindSize(kinds: KindDef[], kind: string): number {
-  return kinds.find((k) => k.id === kind)?.size ?? 1
-}
-
 /** Config vocabulary + anything plugins used that config didn't declare (so new categories show up). */
 function buildMeta(config: RepoMapConfig, nodes: GraphNode[], edges: GraphEdge[], toolVersion: string, publicOutput?: boolean): GraphMeta {
   const git = gitInfo(config.repoRoot)
@@ -255,10 +238,10 @@ function buildMeta(config: RepoMapConfig, nodes: GraphNode[], edges: GraphEdge[]
     if (!layers.some((l) => l.id === node.layer)) layers.push({ id: node.layer, label: titleCase(node.layer), color: autoColor(node.layer) })
     if (!roles.some((r) => r.id === node.role)) {
       const parent = node.role.includes('/') ? node.role.split('/')[0] : undefined
-      if (parent && !roles.some((r) => r.id === parent)) roles.push({ id: parent, label: titleCase(parent), color: autoColor(parent), planeOffset: 20 })
+      if (parent && !roles.some((r) => r.id === parent)) roles.push({ id: parent, label: titleCase(parent), color: autoColor(parent) })
       roles.push({ id: node.role, label: titleCase(node.role.split('/').pop()!), color: autoColor(node.role), parent })
     }
-    if (!kinds.some((k) => k.id === node.kind)) kinds.push({ id: node.kind, label: titleCase(node.kind), color: autoColor(node.kind), shape: 'sphere', size: 0.8 })
+    if (!kinds.some((k) => k.id === node.kind)) kinds.push({ id: node.kind, label: titleCase(node.kind), color: autoColor(node.kind) })
   }
   for (const edge of edges) {
     if (!edgeTypes.some((t) => t.id === edge.type)) edgeTypes.push({ id: edge.type, label: titleCase(edge.type), color: autoColor(edge.type) })
@@ -277,8 +260,6 @@ function buildMeta(config: RepoMapConfig, nodes: GraphNode[], edges: GraphEdge[]
     roles,
     kinds,
     edgeTypes,
-    presets: config.presets,
-    layout: { algorithm: 'layered-force', layerGap: config.layout.layerGap, seed: config.layout.seed },
   }
 }
 
@@ -351,8 +332,9 @@ export function stringifyGraph(graph: RepoGraph): string {
   }
   list('nodes', graph.nodes)
   list('edges', graph.edges)
-  list('unresolved', graph.unresolved, !graph.diagnostics)
-  if (graph.diagnostics) list('diagnostics', graph.diagnostics, true)
+  list('unresolved', graph.unresolved, !graph.diagnostics && !graph.board)
+  if (graph.diagnostics) list('diagnostics', graph.diagnostics, !graph.board)
+  if (graph.board) lines.push(`"board": ${JSON.stringify(graph.board)}`)
   lines.push('}')
   return `${lines.join('\n')}\n`
 }

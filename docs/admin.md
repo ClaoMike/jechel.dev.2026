@@ -59,7 +59,7 @@ end, the browser (User-Agent), IP address and country.
 - **No answer isn't "signed out":** only the API's answer decides (signed in, or 401). If the first check gets no answer (the API
   down or restarting, a network error, a 5xx), the page keeps waiting and asks again (after 2, 4, 8, then every 15 seconds), so
   restarting the API doesn't sign the admin out of an open page.
-- **Frontend** (`src/auth/useSessionKeeper.ts`): while signed in, clicks, key presses, scrolling and mouse movement call
+- **Frontend** (`src/entities/session/model/useSessionKeeper.ts`): while signed in, clicks, key presses, scrolling and mouse movement call
   `/api/auth/me` (at most once a minute) to keep the session alive. A timer re-checks just after `sessionExpiresInSeconds`, so the
   UI shows you as signed out once the session ends. The expiry is sent as *seconds remaining*, not a timestamp, so the browser's
   clock doesn't matter.
@@ -147,7 +147,7 @@ with). An alert goes every way that's on; it counts as sent when any took it, an
 
 ## Notifications (phone alerts, on or off)
 
-The admin's **Notifications** tab (`pages/NotificationsPage/`, API in `Features/Alerts/NotificationsEndpoints.cs` and
+The admin's **Notifications** tab (`pages/notifications/`, API in `Features/Alerts/` (`ListNotifications.cs`, `SaveNotificationKind.cs`…) and
 `PushEndpoints.cs`) starts with **Where they go** (above: the ntfy app and the site's own notifications, each on or off, and the
 devices), then lists every kind of
 phone alert, grouped, each with how many came in the last 30 days, when the last did, and an **On / Off** switch (the theme

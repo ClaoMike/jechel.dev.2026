@@ -38,7 +38,7 @@ public class SupportEndpointsTests
     }
 
     private Task<Results<Ok, BadRequest, UnauthorizedHttpResult, ProblemHttpResult>> Webhook(HttpRequest request, string configured = Secret) =>
-        SupportEndpoints.BuyMeACoffeeWebhook(request, _db, TestOptions.Monitor(new SupportOptions { BuyMeACoffeeWebhookSecret = configured }), _alerts, _time, CancellationToken.None);
+        BuyMeACoffeeWebhook.Handle(request, _db, TestOptions.Monitor(new SupportOptions { BuyMeACoffeeWebhookSecret = configured }), _alerts, _time, CancellationToken.None);
 
     [Fact]
     public async Task A_signed_donation_is_stored_once_and_rings_the_phone_once()
@@ -83,7 +83,7 @@ public class SupportEndpointsTests
     [Fact]
     public void The_older_shape_is_read_too()
     {
-        var parsed = SupportEndpoints.ParseBuyMeACoffee("""{"response":{"supporter_email":"a@example.com","number_of_coffees":"1","total_amount":"5","support_created_on":"2021-08-01 16:00:00"}}""", "coffee-purchase");
+        var parsed = SupportShared.ParseBuyMeACoffee("""{"response":{"supporter_email":"a@example.com","number_of_coffees":"1","total_amount":"5","support_created_on":"2021-08-01 16:00:00"}}""", "coffee-purchase");
 
         Assert.Equal(("coffee-purchase", "5", "a@example.com"), (parsed!.Type, parsed.Amount, parsed.Email));
         Assert.Null(parsed.Id);
@@ -98,7 +98,7 @@ public class SupportEndpointsTests
     public async Task GetInfo_only_gives_out_web_links(string configured, string expected)
     {
         var services = TestSite.Services();
-        var info = await SupportEndpoints.GetInfo(TestOptions.Monitor(new SupportOptions { Url = configured }), services.Cache(), services, default);
+        var info = await GetSupportInfo.Handle(TestOptions.Monitor(new SupportOptions { Url = configured }), services.Cache(), services, default);
 
         Assert.Equal(expected, info.Value!.Url);
     }
@@ -108,7 +108,7 @@ public class SupportEndpointsTests
     {
         var services = TestSite.Services(visibleByDefault: false);
 
-        var info = await SupportEndpoints.GetInfo(TestOptions.Monitor(new SupportOptions { Url = "https://buymeacoffee.com/claomike" }), services.Cache(), services, default);
+        var info = await GetSupportInfo.Handle(TestOptions.Monitor(new SupportOptions { Url = "https://buymeacoffee.com/claomike" }), services.Cache(), services, default);
 
         Assert.Equal("", info.Value!.Url);
     }
@@ -122,7 +122,7 @@ public class SupportEndpointsTests
         return "{\"type\":\"" + type + "\"" + mode + ",\"data\":{" + data + "}}";
     }
 
-    private async Task<Data.Donation> Deliver(string body)
+    private async Task<Donation> Deliver(string body)
     {
         Assert.IsType<Ok>((await Webhook(Request(body, Sign(body)))).Result);
         return await _db.Donations.OrderBy(d => d.Id).LastAsync();
@@ -192,9 +192,9 @@ public class SupportEndpointsTests
     [Fact]
     public void The_message_is_the_supporters_note_never_the_services_own_line()
     {
-        var newer = SupportEndpoints.ParseBuyMeACoffee("""{"type":"donation.created","data":{"id":1,"message":"Jo bought you a coffee","supporter_name":"Jo"}}""");
-        var noted = SupportEndpoints.ParseBuyMeACoffee("""{"type":"donation.created","data":{"id":1,"message":"Jo bought you a coffee","support_note":"Keep going!"}}""");
-        var older = SupportEndpoints.ParseBuyMeACoffee("""{"response":{"message":"Thanks!"}}""", "coffee-purchase");
+        var newer = SupportShared.ParseBuyMeACoffee("""{"type":"donation.created","data":{"id":1,"message":"Jo bought you a coffee","supporter_name":"Jo"}}""");
+        var noted = SupportShared.ParseBuyMeACoffee("""{"type":"donation.created","data":{"id":1,"message":"Jo bought you a coffee","support_note":"Keep going!"}}""");
+        var older = SupportShared.ParseBuyMeACoffee("""{"response":{"message":"Thanks!"}}""", "coffee-purchase");
 
         Assert.Null(newer!.Message);
         Assert.Equal("Keep going!", noted!.Message);
@@ -241,7 +241,7 @@ public class SupportEndpointsTests
     [Fact]
     public async Task A_body_bigger_than_allowed_is_refused_whatever_its_length_header_says()
     {
-        var big = Event("donation.created", $$""" "id":5,"pad":"{{new string('p', SupportEndpoints.MaxPayloadBytes)}}" """);
+        var big = Event("donation.created", $$""" "id":5,"pad":"{{new string('p', SupportShared.MaxPayloadBytes)}}" """);
         var lying = Request(big, Sign(big));
         lying.ContentLength = 100;
 
@@ -269,8 +269,8 @@ public class SupportEndpointsTests
     {
         var body = Encoding.UTF8.GetBytes(Donation);
 
-        Assert.True(SupportEndpoints.SignatureMatches(body, string.Format(format, Sign(Donation)), Secret));
-        Assert.False(SupportEndpoints.SignatureMatches(body, string.Format(format, Sign(Donation + " ")), Secret));
+        Assert.True(SupportShared.SignatureMatches(body, string.Format(format, Sign(Donation)), Secret));
+        Assert.False(SupportShared.SignatureMatches(body, string.Format(format, Sign(Donation + " ")), Secret));
     }
 
     [Fact]
@@ -300,17 +300,17 @@ public class SupportEndpointsTests
             _time.Advance(TimeSpan.FromMinutes(1));
         }
 
-        var first = (await SupportEndpoints.ListDonations(_db, default, page: 1, pageSize: 2)).Value!;
-        var all = (await SupportEndpoints.ListDonations(_db, default, page: 1, pageSize: 50)).Value!;
-        var clamped = (await SupportEndpoints.ListDonations(_db, default, page: -1, pageSize: 999)).Value!;
+        var first = (await ListDonations.Handle(_db, default, page: 1, pageSize: 2)).Value!;
+        var all = (await ListDonations.Handle(_db, default, page: 1, pageSize: 50)).Value!;
+        var clamped = (await ListDonations.Handle(_db, default, page: -1, pageSize: 999)).Value!;
 
         Assert.Equal(["S5", "S4"], first.Items.Select(d => d.FromName));
         Assert.Equal(5, first.TotalCount);
         Assert.Equal(["S3"], all.Items.Where(d => d.IsTest).Select(d => d.FromName));
-        Assert.Equal((1, SupportEndpoints.MaxPageSize), (clamped.Page, clamped.PageSize));
+        Assert.Equal((1, SupportShared.MaxPageSize), (clamped.Page, clamped.PageSize));
     }
 
-    private static Data.Donation Of(string type, string amount = "", string? message = null) =>
+    private static Donation Of(string type, string amount = "", string? message = null) =>
         new() { TransactionId = "t", Type = type, FromName = "Jo", Amount = amount, Currency = "", Message = message, Payload = "{}" };
 
     [Theory]
@@ -324,7 +324,7 @@ public class SupportEndpointsTests
     [InlineData("payout.sent", "50", "Buy Me a Coffee: Jo", "New event: payout.sent, 50.")]
     public void Every_kind_of_event_reads_well_with_or_without_an_amount(string type, string amount, string title, string message)
     {
-        var alert = SupportEndpoints.AlertFor(Of(type, amount));
+        var alert = SupportShared.AlertFor(Of(type, amount));
 
         Assert.Equal((title, message), (alert.Title, alert.Message));
     }
@@ -332,7 +332,7 @@ public class SupportEndpointsTests
     [Fact]
     public void Numbers_count_as_text_and_anything_else_is_ignored()
     {
-        var parsed = SupportEndpoints.ParseBuyMeACoffee("""{"type":"donation.created","data":{"id":12,"amount":4.5,"supporter_name":{"first":"Jo"},"currency":true}}""")!;
+        var parsed = SupportShared.ParseBuyMeACoffee("""{"type":"donation.created","data":{"id":12,"amount":4.5,"supporter_name":{"first":"Jo"},"currency":true}}""")!;
 
         Assert.Equal(("12", "4.5"), (parsed.Id, parsed.Amount));
         Assert.Null(parsed.FromName);
@@ -342,7 +342,7 @@ public class SupportEndpointsTests
     [Fact]
     public void A_flat_body_is_read_from_its_top()
     {
-        var parsed = SupportEndpoints.ParseBuyMeACoffee("""{"type":"donation.created","id":"9","supporter_name":"Jo"}""")!;
+        var parsed = SupportShared.ParseBuyMeACoffee("""{"type":"donation.created","id":"9","supporter_name":"Jo"}""")!;
 
         Assert.Equal(("9", "Jo"), (parsed.Id, parsed.FromName));
     }

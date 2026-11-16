@@ -58,7 +58,7 @@ function config(): RepoMapConfig {
       layers: [{ id: 'app', label: 'App', color: '#38bdf8' }],
       layerRules: [{ match: ['**/*'], layer: 'app' }],
       roles: [{ id: 'production', label: 'Production', color: '#FFF' }],
-      kinds: [{ id: 'file', label: 'File', color: '#94a3b8', shape: 'box' }],
+      kinds: [{ id: 'file', label: 'File', color: '#94a3b8' }],
       edgeTypes: [{ id: 'uses', label: 'Uses', color: '#abc', flow: true }],
       history: { github: 'off' },
       plugins: [
@@ -104,7 +104,7 @@ describe('building a repository with misbehaving plugins', () => {
       [['app:file:src/a.txt', 'app:file:src/b.txt', 0.8]],
     )
     assert.deepEqual(validateGraph(first.graph), [])
-    assert.ok(first.graph.nodes.every((n) => n.pos && n.layer === 'app' && n.role === 'production'))
+    assert.ok(first.graph.nodes.every((n) => n.layer === 'app' && n.role === 'production'))
   })
 
   it('reports each failure instead of stopping', () => {
@@ -138,7 +138,6 @@ describe('building a repository with misbehaving plugins', () => {
     assert.equal(again.changed, false)
     assert.equal(again.gitChanged, false)
     assert.equal(readdirSync(join(out, 'history')).length, 1, 'unchanged builds are not kept')
-    assert.deepEqual(again.graph.nodes.map((n) => n.pos), first.graph.nodes.map((n) => n.pos), 'positions stay put')
   })
 
   it('runs again when a file changes, and records what changed', async () => {
@@ -149,10 +148,6 @@ describe('building a repository with misbehaving plugins', () => {
     assert.equal(next.changed, true)
     assert.deepEqual(next.graph.meta.changes?.addedNodes, ['app:file:src/c.txt'])
     assert.equal(next.gitChanged, true, 'the working tree changed too')
-    // Existing nodes make a little room for the new one, but stay where they were.
-    const [x0, , z0] = first.graph.nodes.find((n) => n.id === 'app:file:src/a.txt')!.pos!
-    const [x1, , z1] = next.graph.nodes.find((n) => n.id === 'app:file:src/a.txt')!.pos!
-    assert.ok(Math.hypot(x1 - x0, z1 - z0) < 12, `moved ${Math.hypot(x1 - x0, z1 - z0).toFixed(1)}`)
   })
 
   it('re-runs everything with --no-cache', async () => {

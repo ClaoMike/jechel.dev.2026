@@ -16,6 +16,8 @@ export interface StoredConversation extends Conversation {
   messages: Anthropic.Beta.BetaMessageParam[]
   /** Kinds of actions the user allowed for the rest of this chat. */
   allowed: ToolClass[]
+  /** Claude Code provider: the CLI's session this chat continues. */
+  claudeSession?: string
 }
 
 export class ConversationStore {

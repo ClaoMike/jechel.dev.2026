@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Portfolio.Api.Common;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Auth;
 using Portfolio.Api.Features.Updates;

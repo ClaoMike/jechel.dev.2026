@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Portfolio.Api.Data;
 using Portfolio.Api.Features.Alerts;
+using Portfolio.Api.Features.Apps;
 using Portfolio.Api.Features.Updates;
 using Portfolio.Api.Features.YouTube;
 using Portfolio.Api.UnitTests.Features.Alerts;
@@ -38,14 +39,14 @@ public class UpdatesAnnouncerTests
     {
         var request = new Portfolio.Api.Features.Site.SaveSiteRequest(
             pages?.ToDictionary(p => p, _ => false), features?.ToDictionary(f => f, _ => false), null, null);
-        await Portfolio.Api.Features.Site.SiteEndpoints.SaveStatus(request, _db, TestSite.Services().Cache(), Options.Create(_site), _time, default);
+        await Portfolio.Api.Features.Site.SaveSiteStatus.Handle(request, _db, TestSite.Services().Cache(), Options.Create(_site), _time, default);
     }
 
     private async Task Show(string[]? pages = null, string[]? features = null)
     {
         var request = new Portfolio.Api.Features.Site.SaveSiteRequest(
             pages?.ToDictionary(p => p, _ => true), features?.ToDictionary(f => f, _ => true), null, null);
-        await Portfolio.Api.Features.Site.SiteEndpoints.SaveStatus(request, _db, TestSite.Services().Cache(), Options.Create(_site), _time, default);
+        await Portfolio.Api.Features.Site.SaveSiteStatus.Handle(request, _db, TestSite.Services().Cache(), Options.Create(_site), _time, default);
     }
 
     /// <summary>A run of the announcer, with the channel's videos as they are now (as the hourly refresh keeps them).</summary>
@@ -87,7 +88,7 @@ public class UpdatesAnnouncerTests
     }
 
     private Task Decide(string status) =>
-        UpdatesEndpoints.Decide(_db.Announcements.Single().Id, null, status, SignedIn(), _db, new UpdatesTrigger(), default);
+        UpdatesShared.Decide(_db.Announcements.Single().Id, null, status, SignedIn(), _db, new UpdatesTrigger(), default);
 
     private static Microsoft.AspNetCore.Http.DefaultHttpContext SignedIn() => new()
     {
@@ -364,13 +365,13 @@ public class UpdatesAnnouncerTests
     [Fact]
     public async Task A_week_after_subscribing_without_confirming_the_link_no_longer_works()
     {
-        var subscribe = await UpdatesEndpoints.Subscribe(new SubscribeRequest("ada@example.com"), _db, _emails, Options.Create(_site), _alerts, _time, NullLoggerFactory.Instance, default);
+        var subscribe = await Subscribe.Handle(new SubscribeRequest("ada@example.com"), _db, _emails, Options.Create(_site), _alerts, _time, NullLoggerFactory.Instance, default);
         var token = _db.Subscribers.Single().Token;
 
         _time.Advance(UpdatesAnnouncer.UnconfirmedKeptFor + TimeSpan.FromMinutes(1));
         await AnnounceAsync();
 
-        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.NotFound>((await UpdatesEndpoints.Confirm(token, _db, _alerts, _time, default)).Result);
+        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.NotFound>((await ConfirmSubscription.Handle(token, _db, _alerts, _time, default)).Result);
         Assert.Empty(_db.Subscribers);
     }
 
@@ -381,8 +382,8 @@ public class UpdatesAnnouncerTests
         var id = _db.Announcements.Single().Id;
         var token = _alerts.Sent.Single().Actions![0].Url.Split("token=")[1];
 
-        var refused = await UpdatesEndpoints.Decide(id, "guess", AnnouncementStatus.Approved, new Microsoft.AspNetCore.Http.DefaultHttpContext(), _db, new UpdatesTrigger(), default);
-        var allowed = await UpdatesEndpoints.Decide(id, token, AnnouncementStatus.Approved, new Microsoft.AspNetCore.Http.DefaultHttpContext(), _db, new UpdatesTrigger(), default);
+        var refused = await UpdatesShared.Decide(id, "guess", AnnouncementStatus.Approved, new Microsoft.AspNetCore.Http.DefaultHttpContext(), _db, new UpdatesTrigger(), default);
+        var allowed = await UpdatesShared.Decide(id, token, AnnouncementStatus.Approved, new Microsoft.AspNetCore.Http.DefaultHttpContext(), _db, new UpdatesTrigger(), default);
 
         Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult>(refused.Result);
         Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.Ok<DecisionResult>>(allowed.Result);

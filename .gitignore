@@ -2,3 +2,9 @@ __pycache__/
 *.pyc
 .DS_Store
 .idea/
+
+# Claude Code personal settings
+.claude/settings.local.json
+
+# Secrets for docker compose (Google sign-in, admin email)
+.env

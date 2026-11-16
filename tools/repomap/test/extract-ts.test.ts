@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { before, describe, it } from 'node:test'
 import { Project, ts } from 'ts-morph'
+import { negate } from '../plugins/extract-ts/conditions.ts'
 import { extractProject, type ExtractResult } from '../plugins/extract-ts/extract.ts'
-import type { FileEntry } from '../src/shared/types.ts'
+import type { FileEntry, RenderCase, ShownElement } from '../src/shared/types.ts'
 
 /** A small MVVM + Redux Toolkit app, in memory. */
 const FILES: Record<string, string> = {
@@ -108,5 +109,110 @@ describe('TypeScript extractor: Redux Toolkit', () => {
     assert.ok(hasEdge('loadShelf', 'calls', 'api.books.list'))
     assert.ok(hasEdge('listeners', 'uses', 'opened'), 'listeners.startListening through a withTypes alias')
     assert.ok(hasEdge('listeners', 'uses', 'baseApi'), 'baseApi.util.resetApiState()')
+  })
+})
+
+/** A page that shows different children depending on its state. */
+const STATES: Record<string, string> = {
+  'src/useThings.ts': `
+    export function useThings() { return { status: 'loading' as 'loading' | 'error' | 'loaded', items: [] as string[] } }`,
+  'src/strings.ts': `
+    export const strings = { page: { empty: 'Nothing yet', count: (n: number) => \`\${n} things\` }, common: { save: 'Save' } } as const
+    const local = { not: 'exported' }
+    export const LIMIT = 3`,
+  'src/Parts.tsx': `
+    export function Skeleton() { return <i /> }
+    export function Failed() { return <b /> }
+    export function Thing({ name }: { name: string }) { return <span>{name}</span> }
+    export function Empty() { return <p /> }
+    export function Frame({ children }: { children?: unknown }) { return <div>{children as never}</div> }
+    export function Row() { return <tr /> }
+    export function Grid({ Tile }: { Tile: () => unknown }) { return <table>{Tile() as never}</table> }`,
+  'src/Page.tsx': `
+    import { useThings } from './useThings'
+    import { Empty, Failed, Frame, Grid, Row, Skeleton, Thing } from './Parts'
+    import { strings } from './strings'
+    export function Page({ compact }: { compact: boolean }) {
+      const query = useThings()
+      const state = query
+      if (state.status === 'error') return <Failed />
+      return (
+        <Frame>
+          {state.status === 'loading' && <Skeleton />}
+          {compact && <p className="note small">{state.status}</p>}
+          <i>{strings.common.save}</i>
+          {compact || <Grid Tile={Row} />}
+          <div className="always"><span>{compact ? <b>yes</b> : null}</span></div>
+          {state.items.length > 0 ? state.items.map((name) => <Thing key={name} name={name} />) : !compact && <Empty />}
+        </Frame>
+      )
+    }`,
+}
+
+describe('TypeScript extractor: when a component renders a child', () => {
+  let result: ExtractResult
+  const id = (label: string) => result.nodes.find((n) => n.label === label)!.id
+  const when = (child: string) => result.edges.find((e) => e.from === id('Page') && e.to === id(child) && e.type === 'renders')?.attrs?.when as RenderCase[]
+
+  before(() => {
+    const project = new Project({ useInMemoryFileSystem: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, strict: true } })
+    const files: FileEntry[] = Object.entries(STATES).map(([path, text]) => {
+      project.createSourceFile(`/repo/${path}`, text)
+      return { path, layer: 'frontend', role: 'production', roleReason: 'test' }
+    })
+    result = extractProject(project, files, '/repo', { apiPrefixes: ['/api'] })
+  })
+
+  it('records the condition, from && and ?: and if … return', () => {
+    assert.deepEqual(when('Failed').map((c) => c.if), [["state.status === 'error'"]])
+    assert.deepEqual(when('Skeleton').map((c) => c.if), [["state.status !== 'error'", "state.status === 'loading'"]], 'an early return before it is negated')
+    assert.deepEqual(when('Empty').map((c) => c.if), [["state.status !== 'error'", '!(state.items.length > 0)', '!compact']])
+    assert.deepEqual(when('Frame').map((c) => c.if), [["state.status !== 'error'"]])
+  })
+
+  it('says when a child is rendered for each item of a list', () => {
+    assert.equal(when('Thing')[0].each, 'state.items')
+    assert.deepEqual(when('Thing')[0].if, ["state.status !== 'error'", 'state.items.length > 0'])
+  })
+
+  it('counts a component handed over as a prop as rendered by the one handing it, when that element is', () => {
+    assert.deepEqual(when('Row').map((c) => c.if), [["state.status !== 'error'", '!compact']])
+  })
+
+  it('lists the plain elements a condition picks, not what sits inside them', () => {
+    const shows = result.nodes.find((n) => n.label === 'Page')!.attrs?.shows as ShownElement[]
+    assert.deepEqual(
+      shows.map((s) => [s.tag, s.className, s.content, s.case.if]),
+      [
+        ['p', 'small', '{state.status}', ["state.status !== 'error'", 'compact']],
+        ['b', undefined, 'yes', ["state.status !== 'error'", 'compact']],
+      ],
+    )
+  })
+
+  it('maps an exported table of values as a constant, its keys as members, read by who uses it', () => {
+    const strings = result.nodes.find((n) => n.label === 'strings')!
+    assert.equal(strings.kind, 'constant')
+    assert.deepEqual((strings.attrs?.members as { name: string }[]).map((m) => m.name), ['page', 'common'])
+    assert.ok(!result.nodes.some((n) => n.label === 'local' || n.label === 'LIMIT'), 'only exported objects and arrays')
+    assert.ok(result.edges.some((e) => e.from === id('Page') && e.to === strings.id))
+  })
+
+  it('traces what a condition reads back to the hook or prop it comes from', () => {
+    assert.deepEqual(when('Skeleton')[0].reads, [{ name: 'state', from: 'useThings' }])
+    assert.deepEqual(when('Empty')[0].reads, [
+      { name: 'state', from: 'useThings' },
+      { name: 'compact', from: 'a prop' },
+    ])
+  })
+})
+
+describe('negate', () => {
+  it('reads like code', () => {
+    assert.equal(negate('open'), '!open')
+    assert.equal(negate('!open'), 'open')
+    assert.equal(negate("a === 'b'"), "a !== 'b'")
+    assert.equal(negate('a && b'), '!(a && b)')
+    assert.equal(negate('!(a && b)'), 'a && b')
   })
 })

@@ -25,10 +25,7 @@ export function search(index: GraphIndex, query: string, limit = 12): SearchHit[
       else if (node.id.toLowerCase().includes(q)) score = 34
       else if (isSubsequence(q, label)) score = 18
     }
-    if (score > 0) {
-      const priority = index.kinds.get(node.kind)?.labelPriority ?? 3
-      hits.push({ i, score: score + priority * 0.6 + Math.min(4, Math.log2(1 + index.degree[i])) })
-    }
+    if (score > 0) hits.push({ i, score: score + Math.min(4, Math.log2(1 + index.degree[i])) })
   })
   return hits.sort((a, b) => b.score - a.score).slice(0, limit)
 }

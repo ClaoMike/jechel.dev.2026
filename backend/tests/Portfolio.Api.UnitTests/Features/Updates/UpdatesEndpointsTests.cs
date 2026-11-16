@@ -23,7 +23,7 @@ public class UpdatesEndpointsTests
         .Options);
 
     private Task<Results<Ok<SubscribeResult>, ValidationProblem, ProblemHttpResult>> Subscribe(string? email) =>
-        UpdatesEndpoints.Subscribe(new SubscribeRequest(email), _db, _emails, _site, _alerts, _time, NullLoggerFactory.Instance, CancellationToken.None);
+        Api.Features.Updates.Subscribe.Handle(new SubscribeRequest(email), _db, _emails, _site, _alerts, _time, NullLoggerFactory.Instance, CancellationToken.None);
 
     private static string StatusOf(Results<Ok<SubscribeResult>, ValidationProblem, ProblemHttpResult> result) =>
         Assert.IsType<Ok<SubscribeResult>>(result.Result).Value!.Status;
@@ -59,13 +59,13 @@ public class UpdatesEndpointsTests
         Assert.Equal(SubscribeStatus.Pending, StatusOf(await Subscribe("ada@example.com")));
         Assert.Single(_emails.Sent);
 
-        _time.Advance(UpdatesEndpoints.ConfirmationCooldown);
+        _time.Advance(UpdatesShared.ConfirmationCooldown);
         await Subscribe("ada@example.com");
         Assert.Equal(2, _emails.Sent.Count);
 
         (await _db.Subscribers.SingleAsync()).ConfirmedAt = Now;
         await _db.SaveChangesAsync();
-        _time.Advance(UpdatesEndpoints.ConfirmationCooldown);
+        _time.Advance(UpdatesShared.ConfirmationCooldown);
         Assert.Equal(SubscribeStatus.AlreadySubscribed, StatusOf(await Subscribe("ada@example.com")));
         Assert.Equal(2, _emails.Sent.Count);
     }
@@ -91,13 +91,13 @@ public class UpdatesEndpointsTests
         await Subscribe("ada@example.com");
         var token = (await _db.Subscribers.SingleAsync()).Token;
 
-        var first = await UpdatesEndpoints.Confirm(token, _db, _alerts, _time, CancellationToken.None);
-        await UpdatesEndpoints.Confirm(token, _db, _alerts, _time, CancellationToken.None);
+        var first = await ConfirmSubscription.Handle(token, _db, _alerts, _time, CancellationToken.None);
+        await ConfirmSubscription.Handle(token, _db, _alerts, _time, CancellationToken.None);
 
         Assert.Equal("ada@example.com", Assert.IsType<Ok<ConfirmedSubscription>>(first.Result).Value!.Email);
         Assert.Equal(Now, (await _db.Subscribers.SingleAsync()).ConfirmedAt);
         Assert.Equal("New subscriber", Assert.Single(_alerts.Sent).Title);
-        Assert.IsType<NotFound>((await UpdatesEndpoints.Confirm("unknown", _db, _alerts, _time, CancellationToken.None)).Result);
+        Assert.IsType<NotFound>((await ConfirmSubscription.Handle("unknown", _db, _alerts, _time, CancellationToken.None)).Result);
     }
 
     [Fact]
@@ -106,9 +106,9 @@ public class UpdatesEndpointsTests
         await Subscribe("ada@example.com");
         var token = (await _db.Subscribers.SingleAsync()).Token;
 
-        await UpdatesEndpoints.Unsubscribe(token, _db, CancellationToken.None);
-        await UpdatesEndpoints.Unsubscribe(token, _db, CancellationToken.None);
-        await UpdatesEndpoints.Unsubscribe(null, _db, CancellationToken.None);
+        await Unsubscribe.Handle(token, _db, CancellationToken.None);
+        await Unsubscribe.Handle(token, _db, CancellationToken.None);
+        await Unsubscribe.Handle(null, _db, CancellationToken.None);
 
         Assert.Empty(_db.Subscribers);
     }
@@ -116,8 +116,8 @@ public class UpdatesEndpointsTests
     [Fact]
     public void Tokens_are_long_random_and_url_safe()
     {
-        var a = UpdatesEndpoints.NewToken();
-        var b = UpdatesEndpoints.NewToken();
+        var a = UpdatesShared.NewToken();
+        var b = UpdatesShared.NewToken();
 
         Assert.NotEqual(a, b);
         Assert.Equal(43, a.Length);
@@ -176,7 +176,7 @@ public class UpdatesEndpointsTests
     public async Task The_same_address_in_other_letters_is_the_same_subscriber()
     {
         await Subscribe("Ada@Example.com");
-        _time.Advance(UpdatesEndpoints.ConfirmationCooldown);
+        _time.Advance(UpdatesShared.ConfirmationCooldown);
         await Subscribe("ADA@EXAMPLE.COM");
 
         var subscriber = Assert.Single(_db.Subscribers);
@@ -191,7 +191,7 @@ public class UpdatesEndpointsTests
         await Subscribe("ada@example.com");
         var token = _db.Subscribers.Single().Token;
 
-        _time.Advance(UpdatesEndpoints.ConfirmationCooldown - TimeSpan.FromSeconds(1));
+        _time.Advance(UpdatesShared.ConfirmationCooldown - TimeSpan.FromSeconds(1));
         Assert.Equal(SubscribeStatus.Pending, StatusOf(await Subscribe("ada@example.com")));
         _time.Advance(TimeSpan.FromSeconds(1));
         Assert.Equal(SubscribeStatus.Sent, StatusOf(await Subscribe("ada@example.com")));
@@ -207,15 +207,15 @@ public class UpdatesEndpointsTests
     {
         await Subscribe("ada@example.com");
         var old = _db.Subscribers.Single().Token;
-        await UpdatesEndpoints.Confirm(old, _db, _alerts, _time, default);
-        await UpdatesEndpoints.Unsubscribe(old, _db, default);
+        await ConfirmSubscription.Handle(old, _db, _alerts, _time, default);
+        await Unsubscribe.Handle(old, _db, default);
 
         Assert.Equal(SubscribeStatus.Sent, StatusOf(await Subscribe("ada@example.com")));
 
         var again = _db.Subscribers.Single();
         Assert.NotEqual(old, again.Token);
         Assert.Null(again.ConfirmedAt);
-        Assert.IsType<NotFound>((await UpdatesEndpoints.Confirm(old, _db, _alerts, _time, default)).Result);
+        Assert.IsType<NotFound>((await ConfirmSubscription.Handle(old, _db, _alerts, _time, default)).Result);
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class UpdatesEndpointsTests
     public async Task Subscribing_while_updates_are_switched_off_is_turned_away()
     {
         using var services = TestSite.Services(visibleByDefault: false);
-        var result = await UpdatesEndpoints.Subscribe(new SubscribeRequest("ada@example.com"), _db, _emails, _site, _alerts, _time, NullLoggerFactory.Instance, default, services.Cache(), services);
+        var result = await Api.Features.Updates.Subscribe.Handle(new SubscribeRequest("ada@example.com"), _db, _emails, _site, _alerts, _time, NullLoggerFactory.Instance, default, services.Cache(), services);
 
         Assert.Equal(404, Assert.IsType<ProblemHttpResult>(result.Result).StatusCode);
         Assert.Empty(_db.Subscribers);
@@ -267,7 +267,7 @@ public class UpdatesEndpointsTests
     {
         await Subscribe("ada@example.com");
 
-        Assert.IsType<NotFound>((await UpdatesEndpoints.Confirm(token, _db, _alerts, _time, default)).Result);
+        Assert.IsType<NotFound>((await ConfirmSubscription.Handle(token, _db, _alerts, _time, default)).Result);
         Assert.Null(_db.Subscribers.Single().ConfirmedAt);
         Assert.Empty(_alerts.Sent);
     }
@@ -278,8 +278,8 @@ public class UpdatesEndpointsTests
         await Subscribe("ada@example.com");
         var token = _db.Subscribers.Single().Token;
 
-        Assert.IsType<NotFound>((await UpdatesEndpoints.Confirm(token + new string('x', 100), _db, _alerts, _time, default)).Result);
-        Assert.IsType<Ok<ConfirmedSubscription>>((await UpdatesEndpoints.Confirm($" {token} ", _db, _alerts, _time, default)).Result);
+        Assert.IsType<NotFound>((await ConfirmSubscription.Handle(token + new string('x', 100), _db, _alerts, _time, default)).Result);
+        Assert.IsType<Ok<ConfirmedSubscription>>((await ConfirmSubscription.Handle($" {token} ", _db, _alerts, _time, default)).Result);
     }
 
     [Fact]
@@ -288,8 +288,8 @@ public class UpdatesEndpointsTests
         foreach (var name in new[] { "ada", "bob", "cy" }) await Subscribe($"{name}@example.com");
         var tokens = _db.Subscribers.OrderBy(s => s.Email).Select(s => s.Token).ToList();
 
-        await UpdatesEndpoints.Confirm(tokens[0], _db, _alerts, _time, default);
-        await UpdatesEndpoints.Confirm(tokens[2], _db, _alerts, _time, default);
+        await ConfirmSubscription.Handle(tokens[0], _db, _alerts, _time, default);
+        await ConfirmSubscription.Handle(tokens[2], _db, _alerts, _time, default);
 
         Assert.Equal(["ada@example.com (1 in all)", "cy@example.com (2 in all)"], _alerts.Sent.Select(a => a.Message));
         Assert.All(_alerts.Sent, a => Assert.Equal("/community", a.Path));
@@ -301,7 +301,7 @@ public class UpdatesEndpointsTests
         await Subscribe("ada@example.com");
         await Subscribe("bob@example.com");
 
-        await UpdatesEndpoints.Unsubscribe(_db.Subscribers.Single(s => s.Email == "ada@example.com").Token, _db, default);
+        await Unsubscribe.Handle(_db.Subscribers.Single(s => s.Email == "ada@example.com").Token, _db, default);
 
         Assert.Equal("bob@example.com", Assert.Single(_db.Subscribers).Email);
     }
@@ -312,7 +312,7 @@ public class UpdatesEndpointsTests
     [InlineData(null, "https://jechel.dev/updates/unsubscribe?token=")]
     public void Opening_the_unsubscribe_link_leads_to_the_sites_page_and_changes_nothing(string? token, string page)
     {
-        var result = UpdatesEndpoints.OpenUnsubscribePage(token, _site);
+        var result = OpenUnsubscribePage.Handle(token, _site);
 
         Assert.Equal(page, result.Url);
         Assert.False(result.Permanent);
@@ -329,8 +329,8 @@ public class UpdatesEndpointsTests
             _time.Advance(TimeSpan.FromMinutes(1));
         }
 
-        var first = (await UpdatesEndpoints.ListSubscribers(_db, default, page: 1, pageSize: 2)).Value!;
-        var last = (await UpdatesEndpoints.ListSubscribers(_db, default, page: 3, pageSize: 2)).Value!;
+        var first = (await ListSubscribers.Handle(_db, default, page: 1, pageSize: 2)).Value!;
+        var last = (await ListSubscribers.Handle(_db, default, page: 3, pageSize: 2)).Value!;
 
         Assert.Equal(["reader5@example.com", "reader4@example.com"], first.Items.Select(s => s.Email));
         Assert.Equal(["reader1@example.com"], last.Items.Select(s => s.Email));
@@ -339,11 +339,11 @@ public class UpdatesEndpointsTests
 
     [Theory]
     [InlineData(0, 0, 1, 1)]
-    [InlineData(-3, 500, 1, UpdatesEndpoints.MaxPageSize)]
+    [InlineData(-3, 500, 1, UpdatesShared.MaxPageSize)]
     public async Task Page_numbers_and_sizes_out_of_range_are_brought_into_it(int page, int pageSize, int expectedPage, int expectedSize)
     {
-        var subscribers = (await UpdatesEndpoints.ListSubscribers(_db, default, page, pageSize)).Value!;
-        var announcements = (await UpdatesEndpoints.ListAnnouncements(_db, default, page, pageSize)).Value!;
+        var subscribers = (await ListSubscribers.Handle(_db, default, page, pageSize)).Value!;
+        var announcements = (await ListAnnouncements.Handle(_db, default, page, pageSize)).Value!;
 
         Assert.Equal((expectedPage, expectedSize), (subscribers.Page, subscribers.PageSize));
         Assert.Equal((expectedPage, expectedSize), (announcements.Page, announcements.PageSize));
@@ -355,8 +355,8 @@ public class UpdatesEndpointsTests
         await Subscribe("ada@example.com");
         var id = _db.Subscribers.Single().Id;
 
-        Assert.IsType<NoContent>((await UpdatesEndpoints.DeleteSubscriber(id, _db, default)).Result);
-        Assert.IsType<NotFound>((await UpdatesEndpoints.DeleteSubscriber(id, _db, default)).Result);
+        Assert.IsType<NoContent>((await DeleteSubscriber.Handle(id, _db, default)).Result);
+        Assert.IsType<NotFound>((await DeleteSubscriber.Handle(id, _db, default)).Result);
     }
 
     [Fact]
@@ -367,7 +367,7 @@ public class UpdatesEndpointsTests
             new Announcement { Kind = "app", ItemKey = "1", Title = "New", Status = AnnouncementStatus.Pending, CreatedAt = Now });
         await _db.SaveChangesAsync();
 
-        var list = (await UpdatesEndpoints.ListAnnouncements(_db, default)).Value!;
+        var list = (await ListAnnouncements.Handle(_db, default)).Value!;
 
         Assert.Equal(["New", "Old"], list.Items.Select(a => a.Title));
         Assert.Equal(4, list.Items[1].RecipientCount);
@@ -385,10 +385,10 @@ public class UpdatesEndpointsTests
         var trigger = new UpdatesTrigger();
         var phone = new Microsoft.AspNetCore.Http.DefaultHttpContext();
 
-        Assert.IsType<NotFound>((await UpdatesEndpoints.Decide(id + 1, "tok", AnnouncementStatus.Approved, phone, _db, trigger, default)).Result);
-        var ignored = await UpdatesEndpoints.Decide(id, "tok", AnnouncementStatus.Ignored, phone, _db, trigger, default);
+        Assert.IsType<NotFound>((await UpdatesShared.Decide(id + 1, "tok", AnnouncementStatus.Approved, phone, _db, trigger, default)).Result);
+        var ignored = await UpdatesShared.Decide(id, "tok", AnnouncementStatus.Ignored, phone, _db, trigger, default);
         // The token is used up: the phone's other button now can't change it, the signed-in admin hears how it was decided.
-        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult>((await UpdatesEndpoints.Decide(id, "tok", AnnouncementStatus.Approved, phone, _db, trigger, default)).Result);
+        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult>((await UpdatesShared.Decide(id, "tok", AnnouncementStatus.Approved, phone, _db, trigger, default)).Result);
 
         Assert.Equal(AnnouncementStatus.Ignored, Assert.IsType<Ok<DecisionResult>>(ignored.Result).Value!.Status);
         Assert.Null(_db.Announcements.Single().DecisionTokenHash);
@@ -402,7 +402,7 @@ public class UpdatesEndpointsTests
         await _db.SaveChangesAsync();
         var trigger = new UpdatesTrigger();
 
-        await UpdatesEndpoints.Decide(_db.Announcements.Single().Id, "tok", AnnouncementStatus.Approved, new Microsoft.AspNetCore.Http.DefaultHttpContext(), _db, trigger, default);
+        await UpdatesShared.Decide(_db.Announcements.Single().Id, "tok", AnnouncementStatus.Approved, new Microsoft.AspNetCore.Http.DefaultHttpContext(), _db, trigger, default);
 
         Assert.True(await trigger.WaitAsync(TimeSpan.Zero, default));
         Assert.Equal(AnnouncementStatus.Approved, _db.Announcements.Single().Status);

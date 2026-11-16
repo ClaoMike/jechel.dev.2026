@@ -21,18 +21,18 @@ test.describe('git history tab', () => {
     expect(errors).toEqual([])
   })
 
-  test('keeps the tab across reloads, and the map where it was', async ({ page }) => {
+  test('keeps the tab across reloads, and the board where it was', async ({ page }) => {
     await page.goto('/#tab=git')
     await expect(page.getByTestId('commit-list')).toBeVisible()
     await page.reload()
     await expect(page.getByTestId('tab-git')).toHaveAttribute('aria-selected', 'true')
-    await page.getByTestId('tab-map').click()
-    await expect(page.locator('#panel-map')).toBeVisible()
+    await page.getByTestId('tab-board').click()
+    await expect(page.locator('#panel-board')).toBeVisible()
     await expect(page.locator('#panel-git')).toBeHidden()
-    await expect(page.locator('.sidebar-footer').first()).toContainText('253/253 nodes')
+    await expect(page.locator('[data-chip="app"]')).toBeVisible()
     expect(page.url()).not.toContain('tab=git')
     // Arrow keys move between the tabs.
-    await page.getByTestId('tab-map').focus()
+    await page.getByTestId('tab-board').focus()
     await page.keyboard.press('ArrowRight')
     await expect(page.getByTestId('tab-git')).toBeFocused()
     await expect(page.getByTestId('tab-git')).toHaveAttribute('aria-selected', 'true')
@@ -132,18 +132,18 @@ test.describe('git history tab', () => {
     await expect(panel.getByTestId('pr-16')).toBeDisabled() // closed, never merged, no link in the demo
   })
 
-  test('follows a file between the map and its history', async ({ page }) => {
+  test('follows a file between the board and its history', async ({ page }) => {
     await page.goto('/')
-    await page.getByTestId('search').fill('BookCard')
-    await page.getByTestId('search').press('Enter')
-    await expect(page.getByTestId('details').getByRole('heading', { name: 'BookCard' })).toBeVisible()
+    await page.getByTestId('board-search').fill('BookCard')
+    await page.getByTestId('board-search').press('Enter')
+    await expect(page.getByTestId('board-chip-details')).toContainText('BookCard')
     await page.getByTestId('file-history').click()
     await expect(page.getByTestId('tab-git')).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByTestId('path-filter')).toContainText('History of web/src/features/books/BookCard.tsx: 3 commits')
     await expect(commitRow(page, DEMO.wishlistButton)).toHaveAttribute('aria-selected', 'true')
-    await details(page).getByRole('button', { name: 'Show web/src/features/books/BookCard.tsx in the map' }).click()
-    await expect(page.getByTestId('tab-map')).toHaveAttribute('aria-selected', 'true')
-    await expect(page.getByTestId('details').getByRole('heading', { name: 'BookCard' })).toBeVisible()
+    await details(page).getByRole('button', { name: 'Show web/src/features/books/BookCard.tsx on the board' }).click()
+    await expect(page.getByTestId('tab-board')).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByTestId('board-chip-details')).toContainText('BookCard')
     await page.getByTestId('tab-git').click()
     await page.getByTestId('path-filter').getByRole('button', { name: 'Stop following this file' }).click()
     await expect(page.getByTestId('path-filter')).toHaveCount(0)

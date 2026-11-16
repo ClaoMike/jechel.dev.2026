@@ -2,12 +2,12 @@ import type { KeyboardEvent } from 'react'
 import { useViewer, type Tab } from '../model/store.ts'
 import { Icon } from './icons.tsx'
 
-const TABS: { id: Tab; icon: 'layers' | 'git'; label: string; short: string }[] = [
-  { id: 'map', icon: 'layers', label: 'Architecture', short: 'Map' },
+const TABS: { id: Tab; icon: 'git' | 'focus'; label: string; short: string }[] = [
+  { id: 'board', icon: 'focus', label: 'Board', short: 'Board' },
   { id: 'git', icon: 'git', label: 'Git history', short: 'History' },
 ]
 
-/** Architecture map | git history (arrow keys move between them, as in any tab list). */
+/** Board | git history (arrow keys move between them, as in any tab list). */
 export function Tabs() {
   const tab = useViewer((s) => s.tab)
   const setTab = useViewer((s) => s.setTab)

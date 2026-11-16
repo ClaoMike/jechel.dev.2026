@@ -2,19 +2,19 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import '@fontsource/mr-dafoe/latin.css'
-import './index.css'
-import './glass.css'
-import App from './App/App.tsx'
+import '@/app/styles/index.css'
+import '@/app/styles/glass.css'
+import App from '@/app/App'
 import { Provider } from 'react-redux'
-import { tracker } from './features/analytics'
-import { watchIdle } from './layout/idle'
-import { showTheme } from './layout/theme'
-import { makeStore } from './store'
+import { tracker } from '@/shared/lib/analytics'
+import { watchIdle } from '@/shared/lib/browser'
+import { showTheme } from '@/shared/lib/theme'
+import { makeStore } from '@/app/model'
 
 const store = makeStore()
 // Before the first render, so the page never flashes the wrong theme.
 showTheme(store.getState().theme.theme)
-// Nobody using the page for a minute: what moves on its own holds still (layout/idle.ts).
+// Nobody using the page for a minute: what moves on its own holds still (shared/lib/browser/idle.ts).
 watchIdle()
 
 // React's own error reports, recorded for the Engagement tab (and still logged, as React would).

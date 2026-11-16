@@ -11,6 +11,8 @@ import { addUsage, applyEvent, type Usage } from './transcript.ts'
 
 /** Files the assistant changed: the code panel, the explorer and the git bar catch up. */
 export const FILES_CHANGED_EVENT = 'repomap:files-changed'
+/** The assistant pointed at nodes on the board (detail: the ids or names it gave). */
+export const BOARD_FOCUS_EVENT = 'repomap:board-focus'
 
 const NO_USAGE: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }
 
@@ -163,6 +165,9 @@ export const useAssistant = create<State & Actions>((set, get) => ({
         (event) => {
           if (event.type === 'start') set({ conversationId: event.conversation.id, title: event.conversation.title })
           if (event.type === 'files') window.dispatchEvent(new CustomEvent(FILES_CHANGED_EVENT, { detail: event.paths }))
+          if (event.type === 'tool' && event.step.name === 'show_on_board' && event.step.status === 'done') {
+            window.dispatchEvent(new CustomEvent(BOARD_FOCUS_EVENT, { detail: (event.step.input as { nodes?: unknown }).nodes }))
+          }
           set({ items: applyEvent(get().items, event), usage: addUsage(get().usage, event) })
         },
         controller.signal,

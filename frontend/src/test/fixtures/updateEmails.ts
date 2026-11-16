@@ -1,4 +1,4 @@
-import type { UpdateEmailKind, UpdateEmailPreview, UpdateEmailsDocument, UpdateEmailWording } from '../../services/api'
+import type { UpdateEmailKind, UpdateEmailPreview, UpdateEmailsDocument, UpdateEmailWording } from '@/shared/api'
 
 /** The default wording, as the API sends it. */
 export const DEFAULT_WORDING: UpdateEmailWording = {

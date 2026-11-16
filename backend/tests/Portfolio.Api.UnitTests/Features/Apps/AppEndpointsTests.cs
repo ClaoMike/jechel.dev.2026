@@ -26,7 +26,7 @@ public class AppEndpointsTests
 
     private async Task<AppDetails> CreateAsync(string title, params AppMedia[] media)
     {
-        var result = await AppEndpoints.CreateApp(new AppRequest($" {title} ", " About it ", media), _db, Files, _alerts, Site, _time, default);
+        var result = await CreateApp.Handle(new AppRequest($" {title} ", " About it ", media), _db, Files, _alerts, Site, _time, default);
         return Assert.IsType<Created<AppDetails>>(result.Result).Value!;
     }
 
@@ -43,7 +43,7 @@ public class AppEndpointsTests
         _time.Advance(TimeSpan.FromMinutes(1));
         var newer = await CreateAsync("Newer", await UploadAsync(), await UploadAsync(AppMediaKinds.Video));
 
-        var page = (await AppEndpoints.ListApps(_db, default)).Value!;
+        var page = (await ListApps.Handle(_db, default)).Value!;
 
         Assert.Equal(["Newer", "Older"], page.Items.Select(a => a.Title));
         Assert.Equal("About it", page.Items[0].Description);
@@ -58,18 +58,18 @@ public class AppEndpointsTests
         var (a, b) = (await UploadAsync(), await UploadAsync());
         var app = await CreateAsync("App", a, b);
 
-        var result = await AppEndpoints.UpdateApp(app.Id, new AppRequest("Renamed", "", [b, a]), _db, Files, _time, default);
+        var result = await UpdateApp.Handle(app.Id, new AppRequest("Renamed", "", [b, a]), _db, Files, _time, default);
 
         var updated = Assert.IsType<Ok<AppDetails>>(result.Result).Value!;
         Assert.Equal(("Renamed", app.CreatedAt), (updated.Title, updated.CreatedAt));
         Assert.Equal([b.Url, a.Url], updated.Media.Select(m => m.Url));
-        Assert.IsType<NotFound>((await AppEndpoints.UpdateApp(999, new AppRequest("x", "", []), _db, Files, _time, default)).Result);
+        Assert.IsType<NotFound>((await UpdateApp.Handle(999, new AppRequest("x", "", []), _db, Files, _time, default)).Result);
     }
 
     [Fact]
     public async Task Invalid_apps_are_rejected()
     {
-        var result = await AppEndpoints.CreateApp(new AppRequest("", "", []), _db, Files, _alerts, Site, _time, default);
+        var result = await CreateApp.Handle(new AppRequest("", "", []), _db, Files, _alerts, Site, _time, default);
 
         Assert.Equal(["title"], Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors.Keys);
         Assert.Empty(_db.Apps);
@@ -82,11 +82,11 @@ public class AppEndpointsTests
         var app = await CreateAsync("App", media);
         _time.Advance(TimeSpan.FromDays(2));
 
-        Assert.IsType<NoContent>((await AppEndpoints.DeleteApp(app.Id, _db, Files, _time, default)).Result);
+        Assert.IsType<NoContent>((await DeleteApp.Handle(app.Id, _db, Files, _time, default)).Result);
 
         Assert.Empty(_db.Apps);
         Assert.Null(await Files.GetAsync(FileRules.FileIdIn(media.Url)!.Value, default));
-        Assert.IsType<NotFound>((await AppEndpoints.DeleteApp(app.Id, _db, Files, _time, default)).Result);
+        Assert.IsType<NotFound>((await DeleteApp.Handle(app.Id, _db, Files, _time, default)).Result);
     }
 
     [Fact]
@@ -95,10 +95,10 @@ public class AppEndpointsTests
         var media = await UploadAsync();
         await CreateAsync("App", media);
         var photo = await Files.SaveAsync("photo.webp", "image/webp", [1], default);
-        await AboutEndpoints.UpdateAbout(AboutDefaults.Content with { PhotoUrl = FileRules.UrlFor(photo, "photo.webp") }, _db, Files, _time, default);
+        await UpdateAbout.Handle(AboutDefaults.Content with { PhotoUrl = FileRules.UrlFor(photo, "photo.webp") }, _db, Files, _time, default);
         _time.Advance(TimeSpan.FromDays(2));
 
-        await AboutEndpoints.UpdateAbout(AboutDefaults.Content with { PhotoUrl = FileRules.UrlFor(photo, "photo.webp") }, _db, Files, _time, default);
+        await UpdateAbout.Handle(AboutDefaults.Content with { PhotoUrl = FileRules.UrlFor(photo, "photo.webp") }, _db, Files, _time, default);
         await CreateAsync("Another");
 
         Assert.NotNull(await Files.GetAsync(FileRules.FileIdIn(media.Url)!.Value, default));
@@ -107,7 +107,7 @@ public class AppEndpointsTests
 
     private async Task<IReadOnlyList<AppCategoryDto>> SaveCategoriesAsync(params AppCategoryRequest[] categories)
     {
-        var result = await AppEndpoints.SaveCategories(categories, _db, default);
+        var result = await SaveAppCategories.Handle(categories, _db, default);
         return Assert.IsType<Ok<IReadOnlyList<AppCategoryDto>>>(result.Result).Value!;
     }
 
@@ -117,19 +117,19 @@ public class AppEndpointsTests
         var categories = await SaveCategoriesAsync(new AppCategoryRequest(null, "Mobile app"), new AppCategoryRequest(null, "Video game"));
         var request = new AppRequest(" Game ", "", [], [categories[1].Id, categories[0].Id], [" iOS ", "Android"], [new AppLink(" Steam ", " https://store.steampowered.com/app/1 ")]);
 
-        var created = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(request, _db, Files, _alerts, Site, _time, default)).Result).Value!;
+        var created = Assert.IsType<Created<AppDetails>>((await CreateApp.Handle(request, _db, Files, _alerts, Site, _time, default)).Result).Value!;
 
         // In the categories' order, not the order chosen.
         Assert.Equal(["Mobile app", "Video game"], created.Categories.Select(c => c.Name));
         Assert.Equal(["iOS", "Android"], created.Platforms);
         Assert.Equal([new AppLink("Steam", "https://store.steampowered.com/app/1")], created.Links);
-        Assert.Equal(created.Categories, (await AppEndpoints.ListApps(_db, default)).Value!.Items[0].Categories);
+        Assert.Equal(created.Categories, (await ListApps.Handle(_db, default)).Value!.Items[0].Categories);
     }
 
     [Fact]
     public async Task An_unknown_category_is_rejected()
     {
-        var result = await AppEndpoints.CreateApp(new AppRequest("App", "", [], [42]), _db, Files, _alerts, Site, _time, default);
+        var result = await CreateApp.Handle(new AppRequest("App", "", [], [42]), _db, Files, _alerts, Site, _time, default);
 
         Assert.Equal(["categoryIds"], Assert.IsType<ValidationProblem>(result.Result).ProblemDetails.Errors.Keys);
     }
@@ -139,15 +139,15 @@ public class AppEndpointsTests
     {
         var first = await SaveCategoriesAsync(new AppCategoryRequest(null, "Mobile app"), new AppCategoryRequest(null, "Website"), new AppCategoryRequest(null, "Video game"));
         var (mobile, website, game) = (first[0], first[1], first[2]);
-        var app = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(new AppRequest("App", "", [], [mobile.Id, website.Id]), _db, Files, _alerts, Site, _time, default)).Result).Value!;
+        var app = Assert.IsType<Created<AppDetails>>((await CreateApp.Handle(new AppRequest("App", "", [], [mobile.Id, website.Id]), _db, Files, _alerts, Site, _time, default)).Result).Value!;
 
         var saved = await SaveCategoriesAsync(new AppCategoryRequest(game.Id, "Game"), new AppCategoryRequest(mobile.Id, "Mobile app"), new AppCategoryRequest(null, "Desktop app"));
 
         Assert.Equal(["Game", "Mobile app", "Desktop app"], saved.Select(c => c.Name));
         Assert.Equal([game.Id, mobile.Id], saved.Take(2).Select(c => c.Id));
-        var listed = (await AppEndpoints.ListApps(_db, default)).Value!.Items.Single(a => a.Id == app.Id);
+        var listed = (await ListApps.Handle(_db, default)).Value!.Items.Single(a => a.Id == app.Id);
         Assert.Equal(["Mobile app"], listed.Categories.Select(c => c.Name));
-        Assert.Equal(saved, (await AppEndpoints.ListCategories(_db, default)).Value);
+        Assert.Equal(saved, (await ListAppCategories.Handle(_db, default)).Value);
     }
 
     [Fact]
@@ -155,10 +155,10 @@ public class AppEndpointsTests
     {
         await SaveCategoriesAsync(new AppCategoryRequest(null, "Website"));
 
-        var result = await AppEndpoints.SaveCategories([new AppCategoryRequest(null, "")], _db, default);
+        var result = await SaveAppCategories.Handle([new AppCategoryRequest(null, "")], _db, default);
 
         Assert.IsType<ValidationProblem>(result.Result);
-        Assert.Equal(["Website"], (await AppEndpoints.ListCategories(_db, default)).Value!.Select(c => c.Name));
+        Assert.Equal(["Website"], (await ListAppCategories.Handle(_db, default)).Value!.Select(c => c.Name));
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class AppEndpointsTests
     {
         var request = new AppRequest("App", "", [new AppMedia("https://youtu.be/dQw4w9WgXcQ?si=x", AppMediaKinds.YouTube), new AppMedia(" https://cdn.example.com/a.png ", AppMediaKinds.Image)]);
 
-        var created = Assert.IsType<Created<AppDetails>>((await AppEndpoints.CreateApp(request, _db, Files, _alerts, Site, _time, default)).Result).Value!;
+        var created = Assert.IsType<Created<AppDetails>>((await CreateApp.Handle(request, _db, Files, _alerts, Site, _time, default)).Result).Value!;
 
         Assert.Equal(["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://cdn.example.com/a.png"], created.Media.Select(m => m.Url));
     }

@@ -8,7 +8,7 @@ Personal portfolio website of Claudiu Mihai Jechel.
 | Backend  | .NET 10 minimal API + EF Core 10 + Npgsql (`backend/`)          |
 | Database | PostgreSQL 16 (Docker Compose for local dev)                    |
 | Hosting  | Cloudflare Pages (site + `/api` proxy), Sliplane in Germany (API + PostgreSQL + backups) |
-| State    | Redux Toolkit + RTK Query; views in MVVM (View + `*.viewModel.ts`) |
+| State    | Redux Toolkit + RTK Query; components call hooks directly (see State and caching) |
 | Tests    | Backend: xUnit, Testcontainers. Frontend: Vitest in headless Chromium (coverage, screenshots). End to end: Playwright in Chrome, Edge, Firefox and Safari (`e2e/`) |
 | CI       | GitHub Actions (`.github/workflows/ci.yml`)                     |
 
@@ -40,13 +40,14 @@ How it all works is in [`docs/`](docs/):
 ├── frontend/
 │   ├── functions/api/[[path]].ts          # Cloudflare Pages Function: the site's /api proxy to the API on Sliplane (production)
 │   ├── src/
+│   │   ├── strings.ts                     # every text the site shows or reads out, by component
 │   │   ├── services/api.ts                # the single API service: every backend call goes through `api`
 │   │   ├── services/endpoints/<feature>.ts # each feature's endpoints and types (put together by api.ts)
 │   │   ├── services/http.ts               # the plumbing under them: axios, ApiError, the preview switch
 │   │   ├── store/                         # the Model: Redux store, slices, RTK Query endpoints (store/api/)
 │   │   ├── auth/                          # useAuth, useSessionKeeper, <SignedIn>/<SignedOut> (state in store/authSlice)
 │   │   ├── layout/                        # site frame: greeting, session bar, section tabs
-│   │   ├── pages/                         # one folder per route: X/X.tsx + X/X.viewModel.ts
+│   │   ├── pages/                         # one folder per route: X/X.tsx (with its test)
 │   │   ├── features/<feature>/            # a feature's components and rules (e.g. contact form + inbox)
 │   │   └── components/                    # shared UI: Modal, CopyButton, icons
 ├── e2e/                               # end-to-end tests: the whole site in four browsers (./e2e/run.sh)
@@ -57,7 +58,7 @@ How it all works is in [`docs/`](docs/):
 ├── scripts/test.sh                        # every test CI runs, locally (CI itself only runs on the way to main)
 ├── scripts/build_link_preview.mjs         # draws the link preview image (public/og-image.jpg)
 ├── scripts/build_brand_j.py               # draws the "j": the Vice title's first letter and the tab icon
-├── docker-compose.yml                     # local PostgreSQL
+├── docker-compose.yml                     # PostgreSQL and Redis; with --profile site, the whole site
 └── .github/workflows/ci.yml
 ```
 
@@ -94,6 +95,20 @@ dotnet run --project backend/src/Portfolio.Api --launch-profile http
 cd frontend && npm install && npm run dev
 ```
 
+### The whole site in Docker
+
+```bash
+docker compose --profile site up -d --build   # then http://localhost:8080
+docker compose --profile site down            # stop it (the database is kept)
+```
+
+The `site` profile adds the API (`backend/Dockerfile`, in Development, applying migrations on start) and the website
+(`frontend/Dockerfile`: the production build served by nginx, which forwards `/api` to the API, as Cloudflare does
+online) to the database and Redis. Without the profile only those two start, for working on the code as above. Google
+sign-in for the admin needs `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `ADMIN_EMAIL` in a `.env` file next to
+`docker-compose.yml` (git ignores it), and `http://localhost:8080/api/auth/signin-google` among the client's redirect
+URIs. The repo map's **Start / Stop / Reload** buttons run these commands.
+
 ### Dev launcher (macOS)
 
 ```bash
@@ -107,7 +122,7 @@ A small window with buttons. Each opens a new Terminal window running the matchi
 | Start backend      | `docker compose up -d --wait`, then the API                       |
 | Start frontend     | `npm run dev`                                                     |
 | Start website      | Both of the above in two windows. The frontend waits until `/api/health` responds, then opens the site in the browser |
-| Open repo map      | `npm start` in `tools/repomap` (runs `npm install` the first time): builds the 3D architecture map, opens it in the browser and rebuilds it on every change. See [tools/repomap/README.md](tools/repomap/README.md) |
+| Open repo map      | `npm start` in `tools/repomap` (runs `npm install` the first time): builds the architecture map (the Board), opens it in the browser and rebuilds it on every change; its Projects menu opens or creates other projects, and Start / Stop / Reload run them in Docker. See [tools/repomap/README.md](tools/repomap/README.md) |
 | Run backend tests  | `backend/test.sh` (all tests, with coverage), then opens the coverage report in the browser |
 | Run frontend tests | `npm test` in `frontend` (all tests, with coverage), then opens the coverage report in the browser |
 | Run all tests      | Both of the above, one after the other, then both coverage reports |
@@ -180,8 +195,8 @@ docker exec -it portfolio-db psql -U portfolio -d portfolio
 ## Conventions
 
 - Git: work happens on `develop` (or `feature/*` / `chore/*` branches merged into it). `main` is production and only takes pull requests from `develop` that passed CI (see Deployment).
-- Backend: all routes under `/api`; minimal APIs grouped per feature (`Features/<Feature>/<Feature>Endpoints.cs` with a `Map<Feature>Endpoints` extension). Handlers are public static methods with typed results (`Results<Ok<T>, NotFound>`), so unit tests can call them directly.
-- Frontend: all HTTP goes through the `api` object in `src/services/api.ts`, called from RTK Query endpoints (`src/store/api/`); views are MVVM (`X.tsx` + `X.viewModel.ts`, see State and caching); auth-dependent UI uses `useAuth()` (in view models) / `<SignedIn>` / `<SignedOut>` from `src/auth`. Routes are declared in `src/App/App.tsx` (React Router), with one folder per page in `src/pages/` (`X/X.tsx` + `X/X.viewModel.ts`).
+- Backend: vertical slices (see [Code organisation](docs/architecture.md#code-organisation)): all routes under `/api`; every endpoint is its own class in its feature's folder (`Features/<Feature>/<Endpoint>.cs`, an `IEndpoint` with `Map` and `Handle`), found by `api.MapEndpoints()`. Handlers are public static methods with typed results (`Results<Ok<T>, NotFound>`), so unit tests can call them directly. The unit tests check the architecture (`Architecture/VerticalSliceTests.cs`).
+- Frontend: Feature-Sliced Design (see [Code organisation](docs/architecture.md#code-organisation)): layers `app`, `pages`, `widgets`, `features`, `entities`, `shared`, each slice imported only through its `index.ts` (`@/entities/session`); `npm run lint` checks it with Steiger. All HTTP goes through the `api` object in `src/shared/api`, called from RTK Query endpoints in the slices' `api/` segments; components hold their own state and call hooks directly (see State and caching). Routes are declared in `src/app/App.tsx` (React Router), with one slice per page in `src/pages/`.
 
 ## Troubleshooting
 

@@ -3,8 +3,8 @@
  * are the real ones), and a clean slate after each test.
  */
 import '@fontsource/mr-dafoe/latin.css'
-import '../index.css'
-import '../glass.css'
+import '@/app/styles/index.css'
+import '@/app/styles/glass.css'
 import { afterEach, beforeEach, expect, vi } from 'vitest'
 import { cleanup } from 'vitest-browser-react'
 import { fakeHttp } from './http'

@@ -79,11 +79,11 @@ function PlacementNote({ placement }: { placement: Placement | null }) {
   const role = placement.role ? index?.roles.get(placement.role) : undefined
   return (
     <p className="dialog-text placement" data-testid="placement" title={placement.reason}>
-      Lands on the{' '}
+      Lands in the{' '}
       <span className="chip solid" style={{ ['--chip-color' as string]: layer?.color ?? 'var(--accent)' }}>
         {layer?.label ?? placement.layer}
       </span>{' '}
-      plane, as{' '}
+      layer, as{' '}
       <span className="chip solid" style={{ ['--chip-color' as string]: role?.color ?? 'var(--muted)' }}>
         {role?.label ?? placement.role}
       </span>

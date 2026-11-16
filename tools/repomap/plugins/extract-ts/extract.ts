@@ -17,6 +17,7 @@
 import { relative } from 'node:path'
 import { Node, SyntaxKind, type Project, type SourceFile, type ts } from 'ts-morph'
 import { normalizeUrl } from '../../src/shared/routes.ts'
+import { directlyConditional, renderCase, shownElement, type RenderCase, type ShownElement } from './conditions.ts'
 import { fileNodeId } from '../../src/shared/types.ts'
 import type { Diagnostic, Fact, FileEntry, PluginEdge, PluginNode } from '../../src/shared/types.ts'
 
@@ -90,6 +91,8 @@ class Extractor {
   private readonly consumedStrings = new Set<ts.Node>()
 
   private readonly edges = new Map<string, PluginEdge>()
+  /** Plain elements each component shows only under a condition (its `attrs.shows`). */
+  private readonly shown = new Map<string, ShownElement[]>()
   private readonly facts: Fact[] = []
   private readonly diagnostics: Diagnostic[] = []
 
@@ -146,6 +149,14 @@ class Extractor {
       return
     }
     this.edges.set(key, { from, to, type, confidence, evidence: this.evidence(at), ...(attrs ? { attrs } : {}) })
+  }
+
+  /** Where and when the owner renders the child (`attrs.when` on the renders edge): a few places at most. */
+  private addRenderCase(key: string, renderCase: RenderCase): void {
+    const edge = this.edges.get(key)
+    if (!edge) return
+    const when = ((edge.attrs ??= {}).when ??= []) as RenderCase[]
+    if (when.length < MAX_RENDER_CASES && !when.some((c) => c.line === renderCase.line)) when.push(renderCase)
   }
 
   private idFor(entry: FileEntry, name: string): string {
@@ -547,6 +558,8 @@ class Extractor {
       } else if (Node.isVariableDeclaration(node)) {
         const init = node.getInitializer()
         if (init && Node.isCallExpression(init) && /(^|\.)createContext$/.test(init.getExpression().getText())) decl.kind = 'context'
+        // An exported table of values (the site's strings, its tabs, labels by key): a constant others read.
+        else if (decl.exported && init && isLiteralTable(init)) decl.kind = 'constant'
       }
     }
     // Providers: components that render <Ctx.Provider> or <Ctx value>.
@@ -772,10 +785,17 @@ class Extractor {
         }
         const target = Node.isPropertyAccessExpression(tag) && tag.getName() === 'Provider' ? this.resolve(tag.getExpression()) : this.resolve(tag)
         if (target?.kind) {
-          const type = target.kind === 'context' ? 'provides' : 'renders'
-          this.addEdge(ownerId, target.id, refEdge(target.kind, type), node)
+          const type = refEdge(target.kind, target.kind === 'context' ? 'provides' : 'renders')
+          this.addEdge(ownerId, target.id, type, node)
+          if (type === 'renders') this.addRenderCase(`${ownerId}|${type}|${target.id}`, renderCase(container ?? node, root))
         } else {
           this.referenceToSupport(tag, ownerId, node)
+          // A plain element a condition picks (`adminNote && <p>…</p>`): the component shows it in that state.
+          if (mode === 'production' && /^[a-z]/.test(tagText) && container && directlyConditional(container, root)) {
+            const list = this.shown.get(ownerId) ?? []
+            this.shown.set(ownerId, list)
+            if (list.length < MAX_SHOWN) list.push(shownElement(container, root))
+          }
         }
         return
       }
@@ -804,7 +824,13 @@ class Extractor {
         if (Node.isIdentifier(node) && parent && isDeclarationName(node, parent)) return
         if (Node.isIdentifier(node) && parent && (Node.isImportSpecifier(parent) || Node.isImportClause(parent) || Node.isExportSpecifier(parent))) return
         const target = this.resolve(node) ?? this.resolveRoot(node)
-        if (target?.kind && target.id !== ownerId) {
+        // A component handed to another as a prop (`<PagedGrid Tile={AppTile} />`, `editor={SkillsEditor}`) is rendered
+        // through it: the one passing it renders it, when that element is.
+        const element = mode === 'production' && target && RENDERED_KINDS.has(target.kind ?? '') ? propElement(node) : undefined
+        if (target?.kind && target.id !== ownerId && element) {
+          this.addEdge(ownerId, target.id, 'renders', node)
+          this.addRenderCase(`${ownerId}|renders|${target.id}`, renderCase(element, root))
+        } else if (target?.kind && target.id !== ownerId) {
           this.addEdge(ownerId, target.id, refEdge(target.kind, target.kind === 'type' || target.kind === 'interface' ? 'uses-type' : 'uses'), node)
         } else if (!target) {
           this.referenceToSupport(node, ownerId, node)
@@ -1025,6 +1051,10 @@ class Extractor {
       if (!decl.kind) continue
       const attrs = { ...decl.attrs }
       if (decl.exported && decl.kind !== 'api-call') attrs.exported = true
+      const members = membersOf(decl)
+      if (members.length > 0) attrs.members = members
+      const shown = this.shown.get(decl.id)
+      if (shown?.length) attrs.shows = shown
       nodes.push({
         id: decl.id,
         label: decl.label,
@@ -1058,6 +1088,104 @@ function defaultName(path: string): string {
 }
 
 /** The function behind a variable initializer: arrow/function expression, or memo/forwardRef(fn). */
+interface Member {
+  name: string
+  kind: 'prop' | 'param' | 'state' | 'function' | 'value' | 'method' | 'property' | 'constructor' | 'field'
+  line: number
+  endLine: number
+  type?: string
+}
+
+const MAX_MEMBERS = 60
+const MAX_RENDER_CASES = 6
+const MAX_SHOWN = 20
+
+/**
+ * What a declaration holds, for the board's chip pins: a function's props or parameters, and the state,
+ * inner functions and values its body declares; a class's members; an interface's or object type's fields.
+ */
+function membersOf(decl: Decl): Member[] {
+  const members: Member[] = []
+  const add = (name: string, kind: Member['kind'], at: Node, type?: string) => {
+    if (members.length < MAX_MEMBERS) members.push({ name, kind, line: at.getStartLineNumber(), endLine: at.getEndLineNumber(), ...(type ? { type: shorten(type) } : {}) })
+  }
+  const node = decl.decl
+  if (Node.isClassDeclaration(node)) {
+    for (const ctor of node.getConstructors()) add('constructor', 'constructor', ctor, `(${ctor.getParameters().map((p) => p.getName()).join(', ')})`)
+    for (const member of node.getMembers()) {
+      if (Node.isMethodDeclaration(member)) add(member.getName(), 'method', member, `(${member.getParameters().map((p) => p.getName()).join(', ')})`)
+      else if (Node.isPropertyDeclaration(member)) add(member.getName(), 'property', member, member.getTypeNode()?.getText())
+    }
+    return members
+  }
+  const fields = (owner: Node) => {
+    if (!Node.isInterfaceDeclaration(owner) && !Node.isTypeLiteral(owner)) return
+    for (const property of owner.getProperties()) add(property.getName(), 'field', property, property.getTypeNode()?.getText())
+    for (const method of owner.getMethods()) add(method.getName(), 'method', method, `(${method.getParameters().map((p) => p.getName()).join(', ')})`)
+  }
+  if (Node.isInterfaceDeclaration(node)) {
+    fields(node)
+    return members
+  }
+  if (Node.isTypeAliasDeclaration(node)) {
+    const type = node.getTypeNode()
+    if (type) fields(type)
+    return members
+  }
+  // A constant object: its keys (the strings' groups, a table's entries).
+  if (decl.kind === 'constant' && Node.isVariableDeclaration(node)) {
+    const init = unwrap(node.getInitializer())
+    if (init && Node.isObjectLiteralExpression(init)) {
+      for (const property of init.getProperties()) {
+        if (Node.isPropertyAssignment(property) || Node.isShorthandPropertyAssignment(property) || Node.isMethodDeclaration(property)) {
+          const value = Node.isPropertyAssignment(property) ? unwrap(property.getInitializer()) : undefined
+          add(property.getName().replace(/^['"]|['"]$/g, ''), value && functionOf(value) ? 'function' : 'value', property)
+        }
+      }
+    }
+    return members
+  }
+  const fn = decl.fn ?? (Node.isFunctionDeclaration(node) ? node : undefined)
+  if (!fn || !(Node.isFunctionDeclaration(fn) || Node.isArrowFunction(fn) || Node.isFunctionExpression(fn))) return members
+  const component = decl.kind === 'component' || decl.kind === 'page' || decl.kind === 'provider'
+  for (const parameter of fn.getParameters()) {
+    const binding = parameter.getNameNode()
+    if (Node.isObjectBindingPattern(binding)) {
+      for (const element of binding.getElements()) add(element.getName(), component ? 'prop' : 'param', element)
+    } else add(parameter.getName(), component ? 'prop' : 'param', parameter, parameter.getTypeNode()?.getText())
+  }
+  const body = fn.getBody()
+  if (!body || !Node.isBlock(body)) return members
+  for (const statement of body.getStatements()) {
+    if (Node.isFunctionDeclaration(statement)) {
+      add(statement.getName() ?? 'function', 'function', statement)
+      continue
+    }
+    if (!Node.isVariableStatement(statement)) continue
+    for (const declaration of statement.getDeclarations()) {
+      const name = declaration.getNameNode()
+      const initializer = unwrap(declaration.getInitializer())
+      const callee = initializer && Node.isCallExpression(initializer) ? initializer.getExpression().getText() : undefined
+      if (Node.isArrayBindingPattern(name) && callee && /(^|\.)use(State|Reducer)$/.test(callee)) {
+        const first = name.getElements()[0]
+        if (first && Node.isBindingElement(first)) add(first.getName(), 'state', declaration, callee)
+      } else if (Node.isObjectBindingPattern(name) || Node.isArrayBindingPattern(name)) {
+        for (const element of name.getElements()) if (Node.isBindingElement(element)) add(element.getName(), 'value', element, callee)
+      } else if (functionOf(initializer) || (callee && /(^|\.)useCallback$/.test(callee))) {
+        add(name.getText(), 'function', declaration)
+      } else {
+        add(name.getText(), 'value', declaration, callee)
+      }
+    }
+  }
+  return members
+}
+
+function shorten(text: string): string {
+  const flat = text.replace(/\s+/g, ' ')
+  return flat.length > 60 ? `${flat.slice(0, 57)}…` : flat
+}
+
 function functionOf(initializer: Node | undefined): Node | undefined {
   if (!initializer) return undefined
   if (Node.isArrowFunction(initializer) || Node.isFunctionExpression(initializer)) return initializer
@@ -1321,4 +1449,23 @@ function docComment(node: Node | undefined): string | undefined {
     .replace(/\s+/g, ' ')
     .trim()
   return text ? text.slice(0, 400) : undefined
+}
+
+/** An object or array literal (`{ … }`, `[ … ]`, with `as const` / `satisfies`), not a computed value. */
+function isLiteralTable(init: Node): boolean {
+  const value = unwrap(init)
+  return !!value && (Node.isObjectLiteralExpression(value) || Node.isArrayLiteralExpression(value))
+}
+
+const RENDERED_KINDS = new Set(['component', 'page', 'provider'])
+
+/** The JSX element a value is a prop of (`Tile={AppTile}` on <PagedGrid>), when the value is the whole prop. */
+function propElement(node: Node): Node | undefined {
+  const expression = node.getParent()
+  if (!expression || !Node.isJsxExpression(expression)) return undefined
+  const attribute = expression.getParent()
+  if (!attribute || !Node.isJsxAttribute(attribute)) return undefined
+  const opening = attribute.getParent()?.getParent()
+  if (!opening) return undefined
+  return Node.isJsxOpeningElement(opening) ? opening.getParent() : opening
 }

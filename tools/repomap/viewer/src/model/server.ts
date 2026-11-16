@@ -7,6 +7,11 @@ export interface ServerInfo {
   writable: boolean
   /** The AI assistant is available. */
   ai: boolean
+  /** The Board's AI (summaries, briefings, rule suggestions) is available. */
+  boardAi?: boolean
+  /** The Projects menu (open, create) and Start/Stop/Reload with Docker. */
+  projects?: boolean
+  docker?: boolean
 }
 
 let info: Promise<ServerInfo> | null = null
@@ -16,7 +21,8 @@ export function serverInfo(): Promise<ServerInfo> {
     .then(async (response) => {
       if (!(response.headers.get('content-type') ?? '').includes('application/json')) return { writable: false, ai: false }
       const data = (await response.json()) as Partial<ServerInfo>
-      return { writable: data.writable === true, ai: data.writable === true && data.ai === true }
+      const writable = data.writable === true
+      return { writable, ai: writable && data.ai === true, boardAi: writable && data.boardAi === true, projects: writable && data.projects === true, docker: writable && data.docker === true }
     })
     .catch(() => ({ writable: false, ai: false }))
   return info

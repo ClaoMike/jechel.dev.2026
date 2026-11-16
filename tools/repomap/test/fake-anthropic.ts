@@ -45,6 +45,12 @@ export class FakeAnthropic {
     return this
   }
 
+  /** Drops the scripted responses not used yet. */
+  clear(): this {
+    this.script.length = 0
+    return this
+  }
+
   get messages(): RecordedRequest[] {
     return this.requests.filter((r) => r.path === '/v1/messages')
   }

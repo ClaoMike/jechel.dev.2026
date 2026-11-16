@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using Portfolio.Api.Common;
 using Portfolio.Api.Features.Alerts;
 using Portfolio.Api.Features.Contact;
 using Portfolio.Api.Features.Meetings;
@@ -173,7 +174,7 @@ public class MeetingsEndpointTests(PortfolioApiFactory factory)
         var admin = await SignedInClientAsync();
         var id = (await admin.GetFromJsonAsync<List<MeetingDto>>("/api/meetings"))!.Single(m => m.AttendeeEmail == email).Id;
 
-        var response = await admin.PostAsJsonAsync($"/api/meetings/{id}/accept", new MeetingDecisionRequest(new string('x', MeetingsEndpoints.MessageMaxLength + 1)));
+        var response = await admin.PostAsJsonAsync($"/api/meetings/{id}/accept", new MeetingDecisionRequest(new string('x', MeetingsShared.MessageMaxLength + 1)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.DoesNotContain($"confirm {uid}", factory.Cal.Calls);
