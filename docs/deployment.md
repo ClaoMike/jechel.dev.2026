@@ -60,6 +60,10 @@ until it expires there (as browsers that already have it do).
 
 **Data Protection keys** (they encrypt the sign-in cookie and the secrets saved in Settings) are kept in the
 database (`data_protection_keys`), so they survive redeploys, encrypted with `DataProtection:KeyEncryptionKey`.
+Each stored key names the class that opens it (`KeyRingDecryptor`), so that class must keep every name it has had:
+`Portfolio.Api.KeyRingDecryptor` (`Common/LegacyKeyRingDecryptor.cs`) and `Portfolio.Api.Common.KeyRingDecryptor`. Moving it
+once without the old name left behind made every key unreadable: every Settings secret read as unset (YouTube, Resend, the
+webhooks answered 503) and everyone was signed out. `KeyRingEncryptionTests` checks each name still resolves.
 
 **The proxy also forwards the visitor's country** (`X-Client-Country`, from Cloudflare's `CF-IPCountry`), for analytics and the
 sign-in alerts and device list.

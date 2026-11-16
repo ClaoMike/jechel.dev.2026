@@ -53,6 +53,47 @@ public class KeyRingEncryptionTests
         Assert.Equal("the Resend key", restarted.GetRequiredService<IDataProtectionProvider>().CreateProtector("test").Unprotect(secret));
     }
 
+    /// <summary>
+    /// Every name the decryptor has had, as stored in the production database's keys. A key keeps the name it was made
+    /// with, so each must still be found, or every secret saved under it is lost (it happened when it moved to Common).
+    /// </summary>
+    public static TheoryData<string> StoredDecryptorNames =>
+    [
+        "Portfolio.Api.KeyRingDecryptor, Portfolio.Api",
+        "Portfolio.Api.Common.KeyRingDecryptor, Portfolio.Api",
+    ];
+
+    [Theory]
+    [MemberData(nameof(StoredDecryptorNames))]
+    public void Every_name_the_decryptor_was_stored_under_is_still_found(string name)
+    {
+        var type = Type.GetType(name, throwOnError: false);
+
+        Assert.NotNull(type);
+        Assert.True(typeof(Microsoft.AspNetCore.DataProtection.XmlEncryption.IXmlDecryptor).IsAssignableFrom(type), $"{name} isn't a decryptor");
+    }
+
+    [Fact]
+    public void Reads_keys_stored_under_the_decryptors_old_name()
+    {
+        var database = Guid.NewGuid().ToString();
+        using var first = DataProtection(database, Key);
+        var secret = first.GetRequiredService<IDataProtectionProvider>().CreateProtector("test").Protect("the YouTube key");
+
+        // As the keys made before the decryptor moved to Common were stored.
+        using (var scope = first.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PortfolioDbContext>();
+            var stored = Assert.Single(db.DataProtectionKeys);
+            Assert.Contains("Portfolio.Api.Common.KeyRingDecryptor, Portfolio.Api", stored.Xml);
+            stored.Xml = stored.Xml!.Replace("Portfolio.Api.Common.KeyRingDecryptor, Portfolio.Api", "Portfolio.Api.KeyRingDecryptor, Portfolio.Api");
+            db.SaveChanges();
+        }
+
+        using var restarted = DataProtection(database, Key);
+        Assert.Equal("the YouTube key", restarted.GetRequiredService<IDataProtectionProvider>().CreateProtector("test").Unprotect(secret));
+    }
+
     [Fact]
     public void Without_the_setting_stores_them_as_they_are()
     {
