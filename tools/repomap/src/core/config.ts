@@ -9,7 +9,7 @@
  * - everything else: child replaces parent
  */
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, isAbsolute, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ArchitectureDef, RuleDef, TierDef } from '../shared/board.ts'
 import type { EdgeTypeDef, KindDef, LayerDef, RoleDef } from '../shared/types.ts'
@@ -129,6 +129,23 @@ export interface RepoMapConfig {
   /** Architecture rules checked on every build (the Board shows what breaks them; `check` fails on errors). */
   rules: RuleDef[]
   ai: AiConfig
+  /** Running the project with docker compose (Start, Stop and Reload in the top bar). */
+  docker: DockerConfig
+}
+
+/** How the project runs in Docker. */
+export interface DockerConfig {
+  /** The compose file, relative to the repository (default: docker-compose.yml, or compose.yaml). */
+  file?: string
+  /** Compose profiles to run too (services that only start with them, e.g. the site's API and web server). */
+  profiles: string[]
+  /** Where the running site answers (Open). */
+  url?: string
+}
+
+/** Where a project's graph goes instead of the config's own output (repomap keeps other projects' maps itself). */
+export interface ConfigOverrides {
+  output?: string
 }
 
 export const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -140,14 +157,14 @@ const CONCAT_KEYS = new Set(['exclude', 'layerRules', 'roleRules'])
 const DEFAULT_SUMMARY_MODEL = 'claude-haiku-5-5'
 const DEFAULT_REVIEW_MODEL = 'claude-opus-5-5'
 
-export function loadConfig(configPath: string): RepoMapConfig {
+export function loadConfig(configPath: string, overrides: ConfigOverrides = {}): RepoMapConfig {
   const absolute = resolve(configPath)
   if (!existsSync(absolute)) throw new Error(`Config not found: ${absolute}`)
   const merged = loadWithExtends(absolute, new Set())
   const baseDir = dirname(absolute)
 
   const repoRoot = resolve(baseDir, String(merged.repoRoot ?? '.'))
-  const output = resolve(baseDir, String(merged.output ?? '.out/graph.json'))
+  const output = overrides.output ?? resolve(baseDir, String(merged.output ?? '.out/graph.json'))
   const plugins = ((merged.plugins as PluginConfig[] | undefined) ?? []).filter((p) => p.enabled !== false)
 
   const config: RepoMapConfig = {
@@ -180,6 +197,7 @@ export function loadConfig(configPath: string): RepoMapConfig {
       ...((merged.ai as Json | undefined) ?? {}),
       file: resolve(baseDir, String((merged.ai as Json | undefined)?.file ?? 'repomap.ai.json')),
     } as AiConfig,
+    docker: { profiles: [], ...((merged.docker as Json | undefined) ?? {}) } as DockerConfig,
   }
   for (const item of [...config.layers, ...config.roles, ...config.kinds, ...config.edgeTypes]) item.color = normalizeColor(item.color)
   validateConfig(config)
@@ -200,7 +218,12 @@ function loadWithExtends(path: string, seen: Set<string>): Json {
   const parentRef = raw.extends
   delete raw.extends
   if (typeof parentRef !== 'string') return raw
-  const parentPath = isAbsolute(parentRef) ? parentRef : resolve(dirname(path), parentRef)
+  // "preset:<name>": one of repomap's own stack presets, wherever the config is.
+  const parentPath = parentRef.startsWith('preset:')
+    ? join(TOOL_ROOT, 'presets', `${parentRef.slice('preset:'.length)}.json`)
+    : isAbsolute(parentRef)
+      ? parentRef
+      : resolve(dirname(path), parentRef)
   const parent = loadWithExtends(parentPath, seen)
   return mergeConfig(parent, raw)
 }

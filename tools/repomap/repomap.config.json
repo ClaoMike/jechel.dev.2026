@@ -118,5 +118,8 @@
       "edgeTypes": ["queries", "writes"],
       "sameFeature": true
     }
-  ]
+  ],
+
+  // Start, Stop and Reload in the top bar: the whole site in Docker (the API and nginx are in the "site" profile).
+  "docker": { "profiles": ["site"], "url": "http://localhost:8080" }
 }

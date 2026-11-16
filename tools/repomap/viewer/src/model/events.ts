@@ -1,6 +1,7 @@
 /**
  * One Server-Sent Events connection to `repomap serve` (or the Vite dev server), shared by the map
- * and the history: "graph" and "git" announce rebuilt files, "board-ai" the Board's AI progress.
+ * and the history: "graph" and "git" announce rebuilt files, "board-ai" the Board's AI progress, "docker" Start/Stop/Reload,
+ * "project" a switch to another project.
  * The browser reconnects by itself.
  */
 type Handler = (data: unknown) => void
@@ -8,7 +9,7 @@ type Handler = (data: unknown) => void
 const handlers = new Map<string, Set<Handler>>()
 let source: EventSource | null = null
 
-export function onServerEvent(event: 'graph' | 'git' | 'board-ai', handler: Handler): () => void {
+export function onServerEvent(event: 'graph' | 'git' | 'board-ai' | 'docker' | 'project', handler: Handler): () => void {
   if (typeof EventSource === 'undefined') return () => {}
   source ??= new EventSource('events')
   let set = handlers.get(event)

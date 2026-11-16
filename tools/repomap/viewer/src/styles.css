@@ -4935,3 +4935,147 @@ button.link {
     animation: none;
   }
 }
+
+/* Projects: the project's name opens the Projects menu. */
+.project-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.project-button:hover,
+.project-button[aria-expanded='true'] {
+  background: var(--hover);
+}
+
+.project-includes ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.project-includes li {
+  margin: 4px 0;
+}
+
+.switching {
+  z-index: 60;
+}
+
+.switching-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 26px;
+}
+
+/* Docker: Start, Stop, Reload and the project's state. */
+.docker-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+}
+
+.docker-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.docker-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.docker-state.running .docker-dot,
+.docker-services li.running .docker-dot {
+  background: var(--ok);
+}
+
+.docker-state.partly .docker-dot {
+  background: var(--warn);
+}
+
+.docker-state.off .docker-dot {
+  background: var(--danger);
+}
+
+.docker-state.busy .docker-dot {
+  background: var(--accent);
+  animation: docker-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes docker-pulse {
+  to {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docker-state.busy .docker-dot {
+    animation: none;
+  }
+}
+
+.docker-log {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.docker-log > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.docker-services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.docker-services li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.docker-problem {
+  color: var(--danger);
+}
+
+.docker-output {
+  max-height: 50vh;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--stage);
+  color: var(--text);
+  font: 12px/1.45 var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

@@ -1,0 +1,44 @@
+# __NAME__: the database, the API and the site. `docker compose up -d --build`, then http://localhost:__WEB_PORT__.
+# For working on the code instead: `docker compose up -d db`, then `dotnet run` in backend/src/__NAMESPACE__.Api and
+# `npm run dev` in frontend/.
+name: __SLUG__
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: __DB__
+      POSTGRES_USER: __DB__
+      POSTGRES_PASSWORD: __DB__
+    ports:
+      - "__DB_PORT__:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U __DB__ -d __DB__"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      PORT: "8080"
+      ConnectionStrings__Default: Host=db;Port=5432;Database=__DB__;Username=__DB__;Password=__DB__
+      Database__MigrateOnStartup: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    ports:
+      - "__WEB_PORT__:80"
+    depends_on:
+      - api
+
+volumes:
+  db-data:

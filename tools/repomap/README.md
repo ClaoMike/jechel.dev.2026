@@ -33,6 +33,7 @@ tools/repomap/
     link-http/               calls/mocks/requests/links → endpoints and routes
     link-contracts/          frontend types ↔ backend DTOs
   presets/                   stack presets: vocabulary, detection rules, plugins
+  templates/                 skeletons of new projects (react-aspnet-postgres: the standard structure)
   schema/                    JSON Schemas of graph.json and of plugin output
   viewer/                    Vite + React web app (viewer/src/board: the Board, viewer/src/git: the history tab)
   samples/                   demo/stress graph generator, demo git history generator
@@ -135,6 +136,33 @@ chips up.
 **On a phone.** `npm run phone` serves on your network (read-only: no editing, git or AI) and prints a
 link with a one-time token (also as a QR code); the phone keeps it in a cookie. Anyone on the network
 without the link gets a 401. `--no-token` turns that off.
+
+## Projects and Docker
+
+Served from your checkout (`npm start`), repomap is a home for several projects:
+
+- **The Projects menu** (the project's name in the top bar) lists the projects it knows: the one it was started with,
+  and every repository opened or created here (kept in `~/.config/repomap/projects.json`; `REPOMAP_PROJECTS` moves it).
+  Picking one builds its map, then serves it on the same address: the page comes back on it. A project is mapped with
+  its own `repomap.config.json` when it has one (`"extends": "preset:react-aspnet-efcore-postgres"` reaches repomap's
+  presets from anywhere), else with the stack preset; its graph, history and chats stay in repomap's
+  `.out/projects/<id>/`, never in the project.
+- **New project…** creates a project from `templates/react-aspnet-postgres`, the standard structure, in
+  `<folder>/<name>` as a new git repository (its files staged, the first commit yours):
+  - a React + TypeScript frontend (Vite, Redux Toolkit) in **Feature-Sliced Design**, with `npm run lint` = oxlint +
+    Steiger (the FSD linter), so the layers and public APIs stay as they are;
+  - an ASP.NET Core API in **vertical slices** (an `IEndpoint` class per endpoint, found by `api.MapEndpoints()`), EF
+    Core with its migrations, and unit tests that check the architecture (NetArchTest) and that the model matches the
+    migrations;
+  - PostgreSQL, and a `docker-compose.yml` that runs all three (nginx serves the site and forwards `/api`);
+  - a `repomap.config.json` with both architectures and their rules, a README, and ports nothing else uses (each new
+    project gets its own: site from 8081, API from 5201, database from 5441).
+- **Start, Stop, Reload** (top bar): `docker compose up -d --build`, `down` (the data is kept) and
+  `up -d --build --force-recreate` in the project's folder, with the profiles its config names (`"docker":
+  { "profiles": ["site"], "url": "http://localhost:8080" }`: this website's API and web server are in the `site`
+  profile). The dot says whether every service runs; clicking it shows the services and the output of the last action
+  (streamed while it runs). With `url` set, ↗ opens the running site. One action at a time per project; an action
+  keeps running while you look at another project. `REPOMAP_DOCKER` replaces the docker command (the tests use a fake).
 
 ## Code and files
 
@@ -412,6 +440,10 @@ used for "Open in VS Code" links) and your uncommitted changes out of git.json.
   settings (key stored owner-only, never returned) and its HTTP routes behind the guard. Plus a run of every plugin on this repository that
   checks the facts that matter (every endpoint of the README's API table, the HomePage →
   `profiles.first_name` chain, DI, migrations, test tagging, no unresolved links, a valid git.json).
+- **Projects** (`test/projects.test.ts`, `e2e/projects.spec.ts`): the names and skeleton of a new project (every
+  placeholder filled in, nothing overwritten), its ports, the registry and the configs projects are mapped with,
+  compose's arguments and output against a fake docker, the routes behind the guard, and in the browser the real switch
+  between projects, creating one, and Start / Stop / Reload.
 - **Browser** (`e2e/`, Playwright against the demo graph and history), in Chromium and WebKit (Firefox in CI or
   with `ALL_BROWSERS=1`) and on a phone (Pixel 7): the Board (levels, zoom and pinch, the trail, search,
   review, rules, the Files tab, code, help, opening and dropping files, `?graph=`, live reload, no WebGL anywhere),

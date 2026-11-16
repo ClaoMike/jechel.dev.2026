@@ -12,6 +12,9 @@
  *   POST /api/git         run one GitAction (JSON)
  *   GET  /api/board/ai    the Board's AI job (summaries): running, progress, last result
  *   POST /api/board/summarize · /api/board/stop · /api/board/briefing · /api/board/suggest-rules
+ *   GET  /api/projects    the projects (the Projects menu) and the open one
+ *   POST /api/projects/open {id} · /api/projects/add {path, name?} · /api/projects/create {name, parent}
+ *   GET  /api/docker      the open project's services · POST /api/docker {action: start | stop | reload}
  *
  * (GET /api/review, the read-only diff for review mode, is served by serve.ts on every server.)
  *
@@ -23,7 +26,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AiSettingsUpdate, ApprovalDecision, ChatEvent } from '../shared/ai.ts'
 import { WRITE_HEADER, type GitAction } from '../shared/git-actions.ts'
+import { DOCKER_ACTIONS, type DockerAction, type DockerStatus, type ProjectInfo, type ProjectsView } from '../shared/projects.ts'
 import type { RepoGraph } from '../shared/types.ts'
+import { DockerError } from './docker.ts'
+import { ProjectError } from './projects.ts'
+import { ScaffoldError } from './scaffold.ts'
 import { BoardAiError, reviewBriefing, suggestRules, summarizeBoard, type BriefingInput, type SummarizeProgress } from './ai/board-ai.ts'
 import type { RepoMapConfig } from './config.ts'
 import { readReviewDiff, ReviewError } from './review.ts'
@@ -49,6 +56,23 @@ export interface ApiContext {
   ai?: { assistant: Assistant; settings: SettingsStore; conversations: ConversationStore; baseURL?: string }
   /** The Board's AI work: the config (ai file, models), a rebuild, and a way to tell the viewers. */
   board?: { config: RepoMapConfig; rebuild(): Promise<RepoGraph>; broadcast(event: string, data: unknown): void }
+  projects?: ProjectsContext
+  docker?: DockerContext
+}
+
+/** The Projects menu: what serve.ts does with the registry (switching restarts the server on the same port). */
+export interface ProjectsContext {
+  view(): ProjectsView
+  /** Starts switching (answered at once: the `project` event follows). */
+  open(id: string): void
+  add(path: string, name?: string): ProjectInfo
+  create(name: string, parent: string): Promise<ProjectInfo>
+}
+
+/** The open project's Docker. */
+export interface DockerContext {
+  status(): Promise<DockerStatus>
+  start(action: DockerAction): Promise<DockerStatus>
 }
 
 /** The one summaries run a server does at a time. */
@@ -77,7 +101,17 @@ export function isLoopbackHost(host: string): boolean {
 export async function handleApi(req: IncomingMessage, res: ServerResponse, url: URL, context: ApiContext): Promise<boolean> {
   const route = `${req.method} ${url.pathname}`
   if (route === 'GET /api/info') {
-    sendJson(res, 200, { writable: true, ai: !!context.ai, boardAi: !!(context.ai && context.board) })
+    sendJson(res, 200, { writable: true, ai: !!context.ai, boardAi: !!(context.ai && context.board), projects: !!context.projects, docker: !!context.docker })
+    return true
+  }
+  if (url.pathname.startsWith('/api/projects')) {
+    if (!allowed(req, res, req.method !== 'GET')) return true
+    await projectsRoute(req, res, url, context)
+    return true
+  }
+  if (url.pathname === '/api/docker') {
+    if (!allowed(req, res, req.method !== 'GET')) return true
+    await dockerRoute(req, res, context)
     return true
   }
   if (url.pathname === '/source' && req.method === 'PUT') {
@@ -227,6 +261,46 @@ async function fileOperation(req: IncomingMessage, res: ServerResponse, context:
   } catch (error) {
     if (error instanceof WorkspaceError) return sendJson(res, error.status, { ok: false, error: error.message })
     sendJson(res, 500, { ok: false, error: (error as Error).message })
+  }
+}
+
+/** The Projects menu's routes (the guard has run). */
+async function projectsRoute(req: IncomingMessage, res: ServerResponse, url: URL, context: ApiContext): Promise<void> {
+  const projects = context.projects
+  if (!projects) return sendJson(res, 404, { error: 'Projects are not available on this server' })
+  const route = `${req.method} ${url.pathname}`
+  try {
+    if (route === 'GET /api/projects') return sendJson(res, 200, projects.view())
+    const body = await jsonBody<{ id?: unknown; path?: unknown; name?: unknown; parent?: unknown }>(req)
+    const text = (value: unknown) => (typeof value === 'string' ? value : '')
+    if (route === 'POST /api/projects/open') {
+      projects.open(text(body.id))
+      return sendJson(res, 202, { ok: true })
+    }
+    if (route === 'POST /api/projects/add') return sendJson(res, 200, projects.add(text(body.path), text(body.name) || undefined))
+    if (route === 'POST /api/projects/create') return sendJson(res, 201, await projects.create(text(body.name), text(body.parent)))
+    sendJson(res, 404, { error: 'Not found' })
+  } catch (error) {
+    if (error instanceof ProjectError || error instanceof ScaffoldError) return sendJson(res, error.status, { error: error.message })
+    if (error instanceof SettingsError || error instanceof SyntaxError) return sendJson(res, 400, { error: error.message })
+    sendJson(res, 500, { error: (error as Error).message })
+  }
+}
+
+/** Start, Stop and Reload (the guard has run). */
+async function dockerRoute(req: IncomingMessage, res: ServerResponse, context: ApiContext): Promise<void> {
+  const docker = context.docker
+  if (!docker) return sendJson(res, 404, { error: 'Docker is not available on this server' })
+  try {
+    if (req.method === 'GET') return sendJson(res, 200, await docker.status())
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' })
+    const { action } = await jsonBody<{ action?: unknown }>(req)
+    if (!DOCKER_ACTIONS.includes(action as DockerAction)) return sendJson(res, 400, { error: `action: one of ${DOCKER_ACTIONS.join(', ')}` })
+    sendJson(res, 202, await docker.start(action as DockerAction))
+  } catch (error) {
+    if (error instanceof DockerError) return sendJson(res, error.status, { error: error.message })
+    if (error instanceof SettingsError || error instanceof SyntaxError) return sendJson(res, 400, { error: error.message })
+    sendJson(res, 500, { error: (error as Error).message })
   }
 }
 

@@ -12,6 +12,8 @@ import { loadInitialGraph } from './model/load.ts'
 import { matches, NARROW } from './model/media.ts'
 import { useViewer } from './model/store.ts'
 import { FileDialogs } from './ui/FileDialogs.tsx'
+import { DockerLog } from './projects/DockerControls.tsx'
+import { ProjectOverlays } from './projects/ProjectMenu.tsx'
 import { Banner, DropZone, HelpOverlay, Status, Toast } from './ui/Overlays.tsx'
 import { TopBar } from './ui/TopBar.tsx'
 
@@ -152,6 +154,8 @@ export function App() {
       <ChatDock />
       <SettingsDialog />
       <FileDialogs />
+      <ProjectOverlays />
+      <DockerLog />
       <HelpOverlay />
       <DropZone />
       <Toast />

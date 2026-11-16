@@ -1,7 +1,7 @@
 export type IconName =
   | 'menu' | 'search' | 'close' | 'fit' | 'sun' | 'moon' | 'help' | 'open' | 'chevron' | 'copy'
   | 'external' | 'up' | 'down' | 'link' | 'warn' | 'reset' | 'layers' | 'code' | 'wrap' | 'lock' | 'git' | 'branch' | 'tag' | 'commit' | 'pr' | 'user' | 'clock' | 'file' | 'focus'
-  | 'caret' | 'edit' | 'check' | 'sparkle' | 'gear' | 'send' | 'stop' | 'plus' | 'sync' | 'push' | 'pull' | 'merge' | 'stash' | 'more' | 'trash'
+  | 'caret' | 'edit' | 'check' | 'sparkle' | 'gear' | 'send' | 'stop' | 'plus' | 'sync' | 'push' | 'pull' | 'merge' | 'stash' | 'more' | 'trash' | 'play' | 'folder'
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -39,6 +39,8 @@ export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
     gear: <><circle cx="10" cy="10" r="2.6" /><path d="M10 2.5v2.1M10 15.4v2.1M2.5 10h2.1M15.4 10h2.1M4.7 4.7l1.5 1.5M13.8 13.8l1.5 1.5M4.7 15.3l1.5-1.5M13.8 6.2l1.5-1.5" /></>,
     send: <path d="M3.5 10 16.5 4l-4.2 12.5-2.6-5.2zM9.7 11.3l6.8-7.3" />,
     stop: <rect x="5" y="5" width="10" height="10" rx="1.5" fill="currentColor" />,
+    play: <path d="M6.5 4.5v11l9-5.5z" fill="currentColor" />,
+    folder: <path d="M3 6a1 1 0 0 1 1-1h4.2l1.8 2H16a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" />,
     edit: <path d="M12.8 3.7a1.7 1.7 0 0 1 2.4 0l1.1 1.1a1.7 1.7 0 0 1 0 2.4L7.6 15.9 3.5 16.5l.6-4.1zM11.3 5.2l3.5 3.5" />,
     check: <path d="M4 10.5l3.8 3.8L16 6" />,
     plus: <path d="M10 4v12M4 10h12" />,

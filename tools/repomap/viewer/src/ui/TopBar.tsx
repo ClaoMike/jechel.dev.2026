@@ -6,6 +6,8 @@ import { useGit } from '../git/store.ts'
 import { loadGraphFile } from '../model/load.ts'
 import { useViewer } from '../model/store.ts'
 import { Icon } from './icons.tsx'
+import { DockerControls } from '../projects/DockerControls.tsx'
+import { ProjectMenu } from '../projects/ProjectMenu.tsx'
 import { Tabs } from './Tabs.tsx'
 
 export function TopBar() {
@@ -37,7 +39,7 @@ export function TopBar() {
         <Tabs />
         {meta && (
           <span className="repo" title={meta.repo.root ?? meta.repo.name}>
-            <strong>{meta.repo.name}</strong>
+            <ProjectMenu name={meta.repo.name} />
             {meta.repo.branch && (
               <span className="git">
                 {meta.repo.branch}
@@ -55,6 +57,7 @@ export function TopBar() {
       {board ? <div className="search-spacer" /> : <GitSearch />}
 
       <div className="toolbar">
+        <DockerControls />
         {board ? <BoardTools onOpenFile={openFile} /> : <GitTools onOpenFile={openFile} />}
         <AssistantButtons />
       </div>
