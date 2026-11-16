@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { KINDS, pageOfNotifications } from '@/test/fixtures/notifications'
+import { CHANNELS, HERE, KINDS, pageOfNotifications, PUSH } from '@/test/fixtures/notifications'
 import { fakeHttp } from '@/test/http'
 import { api, ApiError } from './api'
 
@@ -31,5 +31,38 @@ describe('api.notifications', () => {
 
     expect(error.status).toBe(404)
     expect(requests[0].url).toBe('/api/notifications/kinds/a%2Fb')
+  })
+
+  it('lists both ways alerts go, and switches one with the answer of both as they now are', async () => {
+    const { requests } = fakeHttp(() => ({ status: 200, body: CHANNELS }))
+
+    expect(await api.notifications.listChannels()).toEqual(CHANNELS)
+    expect(await api.notifications.saveChannel('push', false)).toEqual(CHANNELS)
+
+    expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual(['GET /api/notifications/channels', 'PUT /api/notifications/channels/push'])
+    expect(requests[1].body).toEqual({ enabled: false })
+  })
+
+  it("gets the site's key and devices, adds this device with its name, and removes one", async () => {
+    const { requests } = fakeHttp(({ method }) => ({ status: 200, body: method === 'GET' ? PUSH : PUSH.devices }))
+    const subscription = { endpoint: HERE, keys: { p256dh: 'device-key', auth: 'device-secret' } }
+
+    expect(await api.notifications.getPush()).toEqual(PUSH)
+    expect(await api.notifications.addPushDevice(subscription, 'iPhone · Home Screen app')).toEqual(PUSH.devices)
+    expect(await api.notifications.removePushDevice(7)).toEqual(PUSH.devices)
+
+    expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual(['GET /api/notifications/push', 'POST /api/notifications/push/devices', 'DELETE /api/notifications/push/devices/7'])
+    expect(requests[1].body).toEqual({ ...subscription, label: 'iPhone · Home Screen app' })
+  })
+
+  it("sends a test to one device, and rejects with the push service's refusal", async () => {
+    const { requests } = fakeHttp(({ url }) => (url.endsWith('/7/test') ? { status: 204 } : { status: 502, body: { title: 'The push service refused it.' } }))
+
+    await expect(api.notifications.testPushDevice(7)).resolves.toBeUndefined()
+    const error = (await api.notifications.testPushDevice(8).catch((e: unknown) => e)) as ApiError
+
+    expect(error.status).toBe(502)
+    expect(error.problem.detail).toBe('The push service refused it.')
+    expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual(['POST /api/notifications/push/devices/7/test', 'POST /api/notifications/push/devices/8/test'])
   })
 })

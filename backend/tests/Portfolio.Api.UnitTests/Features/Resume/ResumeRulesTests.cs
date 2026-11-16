@@ -48,4 +48,22 @@ public class ResumeRulesTests
     [Fact]
     public void A_skill_name_too_long_to_be_one_is_refused() =>
         Assert.Contains("excludedSkills", ResumeRules.Validate(new ResumeChoices(ResumeSections.All, [new string('x', 201)])).Keys);
+
+    [Fact]
+    public void Too_long_is_refused_even_when_it_looks_right()
+    {
+        // Each would pass its pattern: only the length is wrong.
+        Assert.Equal(["phone"], ResumeRules.Validate(new ResumeContact(new string('7', ResumeRules.PhoneMaxLength + 1), "a@example.com", "Engineer")).Keys);
+        Assert.Equal(["email"], ResumeRules.Validate(new ResumeContact("0123", new string('a', 250) + "@example.com", "Engineer")).Keys);
+        Assert.Empty(ResumeRules.Validate(new ResumeContact(new string('7', ResumeRules.PhoneMaxLength), "a@example.com", new string('h', ResumeRules.HeadlineMaxLength))));
+    }
+
+    [Fact]
+    public void More_skills_to_leave_out_than_there_could_be_are_refused()
+    {
+        string[] Skills(int count) => [.. Enumerable.Range(1, count).Select(i => $"Skill {i}")];
+
+        Assert.Empty(ResumeRules.Validate(new ResumeChoices(ResumeSections.All, Skills(ResumeRules.MaxExcludedSkills))));
+        Assert.Equal(["excludedSkills"], ResumeRules.Validate(new ResumeChoices(ResumeSections.All, Skills(ResumeRules.MaxExcludedSkills + 1))).Keys);
+    }
 }

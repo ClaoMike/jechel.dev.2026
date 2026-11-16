@@ -323,6 +323,28 @@ public class WebPushTests
     }
 
     [Fact]
+    public void Refuses_a_device_with_no_keys_at_all_or_keys_too_long_to_be_real()
+    {
+        const string endpoint = "https://web.push.apple.com/abc";
+
+        Assert.Equal(["keys.auth", "keys.p256dh"], PushShared.Validate(new AddPushDeviceRequest(endpoint, null!, "x"), Production).Keys.Order());
+        Assert.Equal(["keys.auth", "keys.p256dh"], PushShared.Validate(new AddPushDeviceRequest(endpoint, new PushKeysRequest("", ""), "x"), Production).Keys.Order());
+        Assert.Equal(["keys.p256dh"], PushShared.Validate(new AddPushDeviceRequest(endpoint, new PushKeysRequest(new string('k', 201), "secret"), "x"), Production).Keys);
+        Assert.Equal(["keys.auth"], PushShared.Validate(new AddPushDeviceRequest(endpoint, new PushKeysRequest("key", new string('s', 101)), "x"), Production).Keys);
+        Assert.Empty(PushShared.Validate(new AddPushDeviceRequest(endpoint, new PushKeysRequest(new string('k', 200), new string('s', 100)), "x"), Production));
+    }
+
+    [Fact]
+    public void Refuses_a_push_address_too_long_or_missing()
+    {
+        var keys = new PushKeysRequest("key", "secret");
+
+        Assert.Equal(["endpoint"], PushShared.Validate(new AddPushDeviceRequest("https://web.push.apple.com/" + new string('a', 1000), keys, "x"), Production).Keys);
+        Assert.Equal(["endpoint"], PushShared.Validate(new AddPushDeviceRequest(null!, keys, "x"), Production).Keys);
+        Assert.Equal(["endpoint"], PushShared.Validate(new AddPushDeviceRequest("  ", keys, "x"), Production).Keys);
+    }
+
+    [Fact]
     public async Task Removes_a_device()
     {
         var gone = AddDevice("Old", "https://web.push.apple.com/old");

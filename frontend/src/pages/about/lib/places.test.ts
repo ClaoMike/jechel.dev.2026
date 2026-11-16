@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { placeLabel } from './placeLabel'
+import { compareLabels, placeLabel } from './placeLabel'
 import { errorsFor } from './places'
 import { MAP_HEIGHT, MAP_WIDTH, project } from './projection'
 
@@ -8,6 +8,14 @@ describe('places', () => {
     expect(placeLabel({ name: 'Manchester', region: 'England', country: 'United Kingdom' })).toBe('Manchester, England, United Kingdom')
     expect(placeLabel({ name: 'Bucuresti', region: 'Bucureşti', country: 'Romania' })).toBe('Bucuresti, Romania')
     expect(placeLabel({ name: 'Monaco', region: '', country: 'Monaco' })).toBe('Monaco, Monaco')
+  })
+
+  it('sorts labels as a reader would: accents and capitals aside, and the same word always in the same order', () => {
+    expect(['Cardiff', 'bath', 'Århus', 'Aachen', 'Zürich', 'zagreb'].sort(compareLabels)).toEqual(['Aachen', 'Århus', 'bath', 'Cardiff', 'zagreb', 'Zürich'])
+    // Equal but for a capital or an accent: plain order decides, whichever way round they came.
+    expect(['bath', 'Bath'].sort(compareLabels)).toEqual(['Bath', 'bath'])
+    expect(['Bath', 'bath'].sort(compareLabels)).toEqual(['Bath', 'bath'])
+    expect(compareLabels('Bath', 'Bath')).toBe(0)
   })
 
   it("keeps one place's errors, without the places[i]. prefix", () => {
