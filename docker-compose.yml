@@ -29,5 +29,38 @@ services:
       timeout: 3s
       retries: 10
 
+  # The whole site in Docker: docker compose --profile site up -d --build, then http://localhost:8080.
+  # (Without the profile, only the database and Redis start, for running the API and Vite on this machine.)
+  api:
+    profiles: ["site"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: portfolio-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      PORT: "8080"
+      ConnectionStrings__Default: Host=db;Port=5432;Database=portfolio;Username=portfolio;Password=portfolio
+      ConnectionStrings__Redis: redis:6379,abortConnect=false,connectTimeout=2000
+      Database__MigrateOnStartup: "true"
+      # Optional, from a .env file next to this one: Google sign-in for the admin.
+      Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+      Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
+      Auth__AdminEmails__0: ${ADMIN_EMAIL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    profiles: ["site"]
+    build: ./frontend
+    container_name: portfolio-web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
 volumes:
   portfolio-db-data:

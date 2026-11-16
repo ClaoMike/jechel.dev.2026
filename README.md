@@ -58,7 +58,7 @@ How it all works is in [`docs/`](docs/):
 ├── scripts/test.sh                        # every test CI runs, locally (CI itself only runs on the way to main)
 ├── scripts/build_link_preview.mjs         # draws the link preview image (public/og-image.jpg)
 ├── scripts/build_brand_j.py               # draws the "j": the Vice title's first letter and the tab icon
-├── docker-compose.yml                     # local PostgreSQL
+├── docker-compose.yml                     # PostgreSQL and Redis; with --profile site, the whole site
 └── .github/workflows/ci.yml
 ```
 
@@ -95,6 +95,20 @@ dotnet run --project backend/src/Portfolio.Api --launch-profile http
 cd frontend && npm install && npm run dev
 ```
 
+### The whole site in Docker
+
+```bash
+docker compose --profile site up -d --build   # then http://localhost:8080
+docker compose --profile site down            # stop it (the database is kept)
+```
+
+The `site` profile adds the API (`backend/Dockerfile`, in Development, applying migrations on start) and the website
+(`frontend/Dockerfile`: the production build served by nginx, which forwards `/api` to the API, as Cloudflare does
+online) to the database and Redis. Without the profile only those two start, for working on the code as above. Google
+sign-in for the admin needs `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `ADMIN_EMAIL` in a `.env` file next to
+`docker-compose.yml` (git ignores it), and `http://localhost:8080/api/auth/signin-google` among the client's redirect
+URIs. The repo map's **Start / Stop / Reload** buttons run these commands.
+
 ### Dev launcher (macOS)
 
 ```bash
@@ -108,7 +122,7 @@ A small window with buttons. Each opens a new Terminal window running the matchi
 | Start backend      | `docker compose up -d --wait`, then the API                       |
 | Start frontend     | `npm run dev`                                                     |
 | Start website      | Both of the above in two windows. The frontend waits until `/api/health` responds, then opens the site in the browser |
-| Open repo map      | `npm start` in `tools/repomap` (runs `npm install` the first time): builds the 3D architecture map, opens it in the browser and rebuilds it on every change. See [tools/repomap/README.md](tools/repomap/README.md) |
+| Open repo map      | `npm start` in `tools/repomap` (runs `npm install` the first time): builds the architecture map (the Board), opens it in the browser and rebuilds it on every change; its Projects menu opens or creates other projects, and Start / Stop / Reload run them in Docker. See [tools/repomap/README.md](tools/repomap/README.md) |
 | Run backend tests  | `backend/test.sh` (all tests, with coverage), then opens the coverage report in the browser |
 | Run frontend tests | `npm test` in `frontend` (all tests, with coverage), then opens the coverage report in the browser |
 | Run all tests      | Both of the above, one after the other, then both coverage reports |
